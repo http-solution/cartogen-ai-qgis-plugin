@@ -21,7 +21,7 @@ ORDER = [
     "test_jiaf_engine_live", "test_jiaf_review_live", "test_trigger_tools_live", "test_task_grid_tools_live",
     "test_sampling_tools_live", "test_mcda_tools_live", "test_survey_tools_live", "test_humanitarian_style_live",
     "test_processing_registry_diagnostic_live", "test_raster_numpy_live", "test_processing_allowlist_tools_live",
-    "test_script_isolation_reconcile_live", "test_processing_allowlist_all_live", "test_data_source_tools_live", "test_expression_screen_live",
+    "test_script_isolation_reconcile_live", "test_processing_allowlist_all_live", "test_data_source_tools_live", "test_expression_screen_live", "test_attribute_edit_tools_live",
 ]
 
 # module name -> why the CI job does not run it. Remove an entry to start running the module.

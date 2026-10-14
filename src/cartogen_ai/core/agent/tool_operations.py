@@ -158,6 +158,15 @@ TOOL_OPERATION_TYPES = {
     "create_empty_layer": CREATE,   # M1: adds a new layer (and a file when file_path is given, behind the overwrite preview)
     "add_basemap": CREATE,          # M1: adds a tile layer; fetched by QGIS, not by the plugin
     "add_web_layer": CREATE,
+    "select_by_expression": READ,       # M3: selection is not persisted into a saved project (see READ above)
+    "select_all_features": READ,
+    "clear_selection": READ,
+    "delete_features": DELETE,
+    "set_attribute_value": MODIFY,
+    "add_field": MODIFY,
+    "rename_field": MODIFY,
+    "delete_field": DELETE,
+    "add_feature_from_wkt": MODIFY,     # adds a feature to an existing layer
     "find_broken_layers": READ,
     "repair_layer_source": MODIFY,
     "save_layer_as": PUBLISH,

@@ -31,6 +31,32 @@ _TOOL_ALIASES = {
         "scratch layer", "temporary layer", "new geopackage layer", "new shapefile", "layer to digitize", "layer to digitise",
         "empty polygon layer", "empty point layer", "empty line layer", "new table",
     ],
+    "select_by_expression": [
+        "select by expression", "select with an expression", "select where", "select all features where", "select the features where",
+        "add to the selection", "remove from the selection", "narrow the selection", "select features with",
+    ],
+    "select_all_features": ["select all features", "select everything", "select all the features", "select all records"],
+    "clear_selection": [
+        "clear the selection", "clear selection", "deselect", "unselect", "remove the selection", "clear all selections", "select nothing",
+    ],
+    "delete_features": [
+        "delete the selected", "delete features", "delete the features", "delete the selected features", "remove the selected features",
+        "delete all features where", "delete the records", "delete the rows", "delete the polygons where", "delete the points where",
+    ],
+    "set_attribute_value": [
+        "change the value", "set the value", "edit the value", "update the value", "set the field", "change the attribute",
+        "edit the attribute", "change the population of", "set its", "update the attribute", "fill the field",
+    ],
+    "add_field": ["add a field", "add a column", "add a new field", "new column", "add an attribute field", "add a new column", "add field"],
+    "rename_field": ["rename the field", "rename the column", "rename field", "rename column", "rename the attribute"],
+    "delete_field": [
+        "delete the field", "delete the column", "drop the field", "drop the column", "remove the field", "remove the column", "delete field",
+        "delete column",
+    ],
+    "add_feature_from_wkt": [
+        "add a feature", "add a new feature", "add this wkt", "from wkt", "add the geometry", "add a polygon to", "add a line to",
+        "add a point to the layer", "wkt",
+    ],
     "find_broken_layers": [
         "broken layer", "broken layers", "broken path", "broken paths", "missing layer", "layer not found", "layers with a red",
         "unavailable layer", "fix the paths", "data source is missing", "lost layer", "moved the file",
