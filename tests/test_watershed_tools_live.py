@@ -56,8 +56,11 @@ class TestDelineateWatershedLive(unittest.TestCase):
         res = delineate_watershed(location="32° 1'47.39\"N, 35°48'21.00\"E", return_period_years=20, snap_distance_m=0)
         self.assertTrue(res.get("success"), res)
         m = res["measurements"]
-        self.assertGreater(m["watershed_area_km2"], 1.0)                  # about 25 columns x 61 rows of ~800 m2 cells
-        self.assertLess(m["watershed_area_km2"], 1.6)
+        # The left valley of this 80-column DEM spans about 40 columns (the ridge is at column ~37 and ties drain left) x 61 rows (0..60) of
+        # 26.2 m x 30.7 m cells (~805 m2): about 2 440 cells = 1.96 km2. The first CI run measured 1.9647 km2, i.e. the tool was right and the
+        # bound copied from the 50-column unit test was wrong.
+        self.assertGreater(m["watershed_area_km2"], 1.5)
+        self.assertLess(m["watershed_area_km2"], 2.2)
         self.assertGreater(m["longest_hydraulic_flow_path_km"], 1.7)
         self.assertLess(m["longest_hydraulic_flow_path_km"], 2.6)
         self.assertGreater(m["H_elevation_drop_m"], 0)
