@@ -2722,3 +2722,5 @@ cause not found), and 49 rows not run.
 **Update 2026-10-14: rc41 cut** (fixes from the rc40 hand test: Stop during a model call, honest script edits to file layers, styled raster kept, task-template defaults only where a tool uses them, routing words, Bandit marks). #137 closed and #304 resolved by owner decision (recommended options). CI-checked, not hand-tested.
 
 **Update 2026-10-14: 1.16.1 (stable) prepared.** Same code as rc41; version number and release text only. Needed because plugins.qgis.org takes a stable version number. The rc41 fixes are CI-checked, not hand-tested; the open hand-test rows are listed in the 1.16.1 notes.
+
+**Update 2026-10-14: 1.16.2 (stable) prepared.** A failed boundary download no longer ends with points drawn from memory (tool results tell the model not to substitute). Otherwise 1.16.1 unchanged. CI-checked; the model-side effect is not tried against a real model.

@@ -20,14 +20,14 @@
   <a href="https://cartogenai.com"><img src="https://img.shields.io/badge/website-cartogenai.com-0b6efd" alt="Website"></a>
 </p>
 
-**Community edition · Version 1.16.1 · GNU GPL v2 · QGIS 4.2–4.99 · [cartogenai.com](https://cartogenai.com)**
+**Community edition · Version 1.16.2 · GNU GPL v2 · QGIS 4.2–4.99 · [cartogenai.com](https://cartogenai.com)**
 
 Cartogen AI is built for GIS analysts, humanitarian teams, researchers, and anyone who
 needs to move from a question to a reproducible spatial result without leaving QGIS.
 The agent exposes its plan, tool calls, progress, and errors instead of returning a
 black-box answer.
 
-> **Project status (2026-10-06):** active Community edition, currently at the **1.16.1 stable** build build build (rc20 to rc40 add the audit fixes, hand-test fixes and the cost and routing work made after rc19).
+> **Project status (2026-10-06):** active Community edition, currently at the **1.16.2 stable** build (rc20 to 1.16.2 add the audit fixes, hand-test fixes and the cost and routing work made after rc19).
 > - **Tests:** 3,570 automated tests, 0 failures in the offline run; the live-QGIS tests (and any needing optional libraries) are skipped there and
 >   the QGIS ones run in CI (the `qgis-live-tests` job, QGIS 4.2.2).
 > - **Architectural audit:** an external audit of rc12 raised 32 findings, filed as issues #137-#168 (tracking issue #169). The 15
@@ -86,6 +86,14 @@ black-box answer.
   a restricted execution sandbox for model-generated PyQGIS scripts, fail-closed
   read-only SQL enforcement, an SSRF guard on fetched URLs, and a destructive-action
   confirmation gate the model cannot self-approve.
+
+## What's new in 1.16.2
+
+Built on 1.16.1. Offline tests and the QGIS 4.2.2 live checks in CI pass; **not hand-tested** in desktop QGIS unless an item says so. Full list: the `v1.16.2` block in [metadata.txt](metadata.txt) and [CHANGELOG.md](CHANGELOG.md).
+
+- No substitute for a failed boundary download: In a Jordan ADM1 request both boundary downloads failed, and the assistant then drew 12 governorate capitals from coordinates it remembered and titled the reply 'Jordan ADM1 Layer Created'. Points are not boundaries and remembered positions are unverified. Every failure message of fetch_geoboundaries and fetch_hdx_admin_boundaries now tells the model not to substitute points, capitals or polygons, to say the download failed and why, and to offer the other source or a boundary file you already have. It is an instruction to the model, not a block: the 'Unverified point positions' flag from rc40 stays as the backstop. Checked by an offline test; not tried against a real model.
+- Still failing on some machines: The geoBoundaries file download still fails with 'HTTP Error 500: Domain Not Found' on the machine where it was reported. That points to DNS or a proxy on that machine (issue 305); this release does not change it. If it happens to you, check that github.com opens in a browser and what QGIS has under Settings, Options, Network.
+- Same code otherwise: Everything else is 1.16.1 unchanged. The fixes of 1.16.0-rc41 and 1.16.1 (Stop during a model call, honest script edits, raster style kept, template defaults, routing words) are still checked by the offline suite and CI only, not by hand.
 
 ## What's new in 1.16.1
 
@@ -428,7 +436,7 @@ strategic orchestration. The full catalogue -- what each tool does, what it draw
 in [docs/HUMANITARIAN_TOOLS_CATALOGUE.md](docs/HUMANITARIAN_TOOLS_CATALOGUE.md); exact arguments are in
 [docs/TOOLS_REFERENCE.md](docs/TOOLS_REFERENCE.md), and what is still missing is in
 [docs/HUMANITARIAN_WORKFLOW_GAP_ANALYSIS_2026-10-04.md](docs/HUMANITARIAN_WORKFLOW_GAP_ANALYSIS_2026-10-04.md).
-No tool was added in 1.16.1, so none is marked **new**; the newest are `search_fact_checks` (1.16.0-rc40) and `find_incident_reports` (1.16.0-rc37), tested offline and in CI on QGIS 4.2.2 and, for the rc37 tool, in the rc40 hand test.
+No tool was added in 1.16.2, so none is marked **new**; the newest are `search_fact_checks` (1.16.0-rc40) and `find_incident_reports` (1.16.0-rc37), tested offline and in CI on QGIS 4.2.2 and, for the rc37 tool, in the rc40 hand test.
 
 | Workflow | Tools |
 |---|---|

@@ -7,6 +7,7 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 | Version | Date | Summary |
 |---|---|---|
+| [1.16.2](#v1-16-2) | 2026-10-14 | **Stable release 1.16.2.** No breaking changes -- requires QGIS 4.2+. A failed boundary download no longer ends with points drawn from memory. |
 | [1.16.1](#v1-16-1) | 2026-10-14 | **Stable release 1.16.1.** No breaking changes -- requires QGIS 4.2+. The stable build of the 1.16 line; same code as rc41. |
 | [1.16.0-rc41](#v1-16-0-rc41) | 2026-10-14 | **Release candidate 41 for 1.16.0.** No breaking changes -- still requires QGIS 4.2+. Fixes from the rc40 hand test: Stop during a model call, honest script edits, raster styling kept, template defaults only where used. |
 | [1.16.0-rc40](#v1-16-0-rc40) | 2026-10-13 | **Release candidate 40 for 1.16.0.** No breaking changes. New search_fact_checks tool, point positions the model typed are flagged, depot layers merge inside optimize_delivery_route, analysis fields written through the edit session, redirected downloads retried through QGIS's network stack, security alerts fixed. Not hand-tested. |
@@ -83,6 +84,15 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 The detailed narrative entries below are unchanged -- this table is purely an additive index on
 top of them.
+
+<a id="v1-16-2"></a>
+## [1.16.2] — 2026-10-14 — Stable release 1.16.2: No breaking changes -- requires QGIS 4.2+. A failed boundary download no longer ends with points drawn from memory.
+
+No breaking changes; QGIS 4.2+. Everything after the 1.16.1 build:
+
+- No substitute for a failed boundary download: In a Jordan ADM1 request both boundary downloads failed, and the assistant then drew 12 governorate capitals from coordinates it remembered and titled the reply 'Jordan ADM1 Layer Created'. Points are not boundaries and remembered positions are unverified. Every failure message of fetch_geoboundaries and fetch_hdx_admin_boundaries now tells the model not to substitute points, capitals or polygons, to say the download failed and why, and to offer the other source or a boundary file you already have. It is an instruction to the model, not a block: the 'Unverified point positions' flag from rc40 stays as the backstop. Checked by an offline test; not tried against a real model.
+- Still failing on some machines: The geoBoundaries file download still fails with 'HTTP Error 500: Domain Not Found' on the machine where it was reported. That points to DNS or a proxy on that machine (issue 305); this release does not change it. If it happens to you, check that github.com opens in a browser and what QGIS has under Settings, Options, Network.
+- Same code otherwise: Everything else is 1.16.1 unchanged. The fixes of 1.16.0-rc41 and 1.16.1 (Stop during a model call, honest script edits, raster style kept, template defaults, routing words) are still checked by the offline suite and CI only, not by hand.
 
 <a id="v1-16-1"></a>
 ## [1.16.1] — 2026-10-14 — Stable release 1.16.1: No breaking changes -- requires QGIS 4.2+. The stable build of the 1.16 line; same code as rc41.
