@@ -32,7 +32,10 @@ The owner reported four regressions from live demos. They are acceptance scenari
 | S3 | "Find the information on the internet and give the source" | `search_web` needs the `ddgs` package, absent in clean installs; grounded search works only with Gemini and OpenAI | search path without extra dependencies; every answer lists URL and date | offline fixtures |
 | S4 | "Check the internet for major incidents from the news and list them on the map" | `find_incident_reports` uses fixed official sources only (rc37); no news, geocode, plot path | news search, geocoding, points with link, date and "reported by" wording; no model-typed coordinates | offline fixtures |
 
-Policy decisions taken with this pack: model-written expressions may not call `env()` or the file functions (they can still be used when the user types the expression or asks for them, after a confirmation); the raster calculator is `native:rastercalc` with a friendly wrapper, added after the expression screen.
+Policy decisions (owner, 2026-10-14):
+- `env()` is denied in model-written expressions. The file functions (`file_exists`, `file_path`, `file_name`, `base_file_name`, `file_suffix`, `file_size`, `is_file`, `is_directory`) are denied **on condition that nothing the plugin does depends on them**. Checked: the plugin's own code calls none of them as QGIS expression functions (the grep hits are unrelated Python helpers), so denying them breaks no existing feature. The rule is a regression test: a model-written expression using a denied name is refused with a clear message, and every expression the plugin generates itself still passes the screen. Expressions the user types, or asks for by name, are allowed after a confirmation.
+- The raster calculator is `native:rastercalc` with a friendly wrapper, added after the expression screen.
+- Order: M0 to M9 and S1 to S4 as agreed above. Further showcase scenarios are planned only after those are done; each will be added here as a row with its own test.
 
 ## 3. Milestones
 
