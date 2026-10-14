@@ -20,14 +20,14 @@
   <a href="https://cartogenai.com"><img src="https://img.shields.io/badge/website-cartogenai.com-0b6efd" alt="Website"></a>
 </p>
 
-**Community edition · Version 1.16.2 · GNU GPL v2 · QGIS 4.2–4.99 · [cartogenai.com](https://cartogenai.com)**
+**Community edition · Version 1.16.3 · GNU GPL v2 · QGIS 4.2–4.99 · [cartogenai.com](https://cartogenai.com)**
 
 Cartogen AI is built for GIS analysts, humanitarian teams, researchers, and anyone who
 needs to move from a question to a reproducible spatial result without leaving QGIS.
 The agent exposes its plan, tool calls, progress, and errors instead of returning a
 black-box answer.
 
-> **Project status (2026-10-06):** active Community edition, currently at the **1.16.2 stable** build (rc20 to 1.16.2 add the audit fixes, hand-test fixes and the cost and routing work made after rc19).
+> **Project status (2026-10-06):** active Community edition, currently at the **1.16.3 stable** build (rc20 to 1.16.3 add the audit fixes, hand-test fixes and the cost and routing work made after rc19).
 > - **Tests:** 3,570 automated tests, 0 failures in the offline run; the live-QGIS tests (and any needing optional libraries) are skipped there and
 >   the QGIS ones run in CI (the `qgis-live-tests` job, QGIS 4.2.2).
 > - **Architectural audit:** an external audit of rc12 raised 32 findings, filed as issues #137-#168 (tracking issue #169). The 15
@@ -86,6 +86,17 @@ black-box answer.
   a restricted execution sandbox for model-generated PyQGIS scripts, fail-closed
   read-only SQL enforcement, an SSRF guard on fetched URLs, and a destructive-action
   confirmation gate the model cannot self-approve.
+
+## What's new in 1.16.3
+
+Built on 1.16.2. Offline tests and the QGIS 4.2.2 live checks in CI pass; **not hand-tested** in desktop QGIS unless an item says so. Full list: the `v1.16.3` block in [metadata.txt](metadata.txt) and [CHANGELOG.md](CHANGELOG.md).
+
+- Plain requests are offered their tools again: Since 1.16.0-rc23 a short request such as 'create layer for Jordan ADM1', 'zoom to the layer X', 'remove the layer X' or 'export X to CSV' was no longer offered add_layer_from_path, zoom_to_layer, get_layer_extent, remove_layer, export_layer, reproject_layer, clip_layer and the other layer tools: the cost work had removed generic words such as layer, add, create and export from tool matching for every request, and ties were then broken alphabetically. The model never saw the tool and answered that none was available. The discount now applies only to requests of more than 25 words, as designed. Found by replaying 40 plain requests through the router of all 43 releases from rc12 to 1.16.2.
+- Boundary tools for ADM codes: 'Jordan ADM1', 'ADM2 districts', 'governorates of Syria', 'admin boundaries' and 'P-code' now offer fetch_geoboundaries and fetch_hdx_admin_boundaries.
+- Long requests and raster styling: 'Style the result with a green to red colour ramp' now offers apply_raster_stretch, and 'style them with a pale fill and a grey outline' offers a tool that can change a fill or an outline (neither was offered before). 16 long requests are checked by the new guard.
+- QGIS vocabulary and Processing tools: Eight plain phrases that missed their tool now reach it (symmetrical difference, k-means, DBSCAN, reclassify a raster, sample raster values, how many features, categorize the layer, create a grid). Thirteen everyday actions that have no tool (extract vertices, densify, polygons to lines, random points, split layer, raster calculator, polygonize, rasterize, viewshed, basemap, measure and others) now at least get the script fallback and find_tools instead of nothing. All 42 allow-listed Processing algorithms are reachable from a plain request.
+- Permanent guards: tests/test_tool_router_basics.py (44 plain and long requests), tests/test_qgis_vocabulary_coverage.py (91 phrases), tests/test_processing_allowlist_routing.py (every allow-listed algorithm) and tests/test_recorded_sessions_replay.py (26 real sessions replayed through the agent loop) fail the build when a change drops a tool a plain request needs. tools/replay_router_across_releases.py repeats the comparison across releases; the audit is in docs/ROUTER_REGRESSION_AUDIT_2026-10-14.md.
+- Not hand-tested: All of the above is checked by the offline suite and CI. It checks which tools the model is offered, not what the model then does with them; the 1.16.2 and rc41 fixes (Stop during a model call, honest script edits, raster style kept, template defaults, boundary-failure wording) are also still not hand-tested. The 13 actions without a tool still need a script or a future Processing allow-list entry (owner decision, see the audit note).
 
 ## What's new in 1.16.2
 
@@ -436,7 +447,7 @@ strategic orchestration. The full catalogue -- what each tool does, what it draw
 in [docs/HUMANITARIAN_TOOLS_CATALOGUE.md](docs/HUMANITARIAN_TOOLS_CATALOGUE.md); exact arguments are in
 [docs/TOOLS_REFERENCE.md](docs/TOOLS_REFERENCE.md), and what is still missing is in
 [docs/HUMANITARIAN_WORKFLOW_GAP_ANALYSIS_2026-10-04.md](docs/HUMANITARIAN_WORKFLOW_GAP_ANALYSIS_2026-10-04.md).
-No tool was added in 1.16.2, so none is marked **new**; the newest are `search_fact_checks` (1.16.0-rc40) and `find_incident_reports` (1.16.0-rc37), tested offline and in CI on QGIS 4.2.2 and, for the rc37 tool, in the rc40 hand test.
+No tool was added in 1.16.3, so none is marked **new**; the newest are `search_fact_checks` (1.16.0-rc40) and `find_incident_reports` (1.16.0-rc37), tested offline and in CI on QGIS 4.2.2 and, for the rc37 tool, in the rc40 hand test.
 
 | Workflow | Tools |
 |---|---|

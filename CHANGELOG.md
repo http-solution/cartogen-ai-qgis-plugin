@@ -7,6 +7,7 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 | Version | Date | Summary |
 |---|---|---|
+| [1.16.3](#v1-16-3) | 2026-10-14 | **Stable release 1.16.3.** No breaking changes -- requires QGIS 4.2+. Plain requests such as 'create layer for Jordan ADM1' are offered their tools again (broken since rc23). |
 | [1.16.2](#v1-16-2) | 2026-10-14 | **Stable release 1.16.2.** No breaking changes -- requires QGIS 4.2+. A failed boundary download no longer ends with points drawn from memory. |
 | [1.16.1](#v1-16-1) | 2026-10-14 | **Stable release 1.16.1.** No breaking changes -- requires QGIS 4.2+. The stable build of the 1.16 line; same code as rc41. |
 | [1.16.0-rc41](#v1-16-0-rc41) | 2026-10-14 | **Release candidate 41 for 1.16.0.** No breaking changes -- still requires QGIS 4.2+. Fixes from the rc40 hand test: Stop during a model call, honest script edits, raster styling kept, template defaults only where used. |
@@ -84,6 +85,18 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 The detailed narrative entries below are unchanged -- this table is purely an additive index on
 top of them.
+
+<a id="v1-16-3"></a>
+## [1.16.3] — 2026-10-14 — Stable release 1.16.3: No breaking changes -- requires QGIS 4.2+. Plain requests such as 'create layer for Jordan ADM1' are offered their tools again (broken since rc23).
+
+No breaking changes; QGIS 4.2+. Everything after the 1.16.2 build:
+
+- Plain requests are offered their tools again: Since 1.16.0-rc23 a short request such as 'create layer for Jordan ADM1', 'zoom to the layer X', 'remove the layer X' or 'export X to CSV' was no longer offered add_layer_from_path, zoom_to_layer, get_layer_extent, remove_layer, export_layer, reproject_layer, clip_layer and the other layer tools: the cost work had removed generic words such as layer, add, create and export from tool matching for every request, and ties were then broken alphabetically. The model never saw the tool and answered that none was available. The discount now applies only to requests of more than 25 words, as designed. Found by replaying 40 plain requests through the router of all 43 releases from rc12 to 1.16.2.
+- Boundary tools for ADM codes: 'Jordan ADM1', 'ADM2 districts', 'governorates of Syria', 'admin boundaries' and 'P-code' now offer fetch_geoboundaries and fetch_hdx_admin_boundaries.
+- Long requests and raster styling: 'Style the result with a green to red colour ramp' now offers apply_raster_stretch, and 'style them with a pale fill and a grey outline' offers a tool that can change a fill or an outline (neither was offered before). 16 long requests are checked by the new guard.
+- QGIS vocabulary and Processing tools: Eight plain phrases that missed their tool now reach it (symmetrical difference, k-means, DBSCAN, reclassify a raster, sample raster values, how many features, categorize the layer, create a grid). Thirteen everyday actions that have no tool (extract vertices, densify, polygons to lines, random points, split layer, raster calculator, polygonize, rasterize, viewshed, basemap, measure and others) now at least get the script fallback and find_tools instead of nothing. All 42 allow-listed Processing algorithms are reachable from a plain request.
+- Permanent guards: tests/test_tool_router_basics.py (44 plain and long requests), tests/test_qgis_vocabulary_coverage.py (91 phrases), tests/test_processing_allowlist_routing.py (every allow-listed algorithm) and tests/test_recorded_sessions_replay.py (26 real sessions replayed through the agent loop) fail the build when a change drops a tool a plain request needs. tools/replay_router_across_releases.py repeats the comparison across releases; the audit is in docs/ROUTER_REGRESSION_AUDIT_2026-10-14.md.
+- Not hand-tested: All of the above is checked by the offline suite and CI. It checks which tools the model is offered, not what the model then does with them; the 1.16.2 and rc41 fixes (Stop during a model call, honest script edits, raster style kept, template defaults, boundary-failure wording) are also still not hand-tested. The 13 actions without a tool still need a script or a future Processing allow-list entry (owner decision, see the audit note).
 
 <a id="v1-16-2"></a>
 ## [1.16.2] — 2026-10-14 — Stable release 1.16.2: No breaking changes -- requires QGIS 4.2+. A failed boundary download no longer ends with points drawn from memory.
