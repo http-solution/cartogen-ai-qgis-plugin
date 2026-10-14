@@ -82,6 +82,16 @@ _TOOL_ALIASES = {
         "beyond one hour", "beyond an hour", "beyond 1 hour", "beyond 30 minutes", "by road", "outside the service area",
         "within reach of", "out of reach", "cannot be reached within", "not reachable within",
     ],
+    # rc41 hand test: "create layer for Jordan ADM1" selected neither boundary tool (no shared words), so the model said no boundary fetcher was
+    # "active in this tool configuration" without trying. ADM codes and the usual names for the levels are the way people ask for these.
+    "fetch_geoboundaries": [
+        "adm0", "adm1", "adm2", "adm3", "adm4", "adm5", "admin boundar", "administrative boundar", "admin level",
+        "governorate", "province boundar", "district boundar", "region boundar", "country boundar", "state boundar",
+    ],
+    "fetch_hdx_admin_boundaries": [
+        "adm0", "adm1", "adm2", "adm3", "adm4", "adm5", "admin boundar", "administrative boundar", "admin level",
+        "governorate", "province boundar", "district boundar", "p-code", "pcode", "cod-ab",
+    ],
     "geocode_and_enrich": [
         "hospital", "hospitals", "clinic", "clinics", "health facilit",
         "geocode", "find the location of", "where is",
