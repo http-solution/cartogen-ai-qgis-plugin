@@ -7,6 +7,7 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 | Version | Date | Summary |
 |---|---|---|
+| [1.16.1](#v1-16-1) | 2026-10-14 | **Stable release 1.16.1.** No breaking changes -- requires QGIS 4.2+. The stable build of the 1.16 line; same code as rc41. |
 | [1.16.0-rc41](#v1-16-0-rc41) | 2026-10-14 | **Release candidate 41 for 1.16.0.** No breaking changes -- still requires QGIS 4.2+. Fixes from the rc40 hand test: Stop during a model call, honest script edits, raster styling kept, template defaults only where used. |
 | [1.16.0-rc40](#v1-16-0-rc40) | 2026-10-13 | **Release candidate 40 for 1.16.0.** No breaking changes. New search_fact_checks tool, point positions the model typed are flagged, depot layers merge inside optimize_delivery_route, analysis fields written through the edit session, redirected downloads retried through QGIS's network stack, security alerts fixed. Not hand-tested. |
 | [1.16.0-rc39](#v1-16-0-rc39) | 2026-10-13 | **Release candidate 39 for 1.16.0.** No breaking changes. The assistant no longer invents records to fill an empty map layer (found in the rc37 hand test). Not hand-tested. |
@@ -82,6 +83,16 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 The detailed narrative entries below are unchanged -- this table is purely an additive index on
 top of them.
+
+<a id="v1-16-1"></a>
+## [1.16.1] — 2026-10-14 — Stable release 1.16.1: No breaking changes -- requires QGIS 4.2+. The stable build of the 1.16 line; same code as rc41.
+
+No breaking changes; QGIS 4.2+. Everything after the 1.16.0-rc41 build:
+
+- First stable release of 1.16: 1.16.1 is the stable build of the 1.16 line. It contains exactly the code of 1.16.0-rc41 and nothing else: the version number no longer carries 'pre-release'. The 1.16 line adds the audit fixes, the cost and routing work, the incident, earthquake, conflict-event and fact-check tools, point-position flags, and the fixes from the rc37 and rc40 hand tests (rc20 to rc41; full list in CHANGELOG.md).
+- What was hand-tested: The rc40 build was hand-tested on Windows with QGIS 4.2.2 and Gemini (67 rows: 42 pass, 14 fail, 11 not run); 19 issues were closed from it and the failures were fixed in rc41 or traced to wrong test rows. Upgrading from rc39 to rc40 was checked by the owner. The rc41 fixes are checked by the offline suite and CI only, including live checks in QGIS 4.2.2.
+- Not yet hand-tested in 1.16.1: Stop during a model call, the raster-style follow-up, honest script edits to file layers, task-template defaults, the routing words for access by road, the Memory dialog line and the cloud-card text. The corrected live-test rows for them are in docs/FULL_LIVE_TEST_open_issues_ROWS.csv. Report anything that fails at https://github.com/http-solution/cartogen-ai-qgis-plugin/issues.
+- Changes from rc41: None in code. Version number and release text only.
 
 <a id="v1-16-0-rc41"></a>
 ## [1.16.0-rc41] — 2026-10-14 — Release candidate 41 for 1.16.0: No breaking changes -- still requires QGIS 4.2+. Fixes from the rc40 hand test: Stop during a model call, honest script edits, raster styling kept, template defaults only where used.
