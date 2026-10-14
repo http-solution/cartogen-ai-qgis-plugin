@@ -24,6 +24,18 @@ from ...infrastructure.settings_keys import (
 from ..logger import log_warning, log_error, log_event
 
 
+def describe_project_memory_storage(persist_enabled) -> str:
+    """One line for the Memory dialog saying where the notes below live. rc40 hand test OI-95: the dialog listed notes the tester
+    never asked for (layer styling remembered for the next similar map) with no sign of whether they were written to the project
+    file, so it read as saved without consent. Notes are always kept in memory for the session; they reach the project file and
+    its sidecar only when the persist setting is on."""
+    if persist_enabled:
+        return ("Saved with the project: ON. These notes are written to the project file and its sidecar database. "
+                "Turn this off in Settings to keep them for this session only.")
+    return ("Saved with the project: OFF. These notes exist only in this session and are gone when QGIS closes. "
+            "Nothing below is written to the project file.")
+
+
 def is_project_memory_persist_enabled() -> bool:
     """Whether project-scoped memory notes should be written to the two
     persistent, shareable locations (the sidecar SQLite file next to the

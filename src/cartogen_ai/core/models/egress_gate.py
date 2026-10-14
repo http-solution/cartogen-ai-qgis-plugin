@@ -331,7 +331,9 @@ def preview_required(tool_name, arguments, decision):
             "which this deployment's cloud data protection setting blocks by default. "
             "Confirming overrides that block for this one call only -- do this only if you "
             "(the user) have decided this specific data may leave this machine. Switching to a "
-            "local provider (e.g. Ollama) in Settings avoids needing to override anything."
+            "local provider (e.g. Ollama) in Settings avoids needing to override anything. "
+            "Separately from this call: the names, field names, field types, CRS and feature counts of every layer in the project "
+            "are always visible to the cloud model, whatever you decide here (rc40 hand test, #93)."
         ),
         "code_snippet": "",
         "is_destructive": True,

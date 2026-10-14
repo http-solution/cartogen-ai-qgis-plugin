@@ -23,6 +23,12 @@ class TestSatisfied(unittest.TestCase):
         self.assertFalse(router.satisfied(c, ["add_layer_from_path", "apply_labels"]))
         self.assertTrue(router.satisfied(c, ["add_layer_from_path", "generate_html_dashboard"]))
 
+    def test_a_layer_contract_is_met_by_a_styling_tool(self):
+        # rc40 hand test OI-128: "style the raster" was followed by a nudge to call apply_categorized_style
+        c = {"kind": "layer", "render": ["apply_categorized_style"]}
+        self.assertTrue(router.satisfied(c, ["apply_raster_stretch"]))
+        self.assertFalse(router.satisfied(c, ["get_layers"]))
+
     def test_layout_needs_a_layout_tool(self):
         c = {"kind": "layout", "render": ["create_print_layout", "print_map"]}
         self.assertFalse(router.satisfied(c, ["zoom_to_layer"]))

@@ -252,6 +252,11 @@ def find_incident_reports_network_phase(country=None, bbox=None, days=30, source
 
 # ------------------------------------------------------------------------------------------------------------ main-thread phase --
 
+WORDING_NOTE = ("Say 'reported by <source>', never 'verified'. A record's presence in USGS, GDACS, EONET, UCDP or ReliefWeb means that agency "
+                "reported it; it does not mean this tool or the user's question about 'verified' incidents has been answered. Do not use "
+                "'Verified' as a heading or 'verified by' for any record.")
+
+
 def _reply_text(fetch_result, mapped, layer_name):
     checked = ", ".join(f"{c['name']} ({c['records']})" for c in fetch_result["sources_checked"]) or "none"
     failed = "; ".join(f"{f['name']}: {f['error'][:80]}" for f in fetch_result["sources_failed"])
@@ -275,7 +280,7 @@ def add_incident_reports_layer_main_thread_phase(fetch_result, layer_name="Incid
             "sources_checked": fetch_result["sources_checked"], "sources_failed": fetch_result["sources_failed"],
             "not_searched": fetch_result["not_searched"], "since": fetch_result["since"],
             "reports": [{k: r[k] for k in ("source_name", "tier", "kind", "title", "date", "country", "url", "detail")} for r in records[:40]],
-            "unmapped_reports": len(unmapped)}
+            "unmapped_reports": len(unmapped), "wording_note": WORDING_NOTE}
     if not QGIS_AVAILABLE:
         base["message"] = _reply_text(fetch_result, len(mappable), layer_name)
         return base

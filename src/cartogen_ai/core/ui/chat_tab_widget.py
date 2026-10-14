@@ -1017,12 +1017,19 @@ class ChatTabWidget(QWidget):
         self.input_edit.setPlainText(self._starter_prompts[index])
         self.input_edit.setFocus()
 
+    def _say_request_in_flight(self):
+        if self.input_edit.toPlainText().strip():
+            self._dock.statusSignal.emit("Still working on the previous request: your message is kept in the box. "
+                                         "Send it when this one finishes, or press Stop.")
+
     def send_message(self):
         if not self.send_btn.isEnabled():
             # A request is already in flight. send_btn.setEnabled(False) blocks
             # a second click, but ChatInputEdit.keyPressEvent emits
             # sendRequested on Enter unconditionally -- without this check,
             # Enter could still start a second, overlapping turn.
+            # rc40 hand test OI-97: 4 of 20 messages sent while a reply was running vanished without a word; say what happened.
+            self._say_request_in_flight()
             return
         text = self.input_edit.toPlainText().strip()
         if not text:

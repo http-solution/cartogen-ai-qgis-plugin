@@ -42,6 +42,14 @@ _LAYER_CREATOR_PREFIXES = ("add_", "create_", "fetch_", "load_", "geocode_", "in
 _LAYER_CREATOR_TOOLS = frozenset({"find_incident_reports"})
 
 
+# Styling tools. A request like "style the raster with a colour ramp" has a layer contract, and the style was applied by
+# apply_raster_stretch, which is not in the contract's own render list. rc40 hand test OI-128: the missing-deliverable follow-up
+# told the model to call apply_categorized_style, and the model re-ran apply_raster_stretch in plain stretch mode, which replaced
+# the ramp that had just been applied with a grey one.
+_STYLE_TOOLS = frozenset({"apply_raster_stretch", "apply_categorized_style", "apply_graduated_style", "apply_graduated_symbol_style",
+                          "apply_rule_based_style", "apply_heatmap_style", "apply_point_cluster_style", "apply_labels"})
+
+
 def _creates_layer(tool):
     return tool in _LAYER_CREATOR_TOOLS or tool.startswith(_LAYER_CREATOR_PREFIXES)
 
@@ -67,7 +75,7 @@ def satisfied(contract, executed_tools):
         # A layer contract is met by anything that puts a layer on the canvas,
         # not only by the two styling tools in `render` -- styling an
         # unstyleable layer is not a failure to deliver.
-        return any(_creates_layer(t) or t in needed for t in ran)
+        return any(_creates_layer(t) or t in _STYLE_TOOLS or t in needed for t in ran)
     return any(t in ran for t in needed)
 
 

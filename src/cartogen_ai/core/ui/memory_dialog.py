@@ -69,6 +69,10 @@ class CartogenAiMemoryDialog(QDialog):
         self.memory_search_edit.textChanged.connect(self._on_memory_search_changed)
         layout.addWidget(self.memory_search_edit)
 
+        self.storage_label = QLabel("")
+        self.storage_label.setWordWrap(True)
+        layout.addWidget(self.storage_label)
+
         self.memory_browser = QTextBrowser()
         self.memory_browser.setPlaceholderText("Project Notes and Memory...")
         layout.addWidget(self.memory_browser, stretch=1)
@@ -94,6 +98,8 @@ class CartogenAiMemoryDialog(QDialog):
         settings_dialog.py's own "read live state when opened" pattern), not kept
         continuously synced while the dialog is up (it's a short-lived modal, not a
         permanently docked panel like the old tab was)."""
+        from ..agent.memory import describe_project_memory_storage, is_project_memory_persist_enabled
+        self.storage_label.setText(describe_project_memory_storage(is_project_memory_persist_enabled()))
         agent = self._agent_provider() if self._agent_provider else None
         if agent is None or not hasattr(agent, "memory_manager"):
             # rc7 smoke test, 2026-09-30 (F24): this used to return silently, so an operator saw an
