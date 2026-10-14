@@ -158,6 +158,7 @@ TOOL_OPERATION_TYPES = {
     "create_empty_layer": CREATE,   # M1: adds a new layer (and a file when file_path is given, behind the overwrite preview)
     "add_basemap": CREATE,          # M1: adds a tile layer; fetched by QGIS, not by the plugin
     "add_web_layer": CREATE,
+    "find_processing_algorithm": READ,
     "create_layer_group": CREATE,
     "move_layers_to_group": MODIFY,
     "set_group_options": MODIFY,

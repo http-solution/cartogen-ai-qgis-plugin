@@ -4,7 +4,7 @@ must get a row here, which the first test enforces. Checks what is OFFERED, not 
 import unittest
 
 from cartogen_ai.core.agent.tools import TOOLS_SCHEMA
-from cartogen_ai.core.agent.tools._processing_allowlist import ALLOWED_ALGORITHM_IDS
+from cartogen_ai.core.agent.tools._processing_allowlist import ALLOWED_ALGORITHM_IDS, GEOMETRY_FAMILY
 from cartogen_ai.core.services.tool_router import ToolRouter
 
 PROCESSING_TOOL = "run_allowlisted_processing_algorithm"
@@ -53,6 +53,24 @@ ROWS = {
     "qgis:statisticsbycategories": ("statistics by categories", None),
     "qgis:tininterpolation": ("tin interpolation", "interpolate_surface"),
 }
+
+
+# M6a geometry family: the plain request is the algorithm's own display name in lower case, without the bracketed part
+# ("Concave hull (by layer)" -> "concave hull"). A one-word name is asked for the way a user would say it.
+_ONE_WORD_REQUESTS = {"Boundary": "get the boundary of the polygons", "Polygonize": "polygonize the lines", "Roundness": "calculate the roundness of the polygons",
+                      "Extrude": "extrude the lines", "Rotate": "rotate the features by 45 degrees", "Smooth": "smooth the lines",
+                      "Subdivide": "subdivide the polygons", "Translate": "translate the features by 100 m"}
+
+
+def _plain_request(name):
+    import re
+    if name in _ONE_WORD_REQUESTS:
+        return _ONE_WORD_REQUESTS[name]
+    return " ".join(re.sub(r"[^a-z0-9 ]", " ", re.sub(r"\(.*?\)", "", name).lower()).split())
+
+
+for _alg_id, _name in GEOMETRY_FAMILY.items():
+    ROWS[_alg_id] = (_plain_request(_name), None)
 
 
 class TestAllowlistedAlgorithmsAreReachable(unittest.TestCase):

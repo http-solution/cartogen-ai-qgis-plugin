@@ -73,6 +73,94 @@ ANALYSIS_EXTENSIONS = frozenset({
 })
 ALLOWED_ALGORITHM_IDS = frozenset(set(ALLOWED_ALGORITHM_IDS) | set(ANALYSIS_EXTENSIONS))
 
+
+# M6a (roadmap 2026-10-14): the geometry family. Rule, applied mechanically to docs/qgis_coverage/processing_matrix.csv (772 algorithms
+# dumped from the real QGIS 4.2.2 registry): disposition CANDIDATE, wave '2A geometry', and every parameter is one of source / sink /
+# number / distance / area / boolean / enum / field / extent / point. No expression, string, file, raster, band or multi-layer parameter,
+# so "no code runs" and "output is memory only" both still hold. The 10 geometry candidates that failed the rule stay off (extract M/Z,
+# specific vertices, line intersections with a string, the three multi-layer overlays, set Z/M from raster, eliminate selected). An id stays
+# here only while tests/test_processing_allowlist_all_live.py runs it successfully in real QGIS; a failing one is moved to NOT_YET with
+# the reason in tests/_processing_live_rows.py (GEOMETRY_REJECTED) and removed from this set.
+# First live run (2026-10-14, QGIS 4.2.2): 73 of 78 ran; native:concavehull hung (60 s timeout) and native:transect / native:transectfixeddistance
+# crashed the process (SIGSEGV), so those three are NOT here. A second run: qgis:variabledistancebuffer and
+# qgis:rectanglesovalsdiamondsvariable (Python algorithms) raised a traceback on polygon, line and point input even with a numeric field.
+GEOMETRY_FAMILY = {
+    "native:affinetransform": "Affine transform",
+    "native:antimeridiansplit": "Geodesic line split at antimeridian",
+    "native:approximatemedialaxis": "Approximate medial axis",
+    "native:boundary": "Boundary",
+    "native:boundingboxes": "Bounding boxes",
+    "native:bufferbym": "Variable width buffer (by M value)",
+    "native:checkvalidity": "Check validity",
+    "native:collect": "Collect geometries",
+    "native:concavehullbyfeature": "Concave hull (by feature)",
+    "native:convertgeometrytype": "Convert geometry type",
+    "native:converttocurves": "Convert to curved geometries",
+    "native:coveragesimplify": "Simplify coverage",
+    "native:coverageunion": "Dissolve coverage",
+    "native:coveragevalidate": "Validate coverage",
+    "native:deleteholes": "Delete holes",
+    "native:densifygeometries": "Densify by count",
+    "native:densifygeometriesgivenaninterval": "Densify by interval",
+    "native:dropmzvalues": "Drop M/Z values",
+    "native:explodelines": "Explode lines",
+    "native:exportaddgeometrycolumns": "Add geometry attributes",
+    "native:extendlines": "Extend lines",
+    "native:extractbyextent": "Extract/clip by extent",
+    "native:extractvertices": "Extract vertices",
+    "native:extrude": "Extrude",
+    "native:filterverticesbym": "Filter vertices by M value",
+    "native:filterverticesbyz": "Filter vertices by Z value",
+    "native:forceccw": "Force polygons counter-clockwise",
+    "native:forcecw": "Force polygons clockwise",
+    "native:forcerhr": "Force right-hand-rule",
+    "native:interpolatepoint": "Interpolate point on line",
+    "native:keepnbiggestparts": "Keep N biggest parts",
+    "native:linesubstring": "Line substring",
+    "native:mergelines": "Merge lines",
+    "native:minimumboundinggeometry": "Minimum bounding geometry",
+    "native:minimumenclosingcircle": "Minimum enclosing circles",
+    "native:multiringconstantbuffer": "Multi-ring buffer (constant distance)",
+    "native:offsetline": "Offset lines",
+    "native:orientedminimumboundingbox": "Oriented minimum bounding box",
+    "native:orthogonalize": "Orthogonalize",
+    "native:pointonsurface": "Point on surface",
+    "native:pointsalonglines": "Points along geometry",
+    "native:poleofinaccessibility": "Pole of inaccessibility",
+    "native:polygonize": "Polygonize",
+    "native:polygonstolines": "Polygons to lines",
+    "native:projectpointcartesian": "Project points (Cartesian)",
+    "native:promotetomulti": "Promote to multipart",
+    "native:rectanglesovalsdiamonds": "Rectangles, ovals, diamonds",
+    "native:removeduplicatevertices": "Remove duplicate vertices",
+    "native:removenullgeometries": "Remove null geometries",
+    "native:removepartsbyarea": "Remove parts by area",
+    "native:removepartsbylength": "Remove parts by length",
+    "native:reverselinedirection": "Reverse line direction",
+    "native:rotatefeatures": "Rotate",
+    "native:roundness": "Roundness",
+    "native:segmentizebymaxangle": "Segmentize by maximum angle",
+    "native:segmentizebymaxdistance": "Segmentize by maximum distance",
+    "native:setmvalue": "Set M value",
+    "native:setzvalue": "Set Z value",
+    "native:singlesidedbuffer": "Single sided buffer",
+    "native:smoothgeometry": "Smooth",
+    "native:snapgeometries": "Snap geometries to layer",
+    "native:snappointstogrid": "Snap points to grid",
+    "native:splitlinesbylength": "Split lines by maximum length",
+    "native:splitwithlines": "Split with lines",
+    "native:subdivide": "Subdivide",
+    "native:swapxy": "Swap X and Y coordinates",
+    "native:taperedbuffer": "Tapered buffers",
+    "native:tightconcavehullofpolygons": "Fill gaps between polygons",
+    "native:translategeometry": "Translate",
+    "native:wedgebuffers": "Create wedge buffers",
+    "qgis:knearestconcavehull": "Concave hull (k-nearest neighbor)",
+    "qgis:linestopolygons": "Lines to polygons",
+    "qgis:pointsdisplacement": "Points displacement",
+}
+ALLOWED_ALGORITHM_IDS = frozenset(set(ALLOWED_ALGORITHM_IDS) | set(GEOMETRY_FAMILY))
+
 # Algorithms whose OUTPUT is a RASTER FILE, not a vector sink. "memory:" is not a valid raster destination, and a raster
 # result comes back as a file path, not a layer: before 2026-10-01 these ran and the tool reported "no new layer output".
 RASTER_OUTPUT_ALGORITHM_IDS = frozenset({
