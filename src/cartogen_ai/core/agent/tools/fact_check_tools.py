@@ -17,7 +17,7 @@ development session; not verified inside a running QGIS session.
 import contextlib
 import html
 import re
-import xml.etree.ElementTree as ElementTree
+import xml.etree.ElementTree as ElementTree  # nosec B405 -- DOCTYPE/ENTITY refused, size capped; no defusedxml in QGIS Python
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
@@ -118,7 +118,7 @@ def parse_feed(xml_text, source):
     xml_text = _declare_missing_prefixes(xml_text)
     meta = FEEDS[source]
     skip = tuple(meta.get("skip_categories", ()))
-    root = ElementTree.fromstring(xml_text)  # noqa: S314 (DOCTYPE / ENTITY refused and size capped above)
+    root = ElementTree.fromstring(xml_text)  # noqa: S314  # nosec B314 -- DOCTYPE / ENTITY refused and size capped above, so no entity expansion or external reference can occur
     out = []
     for item in root.iter("item"):
         if any(_text(c) in skip for c in item.findall("category")):
