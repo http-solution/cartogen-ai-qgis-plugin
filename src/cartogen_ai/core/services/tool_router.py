@@ -82,6 +82,16 @@ _TOOL_ALIASES = {
         "beyond one hour", "beyond an hour", "beyond 1 hour", "beyond 30 minutes", "by road", "outside the service area",
         "within reach of", "out of reach", "cannot be reached within", "not reachable within",
     ],
+    # rc41 hand test: "create layer for Jordan ADM1" selected neither boundary tool (no shared words), so the model said no boundary fetcher was
+    # "active in this tool configuration" without trying. ADM codes and the usual names for the levels are the way people ask for these.
+    "fetch_geoboundaries": [
+        "adm0", "adm1", "adm2", "adm3", "adm4", "adm5", "admin boundar", "administrative boundar", "admin level",
+        "governorate", "province boundar", "district boundar", "region boundar", "country boundar", "state boundar",
+    ],
+    "fetch_hdx_admin_boundaries": [
+        "adm0", "adm1", "adm2", "adm3", "adm4", "adm5", "admin boundar", "administrative boundar", "admin level",
+        "governorate", "province boundar", "district boundar", "p-code", "pcode", "cod-ab",
+    ],
     "geocode_and_enrich": [
         "hospital", "hospitals", "clinic", "clinics", "health facilit",
         "geocode", "find the location of", "where is",
@@ -183,6 +193,10 @@ _TOOL_ALIASES = {
         "raster looks washed out", "raster looks flat", "fix the raster colors",
         "raster color ramp", "raster contrast", "stretch the raster",
         "raster looks grey", "raster looks gray", "colorize the raster",
+        # Long-request audit 2026-10-14: "style the result with a green to red colour ramp" offered only the vector style tools.
+        "colour ramp", "color ramp", "colour scheme", "color scheme", "green to red", "red to green", "blue to red", "style the raster",
+        "style the dem", "style the slope", "style the result with", "pseudocolor", "contrast stretch", "raster colours", "raster colors",
+        "population ramp",
     ],
     # Added 2026-09-13, live user report: "show live incedent in jordan... natural, crime,
     # haszard" -- fetch_gdacs_disaster_alerts scored zero relevance for this phrasing (its
@@ -351,6 +365,7 @@ class ToolRouter:
             return self.full_schema_list
 
         query_lower = user_query.lower()
+        long_query = len(user_query.split()) > _LONG_QUERY_WORDS
         # _STOPWORDS removed here only -- query_lower (used by the separate curated-alias
         # check below) keeps every word, since a multi-word alias phrase like "rank the
         # districts" is matched as a whole substring, not word-by-word.
@@ -448,7 +463,14 @@ class ToolRouter:
             # real word-boundary membership tests instead of "is this text contained anywhere in
             # that text" -- the length guards below are now a secondary noise filter (e.g. "to"),
             # not the only thing standing between a short query word and a false match.
-            name_words = set(name.lower().split("_")) - _GENERIC_NAME_WORDS
+            # Generic words are discounted only for a LONG request, which is where the measurement that justified it was made. For a
+            # short one ("zoom to the layer", "create layer for Jordan ADM1", "remove the layer X") "layer", "add", "export", "create" ARE the
+            # signal: from rc23 on the discount applied to every request, add_layer_from_path, remove_layer, zoom_to_layer, export_layer and
+            # the other layer tools stopped being offered, and ties were then broken alphabetically (apply_*, calculate_*). Found by replaying
+            # 40 plain requests against every release (tests/test_tool_router_basics.py is the permanent guard).
+            name_words = set(name.lower().split("_"))
+            if long_query:
+                name_words -= _GENERIC_NAME_WORDS
             desc_words = set(re.findall(r"\w+", desc))
 
             score = 0
@@ -459,7 +481,7 @@ class ToolRouter:
             # Description match score -- capped: in a 70-100 word request nearly every tool description shares a few ordinary words
             # ("all", "points", "layer"), so uncapped +2 per word let description noise outrank real name and alias matches.
             description_hits = sum(1 for word in query_words if len(word) > 2 and word in desc_words)
-            score += 2 * min(description_hits, _DESCRIPTION_HIT_CAP)
+            score += 2 * (min(description_hits, _DESCRIPTION_HIT_CAP) if long_query else description_hits)
 
             # Curated alias/synonym match score
             for alias in _TOOL_ALIASES.get(name, []):
