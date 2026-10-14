@@ -366,3 +366,19 @@ class TestToolRouterTieBreak(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestBoundaryToolsAreOfferedForAdmCodes(unittest.TestCase):
+    """rc41 hand test: 'create layer for Jordan ADM1' offered neither boundary tool, and the model said none was active."""
+
+    def test_adm_code_requests_get_both_boundary_tools(self):
+        router = ToolRouter(TOOLS_SCHEMA)
+        for query in ("create layer for Jordan ADM1", "Jordan ADM2 districts", "show me the governorates of Jordan"):
+            names = {t["function"]["name"] for t in router.filter_relevant_tools(query)}
+            self.assertIn("fetch_geoboundaries", names, query)
+            self.assertIn("fetch_hdx_admin_boundaries", names, query)
+
+    def test_unrelated_requests_do_not_get_them(self):
+        router = ToolRouter(TOOLS_SCHEMA)
+        names = {t["function"]["name"] for t in router.filter_relevant_tools("buffer 500 m around smoke_points")}
+        self.assertNotIn("fetch_geoboundaries", names)
