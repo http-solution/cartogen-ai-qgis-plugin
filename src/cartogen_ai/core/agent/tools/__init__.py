@@ -9,6 +9,7 @@ from .registry import TOOL_REGISTRY, TOOLS_SCHEMA, get_tool_registry, get_tools_
 from . import vector_tools
 from . import data_source_tools
 from . import attribute_edit_tools
+from . import map_view_tools
 from . import raster_tools
 from . import styling_tools
 from . import export_tools
@@ -98,6 +99,7 @@ __all__ = [
     "layout_tools",
     "logistics_tools",
     "map_tools",
+    "map_view_tools",
     "mcda_tools",
     "monitoring_tools",
     "multimodal_remote_sensing",

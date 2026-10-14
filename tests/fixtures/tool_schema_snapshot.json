@@ -353,6 +353,16 @@
    "return_period_years"
   ]
  },
+ "assign_layer_crs": {
+  "properties": [
+   "crs",
+   "layer_name"
+  ],
+  "required": [
+   "crs",
+   "layer_name"
+  ]
+ },
  "auto_arrange_layer_order": {
   "properties": [],
   "required": []
@@ -761,6 +771,17 @@
    "layer_name"
   ]
  },
+ "create_bookmark": {
+  "properties": [
+   "crs",
+   "extent",
+   "layer_name",
+   "name"
+  ],
+  "required": [
+   "name"
+  ]
+ },
  "create_empty_layer": {
   "properties": [
    "crs",
@@ -772,6 +793,16 @@
   "required": [
    "geometry_type",
    "layer_name"
+  ]
+ },
+ "create_layer_group": {
+  "properties": [
+   "group_name",
+   "layer_names",
+   "parent_group"
+  ],
+  "required": [
+   "group_name"
   ]
  },
  "create_map_theme": {
@@ -1585,6 +1616,14 @@
   "properties": [],
   "required": []
  },
+ "go_to_bookmark": {
+  "properties": [
+   "name"
+  ],
+  "required": [
+   "name"
+  ]
+ },
  "highlight_features": {
   "properties": [
    "expression",
@@ -1718,6 +1757,10 @@
    "target_layer"
   ]
  },
+ "list_bookmarks": {
+  "properties": [],
+  "required": []
+ },
  "list_layout_items": {
   "properties": [
    "layout_name"
@@ -1819,6 +1862,16 @@
    "num_facilities"
   ]
  },
+ "measure_distance": {
+  "properties": [
+   "close_polygon",
+   "crs",
+   "points"
+  ],
+  "required": [
+   "points"
+  ]
+ },
  "merge_layers": {
   "properties": [
    "layer_names_list"
@@ -1833,6 +1886,16 @@
   ],
   "required": [
    "raster_layers_list"
+  ]
+ },
+ "move_layers_to_group": {
+  "properties": [
+   "group_name",
+   "layer_names"
+  ],
+  "required": [
+   "group_name",
+   "layer_names"
   ]
  },
  "obfuscate_sensitive_points": {
@@ -2259,6 +2322,17 @@
    "layer_name"
   ]
  },
+ "set_group_options": {
+  "properties": [
+   "expanded",
+   "group_name",
+   "mutually_exclusive",
+   "visible"
+  ],
+  "required": [
+   "group_name"
+  ]
+ },
  "set_layer_confidence": {
   "properties": [
    "layer_name",
@@ -2298,6 +2372,31 @@
    "layer_name",
    "opacity_percent"
   ]
+ },
+ "set_map_view": {
+  "properties": [
+   "center",
+   "crs",
+   "extent",
+   "rotation",
+   "scale"
+  ],
+  "required": []
+ },
+ "set_project_crs": {
+  "properties": [
+   "crs"
+  ],
+  "required": [
+   "crs"
+  ]
+ },
+ "set_project_properties": {
+  "properties": [
+   "title",
+   "variables"
+  ],
+  "required": []
  },
  "set_task_preview": {
   "properties": [
