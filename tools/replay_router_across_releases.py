@@ -36,7 +36,7 @@ def main():
     ap.add_argument("--limit", type=int, default=45)
     args = ap.parse_args()
     prompts = json.loads(Path(args.prompts).read_text(encoding="utf-8")) if args.prompts else DEFAULT_PROMPTS
-    log = subprocess.run(["git", "log", "--format=%h", "-n", str(args.limit), "--", "metadata.txt"], cwd=REPO, capture_output=True, text=True).stdout.split()
+    log = subprocess.run(["git", "log", "--format=%h", "-n", str(args.limit), "--", "metadata.txt"], cwd=REPO, capture_output=True, text=True, check=False).stdout.split()  # noqa: S603, S607  # fixed argv, git on PATH
     results = []
     with tempfile.TemporaryDirectory() as tmp:
         probe, plist = Path(tmp) / "probe.py", Path(tmp) / "prompts.json"
@@ -44,13 +44,13 @@ def main():
         plist.write_text(json.dumps(prompts), encoding="utf-8")
         for h in log:
             wt = Path(tmp) / f"wt_{h}"
-            subprocess.run(["git", "worktree", "add", "-q", "-f", str(wt), h], cwd=REPO, check=False)
+            subprocess.run(["git", "worktree", "add", "-q", "-f", str(wt), h], cwd=REPO, check=False)  # noqa: S603, S607  # fixed argv, git on PATH
             try:
                 version = next((ln.split("=", 1)[1] for ln in (wt / "metadata.txt").read_text(encoding="utf-8").splitlines() if ln.startswith("version=")), h)
-                out = subprocess.run([sys.executable, str(probe), str(plist)], cwd=wt, capture_output=True, text=True, timeout=300).stdout.strip().splitlines()
+                out = subprocess.run([sys.executable, str(probe), str(plist)], cwd=wt, capture_output=True, text=True, timeout=300, check=False).stdout.strip().splitlines()  # noqa: S603  # our own probe script
                 results.append((version, json.loads(out[-1]) if out else {"__error__": "no output"}))
             finally:
-                subprocess.run(["git", "worktree", "remove", "-f", str(wt)], cwd=REPO, check=False)
+                subprocess.run(["git", "worktree", "remove", "-f", str(wt)], cwd=REPO, check=False)  # noqa: S603, S607  # fixed argv, git on PATH
     results.reverse()                                   # oldest first
     good = [(v, r) for v, r in results if "__error__" not in r]
     latest_v, latest = good[-1]
