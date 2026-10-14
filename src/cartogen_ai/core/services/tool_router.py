@@ -31,6 +31,37 @@ _TOOL_ALIASES = {
         "scratch layer", "temporary layer", "new geopackage layer", "new shapefile", "layer to digitize", "layer to digitise",
         "empty polygon layer", "empty point layer", "empty line layer", "new table",
     ],
+    "create_layer_group": [
+        "create a group", "new group", "make a group", "create a layer group", "group the layers", "put the layers in a group",
+        "put these layers in a group", "layer group",
+    ],
+    "move_layers_to_group": ["move the layer into the group", "move layers into the group", "add the layer to the group", "move to the group"],
+    "set_group_options": [
+        "hide the group", "show the group", "collapse the group", "expand the group", "turn off the group", "turn on the group",
+        "mutually exclusive", "check the whole group", "uncheck the group",
+    ],
+    "set_map_view": [
+        "zoom to scale", "set the scale", "scale of 1:", "zoom to 1:", "to 1:", "rotate the map", "map rotation", "pan to", "pan the map",
+        "centre the map", "center the map", "zoom to the extent", "zoom to coordinates", "zoom to this extent",
+    ],
+    "set_project_crs": [
+        "set the project crs", "project crs", "change the project crs", "set the map crs", "change the map projection", "project projection",
+        "set the project projection",
+    ],
+    "assign_layer_crs": [
+        "assign projection", "assign the crs", "assign crs", "layer has no crs", "wrong crs on the layer", "set the layer crs",
+        "set the crs of the layer", "define the crs",
+    ],
+    "create_bookmark": ["create a bookmark", "add a bookmark", "save a bookmark", "bookmark this", "bookmark the view", "new bookmark", "save this view"],
+    "list_bookmarks": ["list the bookmarks", "list bookmarks", "show the bookmarks", "my bookmarks", "what bookmarks"],
+    "go_to_bookmark": ["go to the bookmark", "go to bookmark", "zoom to the bookmark", "jump to the bookmark", "open the bookmark"],
+    "set_project_properties": [
+        "project title", "set the project title", "rename the project", "project variable", "set a project variable", "project properties",
+    ],
+    "measure_distance": [
+        "measure the distance", "measure distance", "how far is", "distance between", "measure the length", "measure the area",
+        "bearing between", "measure between", "what is the distance",
+    ],
     "select_by_expression": [
         "select by expression", "select with an expression", "select where", "select all features where", "select the features where",
         "add to the selection", "remove from the selection", "narrow the selection", "select features with",
@@ -164,7 +195,7 @@ _TOOL_ALIASES = {
     # QGIS-vocabulary audit 2026-10-14 (docs/QGIS_COVERAGE_GAP_ANALYSIS_2026-10-14.md): the foundation tools had NO alias at all and were found
     # only through accidental word overlap with their names and descriptions, which is what broke in rc23. Plain phrases, as people say them.
     'add_layer_from_path': [
-        'add the shapefile', 'add a shapefile', 'add the geopackage', 'import the gpx', 'import the kml', 'import the geojson', 'import the file', 'import the shapefile', 'open the file', 'load the file', 'open the shapefile', 'load the shapefile', 'add the raster', 'load the raster', 'add the dem', 'open the geotiff', 'load the geojson', 'add the geojson', 'add the gpx', 'add the kml', 'add this file', 'load this file', '.shp', '.gpkg', '.geojson', '.tif', '.kml', '.gpx', 'from this url', 'from the url', 'download link', 'zipped shapefile', 'zip file', 'zipped file', 'open the zip', 'load the zip', '.zip', '.kmz', 'kmz file', 'table from the geopackage', 'table of the geopackage', 'layer from the geopackage', 'layer inside the geopackage', 'one layer of the file',
+        'add the shapefile', 'add a shapefile', 'add the geopackage', 'import the gpx', 'import the kml', 'import the geojson', 'import the file', 'import the shapefile', 'open the file', 'load the file', 'open the shapefile', 'load the shapefile', 'add the raster', 'load the raster', 'add the dem', 'open the geotiff', 'load the geojson', 'add the geojson', 'add the gpx', 'add the kml', 'add this file', 'load this file', '.shp', '.gpkg', '.geojson', '.tif', '.kml', '.gpx', 'from this url', 'from the url', 'download link', 'create layer for', 'add a layer', 'add layer', 'load a layer', 'load layer', 'open a layer', 'zipped shapefile', 'zip file', 'zipped file', 'open the zip', 'load the zip', '.zip', '.kmz', 'kmz file', 'table from the geopackage', 'table of the geopackage', 'layer from the geopackage', 'layer inside the geopackage', 'one layer of the file',
     ],
     'select_by_attribute': [
         'select the features named', 'select features named', 'select the district named', 'select by name', 'select by attribute', 'select the feature with', 'select the districts named',
@@ -511,7 +542,11 @@ _GENERIC_NAME_WORDS = frozenset({"generate", "calculate", "create", "apply", "ge
 _LONG_QUERY_WORDS = 25
 _LONG_QUERY_MIN_SCORE = 6
 _DESCRIPTION_HIT_CAP = 4        # at most +8 from description words, however long the request
-_ALIAS_MATCH_SCORE = 10
+# Was 10, the same as ONE generic name-word match. As the registry grew past 230 tools, more than 40 of them had "layer", "create" or "add" in
+# their name, and for a short request ("create layer for Jordan ADM1") the curated alias tool tied with all of them and lost its slot to
+# the alphabetical tie-break: adding the M2 tools made fetch_geoboundaries drop out. A curated phrase is the strongest signal the router
+# has, so it now outranks a name-word match (10) plus a full set of description hits (+8). Guarded by tests/test_tool_router_basics.py.
+_ALIAS_MATCH_SCORE = 25
 
 # Common English function/filler words, excluded from name/description scoring -- 2026-09-12,
 # a follow-up to the word-boundary fix above: switching to word-boundary matching correctly

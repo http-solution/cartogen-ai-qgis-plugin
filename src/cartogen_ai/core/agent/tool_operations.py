@@ -158,6 +158,17 @@ TOOL_OPERATION_TYPES = {
     "create_empty_layer": CREATE,   # M1: adds a new layer (and a file when file_path is given, behind the overwrite preview)
     "add_basemap": CREATE,          # M1: adds a tile layer; fetched by QGIS, not by the plugin
     "add_web_layer": CREATE,
+    "create_layer_group": CREATE,
+    "move_layers_to_group": MODIFY,
+    "set_group_options": MODIFY,
+    "set_map_view": READ,               # canvas view is not persisted into the project (same reasoning as zoom_to_layer)
+    "set_project_crs": MODIFY,
+    "assign_layer_crs": MODIFY,
+    "create_bookmark": CREATE,
+    "list_bookmarks": READ,
+    "go_to_bookmark": READ,
+    "set_project_properties": MODIFY,
+    "measure_distance": READ,
     "select_by_expression": READ,       # M3: selection is not persisted into a saved project (see READ above)
     "select_all_features": READ,
     "clear_selection": READ,

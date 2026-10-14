@@ -1,6 +1,6 @@
 # Tool Reference
 
-Auto-generated from the live tool registry (227 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
+Auto-generated from the live tool registry (238 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
 
 Flags: **network-only** tools bypass the main-thread QGIS dispatcher entirely (pure HTTP, safe from any background thread); **two-phase** tools split a network fetch (background thread) from the QGIS-touching part (main thread); **task-management** tools are excluded from auto-advance in the Task Manager.
 
@@ -2247,6 +2247,111 @@ Record the multi-partner group's JIAF 2 decisions for flagged units (support for
 | `pin_decisions` | array[object] | no |  |
 | `severity_decisions` | array[object] | no |  |
 | `replace` | boolean | no | Replace all stored decisions instead of merging. |
+
+## map_view_tools
+
+### `assign_layer_crs`
+
+Tell QGIS what CRS a layer's coordinates are ALREADY in ('Assign projection'). This does NOT move or reproject the data: choosing the wrong CRS places the layer in the wrong location. Use only when the layer's CRS is missing or known to be wrong. A preview is shown for confirmation first.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes |  |
+| `crs` | string | yes |  |
+
+### `create_bookmark`
+
+Save a spatial bookmark in the project: of a layer's extent (layer_name), of an explicit extent [xmin, ymin, xmax, ymax] in crs, or of the current map view when neither is given.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `name` | string | yes |  |
+| `layer_name` | string | no |  |
+| `extent` | array[number] | no |  |
+| `crs` | string | no |  |
+
+### `create_layer_group`
+
+Create a layer group in the layer tree (optionally inside another group) and optionally move layers into it.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `group_name` | string | yes |  |
+| `layer_names` | array[string] | no |  |
+| `parent_group` | string | no |  |
+
+### `go_to_bookmark`
+
+Zoom the map to a saved spatial bookmark by name.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `name` | string | yes |  |
+
+### `list_bookmarks`
+
+List the spatial bookmarks saved in the project. Read-only.
+
+_No parameters._
+
+### `measure_distance`
+
+Measure on the ellipsoid along a path of points [[x, y], ...] given in crs (default EPSG:4326): total length in metres and kilometres, and for exactly two points the bearing in degrees. With close_polygon=true the points are a polygon and its area in square metres and hectares is returned too.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `points` | array[array] | yes |  |
+| `crs` | string | no |  |
+| `close_polygon` | boolean | no |  |
+
+### `move_layers_to_group`
+
+Move existing layers into an existing layer group.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `group_name` | string | yes |  |
+| `layer_names` | array[string] | yes |  |
+
+### `set_group_options`
+
+Show or hide a whole layer group, collapse or expand it, and/or make its layers mutually exclusive (only one visible at a time).
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `group_name` | string | yes |  |
+| `visible` | boolean | no |  |
+| `expanded` | boolean | no |  |
+| `mutually_exclusive` | boolean | no |  |
+
+### `set_map_view`
+
+Move the map canvas: set the scale (denominator, e.g. 25000 for 1:25 000), zoom to an extent [xmin, ymin, xmax, ymax] in crs (default EPSG:4326), centre on a point [x, y] in crs, and/or rotate the map in degrees. Several can be combined.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `scale` | string | no |  |
+| `extent` | array[number] | no |  |
+| `center` | array[number] | no |  |
+| `crs` | string | no |  |
+| `rotation` | number | no |  |
+
+### `set_project_crs`
+
+Set the project (map) CRS, for example EPSG:3857. Layers are reprojected on the fly for display; no layer data is changed.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `crs` | string | yes |  |
+
+### `set_project_properties`
+
+Set the project title and/or project variables (a {name: value} object usable as @name in expressions).
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `title` | string | no |  |
+| `variables` | object | no |  |
 
 ## mcda_tools
 
