@@ -2724,3 +2724,5 @@ cause not found), and 49 rows not run.
 **Update 2026-10-14: 1.16.1 (stable) prepared.** Same code as rc41; version number and release text only. Needed because plugins.qgis.org takes a stable version number. The rc41 fixes are CI-checked, not hand-tested; the open hand-test rows are listed in the 1.16.1 notes.
 
 **Update 2026-10-14: 1.16.2 (stable) prepared.** A failed boundary download no longer ends with points drawn from memory (tool results tell the model not to substitute). Otherwise 1.16.1 unchanged. CI-checked; the model-side effect is not tried against a real model.
+
+**Update 2026-10-14: 1.16.3 (stable) prepared.** Router regression since rc23 fixed (plain requests are offered their layer tools again), QGIS vocabulary and Processing-tool coverage guards, recorded-session replay. See docs/ROUTER_REGRESSION_AUDIT_2026-10-14.md. CI-checked; routing is deterministic and tested, model behaviour is not hand-tested. Open owner decision: widen the Processing allow-list for 8 safe algorithms (audit note, third pass).
