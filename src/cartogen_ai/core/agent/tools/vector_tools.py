@@ -2029,6 +2029,11 @@ def open_attribute_table(layer_name):
 def zoom_to_feature(layer_name, feature_id=None, expression=None):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
+    # Screen first: the live CI run of the expression-screen test found this tool reporting "interface not available" for a denied
+    # expression, i.e. the safety check sat behind an unrelated precondition. A refusal must not depend on what else is missing.
+    blocked = screen_expression(expression) if expression else None
+    if blocked:
+        return {"error": blocked}
     if iface is None:
         return {"error": "QGIS interface not available"}
     layer = _find_layer_by_name(layer_name)
