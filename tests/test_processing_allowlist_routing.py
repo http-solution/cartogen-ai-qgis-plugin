@@ -1,0 +1,73 @@
+"""Every allow-listed Processing algorithm can be reached from a plain request: either its dedicated tool or run_allowlisted_processing_algorithm
+is offered. Written 2026-10-14 (QGIS vocabulary audit); before it, 'create a grid' offered neither. A new algorithm added to the allow-list
+must get a row here, which the first test enforces. Checks what is OFFERED, not what the model then does with it."""
+import unittest
+
+from cartogen_ai.core.agent.tools import TOOLS_SCHEMA
+from cartogen_ai.core.agent.tools._processing_allowlist import ALLOWED_ALGORITHM_IDS
+from cartogen_ai.core.services.tool_router import ToolRouter
+
+PROCESSING_TOOL = "run_allowlisted_processing_algorithm"
+# algorithm id -> (plain request, dedicated tool that also covers it or None)
+ROWS = {
+    "gdal:cliprasterbymasklayer": ("clip the raster by mask layer", "raster_clip"),
+    "gdal:merge": ("merge the rasters into one", "mosaic_rasters"),
+    "gdal:pansharp": ("pansharpen the image", "pan_sharpening"),
+    "native:aspect": ("aspect of the dem", "aspect_analysis"),
+    "native:buffer": ("buffer the layer", "buffer_analysis"),
+    "native:cellstatistics": ("cell statistics across the rasters", None),
+    "native:centroids": ("centroids of polygons", "centroid"),
+    "native:clip": ("clip the layer", "clip_layer"),
+    "native:convexhull": ("convex hull", "convex_hull"),
+    "native:countpointsinpolygon": ("count points in polygon", None),
+    "native:creategrid": ("create a grid", None),
+    "native:dbscanclustering": ("dbscan clustering", "hotspot_analysis"),
+    "native:delaunaytriangulation": ("delaunay triangulation", "delaunay_triangulation"),
+    "native:difference": ("difference of two layers", "difference_layers"),
+    "native:dissolve": ("dissolve by field", "dissolve_layer"),
+    "native:extractbylocation": ("extract by location", None),
+    "native:fixgeometries": ("fix geometries", "fix_geometries"),
+    "native:hillshade": ("hillshade", "hillshade"),
+    "native:intersection": ("intersection of two layers", "intersect_layers"),
+    "native:joinattributesbylocation": ("join attributes by location", "spatial_join"),
+    "native:joinattributestable": ("join attributes table by field value", "join_by_attribute"),
+    "native:joinbynearest": ("join by nearest", None),
+    "native:kmeansclustering": ("k-means clustering", None),
+    "native:mergevectorlayers": ("merge vector layers", "merge_layers"),
+    "native:multiparttosingleparts": ("multipart to singleparts", "convert_to_singlepart"),
+    "native:rastersampling": ("sample raster values", None),
+    "native:reclassifybytable": ("reclassify by table", None),
+    "native:reprojectlayer": ("reproject layer", "reproject_layer"),
+    "native:selectbylocation": ("select by location", "select_by_location"),
+    "native:serviceareafrompoint": ("service area from point", "calculate_service_area"),
+    "native:shortestpathpointtolayer": ("shortest path point to layer", None),
+    "native:shortestpathpointtopoint": ("shortest path point to point", None),
+    "native:simplifygeometries": ("simplify geometries", "simplify_geometry"),
+    "native:slope": ("slope", "slope_analysis"),
+    "native:symmetricaldifference": ("symmetrical difference", None),
+    "native:union": ("union", "union_layers"),
+    "native:voronoipolygons": ("voronoi polygons", "voronoi_polygons"),
+    "native:zonalstatisticsfb": ("zonal statistics", "zonal_statistics"),
+    "qgis:heatmapkerneldensityestimation": ("heatmap kernel density", "apply_heatmap_style"),
+    "qgis:idwinterpolation": ("idw interpolation", "interpolate_surface"),
+    "qgis:statisticsbycategories": ("statistics by categories", None),
+    "qgis:tininterpolation": ("tin interpolation", "interpolate_surface"),
+}
+
+
+class TestAllowlistedAlgorithmsAreReachable(unittest.TestCase):
+    def test_every_allowlisted_algorithm_has_a_row(self):
+        self.assertEqual(set(ALLOWED_ALGORITHM_IDS) - set(ROWS), set(), "add a plain request for the new algorithm")
+
+    def test_each_one_is_reachable_from_its_plain_request(self):
+        router = ToolRouter(TOOLS_SCHEMA)
+        missing = []
+        for algorithm, (request, dedicated) in ROWS.items():
+            offered = {t["function"]["name"] for t in router.filter_relevant_tools(request)}
+            if PROCESSING_TOOL not in offered and not (dedicated and dedicated in offered):
+                missing.append(f"{algorithm}: {request!r}")
+        self.assertEqual(missing, [], chr(10).join(missing))
+
+
+if __name__ == "__main__":
+    unittest.main()
