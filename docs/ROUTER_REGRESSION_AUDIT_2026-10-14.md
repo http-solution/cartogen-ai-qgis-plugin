@@ -72,4 +72,4 @@ So about 90 percent of the phrases that have a tool reached it in every release,
 
 **Guards added.** `tests/test_qgis_vocabulary_coverage.py` (91 phrases) and `tests/test_processing_allowlist_routing.py` (42 algorithms).
 
-**Still not covered.** What the model does with the tools it is offered, and whether each Processing algorithm actually runs in QGIS (the live tests in CI run a subset; `tests/test_processing_allowlist_live.py` is the place to extend).
+**Still not covered.** What the model does with the tools it is offered, and whether each Processing algorithm actually runs in QGIS (the live tests in CI run a subset; `tests/test_processing_allowlist_tools_live.py` is the place to extend).
