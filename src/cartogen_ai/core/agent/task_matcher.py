@@ -410,23 +410,41 @@ def clarify_question(entry, missing):
     lines = ["To do this well I need a bit more: **{}**".format(entry["text"]), ""]
     lines.extend(f"- {reg.SLOT_QUESTIONS.get(s, s)}" for s in missing)
     lines.append("")
-    stated = defaults(missing)
+    stated = defaults(missing, entry)
     if stated:
         lines.append("If you'd rather I just proceed, I'll use: "
                      + "; ".join(f"{k} = {v}" for k, v in stated.items()) + ".")
     return "\n".join(lines)
 
 
-def defaults(missing):
+# Tool-name fragments that actually consume a slot with a default. A default is stated to the model as "Given: slot = value", so
+# it is only injected for a task whose tool chain can use it (#304, rc40 hand test: a hub ranking was told "threshold = 5 km", a
+# classification of a loaded raster "imagery = most recent low-cloud scene"). Slots not listed here keep the old behaviour.
+_SLOT_CONSUMERS = {
+    "threshold": ("service_area", "access", "travel_time", "buffer", "nearest", "isochron", "coverage", "catchment", "route"),
+    "imagery": ("ndvi", "ndwi", "ndre", "imagery", "sentinel", "landsat", "stac", "satellite", "change_detection"),
+    "population_src": ("popul", "worldpop", "exposure", "need", "demand", "coverage", "catchment"),
+}
+
+
+def _chain_uses(entry, slot):
+    fragments = _SLOT_CONSUMERS.get(slot)
+    if fragments is None or not entry:
+        return True
+    return any(f in str(t).lower() for t in (entry.get("tools") or []) for f in fragments)
+
+
+def defaults(missing, entry=None):
     """{slot: value} for the missing slots that have a safe default.
 
     Slots whose default is None are deliberately excluded -- guessing a hazard
-    type or a sector produces confidently wrong humanitarian output.
+    type or a sector produces confidently wrong humanitarian output. With `entry`, a default is also left out when none of the
+    task's tools can use the slot (see _SLOT_CONSUMERS).
     """
     out = {}
     for s in missing:
         val, kind = reg.SLOT_DEFAULTS.get(s, (None, "ask"))
-        if val is not None and kind != "ask":
+        if val is not None and kind != "ask" and _chain_uses(entry, s):
             out[s] = val
     return out
 
