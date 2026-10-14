@@ -99,6 +99,7 @@ class TestGeoboundariesFailureNamesTheStage(unittest.TestCase):
              patch.object(ht, "_build_safe_opener", return_value=failing):
             res = ht.fetch_geoboundaries_network_phase("QQQ", "ADM2")
         msg = res["error"]
+        self.assertIn("Do NOT substitute", msg)       # Jordan ADM1 hand test: the model drew 12 capitals from memory after both downloads failed
         self.assertIn("boundary file download", msg)
         self.assertIn("raw.githubusercontent.com", msg)
         self.assertIn("OSError", msg)
