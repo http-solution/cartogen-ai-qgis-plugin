@@ -8,6 +8,18 @@
      "Should work" is not verification -- see CONTRIBUTING.md #4 and
      docs/RELEASE_SMOKE_TEST.md if this touches anything that needs a live QGIS check. -->
 
+## Before / after
+
+<!-- Required when this touches routing, prompts, tools or settings. Show what a user could do before and what they can do now;
+     "same" is a valid answer and is what proves nothing regressed. Add a row for every request you checked. -->
+
+| Request a user would type | Before this PR | After this PR |
+|---|---|---|
+| | | |
+
+- [ ] Tool count before / after: ___ / ___ (a drop needs a reason; `tests/test_tool_schema_snapshot.py` fails on a removal)
+- [ ] Any golden table row added, never removed (`tests/test_golden_suite_size_pins.py`)
+
 ## Status
 
 - [ ] Shipped and verified (tests pass / manually confirmed live)
