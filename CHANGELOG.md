@@ -7,6 +7,7 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 | Version | Date | Summary |
 |---|---|---|
+| [1.16.0-rc41](#v1-16-0-rc41) | 2026-10-14 | **Release candidate 41 for 1.16.0.** No breaking changes -- still requires QGIS 4.2+. Fixes from the rc40 hand test: Stop during a model call, honest script edits, raster styling kept, template defaults only where used. |
 | [1.16.0-rc40](#v1-16-0-rc40) | 2026-10-13 | **Release candidate 40 for 1.16.0.** No breaking changes. New search_fact_checks tool, point positions the model typed are flagged, depot layers merge inside optimize_delivery_route, analysis fields written through the edit session, redirected downloads retried through QGIS's network stack, security alerts fixed. Not hand-tested. |
 | [1.16.0-rc39](#v1-16-0-rc39) | 2026-10-13 | **Release candidate 39 for 1.16.0.** No breaking changes. The assistant no longer invents records to fill an empty map layer (found in the rc37 hand test). Not hand-tested. |
 | [1.16.0-rc38](#v1-16-0-rc38) | 2026-10-13 | **Release candidate 38 for 1.16.0.** No breaking changes. The Processing-algorithm tool works again (it failed on every call since rc24), no false 'step did not run' note after incident searches; rc37 hand-test results. |
@@ -81,6 +82,20 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 The detailed narrative entries below are unchanged -- this table is purely an additive index on
 top of them.
+
+<a id="v1-16-0-rc41"></a>
+## [1.16.0-rc41] — 2026-10-14 — Release candidate 41 for 1.16.0: No breaking changes -- still requires QGIS 4.2+. Fixes from the rc40 hand test: Stop during a model call, honest script edits, raster styling kept, template defaults only where used.
+
+No breaking changes; QGIS 4.2+. Everything after the 1.16.0-rc40 build:
+
+- Stop takes effect during a model call: Pressing Stop while the assistant was waiting for the model took 25 to 30 seconds to show, because the wait only ended when the reply did. The wait now checks Stop every quarter of a second, ends the turn as 'Stopped by user' rather than an API error, and does not resend the request. Checked by offline tests only; not tried against a real provider.
+- Script edits to file layers are reported honestly: A script works on a copy of a file or database layer, so an edit it made to such a layer never reached the real one, yet the reply said it had. The reply now says the edit was NOT applied and points to an editing tool. Layers a script creates are flagged as temporary (lost when the project closes unless saved or exported). Memory layers still receive same-count edits. Two new live checks run in QGIS 4.2.2 in CI.
+- A styled raster stays styled: After the assistant applied a colour ramp to a raster, a follow-up that checks the promised result told it to call a categorized-style tool, and it re-stretched the raster to grey. Styling tools now count as delivering a layer, so no follow-up is sent.
+- Task templates state a default only where it is used: A matched task template used to add 'Given: threshold = 5 km', 'imagery = most recent low-cloud scene' or 'population_src = WorldPop' to requests that never mentioned them. A default is now stated only when a tool in the task's chain can use that slot (issue 304, owner decision).
+- Routing words for access by road: 'Which facilities are beyond N minutes or km by road' now points the assistant to classify_facilities_by_access, the tool that adds the green reached and red beyond layer, for any number of facilities (the prompt said more than about 200).
+- Incident wording, Memory dialog, cloud card, busy chat: find_incident_reports tells the model to say 'reported by', never 'verified'. The Memory dialog says whether notes are saved with the project. The cloud-override card says that layer names, field names, types, CRS and counts always reach the cloud model. A message sent while a reply is running now says it was kept in the box instead of being ignored silently.
+- Security scan notes: Bandit's two XML findings (B405, B314) are marked with the reason: both feed parsers refuse any DOCTYPE or ENTITY and cap the size before parsing.
+- Not hand-tested: Everything above is checked by the offline suite and CI (including live checks in QGIS 4.2.2) only. Stop latency, the card and dialog text, the raster fix and the routing words need a hand run; the corrected live-test rows are in the bundle.
 
 <a id="v1-16-0-rc40"></a>
 ## [1.16.0-rc40] — 2026-10-13 — Release candidate 40 for 1.16.0: fact-check lookup, flagged point positions, proxy fallback

@@ -20,14 +20,14 @@
   <a href="https://cartogenai.com"><img src="https://img.shields.io/badge/website-cartogenai.com-0b6efd" alt="Website"></a>
 </p>
 
-**Community edition · Version 1.16.0-rc40 (pre-release) · GNU GPL v2 · QGIS 4.2–4.99 · [cartogenai.com](https://cartogenai.com)**
+**Community edition · Version 1.16.0-rc41 (pre-release) · GNU GPL v2 · QGIS 4.2–4.99 · [cartogenai.com](https://cartogenai.com)**
 
 Cartogen AI is built for GIS analysts, humanitarian teams, researchers, and anyone who
 needs to move from a question to a reproducible spatial result without leaving QGIS.
 The agent exposes its plan, tool calls, progress, and errors instead of returning a
 black-box answer.
 
-> **Project status (2026-10-06):** active Community edition, currently at the **1.16.0-rc40 pre-release** build (rc20 to rc40 add the audit fixes, hand-test fixes and the cost and routing work made after rc19).
+> **Project status (2026-10-06):** active Community edition, currently at the **1.16.0-rc41 pre-release** build build (rc20 to rc40 add the audit fixes, hand-test fixes and the cost and routing work made after rc19).
 > - **Tests:** 3,570 automated tests, 0 failures in the offline run; the live-QGIS tests (and any needing optional libraries) are skipped there and
 >   the QGIS ones run in CI (the `qgis-live-tests` job, QGIS 4.2.2).
 > - **Architectural audit:** an external audit of rc12 raised 32 findings, filed as issues #137-#168 (tracking issue #169). The 15
@@ -86,6 +86,19 @@ black-box answer.
   a restricted execution sandbox for model-generated PyQGIS scripts, fail-closed
   read-only SQL enforcement, an SSRF guard on fetched URLs, and a destructive-action
   confirmation gate the model cannot self-approve.
+
+## What's new in 1.16.0-rc41
+
+Built on 1.16.0-rc40. Offline tests and the QGIS 4.2.2 live checks in CI pass; **not hand-tested** in desktop QGIS unless an item says so. Full list: the `v1.16.0-rc41` block in [metadata.txt](metadata.txt) and [CHANGELOG.md](CHANGELOG.md).
+
+- Stop takes effect during a model call: Pressing Stop while the assistant was waiting for the model took 25 to 30 seconds to show, because the wait only ended when the reply did. The wait now checks Stop every quarter of a second, ends the turn as 'Stopped by user' rather than an API error, and does not resend the request. Checked by offline tests only; not tried against a real provider.
+- Script edits to file layers are reported honestly: A script works on a copy of a file or database layer, so an edit it made to such a layer never reached the real one, yet the reply said it had. The reply now says the edit was NOT applied and points to an editing tool. Layers a script creates are flagged as temporary (lost when the project closes unless saved or exported). Memory layers still receive same-count edits. Two new live checks run in QGIS 4.2.2 in CI.
+- A styled raster stays styled: After the assistant applied a colour ramp to a raster, a follow-up that checks the promised result told it to call a categorized-style tool, and it re-stretched the raster to grey. Styling tools now count as delivering a layer, so no follow-up is sent.
+- Task templates state a default only where it is used: A matched task template used to add 'Given: threshold = 5 km', 'imagery = most recent low-cloud scene' or 'population_src = WorldPop' to requests that never mentioned them. A default is now stated only when a tool in the task's chain can use that slot (issue 304, owner decision).
+- Routing words for access by road: 'Which facilities are beyond N minutes or km by road' now points the assistant to classify_facilities_by_access, the tool that adds the green reached and red beyond layer, for any number of facilities (the prompt said more than about 200).
+- Incident wording, Memory dialog, cloud card, busy chat: find_incident_reports tells the model to say 'reported by', never 'verified'. The Memory dialog says whether notes are saved with the project. The cloud-override card says that layer names, field names, types, CRS and counts always reach the cloud model. A message sent while a reply is running now says it was kept in the box instead of being ignored silently.
+- Security scan notes: Bandit's two XML findings (B405, B314) are marked with the reason: both feed parsers refuse any DOCTYPE or ENTITY and cap the size before parsing.
+- Not hand-tested: Everything above is checked by the offline suite and CI (including live checks in QGIS 4.2.2) only. Stop latency, the card and dialog text, the raster fix and the routing words need a hand run; the corrected live-test rows are in the bundle.
 
 ## What's new in 1.16.0-rc40
 
