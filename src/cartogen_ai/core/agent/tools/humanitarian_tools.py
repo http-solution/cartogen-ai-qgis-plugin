@@ -76,6 +76,13 @@ except ImportError:
     QGIS_AVAILABLE = False
     _SHAPE_RECTANGLE = None
 
+# rc40/rc41 hand test (Jordan ADM1): after both boundary downloads failed the model drew 12 governorate capitals from memory and titled the
+# reply "Jordan ADM1 Layer Created". Points are not boundaries, and positions from memory are unverified. The tool result itself says so,
+# because that is the text the model reads at the moment it decides what to do next.
+BOUNDARY_NO_SUBSTITUTE = (" Do NOT substitute anything for the missing boundaries: do not draw points, capitals or polygons from coordinates you "
+                          "remember, and do not title the reply as if a boundary layer was created. Tell the user the download failed and why, and "
+                          "offer to try the other source or to load a boundary file they already have (add_layer_from_path).")
+
 
 @register_tool("search_hdx_datasets", "Search Humanitarian Data Exchange (HDX) for datasets by query.", {"type": "object", "properties": {"query": {"type": "string"}, "limit": {"type": "integer"}}, "required": ["query"]})
 def search_hdx_datasets(query: str, limit: int = 5):
@@ -683,10 +690,10 @@ def fetch_geoboundaries_network_phase(iso3: str, admin_level: str = "ADM1", allo
     except Exception as e:
         log_event("geoboundaries_fetch_failed", tag="humanitarian_tools", stage=stage, error_class=type(e).__name__, error=True)
         if stage == "API request":
-            return {"error": f"geoBoundaries API request failed: {e}"}
+            return {"error": f"geoBoundaries API request failed: {e}" + BOUNDARY_NO_SUBSTITUTE}
         return {"error": (f"geoBoundaries boundary file download from {download_host} failed ({type(e).__name__}: {e}). The lookup "
                           "itself worked, so the service is up; if this machine uses a proxy, the file host may be unreachable "
-                          "from it. fetch_hdx_admin_boundaries is the alternative source.")}
+                          "from it. fetch_hdx_admin_boundaries is the alternative source." + BOUNDARY_NO_SUBSTITUTE)}
 
 
 def _auto_label_admin(layer):
@@ -783,7 +790,7 @@ def fetch_hdx_admin_boundaries_network_phase(iso3: str, admin_level: str = "ADM1
                 "error": (
                     f"No OCHA COD-AB (subnational administrative boundaries) dataset found on HDX "
                     f"for '{iso3}' -- COD-AB coverage isn't universal. Try fetch_geoboundaries instead "
-                    "(broader country coverage, but no P-codes)."
+                    "(broader country coverage, but no P-codes)." + BOUNDARY_NO_SUBSTITUTE
                 )
             }
         return {"error": f"HDX request failed: {e}"}
