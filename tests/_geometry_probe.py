@@ -36,7 +36,8 @@ def params_for(algorithm, layer_name):
         elif kind == "boolean":
             params[p.name()] = bool(p.defaultValue())
         elif kind == "field":
-            params[p.name()] = "name"
+            numeric = "numeric" in str(p.dataType()).lower()
+            params[p.name()] = "val" if numeric else "name"
         elif kind == "extent":
             params[p.name()] = "0.5,3.5,0.2,1.8 [EPSG:4326]"
         elif kind == "point":

@@ -60,3 +60,11 @@ NOT_YET = {
 
 # Geometry-family algorithms (M6a) that did not run in a real QGIS session, with the error CI reported. Empty means every one ran.
 GEOMETRY_NOT_YET = {}
+
+# Geometry-family candidates that must NOT be on the allow-list, with what the first live run (QGIS 4.2.2, 2026-10-14) showed. The
+# offline test fails if one of these ids is ever allow-listed without this entry being removed on purpose, with a passing live run.
+GEOMETRY_REJECTED = {
+    "native:concavehull": "hung: no result after 60 s on a 2-polygon layer with default parameters",
+    "native:transect": "crashed the QGIS process (SIGSEGV, exit code -11) on polygon, line and point input",
+    "native:transectfixeddistance": "crashed the QGIS process (SIGSEGV, exit code -11) on polygon, line and point input",
+}

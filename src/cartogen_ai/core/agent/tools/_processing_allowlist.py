@@ -80,7 +80,9 @@ ALLOWED_ALGORITHM_IDS = frozenset(set(ALLOWED_ALGORITHM_IDS) | set(ANALYSIS_EXTE
 # so "no code runs" and "output is memory only" both still hold. The 10 geometry candidates that failed the rule stay off (extract M/Z,
 # specific vertices, line intersections with a string, the three multi-layer overlays, set Z/M from raster, eliminate selected). An id stays
 # here only while tests/test_processing_allowlist_all_live.py runs it successfully in real QGIS; a failing one is moved to NOT_YET with
-# the reason in tests/_processing_live_rows.py and removed from this set.
+# the reason in tests/_processing_live_rows.py (GEOMETRY_REJECTED) and removed from this set.
+# First live run (2026-10-14, QGIS 4.2.2): 73 of 78 ran; native:concavehull hung (60 s timeout) and native:transect / native:transectfixeddistance
+# crashed the process (SIGSEGV), so those three are NOT here.
 GEOMETRY_FAMILY = {
     "native:affinetransform": "Affine transform",
     "native:antimeridiansplit": "Geodesic line split at antimeridian",
@@ -90,7 +92,6 @@ GEOMETRY_FAMILY = {
     "native:bufferbym": "Variable width buffer (by M value)",
     "native:checkvalidity": "Check validity",
     "native:collect": "Collect geometries",
-    "native:concavehull": "Concave hull (by layer)",
     "native:concavehullbyfeature": "Concave hull (by feature)",
     "native:convertgeometrytype": "Convert geometry type",
     "native:converttocurves": "Convert to curved geometries",
@@ -151,8 +152,6 @@ GEOMETRY_FAMILY = {
     "native:swapxy": "Swap X and Y coordinates",
     "native:taperedbuffer": "Tapered buffers",
     "native:tightconcavehullofpolygons": "Fill gaps between polygons",
-    "native:transect": "Transect",
-    "native:transectfixeddistance": "Transect (fixed distance)",
     "native:translategeometry": "Translate",
     "native:wedgebuffers": "Create wedge buffers",
     "qgis:knearestconcavehull": "Concave hull (k-nearest neighbor)",
