@@ -8,15 +8,14 @@ metadata changelog, CHANGELOG.md, README and this module agree). Checklist: CONT
 releases listed in NEW_MARK_VERSIONS.
 """
 
-WHATS_NEW_VERSION = "1.16.1"
-NEW_MARK_VERSIONS = ("1.16.0-rc41", "1.16.1")
+WHATS_NEW_VERSION = "1.16.2"
+NEW_MARK_VERSIONS = ("1.16.1", "1.16.2")
 
 # Headline items of the current version (the full list is the metadata.txt changelog block and CHANGELOG.md).
 WHATS_NEW_ITEMS = [
-    ('First stable release of 1.16', "1.16.1 is the stable build of the 1.16 line. It contains exactly the code of 1.16.0-rc41 and nothing else: the version number no longer carries 'pre-release'. The 1.16 line adds the audit fixes, the cost and routing work, the incident, earthquake, conflict-event and fact-check tools, point-position flags, and the fixes from the rc37 and rc40 hand tests (rc20 to rc41; full list in CHANGELOG.md)."),
-    ('What was hand-tested', 'The rc40 build was hand-tested on Windows with QGIS 4.2.2 and Gemini (67 rows: 42 pass, 14 fail, 11 not run); 19 issues were closed from it and the failures were fixed in rc41 or traced to wrong test rows. Upgrading from rc39 to rc40 was checked by the owner. The rc41 fixes are checked by the offline suite and CI only, including live checks in QGIS 4.2.2.'),
-    ('Not yet hand-tested in 1.16.1', 'Stop during a model call, the raster-style follow-up, honest script edits to file layers, task-template defaults, the routing words for access by road, the Memory dialog line and the cloud-card text. The corrected live-test rows for them are in docs/FULL_LIVE_TEST_open_issues_ROWS.csv. Report anything that fails at https://github.com/http-solution/cartogen-ai-qgis-plugin/issues.'),
-    ('Changes from rc41', 'None in code. Version number and release text only.'),
+    ('No substitute for a failed boundary download', "In a Jordan ADM1 request both boundary downloads failed, and the assistant then drew 12 governorate capitals from coordinates it remembered and titled the reply 'Jordan ADM1 Layer Created'. Points are not boundaries and remembered positions are unverified. Every failure message of fetch_geoboundaries and fetch_hdx_admin_boundaries now tells the model not to substitute points, capitals or polygons, to say the download failed and why, and to offer the other source or a boundary file you already have. It is an instruction to the model, not a block: the 'Unverified point positions' flag from rc40 stays as the backstop. Checked by an offline test; not tried against a real model."),
+    ('Still failing on some machines', "The geoBoundaries file download still fails with 'HTTP Error 500: Domain Not Found' on the machine where it was reported. That points to DNS or a proxy on that machine (issue 305); this release does not change it. If it happens to you, check that github.com opens in a browser and what QGIS has under Settings, Options, Network."),
+    ('Same code otherwise', 'Everything else is 1.16.1 unchanged. The fixes of 1.16.0-rc41 and 1.16.1 (Stop during a model call, honest script edits, raster style kept, template defaults, routing words) are still checked by the offline suite and CI only, not by hand.'),
 ]
 
 HUMANITARIAN_WORKFLOWS = [('1. Rapid crisis and base mapping',
