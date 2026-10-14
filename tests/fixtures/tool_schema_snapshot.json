@@ -1,4 +1,12 @@
 {
+ "add_basemap": {
+  "properties": [
+   "basemap"
+  ],
+  "required": [
+   "basemap"
+  ]
+ },
  "add_incident_point": {
   "properties": [
    "contamination_status",
@@ -24,7 +32,8 @@
  "add_layer_from_path": {
   "properties": [
    "file_path",
-   "layer_name"
+   "layer_name",
+   "sublayer"
   ],
   "required": [
    "file_path"
@@ -40,6 +49,22 @@
   "required": [
    "layer_name",
    "points"
+  ]
+ },
+ "add_web_layer": {
+  "properties": [
+   "crs",
+   "image_format",
+   "layer",
+   "layer_name",
+   "service_type",
+   "style",
+   "tile_matrix_set",
+   "url"
+  ],
+  "required": [
+   "service_type",
+   "url"
   ]
  },
  "advance_dataset_status": {
@@ -707,6 +732,19 @@
    "layer_name"
   ]
  },
+ "create_empty_layer": {
+  "properties": [
+   "crs",
+   "fields",
+   "file_path",
+   "geometry_type",
+   "layer_name"
+  ],
+  "required": [
+   "geometry_type",
+   "layer_name"
+  ]
+ },
  "create_map_theme": {
   "properties": [
    "theme_name"
@@ -1187,6 +1225,10 @@
   "required": [
    "file_path"
   ]
+ },
+ "find_broken_layers": {
+  "properties": [],
+  "required": []
  },
  "find_incident_reports": {
   "properties": [
@@ -1923,6 +1965,16 @@
    "old_name"
   ]
  },
+ "repair_layer_source": {
+  "properties": [
+   "layer_name",
+   "new_path",
+   "search_folder"
+  ],
+  "required": [
+   "layer_name"
+  ]
+ },
  "reproject_layer": {
   "properties": [
    "crs_code",
@@ -1968,6 +2020,22 @@
   ],
   "required": [
    "steps"
+  ]
+ },
+ "save_layer_as": {
+  "properties": [
+   "add_to_project",
+   "crs",
+   "fields",
+   "format",
+   "layer_name",
+   "only_selected",
+   "output_path"
+  ],
+  "required": [
+   "format",
+   "layer_name",
+   "output_path"
   ]
  },
  "save_layer_style": {

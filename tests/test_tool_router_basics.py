@@ -41,6 +41,10 @@ GOLDEN = {
     "slope of smoke_dem": {"slope_analysis"},
     "earthquakes in Turkey in the last 14 days": {"fetch_usgs_earthquakes"},
     "has this claim been fact-checked": {"search_fact_checks"},
+    "create an empty polygon layer with fields name and population": {"create_empty_layer"},
+    "add an openstreetmap basemap": {"add_basemap"},
+    "add the wms layer from this url": {"add_web_layer"},
+    "look at the map": {"inspect_canvas_visually"},
 }
 
 

@@ -7,6 +7,7 @@ from .registry import TOOL_REGISTRY, TOOLS_SCHEMA, get_tool_registry, get_tools_
 
 # Import tool modules to populate TOOL_REGISTRY & TOOLS_SCHEMA
 from . import vector_tools
+from . import data_source_tools
 from . import raster_tools
 from . import styling_tools
 from . import export_tools
@@ -72,6 +73,7 @@ __all__ = [
     "corridor_tools",
     "critical_link_tools",
     "data_export_tools",
+    "data_source_tools",
     "dataset_status_tools",
     "db_and_workflow_tools",
     "dem_tools",
