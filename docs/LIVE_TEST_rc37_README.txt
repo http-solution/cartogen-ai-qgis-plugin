@@ -18,6 +18,33 @@ WHAT IS IN THIS FOLDER
   outputs\                     files the assistant created: PDFs, PNGs, HTML, exports
   extras\                      older, longer test documents (only for later)
 
+UPDATING AN EXISTING INSTALL (read this first if Cartogen AI is already in QGIS)
+  Two ways to test. Pick ONE per session and say which in note.txt.
+  A) UPDATE IN PLACE - tests the upgrade path real users take (do this once):
+     1. Write down the version you have now (Cartogen panel > Help > What's new
+        shows "Version ...").
+     2. Close every QGIS window except one. Save your project first.
+     3. Plugins > Manage and Install Plugins > Install from ZIP, choose the file
+        in 1_plugin, click Install Plugin. If QGIS asks to replace the installed
+        plugin, say yes. Your provider and key are kept (they live in QGIS's
+        own settings and Authentication database, not in the plugin folder).
+     4. Close QGIS completely and open it again TWICE.
+     5. Check: Help > What's new says "Version 1.16.1"; ONE Cartogen AI toolbar
+        button; ONE Cartogen AI entry in the Plugins menu; ONE Cartogen panel
+        (View > Panels). Open the Log Messages tab CartogenAI: no red lines.
+     6. If you see two buttons, a missing panel or a red error: close QGIS, open
+        Settings > User Profiles > Open Active Profile Folder, go to
+        python\plugins, delete the Cartogen folder (cartogen_ai_plugin, or
+        cartogen-ai in very old installs), open QGIS and install again from the
+        zip. Write in note.txt what happened BEFORE you deleted anything.
+     Record the result in 4_RESULTS.csv on row OI-224 (PASS if step 5 is all
+     true). Then carry on with step 4 below; steps 2 and 3 are not needed.
+  B) CLEAN INSTALL - tests a first install: follow steps 1 to 3 below exactly.
+  Where the files live: the plugin folder is in the profile's python\plugins
+  folder; saved chats and notes live in your QGIS settings and project files.
+  Nothing in this bundle changes your own projects. Do not test on real or
+  sensitive projects.
+
 STEP 1 - Check you have QGIS 4.2
   Open QGIS. Menu Help > About. It must say 4.2.x. (QGIS 3 will not work.)
   Keep that About text: you send it back (step 9).
