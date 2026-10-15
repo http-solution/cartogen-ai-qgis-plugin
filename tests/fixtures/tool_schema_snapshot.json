@@ -2022,6 +2022,15 @@
   ],
   "required": []
  },
+ "raster_calculator": {
+  "properties": [
+   "expression",
+   "new_layer_name"
+  ],
+  "required": [
+   "expression"
+  ]
+ },
  "raster_clip": {
   "properties": [
    "mask_layer",

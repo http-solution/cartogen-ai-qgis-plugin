@@ -117,7 +117,7 @@
  "Mosaic / merge rasters": "COVERED",
  "Reproject / warp a raster": "MISSING",
  "Resample, change resolution, translate / convert format": "MISSING",
- "Raster calculator (map algebra)": "MISSING",
+ "Raster calculator (map algebra)": "COVERED",
  "Reclassify a raster by table": "COVERED",
  "Zonal statistics of a raster per polygon": "COVERED",
  "Sample raster values at points": "COVERED",

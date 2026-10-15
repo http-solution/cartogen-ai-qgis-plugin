@@ -11,6 +11,7 @@ from . import data_source_tools
 from . import attribute_edit_tools
 from . import web_research_tools
 from . import watershed_tools
+from . import raster_calculator_tool
 from . import map_view_tools
 from . import raster_tools
 from . import styling_tools
@@ -111,6 +112,7 @@ __all__ = [
     "project_tools",
     "provenance_tools",
     "qa_checklist_tools",
+    "raster_calculator_tool",
     "raster_tools",
     "register_tool",
     "reporting_tools",

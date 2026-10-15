@@ -28,6 +28,8 @@ GOLDEN = {
     "add a point at 15.3694, 44.1910": {"add_point_layer"},
     "buffer smoke_points by 500 m": {"buffer_analysis"},
     "label smoke_points by name": {"apply_labels"},
+    "raster calculator: dem minus dem_old": {"raster_calculator"},
+    "make a mask of the cells above 100 in the dem": {"raster_calculator"},
     "change the colour of smoke_zones": {"change_layer_color"},
     "make the layer smoke_zones 50 percent transparent": {"set_layer_transparency"},
     "save the style of the layer smoke_zones": {"save_layer_style"},
