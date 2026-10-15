@@ -1,6 +1,6 @@
 # Tool Reference
 
-Auto-generated from the live tool registry (241 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
+Auto-generated from the live tool registry (242 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
 
 Flags: **network-only** tools bypass the main-thread QGIS dispatcher entirely (pure HTTP, safe from any background thread); **two-phase** tools split a network fetch (background thread) from the QGIS-touching part (main thread); **task-management** tools are excluded from auto-advance in the Task Manager.
 
@@ -2452,6 +2452,17 @@ Assembles a QA checklist for one map product -- a layer, optionally paired with 
 | `layer_name` | string | yes |  |
 | `layout_name` | string | no | Optional print layout built for this product (from create_print_layout) -- checked for the mandatory MAP_MAIN/TITLE/LEGEND/SCALEBAR/NORTH_ARROW elements. Omit to skip the cartography section. |
 | `output_path` | string | no | Optional exported file path (e.g. create_print_layout's own output_path) to verify it actually exists on disk with real content. Omit to skip the export-integrity section. |
+
+## raster_calculator_tool
+
+### `raster_calculator`
+
+Raster calculator (map algebra): computes a new raster from one or more raster layers in the project with an expression, using QGIS's own raster calculator. Write each layer as "layer name@band" in double quotes (band numbers start at 1), for example "dem@1" > 100 (a 0/1 mask of cells above 100), ("nir@1" - "red@1") / ("nir@1" + "red@1"), or "slope@1" < 15 AND "landcover@1" = 2. Allowed: numbers, + - * / ^, comparisons (< > = != <= >=), AND, OR, brackets and the functions sqrt sin cos tan asin acos atan ln log10 abs min max. Anything else is refused before QGIS runs. The first layer named sets the output extent and cell size by default. Adds a NEW raster layer (default name 'raster_calc'); no input layer is changed. Cells where any input is NoData stay NoData.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `expression` | string | yes | Raster expression, layers written as "layer name@band". |
+| `new_layer_name` | string | no | Name for the result layer (default 'raster_calc'). |
 
 ## representation_tools
 

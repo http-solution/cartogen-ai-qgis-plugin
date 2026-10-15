@@ -414,6 +414,12 @@ _TOOL_ALIASES = {
         "cash assistance", "voucher assistance", "cash and voucher", "cva feasib",
         "cva viable",
     ],
+    "raster_calculator": [
+        "raster calculator", "raster calc", "map algebra", "band math", "raster expression", "raster minus", "minus raster",
+        "subtract the raster", "subtract raster", "add the rasters", "multiply the raster", "divide the raster", "raster where",
+        "cells above", "cells below", "cells where", "pixels above", "pixels below", "mask of cells", "threshold the raster",
+        "raster threshold", "combine the rasters", "raster a minus", "difference between the two rasters",
+    ],
     "apply_raster_stretch": [
         "raster looks washed out", "raster looks flat", "fix the raster colors",
         "raster color ramp", "raster contrast", "stretch the raster",
