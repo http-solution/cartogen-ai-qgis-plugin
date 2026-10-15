@@ -179,7 +179,48 @@ TABLE_FAMILY = {
     "native:detectvectorchanges": "Detect dataset changes",
 }
 ALLOWED_ALGORITHM_IDS = frozenset(set(ALLOWED_ALGORITHM_IDS) | set(TABLE_FAMILY))
-FAMILY_NAMES = {**GEOMETRY_FAMILY, **TABLE_FAMILY}
+# M6c: wave '2C analysis and creation' plus the geometry-check algorithms of '2E' and qgis:texttofloat, same rule. Left off on purpose: the
+# native:fixgeometry* algorithms (they need the error layer a matching check produces, so a plain request cannot drive them), the Nominatim
+# geocoder (network), native:filter (model-only, no output sink) and the four algorithms M6a already rejected.
+ANALYSIS_FAMILY = {
+    "native:arrayoffsetlines": "Array of offset (parallel) lines",
+    "native:arraytranslatedfeatures": "Array of translated features",
+    "native:checkgeometryangle": "Small angles",
+    "native:checkgeometryarea": "Small polygons",
+    "native:checkgeometrydangle": "Dangle-end lines",
+    "native:checkgeometrydegeneratepolygon": "Degenerate polygons",
+    "native:checkgeometryduplicate": "Duplicated geometries",
+    "native:checkgeometryduplicatenodes": "Duplicated vertices",
+    "native:checkgeometryfollowboundaries": "Polygons exceeding boundaries",
+    "native:checkgeometryhole": "Holes",
+    "native:checkgeometrylineintersection": "Lines intersecting each other",
+    "native:checkgeometrylinelayerintersection": "Lines intersecting other layer",
+    "native:checkgeometrymissingvertex": "Missing vertices along borders",
+    "native:checkgeometrymultipart": "Strictly multipart",
+    "native:checkgeometryoverlap": "Overlaps",
+    "native:checkgeometrysegmentlength": "Small segments",
+    "native:checkgeometryselfcontact": "Self-contacts",
+    "native:checkgeometryselfintersection": "Self-intersections",
+    "native:checkgeometrysliverpolygon": "Sliver polygons",
+    "native:climbalongline": "Climb along line",
+    "native:distancematrix": "Distance matrix",
+    "native:distancetonearesthub": "Distance to nearest hub",
+    "native:extenttolayer": "Create layer from extent",
+    "native:hublines": "Join by lines (hub lines)",
+    "native:meancoordinates": "Mean coordinate(s)",
+    "native:pointtolayer": "Create layer from point",
+    "native:randompointsinpolygons": "Random points in polygons",
+    "native:randompointsonlines": "Random points on lines",
+    "native:shortestline": "Shortest line between features",
+    "qgis:distancetonearesthublinetohub": "Distance to nearest hub (line to hub)",
+    "qgis:distancetonearesthubpoints": "Distance to nearest hub (points)",
+    "qgis:randompointsalongline": "Random points along line",
+    "qgis:randompointsinlayerbounds": "Random points in layer bounds",
+    "qgis:texttofloat": "Text to float",
+    "qgis:topologicalcoloring": "Topological coloring",
+}
+ALLOWED_ALGORITHM_IDS = frozenset(set(ALLOWED_ALGORITHM_IDS) | set(ANALYSIS_FAMILY))
+FAMILY_NAMES = {**GEOMETRY_FAMILY, **TABLE_FAMILY, **ANALYSIS_FAMILY}
 
 # Algorithms whose OUTPUT is a RASTER FILE, not a vector sink. "memory:" is not a valid raster destination, and a raster
 # result comes back as a file path, not a layer: before 2026-10-01 these ran and the tool reported "no new layer output".

@@ -59,7 +59,10 @@ ROWS = {
 # ("Concave hull (by layer)" -> "concave hull"). A one-word name is asked for the way a user would say it.
 _ONE_WORD_REQUESTS = {"Boundary": "get the boundary of the polygons", "Polygonize": "polygonize the lines", "Roundness": "calculate the roundness of the polygons",
                       "Extrude": "extrude the lines", "Rotate": "rotate the features by 45 degrees", "Smooth": "smooth the lines",
-                      "Subdivide": "subdivide the polygons", "Translate": "translate the features by 100 m"}
+                      "Subdivide": "subdivide the polygons", "Translate": "translate the features by 100 m",
+                      "Holes": "check the geometry for holes", "Overlaps": "check the geometry for overlaps",
+                      "Mean coordinate(s)": "calculate the mean coordinate of the points", "Join by lines (hub lines)": "draw join by lines from the points to the hubs",
+                      "Create layer from extent": "create layer from extent", "Create layer from point": "create layer from point 10,10"}
 
 
 def _plain_request(name):
