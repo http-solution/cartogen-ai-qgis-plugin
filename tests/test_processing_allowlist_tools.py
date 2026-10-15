@@ -242,6 +242,22 @@ if __name__ == "__main__":
     unittest.main()
 
 
+class TestExpressionAlgorithmsAreScreened(unittest.TestCase):
+    """M6d: an expression-taking algorithm refuses env(), file functions and eval() in any string parameter, the same as field_calculator."""
+
+    def test_denied_function_is_refused_before_anything_runs(self):
+        from cartogen_ai.core.agent.tools._processing_allowlist import parameter_violation
+        for alg in ("native:extractbyexpression", "native:geometrybyexpression", "native:orderbyexpression"):
+            self.assertIn("env()", parameter_violation(alg, {"INPUT": "a", "EXPRESSION": "env('HOME') = 'x'"}))
+            self.assertIn("file_exists", parameter_violation(alg, {"INPUT": "a", "EXPRESSION": "file_exists('/etc/passwd')"}))
+
+    def test_ordinary_expression_passes_and_other_algorithms_are_untouched(self):
+        from cartogen_ai.core.agent.tools._processing_allowlist import parameter_violation
+        self.assertIsNone(parameter_violation("native:extractbyexpression", {"INPUT": "a", "EXPRESSION": '"pop" > 1000 AND "name" = \'env\''}))
+        # a denied name inside a string literal is not a call
+        self.assertIsNone(parameter_violation("native:buffer", {"INPUT": "env('x')"}))
+
+
 class TestNoFreeFormCodeSurface(unittest.TestCase):
     """GitHub #137 (audit F01): gdal:rastercalculator's FORMULA is evaluated with Python eval() by gdal_calc."""
 

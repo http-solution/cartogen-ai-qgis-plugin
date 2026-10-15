@@ -72,10 +72,14 @@ class TestAlgorithmMapping(unittest.TestCase):
 
 
 class TestAllowlistExtensions(unittest.TestCase):
-    def test_extensions_are_allowed_and_expression_algorithms_are_not(self):
+    def test_extensions_are_allowed_and_expression_algorithms_are_screened(self):
         from cartogen_ai.core.agent.tools._processing_allowlist import ALLOWED_ALGORITHM_IDS, ANALYSIS_EXTENSIONS
         self.assertTrue(ANALYSIS_EXTENSIONS <= ALLOWED_ALGORITHM_IDS)
-        for risky in ("native:extractbyexpression", "native:aggregate", "native:refactorfields", "native:fieldcalculator"):
+        # M6d (owner decision 2026-10-14): expression algorithms that write a new layer are allowed, but only because every string
+        # parameter goes through the expression screen; the ones below stay off (list-of-objects parameter, or a dedicated tool exists).
+        from cartogen_ai.core.agent.tools._processing_allowlist import EXPRESSION_ALGORITHM_IDS
+        self.assertTrue(EXPRESSION_ALGORITHM_IDS <= ALLOWED_ALGORITHM_IDS)
+        for risky in ("native:aggregate", "native:refactorfields", "native:fieldcalculator", "native:selectbyexpression"):
             self.assertNotIn(risky, ALLOWED_ALGORITHM_IDS)
 
     def test_raster_output_algorithms_are_a_subset_of_the_allowlist(self):
