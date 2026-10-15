@@ -31,6 +31,13 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      # The gate below first ran on 2026-10-15 (rc42) and failed with "No module named 'requests'": the job installed nothing, while the
+      # tests job installs the dependencies from requirements.txt. Same install lines as .github/workflows/tests.yml.
+      - name: Install test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          grep -v -E "^ultralytics|^#|^$" requirements.txt | xargs -r pip install
+          pip install markdown==3.7
       # Release gate (M0, 2026-10-14): a release is never built from a ref whose offline tests fail. The golden routing tables, the
       # tool-schema snapshot and the size pins all run here, so a regression cannot ride out in a zip.
       - name: Release gate - offline test suite
