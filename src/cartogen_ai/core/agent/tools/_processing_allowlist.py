@@ -161,6 +161,26 @@ GEOMETRY_FAMILY = {
 }
 ALLOWED_ALGORITHM_IDS = frozenset(set(ALLOWED_ALGORITHM_IDS) | set(GEOMETRY_FAMILY))
 
+# M6b (roadmap 2026-10-14): the table family, same mechanical rule as M6a applied to wave '2B table and selection' (36 candidates). 11
+# pass it. The rest stay off because they carry a string, crs or `vector` (in-place) parameter: add/rename field, add X/Y, assign or define
+# projection, create index, truncate, random/attribute selection, select within distance, save selected, execute SQL, refactor, etc.
+# Each id stays only while tests/test_processing_geometry_family_live.py runs it successfully in real QGIS.
+TABLE_FAMILY = {
+    "native:deleteduplicategeometries": "Delete duplicate geometries",
+    "native:dropgeometries": "Drop geometries",
+    "native:extractwithindistance": "Extract within distance",
+    "native:filterbygeometry": "Filter by geometry type",
+    "native:deletecolumn": "Drop field(s)",
+    "native:retainfields": "Retain fields",
+    "native:removeduplicatesbyattribute": "Delete duplicates by attribute",
+    "native:randomextract": "Random extract",
+    "native:randomextractwithinsubsets": "Random extract within subsets",
+    "native:joinbylocationsummary": "Join attributes by location (summary)",
+    "native:detectvectorchanges": "Detect dataset changes",
+}
+ALLOWED_ALGORITHM_IDS = frozenset(set(ALLOWED_ALGORITHM_IDS) | set(TABLE_FAMILY))
+FAMILY_NAMES = {**GEOMETRY_FAMILY, **TABLE_FAMILY}
+
 # Algorithms whose OUTPUT is a RASTER FILE, not a vector sink. "memory:" is not a valid raster destination, and a raster
 # result comes back as a file path, not a layer: before 2026-10-01 these ran and the tool reported "no new layer output".
 RASTER_OUTPUT_ALGORITHM_IDS = frozenset({
