@@ -4,7 +4,7 @@ must get a row here, which the first test enforces. Checks what is OFFERED, not 
 import unittest
 
 from cartogen_ai.core.agent.tools import TOOLS_SCHEMA
-from cartogen_ai.core.agent.tools._processing_allowlist import ALLOWED_ALGORITHM_IDS, GEOMETRY_FAMILY
+from cartogen_ai.core.agent.tools._processing_allowlist import ALLOWED_ALGORITHM_IDS, FAMILY_NAMES
 from cartogen_ai.core.services.tool_router import ToolRouter
 
 PROCESSING_TOOL = "run_allowlisted_processing_algorithm"
@@ -69,7 +69,7 @@ def _plain_request(name):
     return " ".join(re.sub(r"[^a-z0-9 ]", " ", re.sub(r"\(.*?\)", "", name).lower()).split())
 
 
-for _alg_id, _name in GEOMETRY_FAMILY.items():
+for _alg_id, _name in FAMILY_NAMES.items():
     ROWS[_alg_id] = (_plain_request(_name), None)
 
 

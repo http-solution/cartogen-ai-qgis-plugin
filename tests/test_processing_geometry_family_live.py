@@ -12,7 +12,7 @@ try:
 except ImportError:
     LIVE = False
 
-from cartogen_ai.core.agent.tools._processing_allowlist import GEOMETRY_FAMILY
+from cartogen_ai.core.agent.tools._processing_allowlist import FAMILY_NAMES
 from tests._processing_live_rows import GEOMETRY_NOT_YET
 
 TIMEOUT_SECONDS = 60
@@ -41,7 +41,7 @@ def _run_one(alg_id):
 class TestGeometryFamilyRuns(unittest.TestCase):
     def test_every_algorithm_runs_on_at_least_one_geometry_type(self):
         from concurrent.futures import ThreadPoolExecutor
-        ids = sorted(set(GEOMETRY_FAMILY) - set(GEOMETRY_NOT_YET))
+        ids = sorted(set(FAMILY_NAMES) - set(GEOMETRY_NOT_YET))
         with ThreadPoolExecutor(max_workers=6) as pool:
             outcomes = dict(zip(ids, pool.map(_run_one, ids), strict=True))
         failures = {k: v[1] for k, v in outcomes.items() if not v[0]}

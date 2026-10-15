@@ -307,8 +307,8 @@ def run_allowlisted_processing_algorithm(alg_id, params, new_layer_name=None):
 def search_allowed_algorithms(query, names=None, limit=15):
     """[(id, name)] of approved algorithms whose id or display name contains every word of `query`, best first. Pure: `names` maps
     id to display name (ids without one are searched by id only)."""
-    from ._processing_allowlist import GEOMETRY_FAMILY
-    names = dict(GEOMETRY_FAMILY if names is None else names)
+    from ._processing_allowlist import FAMILY_NAMES
+    names = dict(FAMILY_NAMES if names is None else names)
     words = [w for w in str(query or "").lower().replace("_", " ").split() if len(w) > 1]
     scored = []
     for alg_id in sorted(ALLOWED_ALGORITHM_IDS):
@@ -330,9 +330,9 @@ def search_allowed_algorithms(query, names=None, limit=15):
 def find_processing_algorithm(query="", algorithm_id=None):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
-    from ._processing_allowlist import GEOMETRY_FAMILY
+    from ._processing_allowlist import FAMILY_NAMES
     if algorithm_id:
-        matches = [(algorithm_id, GEOMETRY_FAMILY.get(algorithm_id, ""))] if algorithm_id in ALLOWED_ALGORITHM_IDS else []
+        matches = [(algorithm_id, FAMILY_NAMES.get(algorithm_id, ""))] if algorithm_id in ALLOWED_ALGORITHM_IDS else []
         if not matches:
             return {"error": f"'{algorithm_id}' is not on the approved list. Search with a few words instead."}
     else:
