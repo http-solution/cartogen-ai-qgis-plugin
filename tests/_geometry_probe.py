@@ -30,6 +30,10 @@ def params_for(algorithm, layer_name):
             params[p.name()] = layer_name
         elif kind in ("number", "distance", "area", "angle"):
             default = p.defaultValue()
+            # CI run 38683312012: native:randomextract(+withinsubsets) default NUMBER=10 exceeds the 2-5 test features and QGIS refuses
+            # "Selected number is greater than feature count"; that is the probe's fault, not the algorithm's, so ask for one.
+            if p.name() == "NUMBER":
+                default = 1
             params[p.name()] = default if isinstance(default, (int, float)) and default > 0 else 1
         elif kind == "enum":
             params[p.name()] = p.defaultValue() if p.defaultValue() is not None else 0
