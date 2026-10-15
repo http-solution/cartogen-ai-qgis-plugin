@@ -14,6 +14,9 @@ LAYERS = {
 }
 
 
+EXPRESSIONS = {"native:geometrybyexpression": "$geometry", "native:orderbyexpression": '"val"', "qgis:randompointsinsidepolygons": "1"}
+
+
 def _is_optional(parameter):
     from qgis.core import Qgis
     flag = getattr(getattr(Qgis, "ProcessingParameterFlag", None), "Optional", None)
@@ -53,6 +56,9 @@ def params_for(algorithm, layer_name, distinct=False):
             params[p.name()] = "0.5,3.5,0.2,1.8 [EPSG:4326]"
         elif kind == "point":
             params[p.name()] = "1,1 [EPSG:4326]"
+        elif kind == "expression" and not _is_optional(p):
+            # M6d: an expression a user could plausibly type, per algorithm (a geometry for geometrybyexpression, a sort key, a count)
+            params[p.name()] = EXPRESSIONS.get(algorithm.id(), '"val" > 0')
         elif not _is_optional(p):
             params[p.name()] = p.defaultValue()
     return params

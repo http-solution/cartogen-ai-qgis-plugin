@@ -220,7 +220,22 @@ ANALYSIS_FAMILY = {
     "qgis:topologicalcoloring": "Topological coloring",
 }
 ALLOWED_ALGORITHM_IDS = frozenset(set(ALLOWED_ALGORITHM_IDS) | set(ANALYSIS_FAMILY))
-FAMILY_NAMES = {**GEOMETRY_FAMILY, **TABLE_FAMILY, **ANALYSIS_FAMILY}
+
+# M6d: algorithms that take a QGIS expression and write a new layer. Every string parameter of these goes through the expression screen
+# (parameter_violation), so env(), file functions and eval() are refused exactly as in field_calculator and the other expression tools.
+# Left off: native:selectbyexpression (changes the user's own selection, needs the in-place handling), native:aggregate (its
+# `aggregates` parameter is a list of objects), native:fieldcalculator (the dedicated tool already covers it), the raise* algorithms
+# (they only raise messages) and the raster-calculator forms (M7, own grammar).
+EXPRESSION_FAMILY = {
+    "native:extractbyexpression": "Extract by expression",
+    "native:geometrybyexpression": "Geometry by expression",
+    "native:orderbyexpression": "Order by expression",
+    "native:addautoincrementalfield": "Add autoincremental field",
+    "qgis:randompointsinsidepolygons": "Random points inside polygons",
+}
+EXPRESSION_ALGORITHM_IDS = frozenset(EXPRESSION_FAMILY)
+ALLOWED_ALGORITHM_IDS = frozenset(set(ALLOWED_ALGORITHM_IDS) | set(EXPRESSION_FAMILY))
+FAMILY_NAMES = {**GEOMETRY_FAMILY, **TABLE_FAMILY, **ANALYSIS_FAMILY, **EXPRESSION_FAMILY}
 
 # Algorithms whose OUTPUT is a RASTER FILE, not a vector sink. "memory:" is not a valid raster destination, and a raster
 # result comes back as a file path, not a layer: before 2026-10-01 these ran and the tool reported "no new layer output".
@@ -246,11 +261,27 @@ MUTATES_INPUT_ALGORITHM_IDS = frozenset({"native:selectbylocation"})
 FORBIDDEN_PARAM_KEYS = frozenset({"FORMULA", "EXTRA"})
 
 
+def expression_violation(alg_id, params):
+    """The screen's message when an expression-taking algorithm is given a string that calls a denied function, else None. Pure."""
+    if alg_id not in EXPRESSION_ALGORITHM_IDS:
+        return None
+    from ...validators.expression_screen import screen_expression
+    for value in (params or {}).values():
+        if isinstance(value, str):
+            blocked = screen_expression(value)
+            if blocked:
+                return blocked
+    return None
+
+
 def parameter_violation(alg_id, params):
     """A reason string when `params` carries something the generic tool must not pass to Processing, else None. Pure.
 
     Refused: a FORMULA / EXTRA parameter (free-form expression or raw backend arguments), matched case-insensitively, and any
     nested object value (the tool only ever accepts flat, JSON-primitive parameters)."""
+    blocked = expression_violation(alg_id, params)
+    if blocked:
+        return blocked
     for key, value in (params or {}).items():
         if str(key).upper() in FORBIDDEN_PARAM_KEYS:
             return (f"parameter '{key}' is not accepted: it carries a free-form expression or raw backend arguments, which "
