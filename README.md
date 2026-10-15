@@ -20,14 +20,14 @@
   <a href="https://cartogenai.com"><img src="https://img.shields.io/badge/website-cartogenai.com-0b6efd" alt="Website"></a>
 </p>
 
-**Community edition · Version 1.16.3 · GNU GPL v2 · QGIS 4.2–4.99 · [cartogenai.com](https://cartogenai.com)**
+**Community edition · Version 1.17.0-rc42 (pre-release) · GNU GPL v2 · QGIS 4.2–4.99 · [cartogenai.com](https://cartogenai.com)**
 
 Cartogen AI is built for GIS analysts, humanitarian teams, researchers, and anyone who
 needs to move from a question to a reproducible spatial result without leaving QGIS.
 The agent exposes its plan, tool calls, progress, and errors instead of returning a
 black-box answer.
 
-> **Project status (2026-10-06):** active Community edition, currently at the **1.16.3 stable** build (rc20 to 1.16.3 add the audit fixes, hand-test fixes and the cost and routing work made after rc19).
+> **Project status (2026-10-06):** active Community edition, currently at the **1.17.0-rc42 pre-release** build (the last stable build is 1.16.3; rc20 to 1.17.0-rc42 add the audit fixes, hand-test fixes and the cost and routing work made after rc19).
 > - **Tests:** 3,570 automated tests, 0 failures in the offline run; the live-QGIS tests (and any needing optional libraries) are skipped there and
 >   the QGIS ones run in CI (the `qgis-live-tests` job, QGIS 4.2.2).
 > - **Architectural audit:** an external audit of rc12 raised 32 findings, filed as issues #137-#168 (tracking issue #169). The 15
@@ -86,6 +86,18 @@ black-box answer.
   a restricted execution sandbox for model-generated PyQGIS scripts, fail-closed
   read-only SQL enforcement, an SSRF guard on fetched URLs, and a destructive-action
   confirmation gate the model cannot self-approve.
+
+## What's new in 1.17.0-rc42
+
+Built on 1.16.3. Offline tests and the QGIS 4.2.2 live checks in CI pass; **not hand-tested** in desktop QGIS unless an item says so. Full list: the `v1.17.0-rc42` block in [metadata.txt](metadata.txt) and [CHANGELOG.md](CHANGELOG.md).
+
+- Run QGIS tools by name: The approved Processing list grew from 42 to 166 algorithms: 73 geometry tools (densify, smooth, extract vertices, polygons to lines, hulls, boundaries and more), 11 table and selection tools (delete duplicates, drop fields, random extract, join by location summary and others), 35 analysis and creation tools (distance matrix, hub lines, random points, mean coordinates, topological colouring, the 16 geometry checks) and 5 expression tools (extract, geometry and order by expression, autoincrement field, random points inside polygons). New tool find_processing_algorithm searches the list by a few words and returns each algorithm's exact parameters. Each algorithm was run once in real QGIS 4.2.2 in CI; any that failed there was left off. Expression tools refuse env(), file functions and eval() in what the model writes. Algorithms that need file output, a path, or a selection change on your own layer are not on the list.
+- Raster calculator: New tool raster_calculator: map algebra with QGIS's own calculator, for example "dem@1" > 100 or ("nir@1" - "red@1") / ("nir@1" + "red@1"). Only numbers, + - * / ^, comparisons, AND, OR, brackets and sqrt sin cos tan asin acos atan ln log10 abs min max are accepted; layers must exist, share a coordinate system and have unique names. The result is a new raster; no input is changed.
+- Layers, groups, map view and project: New tools: create an empty layer, add a basemap or a web service layer (WMS, WFS, XYZ), find and repair broken layer paths, assign a layer CRS, save a layer as another format, create layer groups and move layers into them, set the project CRS and properties, set the map view (centre, scale), create and go to bookmarks, and measure a distance.
+- Selections and attribute editing: New tools: select all, select by expression, clear selection, set an attribute value, add, rename and delete a field, add a feature from WKT, delete features. Edits go through the edit session so they can be undone. Expressions the model writes are screened: env(), file functions and eval() are refused.
+- Hydrology and research: New tool delineate_watershed: from a DEM and an outlet point it derives the basin, longest flow path and outlet, and returns area, stream length, relief, slope and time of concentration, then hands over to the existing peak-flow tool, which still refuses guessed rainfall intensity or runoff coefficient. New tool web_research returns sourced findings; search_web now falls back instead of failing when the search package is missing; find_incident_reports can include news as an opt-in source mapped from place names in headlines.
+- Safety net: Every release is now built behind a gate of the offline test suite, a tool-schema snapshot, golden routing requests with size pins, a coverage ratchet over 163 QGIS actions and all 772 registry algorithms, and the replay of 26 recorded sessions. Plain requests that worked before must keep being offered their tools.
+- Not hand-tested: Everything above is checked by the offline suite and, for the QGIS parts, by CI on QGIS 4.2.2. None of it has been hand-tested in desktop QGIS. Not verified from the build environment: the Copernicus DEM download behind delineate_watershed, and the live GDELT, Google News and DuckDuckGo responses behind the news source and web_research. set_map_view and go_to_bookmark need the real map canvas, which CI does not have.
 
 ## What's new in 1.16.3
 
@@ -447,7 +459,7 @@ strategic orchestration. The full catalogue -- what each tool does, what it draw
 in [docs/HUMANITARIAN_TOOLS_CATALOGUE.md](docs/HUMANITARIAN_TOOLS_CATALOGUE.md); exact arguments are in
 [docs/TOOLS_REFERENCE.md](docs/TOOLS_REFERENCE.md), and what is still missing is in
 [docs/HUMANITARIAN_WORKFLOW_GAP_ANALYSIS_2026-10-04.md](docs/HUMANITARIAN_WORKFLOW_GAP_ANALYSIS_2026-10-04.md).
-No tool was added in 1.16.3, so none is marked **new**; the newest are `search_fact_checks` (1.16.0-rc40) and `find_incident_reports` (1.16.0-rc37), tested offline and in CI on QGIS 4.2.2 and, for the rc37 tool, in the rc40 hand test.
+1.17.0-rc42 added tools outside these workflows (see its notes and `docs/TOOLS_REFERENCE.md`), so none is marked **new** here; the newest are `search_fact_checks` (1.16.0-rc40) and `find_incident_reports` (1.16.0-rc37), tested offline and in CI on QGIS 4.2.2 and, for the rc37 tool, in the rc40 hand test.
 
 | Workflow | Tools |
 |---|---|

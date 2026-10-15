@@ -2726,3 +2726,5 @@ cause not found), and 49 rows not run.
 **Update 2026-10-14: 1.16.2 (stable) prepared.** A failed boundary download no longer ends with points drawn from memory (tool results tell the model not to substitute). Otherwise 1.16.1 unchanged. CI-checked; the model-side effect is not tried against a real model.
 
 **Update 2026-10-14: 1.16.3 (stable) prepared.** Router regression since rc23 fixed (plain requests are offered their layer tools again), QGIS vocabulary and Processing-tool coverage guards, recorded-session replay. See docs/ROUTER_REGRESSION_AUDIT_2026-10-14.md. CI-checked; routing is deterministic and tested, model behaviour is not hand-tested. Open owner decision: widen the Processing allow-list for 8 safe algorithms (audit note, third pass).
+
+**Update 2026-10-15: 1.17.0-rc42 (release candidate) prepared.** Roadmap work M0 to M3, M6 (124 more Processing algorithms, each run live in CI), M7 raster calculator, and the S1 to S4 showcase fixes (watershed, web research, news source). CI-checked on QGIS 4.2.2; **not hand-tested**. The version is 1.17.0-rc42 so that it sorts above the 1.16.3 stable build while keeping the rc42 number agreed with the owner.

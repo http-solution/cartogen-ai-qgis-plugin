@@ -7,6 +7,7 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 | Version | Date | Summary |
 |---|---|---|
+| [1.17.0-rc42](#v1-17-0-rc42) | 2026-10-15 | **Release candidate 42 for 1.17.0.** No breaking changes -- requires QGIS 4.2+. Many more QGIS actions by plain request: 124 more Processing algorithms, a raster calculator, layer groups, project CRS, bookmarks, selections and attribute editing, a watershed tool and sourced web research. CI-checked, not hand-tested. |
 | [1.16.3](#v1-16-3) | 2026-10-14 | **Stable release 1.16.3.** No breaking changes -- requires QGIS 4.2+. Plain requests such as 'create layer for Jordan ADM1' are offered their tools again (broken since rc23). |
 | [1.16.2](#v1-16-2) | 2026-10-14 | **Stable release 1.16.2.** No breaking changes -- requires QGIS 4.2+. A failed boundary download no longer ends with points drawn from memory. |
 | [1.16.1](#v1-16-1) | 2026-10-14 | **Stable release 1.16.1.** No breaking changes -- requires QGIS 4.2+. The stable build of the 1.16 line; same code as rc41. |
@@ -85,6 +86,19 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 The detailed narrative entries below are unchanged -- this table is purely an additive index on
 top of them.
+
+<a id="v1-17-0-rc42"></a>
+## [1.17.0-rc42] — 2026-10-15 — Release candidate 42 for 1.17.0: No breaking changes -- requires QGIS 4.2+. Many more QGIS actions by plain request: 124 more Processing algorithms, a raster calculator, layer groups, project CRS, bookmarks, selections and attribute editing, a watershed tool and sourced web research. CI-checked, not hand-tested.
+
+No breaking changes; QGIS 4.2+. Everything after the 1.16.3 build:
+
+- Run QGIS tools by name: The approved Processing list grew from 42 to 166 algorithms: 73 geometry tools (densify, smooth, extract vertices, polygons to lines, hulls, boundaries and more), 11 table and selection tools (delete duplicates, drop fields, random extract, join by location summary and others), 35 analysis and creation tools (distance matrix, hub lines, random points, mean coordinates, topological colouring, the 16 geometry checks) and 5 expression tools (extract, geometry and order by expression, autoincrement field, random points inside polygons). New tool find_processing_algorithm searches the list by a few words and returns each algorithm's exact parameters. Each algorithm was run once in real QGIS 4.2.2 in CI; any that failed there was left off. Expression tools refuse env(), file functions and eval() in what the model writes. Algorithms that need file output, a path, or a selection change on your own layer are not on the list.
+- Raster calculator: New tool raster_calculator: map algebra with QGIS's own calculator, for example "dem@1" > 100 or ("nir@1" - "red@1") / ("nir@1" + "red@1"). Only numbers, + - * / ^, comparisons, AND, OR, brackets and sqrt sin cos tan asin acos atan ln log10 abs min max are accepted; layers must exist, share a coordinate system and have unique names. The result is a new raster; no input is changed.
+- Layers, groups, map view and project: New tools: create an empty layer, add a basemap or a web service layer (WMS, WFS, XYZ), find and repair broken layer paths, assign a layer CRS, save a layer as another format, create layer groups and move layers into them, set the project CRS and properties, set the map view (centre, scale), create and go to bookmarks, and measure a distance.
+- Selections and attribute editing: New tools: select all, select by expression, clear selection, set an attribute value, add, rename and delete a field, add a feature from WKT, delete features. Edits go through the edit session so they can be undone. Expressions the model writes are screened: env(), file functions and eval() are refused.
+- Hydrology and research: New tool delineate_watershed: from a DEM and an outlet point it derives the basin, longest flow path and outlet, and returns area, stream length, relief, slope and time of concentration, then hands over to the existing peak-flow tool, which still refuses guessed rainfall intensity or runoff coefficient. New tool web_research returns sourced findings; search_web now falls back instead of failing when the search package is missing; find_incident_reports can include news as an opt-in source mapped from place names in headlines.
+- Safety net: Every release is now built behind a gate of the offline test suite, a tool-schema snapshot, golden routing requests with size pins, a coverage ratchet over 163 QGIS actions and all 772 registry algorithms, and the replay of 26 recorded sessions. Plain requests that worked before must keep being offered their tools.
+- Not hand-tested: Everything above is checked by the offline suite and, for the QGIS parts, by CI on QGIS 4.2.2. None of it has been hand-tested in desktop QGIS. Not verified from the build environment: the Copernicus DEM download behind delineate_watershed, and the live GDELT, Google News and DuckDuckGo responses behind the news source and web_research. set_map_view and go_to_bookmark need the real map canvas, which CI does not have.
 
 <a id="v1-16-3"></a>
 ## [1.16.3] — 2026-10-14 — Stable release 1.16.3: No breaking changes -- requires QGIS 4.2+. Plain requests such as 'create layer for Jordan ADM1' are offered their tools again (broken since rc23).
