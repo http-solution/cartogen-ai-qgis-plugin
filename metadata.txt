@@ -8,7 +8,7 @@ name=Cartogen AI
 qgisMinimumVersion=4.2
 qgisMaximumVersion=4.99
 description=Spatial AI that plans, executes, and shows its work inside QGIS.
-version=1.16.3
+version=1.17.0-rc42
 author=Alaa Alshoubaki
 email=cartogenai@gmail.com
 
@@ -25,7 +25,17 @@ license=GNU GPL v2
 hasProcessingProvider=yes
 # Declares Qt 6 support for QGIS 4 plugin managers that read this key; managers that do not know it ignore it (added by the rc28 self-audit; confirm against the directory page after the next upload).
 supportsQt6=True
-changelog=v1.16.3 (2026-10-14):
+changelog=v1.17.0-rc42 (2026-10-15):
+    No breaking changes -- requires QGIS 4.2+. Many more QGIS actions by plain request: 124 more Processing algorithms, a raster calculator, layer groups, project CRS, bookmarks, selections and attribute editing, a watershed tool and sourced web research. CI-checked, not hand-tested.
+    - Run QGIS tools by name: The approved Processing list grew from 42 to 166 algorithms: 73 geometry tools (densify, smooth, extract vertices, polygons to lines, hulls, boundaries and more), 11 table and selection tools (delete duplicates, drop fields, random extract, join by location summary and others), 35 analysis and creation tools (distance matrix, hub lines, random points, mean coordinates, topological colouring, the 16 geometry checks) and 5 expression tools (extract, geometry and order by expression, autoincrement field, random points inside polygons). New tool find_processing_algorithm searches the list by a few words and returns each algorithm's exact parameters. Each algorithm was run once in real QGIS 4.2.2 in CI; any that failed there was left off. Expression tools refuse env(), file functions and eval() in what the model writes. Algorithms that need file output, a path, or a selection change on your own layer are not on the list.
+    - Raster calculator: New tool raster_calculator: map algebra with QGIS's own calculator, for example "dem@1" > 100 or ("nir@1" - "red@1") / ("nir@1" + "red@1"). Only numbers, + - * / ^, comparisons, AND, OR, brackets and sqrt sin cos tan asin acos atan ln log10 abs min max are accepted; layers must exist, share a coordinate system and have unique names. The result is a new raster; no input is changed.
+    - Layers, groups, map view and project: New tools: create an empty layer, add a basemap or a web service layer (WMS, WFS, XYZ), find and repair broken layer paths, assign a layer CRS, save a layer as another format, create layer groups and move layers into them, set the project CRS and properties, set the map view (centre, scale), create and go to bookmarks, and measure a distance.
+    - Selections and attribute editing: New tools: select all, select by expression, clear selection, set an attribute value, add, rename and delete a field, add a feature from WKT, delete features. Edits go through the edit session so they can be undone. Expressions the model writes are screened: env(), file functions and eval() are refused.
+    - Hydrology and research: New tool delineate_watershed: from a DEM and an outlet point it derives the basin, longest flow path and outlet, and returns area, stream length, relief, slope and time of concentration, then hands over to the existing peak-flow tool, which still refuses guessed rainfall intensity or runoff coefficient. New tool web_research returns sourced findings; search_web now falls back instead of failing when the search package is missing; find_incident_reports can include news as an opt-in source mapped from place names in headlines.
+    - Safety net: Every release is now built behind a gate of the offline test suite, a tool-schema snapshot, golden routing requests with size pins, a coverage ratchet over 163 QGIS actions and all 772 registry algorithms, and the replay of 26 recorded sessions. Plain requests that worked before must keep being offered their tools.
+    - Not hand-tested: Everything above is checked by the offline suite and, for the QGIS parts, by CI on QGIS 4.2.2. None of it has been hand-tested in desktop QGIS. Not verified from the build environment: the Copernicus DEM download behind delineate_watershed, and the live GDELT, Google News and DuckDuckGo responses behind the news source and web_research. set_map_view and go_to_bookmark need the real map canvas, which CI does not have.
+
+v1.16.3 (2026-10-14):
     No breaking changes -- requires QGIS 4.2+. Plain requests such as 'create layer for Jordan ADM1' are offered their tools again (broken since rc23).
     - Plain requests are offered their tools again: Since 1.16.0-rc23 a short request such as 'create layer for Jordan ADM1', 'zoom to the layer X', 'remove the layer X' or 'export X to CSV' was no longer offered add_layer_from_path, zoom_to_layer, get_layer_extent, remove_layer, export_layer, reproject_layer, clip_layer and the other layer tools: the cost work had removed generic words such as layer, add, create and export from tool matching for every request, and ties were then broken alphabetically. The model never saw the tool and answered that none was available. The discount now applies only to requests of more than 25 words, as designed. Found by replaying 40 plain requests through the router of all 43 releases from rc12 to 1.16.2.
     - Boundary tools for ADM codes: 'Jordan ADM1', 'ADM2 districts', 'governorates of Syria', 'admin boundaries' and 'P-code' now offer fetch_geoboundaries and fetch_hdx_admin_boundaries.
