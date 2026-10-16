@@ -122,6 +122,15 @@ _TOOL_ALIASES = {
         "postgis table", "postgis layer", "add the postgis", "load the postgis", "table from postgis", "postgresql table", "postgres table",
         "add the table from the database", "layer from the database", "from the postgis connection",
     ],
+    "add_point_cloud_layer": [
+        "point cloud", "lidar", "las file", "laz file", "copc", "load the point cloud", "add the point cloud",
+    ],
+    "add_vector_tile_layer": [
+        "vector tile", "vector tiles", "mbtiles", "vtpk", "mvt layer", "add the vector tile",
+    ],
+    "add_3d_tiles_layer": [
+        "3d tiles", "3d tile", "tileset.json", "cesium tiles", "tiled scene", "photogrammetry mesh tiles",
+    ],
     "create_virtual_layer": [
         "virtual layer", "create a virtual layer", "sql layer", "query layer", "spatialite query", "sqlite query over the layers",
         "join the layers with sql", "sql query over the layers", "live query layer",

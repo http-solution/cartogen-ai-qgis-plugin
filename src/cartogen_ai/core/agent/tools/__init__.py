@@ -11,6 +11,7 @@ from . import data_source_tools
 from . import attribute_edit_tools
 from . import edit_ops_tools
 from . import data_layer_tools
+from . import new_layer_tools
 from . import project_ops_tools
 from . import layout_extra_tools
 from . import symbology_extra_tools
@@ -117,6 +118,7 @@ __all__ = [
     "mcda_tools",
     "monitoring_tools",
     "multimodal_remote_sensing",
+    "new_layer_tools",
     "pcode_validation_tools",
     "processing_allowlist_tools",
     "project_ops_tools",

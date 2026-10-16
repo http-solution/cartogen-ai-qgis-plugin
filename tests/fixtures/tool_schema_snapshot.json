@@ -1,4 +1,13 @@
 {
+ "add_3d_tiles_layer": {
+  "properties": [
+   "layer_name",
+   "source"
+  ],
+  "required": [
+   "source"
+  ]
+ },
  "add_basemap": {
   "properties": [
    "basemap"
@@ -105,6 +114,15 @@
    "layout_name"
   ]
  },
+ "add_point_cloud_layer": {
+  "properties": [
+   "file_path",
+   "layer_name"
+  ],
+  "required": [
+   "file_path"
+  ]
+ },
  "add_point_layer": {
   "properties": [
    "crs",
@@ -142,6 +160,17 @@
    "text",
    "x",
    "y"
+  ]
+ },
+ "add_vector_tile_layer": {
+  "properties": [
+   "layer_name",
+   "max_zoom",
+   "min_zoom",
+   "source"
+  ],
+  "required": [
+   "source"
   ]
  },
  "add_web_layer": {
