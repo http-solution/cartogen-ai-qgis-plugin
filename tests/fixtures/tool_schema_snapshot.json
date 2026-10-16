@@ -118,6 +118,19 @@
    "table"
   ]
  },
+ "add_text_annotation": {
+  "properties": [
+   "crs",
+   "text",
+   "x",
+   "y"
+  ],
+  "required": [
+   "text",
+   "x",
+   "y"
+  ]
+ },
  "add_web_layer": {
   "properties": [
    "crs",
@@ -902,6 +915,22 @@
   ],
   "required": [
    "base_path"
+  ]
+ },
+ "create_relation": {
+  "properties": [
+   "child_field",
+   "child_layer",
+   "name",
+   "parent_field",
+   "parent_layer"
+  ],
+  "required": [
+   "child_field",
+   "child_layer",
+   "name",
+   "parent_field",
+   "parent_layer"
   ]
  },
  "create_shaded_relief": {
@@ -1699,6 +1728,14 @@
    "layer_name"
   ]
  },
+ "get_layer_metadata": {
+  "properties": [
+   "layer_name"
+  ],
+  "required": [
+   "layer_name"
+  ]
+ },
  "get_layer_sensitivity": {
   "properties": [
    "layer_name"
@@ -1889,6 +1926,10 @@
   "required": []
  },
  "list_map_themes": {
+  "properties": [],
+  "required": []
+ },
+ "list_relations": {
   "properties": [],
   "required": []
  },
@@ -2230,6 +2271,10 @@
    "layer_name"
   ]
  },
+ "remove_annotations": {
+  "properties": [],
+  "required": []
+ },
  "remove_layer": {
   "properties": [
    "layer_name"
@@ -2258,6 +2303,16 @@
   "required": [
    "new_name",
    "old_name"
+  ]
+ },
+ "rename_layer_group": {
+  "properties": [
+   "group_name",
+   "new_name"
+  ],
+  "required": [
+   "group_name",
+   "new_name"
   ]
  },
  "repair_layer_source": {
@@ -2574,6 +2629,22 @@
    "layer_name"
   ]
  },
+ "set_layer_metadata": {
+  "properties": [
+   "abstract",
+   "contact_email",
+   "contact_name",
+   "contact_organization",
+   "keywords",
+   "layer_name",
+   "license",
+   "rights",
+   "title"
+  ],
+  "required": [
+   "layer_name"
+  ]
+ },
  "set_layer_order": {
   "properties": [
    "layer_names"
@@ -2604,6 +2675,17 @@
    "opacity_percent",
    "outline_color",
    "outline_width_mm"
+  ],
+  "required": [
+   "layer_name"
+  ]
+ },
+ "set_layer_temporal": {
+  "properties": [
+   "clear",
+   "end_field",
+   "layer_name",
+   "start_field"
   ],
   "required": [
    "layer_name"
@@ -2670,6 +2752,16 @@
   ],
   "required": []
  },
+ "set_project_time_range": {
+  "properties": [
+   "end",
+   "start"
+  ],
+  "required": [
+   "end",
+   "start"
+  ]
+ },
  "set_raster_style": {
   "properties": [
    "clear_nodata",
@@ -2683,6 +2775,17 @@
   "required": [
    "layer_name"
   ]
+ },
+ "set_snapping_options": {
+  "properties": [
+   "enabled",
+   "mode",
+   "snap_type",
+   "tolerance",
+   "topological_editing",
+   "units"
+  ],
+  "required": []
  },
  "set_task_preview": {
   "properties": [
@@ -2965,6 +3068,14 @@
   "required": [
    "raster_layer",
    "vector_layer"
+  ]
+ },
+ "zoom_history": {
+  "properties": [
+   "direction"
+  ],
+  "required": [
+   "direction"
   ]
  },
  "zoom_to_feature": {

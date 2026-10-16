@@ -136,6 +136,29 @@ _TOOL_ALIASES = {
         "package the layers", "package the project layers", "package for offline", "offline package", "package into one geopackage",
         "pack the layers into a geopackage", "use offline", "take the layers offline", "package layers",
     ],
+    "rename_layer_group": ["rename the group", "rename group", "rename the layer group", "change the group name", "call the group"],
+    "zoom_history": [
+        "zoom last", "zoom next", "zoom to the previous extent", "previous extent", "go back to the previous view", "previous view",
+        "zoom back", "next extent", "go back to the last view",
+    ],
+    "get_layer_metadata": ["layer metadata", "show the metadata", "metadata of the layer", "what is the abstract", "show the abstract", "layer abstract"],
+    "set_layer_metadata": [
+        "set the abstract", "set the layer abstract", "set the metadata", "set the license", "set the layer license", "set the keywords",
+        "update the metadata", "edit the metadata", "set the layer title",
+    ],
+    "set_snapping_options": [
+        "turn on snapping", "turn off snapping", "enable snapping", "disable snapping", "snapping to vertices", "snapping tolerance",
+        "snapping options", "topological editing", "set snapping", "snap to",
+    ],
+    "create_relation": ["create a relation", "add a relation", "define a relation", "relate the", "one to many relation", "1-n relation", "project relation"],
+    "list_relations": ["list the relations", "show the relations", "what relations", "project relations"],
+    "set_layer_temporal": [
+        "make the layer temporal", "enable temporal", "temporal properties", "time enabled", "time-aware", "make it time aware",
+        "use the date field for time", "temporal controller for the layer", "set the layer time",
+    ],
+    "set_project_time_range": ["project time range", "temporal range", "set the time range", "set the temporal range", "animation range"],
+    "add_text_annotation": ["add a text annotation", "text annotation", "annotate the map", "add an annotation", "add a note on the map", "write on the map"],
+    "remove_annotations": ["remove the annotations", "delete the annotations", "clear the annotations", "remove all annotations"],
     "find_broken_layers": [
         "broken layer", "broken layers", "broken path", "broken paths", "missing layer", "layer not found", "layers with a red",
         "unavailable layer", "fix the paths", "data source is missing", "lost layer", "moved the file",

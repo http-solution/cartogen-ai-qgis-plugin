@@ -11,6 +11,7 @@ from . import data_source_tools
 from . import attribute_edit_tools
 from . import edit_ops_tools
 from . import data_layer_tools
+from . import project_ops_tools
 from . import web_research_tools
 from . import watershed_tools
 from . import raster_calculator_tool
@@ -115,6 +116,7 @@ __all__ = [
     "multimodal_remote_sensing",
     "pcode_validation_tools",
     "processing_allowlist_tools",
+    "project_ops_tools",
     "project_tidy_tools",
     "project_tools",
     "provenance_tools",
