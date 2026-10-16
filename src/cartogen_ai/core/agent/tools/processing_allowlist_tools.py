@@ -20,11 +20,11 @@ preference, not a replacement.
 import contextlib
 from .registry import register_tool
 from . import _background_processing as _bg
-from ._processing_allowlist import (ALLOWED_ALGORITHM_IDS, MUTATES_INPUT_ALGORITHM_IDS, RASTER_OUTPUT_ALGORITHM_IDS,
+from ._processing_allowlist import (ALLOWED_ALGORITHM_IDS, GRASS_ALGORITHM_IDS, MUTATES_INPUT_ALGORITHM_IDS, RASTER_OUTPUT_ALGORITHM_IDS,
                                     parameter_violation)
 
 try:
-    from qgis.core import QgsApplication, QgsProcessingContext, QgsProject, QgsRasterLayer
+    from qgis.core import QgsApplication, QgsProcessingContext, QgsProject, QgsRasterLayer, QgsVectorLayer
     import processing
     QGIS_AVAILABLE = True
 except ImportError:
@@ -74,27 +74,29 @@ def _algorithm_definition(alg_id):
         return None
 
 
-def harvest_outputs(output, definition=None):
+def harvest_outputs(output, definition=None, path_outputs=False):
     """[(key, value)] for every output of a finished algorithm that is a layer or a raster file path, in algorithm order. Pure
     given plain values: a value is a layer when it has setName(), or a raster path when the output is declared a raster. GitHub #163:
     only the key 'OUTPUT' used to be looked at, so multi-output algorithms lost their other results."""
     if not isinstance(output, dict):
         return []
     raster_keys = set()
+    vector_keys = set()
     order = list(output.keys())
     if definition is not None:
         raster_keys = {d.name() for d in definition[3] if "raster" in str(d.type()).lower()}
+        vector_keys = {d.name() for d in definition[3] if "vector" in str(d.type()).lower()} if path_outputs else set()
         declared = [d.name() for d in definition[3]]
         order = [k for k in declared if k in output] + [k for k in output if k not in declared]
     found = []
     for key in order:
         value = output[key]
-        if hasattr(value, "setName") or (isinstance(value, str) and (key in raster_keys or (definition is None and key == "OUTPUT")) and value):
+        if hasattr(value, "setName") or (isinstance(value, str) and (key in raster_keys or key in vector_keys or (definition is None and key == "OUTPUT")) and value):
             found.append((key, value))
     return found
 
 
-def _resolve_params(params, raster_output=False, destination_keys=None, raster_keys=None, layer_list_keys=None):
+def _resolve_params(params, raster_output=False, destination_keys=None, raster_keys=None, layer_list_keys=None, temp_file_vectors=False):
     """Any string value that matches a layer currently loaded in the
     project is resolved to that QgsMapLayer object -- the same shape every
     existing processing.run() call in this codebase already uses
@@ -123,7 +125,7 @@ def _resolve_params(params, raster_output=False, destination_keys=None, raster_k
             is_destination = any(key_lower == suffix or key_lower.endswith("_" + suffix) for suffix in _OUTPUT_KEY_SUFFIXES)
         if is_destination:
             as_raster = (key in raster_keys) if raster_keys is not None else raster_output
-            resolved[key] = _SAFE_RASTER_OUTPUT_VALUE if as_raster else _SAFE_OUTPUT_VALUE
+            resolved[key] = _SAFE_RASTER_OUTPUT_VALUE if (as_raster or temp_file_vectors) else _SAFE_OUTPUT_VALUE
             has_output_key = True
             continue
         if isinstance(value, str):
@@ -141,7 +143,7 @@ def _resolve_params(params, raster_output=False, destination_keys=None, raster_k
         for key in destination_keys:
             if key not in resolved:
                 as_raster = (key in raster_keys) if raster_keys is not None else raster_output
-                resolved[key] = _SAFE_RASTER_OUTPUT_VALUE if as_raster else _SAFE_OUTPUT_VALUE
+                resolved[key] = _SAFE_RASTER_OUTPUT_VALUE if (as_raster or temp_file_vectors) else _SAFE_OUTPUT_VALUE
     elif not has_output_key:
         resolved["OUTPUT"] = _SAFE_RASTER_OUTPUT_VALUE if raster_output else _SAFE_OUTPUT_VALUE
     return resolved
@@ -155,7 +157,9 @@ def _raster_list_violation(alg_id, resolved_params, layer_list_keys):
     list through, and a crash would take the user's whole QGIS session with it, so the list is checked here. Every layer-list parameter in
     the raster family is a stack of rasters."""
     from ._processing_allowlist import RASTER_ALGORITHM_IDS
-    if alg_id not in RASTER_ALGORITHM_IDS or not layer_list_keys:
+    # GRASS raster (r.*) and imagery (i.*) algorithms take stacks of rasters too; the vector ones (v.*) take vector lists and are not checked
+    raster_stack = alg_id in RASTER_ALGORITHM_IDS or alg_id.startswith(("grass:r.", "grass:i."))
+    if not raster_stack or not layer_list_keys:
         return None
     for key in layer_list_keys:
         values = resolved_params.get(key)
@@ -239,6 +243,9 @@ def run_allowlisted_processing_algorithm(alg_id, params, new_layer_name=None):
     if violation:
         return {"error": violation}
 
+    # GRASS exports its results to files, so a vector destination cannot be 'memory:'; it gets a temporary file like a raster does and
+    # the path it returns is loaded as a vector layer below.
+    is_grass = alg_id in GRASS_ALGORITHM_IDS
     definition = _algorithm_definition(alg_id)
     destination_keys = raster_keys = layer_list_keys = None
     if definition is not None:
@@ -252,7 +259,7 @@ def run_allowlisted_processing_algorithm(alg_id, params, new_layer_name=None):
     try:
         resolved_params = _resolve_params(params, raster_output=alg_id in RASTER_OUTPUT_ALGORITHM_IDS,
                                           destination_keys=destination_keys, raster_keys=raster_keys,
-                                          layer_list_keys=layer_list_keys)
+                                          layer_list_keys=layer_list_keys, temp_file_vectors=is_grass)
         _check_raster_lists(alg_id, resolved_params, layer_list_keys)
         output = _run_allowlisted(alg_id, resolved_params)
     except _bg.AnalysisCancelledError:
@@ -271,13 +278,12 @@ def run_allowlisted_processing_algorithm(alg_id, params, new_layer_name=None):
             result["selected_feature_count"] = target.selectedFeatureCount()
         return result
 
-    harvested = harvest_outputs(output, definition)
+    harvested = harvest_outputs(output, definition, path_outputs=is_grass)
     layers = []
     for key, harvested_value in harvested:
         value = harvested_value
         if isinstance(value, str):                      # a raster algorithm returns the path of the file it wrote
-            loaded = QgsRasterLayer(value, "raster_output")
-            value = loaded if loaded.isValid() else None
+            value = _load_output_path(value, as_vector=is_grass and key not in (raster_keys or ()))
         if value is not None and hasattr(value, "setName"):
             layers.append((key, value))
     if not layers:
@@ -337,6 +343,13 @@ def run_allowlisted_processing_algorithm(alg_id, params, new_layer_name=None):
         result["primary_output"] = primary_key
         result["additional_outputs"] = extra
     return result
+
+
+def _load_output_path(path, as_vector=False):
+    """The layer an algorithm's file output holds, or None when QGIS cannot open it. Rasters are the default; GRASS vector results come
+    back as a file path too and are opened as a vector layer."""
+    loaded = QgsVectorLayer(path, "grass_output", "ogr") if as_vector else QgsRasterLayer(path, "raster_output")
+    return loaded if loaded.isValid() else None
 
 
 def search_allowed_algorithms(query, names=None, limit=15):

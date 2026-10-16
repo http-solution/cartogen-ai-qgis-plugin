@@ -74,3 +74,20 @@ GEOMETRY_REJECTED = {
     "native:linedensity": "raster output could not be created with the probe's parameters on any of four test layers (GDAL provider error); cause not investigated",
     "native:shortestpathlayertopoint": "needs a purpose-built road network: the end point was 1.41 from the nearest edge on every test layer (limit 1)",
 }
+
+# GRASS-family candidates (M9) that did not run in a real QGIS session, with the error CI reported. They are NOT on the allow-list; the
+# offline test fails if one is listed in both places. Empty means every candidate ran.
+GRASS_REJECTED = {
+    "grass:i.evapo.mh": "first live run (CI, QGIS 4.2.2, 2026-10-16): 'Unable to execute algorithm' with the probe's default inputs (GRASS gave no detail); likely needs purpose-built inputs; cause not investigated",
+    "grass:i.landsat.acca": "first live run (CI, QGIS 4.2.2, 2026-10-16): 'Unable to execute algorithm' with the probe's default inputs (GRASS gave no detail); likely needs purpose-built inputs; cause not investigated",
+    "grass:r.drain": "first live run (CI, QGIS 4.2.2, 2026-10-16): 'Unable to execute algorithm' with the probe's default inputs (GRASS gave no detail); likely needs purpose-built inputs; cause not investigated",
+    "grass:r.null": "first live run (CI, QGIS 4.2.2, 2026-10-16): 'Unable to execute algorithm' with the probe's default inputs (GRASS gave no detail); likely needs purpose-built inputs; cause not investigated",
+    "grass:r.resamp.filter": "first live run (CI, QGIS 4.2.2, 2026-10-16): 'Unable to execute algorithm' with the probe's default inputs (GRASS gave no detail); likely needs purpose-built inputs; cause not investigated",
+    "grass:r.rescale": "first live run (CI, QGIS 4.2.2, 2026-10-16): 'Unable to execute algorithm' with the probe's default inputs (GRASS gave no detail); likely needs purpose-built inputs; cause not investigated",
+    "grass:r.rescale.eq": "first live run (CI, QGIS 4.2.2, 2026-10-16): 'Unable to execute algorithm' with the probe's default inputs (GRASS gave no detail); likely needs purpose-built inputs; cause not investigated",
+    "grass:v.drape": "first live run (CI, QGIS 4.2.2, 2026-10-16): 'Unable to execute algorithm' with the probe's default inputs (GRASS gave no detail); likely needs purpose-built inputs; cause not investigated",
+    "grass:v.extrude": "first live run (CI, QGIS 4.2.2, 2026-10-16): 'Unable to execute algorithm' with the probe's default inputs (GRASS gave no detail); likely needs purpose-built inputs; cause not investigated",
+    "grass:v.net.connectivity": "first live run (CI, QGIS 4.2.2, 2026-10-16): 'Unable to execute algorithm' with the probe's default inputs (GRASS gave no detail); likely needs purpose-built inputs; cause not investigated",
+    "grass:v.net.flow": "first live run (CI, QGIS 4.2.2, 2026-10-16): 'Unable to execute algorithm' with the probe's default inputs (GRASS gave no detail); likely needs purpose-built inputs; cause not investigated",
+    "grass:v.to.3d": "first live run (CI, QGIS 4.2.2, 2026-10-16): 'Unable to execute algorithm' with the probe's default inputs (GRASS gave no detail); likely needs purpose-built inputs; cause not investigated",
+}
