@@ -14,7 +14,7 @@ from .new_layer_options import point_cloud_provider, tiled_scene_source, vector_
 from .registry import register_tool
 
 try:
-    from qgis.core import QgsPointCloudLayer, QgsProject, QgsTiledSceneLayer, QgsVectorTileLayer
+    from qgis.core import QgsPointCloudLayer, QgsProject, QgsProviderRegistry, QgsTiledSceneLayer, QgsVectorTileLayer
     QGIS_AVAILABLE = True
 except ImportError:
     QGIS_AVAILABLE = False
@@ -37,6 +37,11 @@ def add_point_cloud_layer(file_path, layer_name=None):
         return {"error": problem}
     if not os.path.isfile(file_path):
         return {"error": f"File not found: {file_path}"}
+    # The CI image's QGIS lists copc, ept and vpc but no 'pdal' provider (probe 2026-10-16), so plain .las/.laz cannot open there; say
+    # so instead of the generic "could not open" that would send the user hunting for a file problem.
+    if provider not in QgsProviderRegistry.instance().providerList():
+        return {"error": (f"This QGIS has no '{provider}' point cloud provider, so it cannot open {os.path.basename(file_path)}. "
+                          "A COPC (.copc.laz) or EPT version of the data opens without it.")}
     name = layer_name or os.path.basename(file_path).split(".")[0] or "point cloud"
     layer = QgsPointCloudLayer(file_path, name, provider)
     if not layer.isValid():

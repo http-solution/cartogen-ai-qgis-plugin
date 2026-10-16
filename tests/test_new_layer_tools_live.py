@@ -8,7 +8,7 @@ import tempfile
 import unittest
 
 try:
-    from qgis.core import QgsProject
+    from qgis.core import QgsProject, QgsProviderRegistry
     LIVE = True
 except ImportError:
     LIVE = False
@@ -52,9 +52,14 @@ class TestNewLayerToolsLive(unittest.TestCase):
         write_las(path, [(100.0 + i, 200.0 + i, 5.0 + i) for i in range(50)])
         res = add_point_cloud_layer(path)
         print("NEWLAYER point_cloud", res)
-        self.assertTrue(res.get("success"), res)
-        self.assertEqual(res["layer_type"], "point_cloud")
-        self.assertEqual(len(QgsProject.instance().mapLayers()), 1)
+        if "pdal" in QgsProviderRegistry.instance().providerList():
+            self.assertTrue(res.get("success"), res)
+            self.assertEqual(res["layer_type"], "point_cloud")
+            self.assertEqual(len(QgsProject.instance().mapLayers()), 1)
+        else:
+            # CI's QGIS 4.2.2 has no pdal provider: the tool must say so rather than fail generically.
+            self.assertIn("no 'pdal' point cloud provider", res.get("error", ""), res)
+            self.assertEqual(len(QgsProject.instance().mapLayers()), 0)
 
     def test_point_cloud_refusals(self):
         from cartogen_ai.core.agent.tools.new_layer_tools import add_point_cloud_layer
