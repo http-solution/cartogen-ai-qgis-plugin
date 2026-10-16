@@ -68,7 +68,9 @@ def params_for(algorithm, layer_name, distinct=False):
         elif kind == "multilayer":
             # CI run 38878940104: native:multiunion / multiintersection / multidifference refuse rasters ("All layers must be vector layers"),
             # so a multiple-layer parameter gets rasters only when it is declared a raster layer list
-            raster_list = "raster" in str(getattr(p, "layerType", lambda: "")()).lower()
+            # (CI run 38883595535: judging by layerType() text sent vector layers into the cell-stack tools, which crashed the process with
+            # SIGSEGV; the algorithm's group is what tells a raster stack from a vector overlay)
+            raster_list = "raster" in algorithm.group().lower() or "raster" in algorithm.id().lower()
             params[p.name()] = ["dem", "dem2"] if raster_list else ["polys", "polys2"]
         elif kind == "layer":
             # CI run 38878940104: native:polygonfromlayerextent has a plain layer parameter, which the probe left empty
