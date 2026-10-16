@@ -581,6 +581,8 @@ _SENSITIVE_CLUSTER_TRIGGER_TOOLS = {
     # export / deliverable-producing tools
     "create_print_layout", "generate_report", "generate_html_dashboard",
     "export_layout_atlas", "export_to_csv", "export_layer", "generate_chart",
+    # added by the 2026-10-16 integration audit: they put layer data into a file or a layout a person may share
+    "export_layout", "package_layers_offline", "add_layout_chart", "set_layout_atlas",
     # incident / sensitivity tools
     "add_incident_point", "add_point_layer", "obfuscate_sensitive_points",
     "get_layer_sensitivity", "set_layer_sensitivity",

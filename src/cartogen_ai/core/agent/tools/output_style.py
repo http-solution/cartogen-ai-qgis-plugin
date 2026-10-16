@@ -56,6 +56,29 @@ ALGORITHM_RASTER_KINDS = {
     "tininterpolation": "surface", "cellstatistics": "surface", "reclassifybytable": "surface",
     "heatmapkerneldensityestimation": "density",
 }
+# Integration audit 2026-10-16: only ~8 algorithms had a look, so the outputs of the 66 raster-family, the GRASS and the mesh algorithms that
+# arrived with packages D, I and the gap-closing work opened as plain greyscale. These add the ones whose result is a continuous surface or
+# a distance/cost/density field, where a colour ramp over the band's own range reads better than grey. Deliberately NOT listed: hillshade and
+# shaded-relief outputs (grey is right), classified or categorical results (r.clump, r.geomorphon, r.watershed, r.stream.extract, sieve,
+# reclass, boolean/logical rasters, viewshed): a continuous ramp on class codes would imply an order that is not there.
+ALGORITHM_RASTER_KINDS.update({
+    "roughness": "surface", "tpitopographicpositionindex": "surface", "triterrainruggednessindex": "surface", "ruggednessindex": "surface",
+    "totalcurvature": "surface", "proximity": "surface", "fillsinkswangliu": "surface", "fillnodata": "surface",
+    "gridaverage": "surface", "griddatametrics": "surface", "gridinversedistance": "surface", "gridinversedistancenearestneighbor": "surface",
+    "gridlinear": "surface", "gridnearestneighbor": "surface", "rastergaussianblur": "surface", "rasterfeaturepreservingsmoothing": "surface",
+    "rescaleraster": "surface", "dtmslopebasedfilter": "surface", "cellstackpercentile": "surface", "rasterrank": "surface",
+    "r.slope.aspect": "surface", "r.cost": "surface", "r.walk.rast": "surface", "r.walk.coords": "surface", "r.walk.points": "surface",
+    "r.grow.distance": "surface", "r.fillnulls": "surface", "r.fill.stats": "surface", "r.fill.dir": "surface", "r.resamp.bspline": "surface",
+    "r.resamp.interp": "surface", "r.resamp.rst": "surface", "r.resamp.stats": "surface", "r.surf.contour": "surface", "r.surf.fractal": "surface",
+    "r.surf.gauss": "surface", "r.surf.idw": "surface", "r.surf.random": "surface", "r.random.surface": "surface", "r.param.scale": "surface",
+    "r.topidx": "surface", "r.sun.insoltime": "surface", "r.sun.incidout": "surface", "r.sunhours": "surface", "r.plane": "surface",
+    "meshrasterize": "surface", "v.kernel.rast": "density",
+})
+ALGORITHM_VECTOR_ROLES.update({
+    "v.buffer": "proximity_buffer", "v.hull": "proximity_buffer", "v.voronoi": "proximity_buffer", "v.delaunay": "proximity_buffer",
+    "v.overlay": "selection_overlay", "v.dissolve": "selection_overlay",
+    "v.net.iso": "route_line", "v.net.spanningtree": "route_line", "v.net.steiner": "route_line",
+})
 # Field-name candidates for an automatic label, best first (matched case-insensitively). Only names a person would read.
 LABEL_FIELD_CANDIDATES = ("name", "name_en", "facility_name", "facility", "site_name", "adm3_en", "adm2_en", "adm1_en",
                           "admin3name_en", "admin2name_en", "admin1name_en", "shapename", "name_1", "name_2", "title",

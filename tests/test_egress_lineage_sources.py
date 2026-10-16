@@ -10,6 +10,15 @@ KNOWN = {"Clinics", "Roads", "Secret Patients", "out"}
 
 
 class TestSqlLayerNames(unittest.TestCase):
+    def test_a_virtual_layer_query_names_its_source_layers_inside_the_sql(self):
+        names, unresolved = g.argument_layer_names(
+            "create_virtual_layer", {"layer_name": "joined", "sql": 'SELECT a.* FROM "Roads" a JOIN Clinics c ON 1=1'}, KNOWN)
+        self.assertEqual((names, unresolved), ({"Roads", "Clinics"}, False))
+
+    def test_a_virtual_layer_query_naming_no_layer_touches_none(self):
+        names, unresolved = g.argument_layer_names("create_virtual_layer", {"layer_name": "x", "sql": "SELECT 1"}, KNOWN)
+        self.assertEqual((names, unresolved), (set(), False))
+
     def test_bare_and_quoted_identifiers(self):
         self.assertEqual(g.sql_layer_names('SELECT * FROM clinics JOIN "Secret Patients" ON 1', KNOWN),
                          {"Clinics", "Secret Patients"})
