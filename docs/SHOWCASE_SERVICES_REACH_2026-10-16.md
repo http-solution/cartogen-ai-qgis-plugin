@@ -5,7 +5,7 @@ one with the plugin's own request helper and parsers and records the outcome. A 
 on every push and pull request and writes the table into the job summary. The job is informational (`continue-on-error`, exit code always 0): a
 rate-limited service is a result, not a failed build, and nothing is mocked into a pass.
 
-## First measurement (from the Claude Code cloud sandbox, not from CI and not from a user's machine)
+## First measurement (from the Claude Code cloud sandbox, not from a user's machine)
 
 | Service | Result | Detail |
 |---|---|---|
@@ -22,3 +22,16 @@ What this does and does not show:
   the address; the plugin already falls back from GDELT to Google News and reports a service it cannot use (`fetch_news_articles`,
   `fetch_web_results`).
 * The authoritative number for the CI runner is the `service-reach` job summary on any pull request.
+
+## Second measurement (from the CI runner, GitHub Actions `service-reach` job, run on pull request 346, 2026-10-16)
+
+| Service | Result | Detail |
+|---|---|---|
+| S1 Copernicus DEM tile (S3 bucket, Range read) | reached | 1 item |
+| S3 DuckDuckGo web page | unavailable | no result list returned (blocked, or the page layout changed) |
+| S4 GDELT DOC API | unavailable | HTTP 429 Too Many Requests (rate limit or block) |
+| S4 Google News RSS | reached | 100 items |
+
+The CI runner and the cloud sandbox agree on all four services, so for these two network positions the outcome is the same. It is still two
+data points from datacentre addresses, one day. A user's own network, a different day, or a service changing its terms can differ, and none of this
+shows an end-to-end download into a QGIS project. The job summary of any later run is the current number.
