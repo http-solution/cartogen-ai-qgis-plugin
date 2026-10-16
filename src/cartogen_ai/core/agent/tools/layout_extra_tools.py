@@ -75,6 +75,8 @@ def add_overview_map(layout_name, overview_map_id=None, extent_map_id="MAP_MAIN"
         inset.overviews().addOverview(overview)
         overview.setLinkedMap(main)
         overview.setEnabled(True)
+        # The overview owns its frame symbol: change it in place. Passing it back through setFrameSymbol() would hand QGIS an object it
+        # already owns (it deletes it, then uses it), the same mistake that crashed set_label_callout in the first live run of package F.
         symbol = overview.frameSymbol()
         if symbol is not None and ("color" in options or "width_mm" in options):
             if "color" in options:
@@ -82,7 +84,8 @@ def add_overview_map(layout_name, overview_map_id=None, extent_map_id="MAP_MAIN"
                 if colour is None:
                     return {"error": f"Invalid color: {options['color']}."}
                 symbol.setColor(colour)
-            overview.setFrameSymbol(symbol)
+            if "width_mm" in options:
+                symbol.setWidth(options["width_mm"])
         inset.refresh()
     except Exception as e:
         return {"error": f"add_overview_map failed: {e}"}
