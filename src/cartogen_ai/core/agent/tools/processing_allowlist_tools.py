@@ -68,7 +68,8 @@ def _algorithm_definition(alg_id):
         names = {p.name() for p in params}
         destinations = {p.name() for p in params if p.isDestination()}
         raster_destinations = {p.name() for p in params if p.isDestination() and "raster" in str(p.type()).lower()}
-        return names, destinations, raster_destinations, list(algorithm.outputDefinitions())
+        layer_lists = {p.name() for p in params if str(p.type()) == "multilayer"}
+        return names, destinations, raster_destinations, list(algorithm.outputDefinitions()), layer_lists
     except Exception:
         return None
 
@@ -93,7 +94,7 @@ def harvest_outputs(output, definition=None):
     return found
 
 
-def _resolve_params(params, raster_output=False, destination_keys=None, raster_keys=None):
+def _resolve_params(params, raster_output=False, destination_keys=None, raster_keys=None, layer_list_keys=None):
     """Any string value that matches a layer currently loaded in the
     project is resolved to that QgsMapLayer object -- the same shape every
     existing processing.run() call in this codebase already uses
@@ -128,6 +129,10 @@ def _resolve_params(params, raster_output=False, destination_keys=None, raster_k
         if isinstance(value, str):
             layer = _find_layer_by_name(value)
             resolved[key] = layer if layer is not None else value
+        elif isinstance(value, list) and layer_list_keys and key in layer_list_keys:
+            # a multiple-layer parameter (stack of rasters, layers to merge): each name that is a loaded layer becomes that layer. Only
+            # for parameters the algorithm declares as layer lists, so a list of FIELD names is never mistaken for layer names.
+            resolved[key] = [(_find_layer_by_name(v) or v) if isinstance(v, str) else v for v in value]
         else:
             resolved[key] = value
     if destination_keys is not None:
@@ -208,17 +213,19 @@ def run_allowlisted_processing_algorithm(alg_id, params, new_layer_name=None):
         return {"error": violation}
 
     definition = _algorithm_definition(alg_id)
-    destination_keys = raster_keys = None
+    destination_keys = raster_keys = layer_list_keys = None
     if definition is not None:
         wrong = unknown_parameters(params.keys(), definition[0])
         if wrong:
             return {"error": f"'{alg_id}' has no parameter(s) {wrong}. Its parameters are: {sorted(definition[0])}.",
                     "rejected_before_running": True}
         destination_keys, raster_keys = definition[1], definition[2]
+        layer_list_keys = definition[4] if len(definition) > 4 else None
 
     try:
         resolved_params = _resolve_params(params, raster_output=alg_id in RASTER_OUTPUT_ALGORITHM_IDS,
-                                          destination_keys=destination_keys, raster_keys=raster_keys)
+                                          destination_keys=destination_keys, raster_keys=raster_keys,
+                                          layer_list_keys=layer_list_keys)
         output = _run_allowlisted(alg_id, resolved_params)
     except _bg.AnalysisCancelledError:
         return {"error": f"Stopped before '{alg_id}' finished. Nothing was added to the project.", "cancelled": True}
