@@ -1,4 +1,4 @@
-# Hand-test sheet for everything new in 1.17.0 (rc42, rc43, rc44) -- 2026-10-16
+# Hand-test sheet for everything new in 1.17.0 (rc42, rc43, rc44; run on the rc45 build) -- 2026-10-16
 
 **Goal:** check by hand, in desktop QGIS with a real model, the functionality added since the last stable build (1.16.3) that no person has tried yet.
 It goes straight to the new tools and algorithms: no installation, update check or API-key steps. Everything here passed the offline suite and CI on QGIS
@@ -7,6 +7,13 @@ It goes straight to the new tools and algorithms: no installation, update check 
 **Scope:** 82 new tools (30 from rc42, 34 from rc43, 18 from rc44) and 385 new Processing algorithms (rc42: 124, rc43: 101, rc44: 160, of which 154 GRASS and 6 mesh).
 Companion files (open in a spreadsheet, fill the Result column): `docs/HAND_TEST_rc44_tools.csv` (all 83 tool rows below) and
 `docs/HAND_TEST_rc44_algorithms.csv` (all 385 algorithm rows, with a ready-to-paste prompt each).
+
+## Run this on rc45, and retest four fixes first
+Use the rc45 plugin zip: rc44 has four calls to QGIS methods that do not exist, fixed in rc45. These four should now work; mark each row Pass only if it does, and note it on the row:
+1. `zoom_history` (row 25): zoom twice, ask for the previous extent, then the next; at the start of the history it must say there is no earlier extent, not report success.
+2. `diagnose_topology`: run it on a layer with a self-crossing (bow-tie) polygon; it must count that polygon as invalid.
+3. Point-displacement representation: ask for a point-displacement map of `towns`; it must apply without an error.
+4. Proxy: with a proxy set in QGIS network settings, any web tool (for example a fetch) must still run; with none set, nothing changes.
 
 ## How to score
 Type each prompt into the chat as written (replace `<...>`). Result: **Pass** = did what the Expect column says; **Partial** = worked but something

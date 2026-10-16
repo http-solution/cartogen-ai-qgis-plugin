@@ -2,7 +2,7 @@
 """Builds the hand-test bundle for the current version: the plugin zip, the hand-test sheet for everything new in 1.17, the two results
 spreadsheets, and the PyQGIS fixture script as plain text. A tester needs no Python outside QGIS.
 
-    python tools/build_hand_test_bundle.py --plugin-zip dist/cartogen_ai_v1.17.0-rc44.zip   # writes dist/cartogen_ai_hand_test_<version>.zip
+    python tools/build_hand_test_bundle.py --plugin-zip dist/cartogen_ai_v1.17.0-rc45.zip   # writes dist/cartogen_ai_hand_test_<version>.zip
 
 The plugin zip is passed in (built with plugin_upload.py from the release commit) so the bundle and the directory upload carry one checksum.
 Standard library only. The bundle holds only synthetic data instructions and public documents; it never includes credentials, traces or results."""
@@ -46,7 +46,7 @@ def main():
     readme = (
         f"Cartogen AI {v} - hand test of the new functionality\r\n"
         "=========================================================\r\n\r\n"
-        "What this is: a test of everything added in 1.17 (rc42, rc43, rc44) that nobody has tried by hand: 82 tools and 385 Processing\r\n"
+        "What this is: a test of everything added in 1.17 (rc42, rc43, rc44; run on rc45, which fixes four rc44 bugs - retest those first, see the sheet) that nobody has tried by hand: 82 tools and 385 Processing\r\n"
         "algorithms. It is NOT an installation or update test.\r\n\r\n"
         "Files\r\n"
         f"  1_plugin/cartogen_ai_v{v}.zip      the plugin (QGIS: Plugins > Manage and Install > Install from ZIP). SHA-256 in checksum_sha256.txt\r\n"
