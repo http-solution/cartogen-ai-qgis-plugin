@@ -57,6 +57,19 @@ GOLDEN = {
     "save the edits on smoke_points": {"set_layer_editing"},
     "add the postgis table roads to the map": {"add_postgis_layer"},
     "create a virtual layer joining smoke_points and smoke_zones with sql": {"create_virtual_layer"},
+    # integration audit 2026-10-16: old tools that overlap a new one must still be offered for their own wording
+    "undo the last operation": {"undo_last_operation"},
+    "label the roads by name": {"apply_labels"},
+    "style the labels with a halo": {"set_label_style"},
+    "show the elevation profile along the road": {"elevation_profile"},
+    "make a chart of population by district": {"generate_chart"},
+    "add an inset locator map to the layout": {"create_print_layout"},
+    "merge the two layers into one": {"merge_layers"},
+    "split the roads by the zones": {"split_lines_by_zones"},
+    "set the symbol of the layer to a red star": {"set_layer_symbol"},
+    "select roads where type is primary": {"select_by_expression"},
+    "go back to the previous view": {"zoom_history"},
+    "animate the layer over time": {"export_temporal_animation_frames"},
     "turn on elevation for the layer dem": {"set_layer_elevation"},
     "use the dem as the project terrain": {"set_project_terrain"},
     "add a bar chart of population by district to the layout": {"add_layout_chart"},
@@ -162,3 +175,21 @@ class TestPlainRequestsAreOfferedTheirTools(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestEveryAliasStillOffersItsOwnTool(unittest.TestCase):
+    """Integration audit 2026-10-16. A curated phrase is the strongest routing signal, so the tool it belongs to must be among those offered
+    for exactly that phrase. Replayed against the router before the roadmap packages, 0 of 1565 phrases lost their owner; this keeps it true as
+    tools and aliases keep arriving."""
+
+    def test_each_alias_phrase_offers_the_tool_it_belongs_to(self):
+        from cartogen_ai.core.services import tool_router
+        router = ToolRouter(TOOLS_SCHEMA)
+        known = {t["function"]["name"] for t in TOOLS_SCHEMA}
+        lost = []
+        for tool, phrases in tool_router._TOOL_ALIASES.items():
+            if tool not in known:
+                continue
+            lost.extend(f"{tool}: {phrase!r}" for phrase in phrases
+                        if tool not in {t["function"]["name"] for t in router.filter_relevant_tools(phrase)})
+        self.assertEqual(lost, [], "\n".join(lost))
