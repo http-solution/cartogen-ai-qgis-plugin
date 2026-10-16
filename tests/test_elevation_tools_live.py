@@ -74,14 +74,6 @@ class TestElevationAndChartLive(unittest.TestCase):
         self.assertIn("error", set_project_terrain("dem"))
         self.assertIn("error", set_project_terrain("flat", scale=2))
 
-    def test_zz_api_diagnostics(self):
-        # prints the real API surface once, so a wrong guess is fixed from facts instead of another guess
-        from qgis.core import QgsLayoutItemChart, QgsVectorLayerElevationProperties
-        print("GAPAPI SeriesDetails", [n for n in dir(QgsLayoutItemChart.SeriesDetails) if not n.startswith("__")])
-        print("GAPAPI SeriesDetails.__init__", getattr(QgsLayoutItemChart.SeriesDetails.__init__, "__doc__", None))
-        print("GAPAPI ChartItem", [n for n in dir(QgsLayoutItemChart) if (not n.startswith(("__", "_")) and "eries" in n) or "lot" in n])
-        print("GAPAPI VectorElevation", [n for n in dir(QgsVectorLayerElevationProperties) if not n.startswith("__")])
-
     def test_chart_item(self):
         from cartogen_ai.core.agent.tools.layout_chart_profile_tools import add_layout_chart
         for kind in ("bar", "line", "pie"):

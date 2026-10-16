@@ -65,7 +65,7 @@ def set_layer_elevation(layer_name, enabled=None, mode=None, band=None, z_offset
             props.setClamping(names[options["clamping"]])
         if "extrusion" in options:
             props.setExtrusionEnabled(options["extrusion"] > 0)
-            props.setExtrusion(options["extrusion"])
+            props.setExtrusionHeight(options["extrusion"])   # not setExtrusion: confirmed by the first live run's API listing
         read = {"extrusion_enabled": props.extrusionEnabled(), "extrusion": props.extrusionHeight()}
     else:
         return {"error": f"Layer '{layer_name}' is not a raster or vector layer."}
