@@ -1,7 +1,8 @@
-# Roadmap completion: what was done, and how far each piece was tested (2026-10-16, refreshed after the gap-closing work)
+# Roadmap completion: what was done, and how far each piece was tested (2026-10-16, refreshed after the gap-closing work and the integration audit)
 
-**State of main:** 294 tools; 427 Processing algorithm ids on the allow-list. Every roadmap package (A to J) and the gap-closing package are merged.
-Release candidates rc42 and rc43 are published; everything from package F onwards (F, G, H, I, gap-closing) is in no release yet.
+**State of main:** 294 tools; 427 Processing algorithm ids on the allow-list. Every roadmap package (A to J), the gap-closing package and the integration audit are merged.
+Release candidates rc42 and rc43 are published; everything from package F onwards (F, G, H, I, gap-closing, audit fixes) is in no release yet
+(rc44 is being prepared, see `CHANGELOG.md`).
 
 **Reading guide.** Three levels of evidence appear below. Nothing in this document is hand-tested.
 
@@ -107,8 +108,23 @@ Not tested: real meshes (time series, large grids).
 ## Golden routing rows (#345)
 Ten tools that only had alias entries now have golden routing rows; a wrong row fails the build (checked by mutation).
 
+## Integration audit (#349), full detail in `docs/INTEGRATION_AUDIT_2026-10-16.md`
+Done: the new tools were compared with the router from before the roadmap and with the older mechanisms they should plug into.
+- Measured offline: 0 of 1565 old alias phrases lost their own tool; average tools offered 25.6 -> 26.5; schema text per request -2.9%; seven long
+  compound requests mixing old and new capabilities offered every tool they needed.
+- Found and fixed: one routing regression ("animate the layer over time"), nine new MODIFY tools that `undo_last_operation` could not reverse, a
+  privacy hole (`create_virtual_layer` names layers only inside its SQL, so the egress gate and lineage tagging missed them), missing
+  RESTRICTED/SENSITIVE advisories on the package, chart and atlas tools, none of the 42 new tools linked to any of the 792 library tasks, and plain-grey
+  output for the raster, GRASS and mesh algorithms.
+- CI-live-tested: the five undo round trips (layer filter, diagram, rule-based labels, layer elevation, layer temporal) and the advisories on
+  chart, atlas and package. Offline: SQL layer-name scan, alias-owner guard (every alias phrase offers its own tool), styling name mappings.
+- Not tested: which tool a real model chooses; how the styled outputs look; undo for the edit-buffer tools (they use `undo_manual_edit`) and for
+  project-wide settings (snapping, terrain, time range), which are not covered on purpose.
+- Not done: no pre-built `run_steps` chains for the new tools (their argument names would need live testing with real layouts first).
+
 ## Not tested at all, across the roadmap
 1. Any end-to-end conversation: a real model choosing these tools from a prompt, asking for confirmation, and the user seeing results in the dock.
+   The router tests prove which tools are OFFERED for a request, not which one is CHOSEN.
 2. Any desktop QGIS session (canvas, layer tree refresh, rendering, print layout appearance).
 3. User data: large, messy, non-English, differently projected, or database-backed layers.
 4. Numerical correctness of Processing outputs (raster, mixed, GRASS, mesh); the smoke tests prove completion, not accuracy.
