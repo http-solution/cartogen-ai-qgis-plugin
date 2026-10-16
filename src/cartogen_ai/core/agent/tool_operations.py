@@ -180,6 +180,14 @@ TOOL_OPERATION_TYPES = {
     "set_attribute_value": MODIFY,
     "add_field": MODIFY,
     "rename_field": MODIFY,
+    "set_layer_filter": MODIFY,         # changes what the layer shows; the stored data is untouched
+    "transform_features": MODIFY,
+    "merge_features": DELETE,           # deletes all but the first merged feature
+    "split_features_by_line": MODIFY,
+    "undo_manual_edit": MODIFY,
+    "redo_manual_edit": MODIFY,
+    "change_field_type": MODIFY,
+    "set_layer_editing": MODIFY,
     "delete_field": DELETE,
     "add_feature_from_wkt": MODIFY,     # adds a feature to an existing layer
     "find_broken_layers": READ,

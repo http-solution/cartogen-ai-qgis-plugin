@@ -92,6 +92,32 @@ _TOOL_ALIASES = {
         "add a feature", "add a new feature", "add this wkt", "from wkt", "add the geometry", "add a polygon to", "add a line to",
         "add a point to the layer", "wkt",
     ],
+    "set_layer_filter": [
+        "definition query", "set a filter on", "set the filter on", "layer filter", "set the layer filter", "clear the filter",
+        "remove the filter", "clear the layer filter", "provider filter", "subset string",
+    ],
+    "transform_features": [
+        "move the features", "move the selected features", "shift the features", "rotate the selected", "rotate the features by",
+        "scale the features", "scale the selected", "enlarge the features", "shrink the features", "nudge the features",
+    ],
+    "merge_features": [
+        "merge the selected features", "merge the features", "merge these features", "union the selected", "combine the selected features",
+        "merge features into one", "merge the two features", "merge the selected polygons",
+    ],
+    "split_features_by_line": [
+        "split the polygon", "split the feature", "split the features", "split the selected", "cut the polygon", "cut the feature",
+        "split features by a line", "split along a line", "split the parcel",
+    ],
+    "undo_manual_edit": ["undo my edit", "undo the last edit", "undo my last edit", "undo the manual edit", "undo edit"],
+    "redo_manual_edit": ["redo the edit", "redo my edit", "redo the last edit", "redo the manual edit", "redo edit"],
+    "change_field_type": [
+        "change the field type", "change the type of the field", "change the data type", "convert the field to", "convert the column to",
+        "change the column type", "make the field an integer", "make the field a number", "make the field a text",
+    ],
+    "set_layer_editing": [
+        "start editing", "toggle editing", "stop editing", "save the edits", "save my edits", "save layer edits", "discard the edits",
+        "discard my edits", "discard the changes", "enter edit mode", "leave edit mode",
+    ],
     "find_broken_layers": [
         "broken layer", "broken layers", "broken path", "broken paths", "missing layer", "layer not found", "layers with a red",
         "unavailable layer", "fix the paths", "data source is missing", "lost layer", "moved the file",
