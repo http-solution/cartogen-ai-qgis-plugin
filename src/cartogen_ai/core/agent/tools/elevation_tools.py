@@ -24,7 +24,7 @@ def _layer(name):
 @register_tool(
     "set_layer_elevation",
     "Change a layer's elevation settings (used by elevation profiles and 3D views). Raster: enabled, mode 'surface' (the cells are heights) or "
-    "'fixed_range', band, z_offset, z_scale. Vector: enabled, clamping 'absolute', 'relative' or 'terrain', z_offset, z_scale, extrusion (metres). "
+    "'fixed_range', band, z_offset, z_scale. Vector (no on/off switch): clamping 'absolute', 'relative' or 'terrain', z_offset, z_scale, extrusion (metres). "
     "Only the values you give are changed; the result lists the settings read back.",
     {"type": "object", "properties": {
         "layer_name": {"type": "string"}, "enabled": {"type": "boolean"}, "mode": {"type": "string"}, "band": {"type": "integer"},
@@ -57,14 +57,16 @@ def set_layer_elevation(layer_name, enabled=None, mode=None, band=None, z_offset
         if "mode" in options or "band" in options:
             return {"error": "mode and band are for raster layers; a vector layer has clamping and extrusion."}
         if "enabled" in options:
-            props.setEnabled(options["enabled"])
+            # First live run (QGIS 4.2.2): QgsVectorLayerElevationProperties has no setEnabled/isEnabled. A vector layer's elevation always
+            # applies; there is no switch to turn it on, so say so rather than pretending.
+            return {"error": "A vector layer has no elevation on/off switch (it always applies). Set clamping, z_offset, z_scale or extrusion instead."}
         if "clamping" in options:
             names = {"absolute": Qgis.AltitudeClamping.Absolute, "relative": Qgis.AltitudeClamping.Relative, "terrain": Qgis.AltitudeClamping.Terrain}
             props.setClamping(names[options["clamping"]])
         if "extrusion" in options:
             props.setExtrusionEnabled(options["extrusion"] > 0)
             props.setExtrusion(options["extrusion"])
-        read = {"enabled": props.isEnabled(), "extrusion_enabled": props.extrusionEnabled(), "extrusion": props.extrusionHeight()}
+        read = {"extrusion_enabled": props.extrusionEnabled(), "extrusion": props.extrusionHeight()}
     else:
         return {"error": f"Layer '{layer_name}' is not a raster or vector layer."}
     if "z_offset" in options:

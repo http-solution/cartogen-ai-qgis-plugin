@@ -29,6 +29,24 @@ def _place(item, layout, box, item_id):
     item.attemptSetSceneRect(QRectF(box["x_mm"], box["y_mm"], box["width_mm"], box["height_mm"]))
 
 
+def _make_series(name, x_expression, y_expression):
+    """A chart series, or the reason it could not be made. The first live run (QGIS 4.2.2) showed SeriesDetails does not take (name, x, y)
+    as constructor arguments, so a default object is filled through whichever setters or attributes this QGIS exposes."""
+    try:
+        series = QgsLayoutItemChart.SeriesDetails()
+    except TypeError as e:
+        return f"QGIS could not create a chart series: {e}"
+    for value, setter, attribute in ((name, "setName", "name"), (x_expression, "setXExpression", "xExpression"),
+                                     (y_expression, "setYExpression", "yExpression")):
+        if hasattr(series, setter):
+            getattr(series, setter)(value)
+        elif attribute in dir(series) and not callable(getattr(series, attribute)):
+            setattr(series, attribute, value)
+        else:
+            return f"This QGIS chart series has no way to set its {attribute} ({setter} / attribute not found)."
+    return series
+
+
 @register_tool(
     "add_layout_chart",
     "Add a chart to a print layout: chart_type 'bar', 'line' or 'pie' of layer_name, with x_field (the categories) and y_field (the values), both "
@@ -62,7 +80,9 @@ def add_layout_chart(layout_name, layer_name, x_field, y_field, chart_type="bar"
     item = QgsLayoutItemChart(layout)
     item.setPlot(plots[options["chart_type"]]())
     item.setSourceLayer(layer)
-    series = QgsLayoutItemChart.SeriesDetails(options["y_field"], f'"{options["x_field"]}"', f'"{options["y_field"]}"')
+    series = _make_series(options["y_field"], f'"{options["x_field"]}"', f'"{options["y_field"]}"')
+    if isinstance(series, str):
+        return {"error": series}
     item.setSeriesList([series])
     _place(item, layout, box, options["item_id"])
     return {"success": True, "layout_name": layout_name, "item_id": item.id(), "chart_type": options["chart_type"], "layer_name": layer.name(),
@@ -99,7 +119,8 @@ def add_layout_elevation_profile(layout_name, layer_names, start_x, start_y, end
         (layers if found else missing).append(found[0] if found else name)
     if missing:
         return {"error": f"Layer(s) not found: {missing}."}
-    off = [layer.name() for layer in layers if not (layer.elevationProperties() is not None and layer.elevationProperties().isEnabled())]
+    # a raster has an elevation switch; a vector layer has none (it always applies), so only rasters can be "off"
+    off = [layer.name() for layer in layers if hasattr(layer.elevationProperties(), "isEnabled") and not layer.elevationProperties().isEnabled()]
     if off:
         return {"error": f"Elevation is not turned on for {off}. Use set_layer_elevation (enabled=true) first."}
     item = QgsLayoutItemElevationProfile(layout)

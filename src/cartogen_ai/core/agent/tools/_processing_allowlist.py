@@ -547,6 +547,7 @@ GRASS_FAMILY = {
 GRASS_ALGORITHM_IDS = frozenset(GRASS_FAMILY)
 ALLOWED_ALGORITHM_IDS = frozenset(set(ALLOWED_ALGORITHM_IDS) | set(GRASS_FAMILY))
 GRASS_FORBIDDEN_PARAM_KEYS = frozenset({"GRASS_RASTER_FORMAT_OPT", "GRASS_RASTER_FORMAT_META", "GRASS_VECTOR_DSCO", "GRASS_VECTOR_LCO"})
+# First live run: native:meshcontours hung (MESH_REJECTED), so six of the seven candidates are here.
 # Gap-closing package: the mesh algorithms that were waiting on the mesh layer type (add_layer_from_path opens .nc/.grb/.2dm/.slf as a mesh
 # layer since package C). Left out: native:meshexportcrosssection and native:meshexporttimeseries (file destinations), and 3d:tessellate (needs
 # 3D polygons, no mesh). The 24 pdal: algorithms stay off the list: this QGIS image has no PDAL binary or point cloud provider to run them
@@ -557,7 +558,6 @@ MESH_FAMILY = {
     "native:exportmeshfaces": "Export mesh faces",
     "native:exportmeshongrid": "Export mesh on grid",
     "native:exportmeshvertices": "Export mesh vertices",
-    "native:meshcontours": "Export contours",
     "native:meshrasterize": "Rasterize mesh dataset",
     "native:surfacetopolygon": "Surface to polygon",
 }

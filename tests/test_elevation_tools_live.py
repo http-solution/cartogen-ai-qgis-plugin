@@ -46,10 +46,12 @@ class TestElevationAndChartLive(unittest.TestCase):
 
     def test_vector_elevation_round_trip(self):
         from cartogen_ai.core.agent.tools.elevation_tools import set_layer_elevation
-        res = set_layer_elevation("towns", enabled=True, clamping="relative", extrusion=12, z_offset=1)
+        self.assertIn("no elevation on/off switch", set_layer_elevation("towns", enabled=True).get("error", ""))
+        res = set_layer_elevation("towns", clamping="relative", extrusion=12, z_offset=1)
         print("GAPRESULT vector_elevation", res)
         self.assertTrue(res.get("success"), res)
         self.assertTrue(res["elevation"]["extrusion_enabled"])
+        self.assertEqual(res["elevation"]["z_offset"], 1.0)
         self.assertEqual(res["elevation"]["extrusion"], 12.0)
 
     def test_elevation_refusals(self):
@@ -71,6 +73,14 @@ class TestElevationAndChartLive(unittest.TestCase):
         self.assertEqual((res["offset"], res["scale"]), (1.0, 2.0))
         self.assertIn("error", set_project_terrain("dem"))
         self.assertIn("error", set_project_terrain("flat", scale=2))
+
+    def test_zz_api_diagnostics(self):
+        # prints the real API surface once, so a wrong guess is fixed from facts instead of another guess
+        from qgis.core import QgsLayoutItemChart, QgsVectorLayerElevationProperties
+        print("GAPAPI SeriesDetails", [n for n in dir(QgsLayoutItemChart.SeriesDetails) if not n.startswith("__")])
+        print("GAPAPI SeriesDetails.__init__", getattr(QgsLayoutItemChart.SeriesDetails.__init__, "__doc__", None))
+        print("GAPAPI ChartItem", [n for n in dir(QgsLayoutItemChart) if (not n.startswith(("__", "_")) and "eries" in n) or "lot" in n])
+        print("GAPAPI VectorElevation", [n for n in dir(QgsVectorLayerElevationProperties) if not n.startswith("__")])
 
     def test_chart_item(self):
         from cartogen_ai.core.agent.tools.layout_chart_profile_tools import add_layout_chart
