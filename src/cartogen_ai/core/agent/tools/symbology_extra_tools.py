@@ -332,6 +332,19 @@ def set_raster_relief(layer_name, style, azimuth=None, altitude=None, z_factor=N
     return {"success": True, "layer_name": layer_name, "style": options["style"], "band": band_number}
 
 
+def _symbol_kind(symbol):
+    """'marker', 'line', 'fill' or 'unknown' for a QgsSymbol. Compares the enum itself: str(symbol.type()) is just "0" in this QGIS build
+    (CI run 38887060443), so parsing its text gave "a 0 symbol"."""
+    if symbol is None:
+        return "unknown"
+    kind = symbol.type()
+    for name, word in (("Marker", "marker"), ("Line", "line"), ("Fill", "fill")):
+        member = resolve_qgis_enum(Qgis, "SymbolType", name)
+        if member is not None and kind == member:
+            return word
+    return "unknown"
+
+
 def _symbol_of(layer):
     renderer = layer.renderer() if isinstance(layer, QgsVectorLayer) else None
     return renderer.symbol() if isinstance(renderer, QgsSingleSymbolRenderer) else None
@@ -381,7 +394,7 @@ def list_saved_symbols():
     rows = []
     for symbol_name_ in style.symbolNames():
         symbol = style.symbol(symbol_name_)
-        rows.append({"name": symbol_name_, "kind": str(symbol.type()).split(".")[-1] if symbol is not None else "unknown"})
+        rows.append({"name": symbol_name_, "kind": _symbol_kind(symbol)})
     return {"success": True, "count": len(rows), "symbols": rows[:200]}
 
 
@@ -400,7 +413,7 @@ def apply_saved_symbol(layer_name, name, confirmed=False):
     if name not in style.symbolNames():
         return {"error": f"No symbol called '{name}' in your library. Saved: {', '.join(style.symbolNames()[:20]) or 'none'}."}
     symbol = style.symbol(name)
-    kind = str(symbol.type()).split(".")[-1].lower()
+    kind = _symbol_kind(symbol)
     wanted = {Qgis.GeometryType.Point: "marker", Qgis.GeometryType.Line: "line", Qgis.GeometryType.Polygon: "fill"}.get(layer.geometryType())
     if wanted is None or kind != wanted:
         return {"error": f"'{name}' is a {kind} symbol, but '{layer_name}' needs a {wanted or 'different'} symbol."}
