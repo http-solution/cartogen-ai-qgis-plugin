@@ -2152,7 +2152,9 @@ def diagnose_topology(layer_name, min_area=None):
         if geom is None or geom.isEmpty():
             invalid_count += 1
             continue
-        if not geom.isGeomValid():
+        # QgsGeometry has isGeosValid(); isGeomValid() does not exist (found 2026-10-16 by checking the call against the QGIS 4.2 API
+        # reference: the unit test used a MagicMock, which accepts any method name, so it never noticed)
+        if not geom.isGeosValid():
             invalid_count += 1
         if geom.type() == 2 and geom.area() == 0:  # Polygon geometry with zero area
             zero_area_count += 1

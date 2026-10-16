@@ -15,7 +15,9 @@ def get_qgis_proxy_dict():
         from qgis.PyQt.QtNetwork import QNetworkProxy
         nam = QgsNetworkAccessManager.instance()
         if nam is not None:
-            proxy = nam.fallbackProxySettings()
+            # QgsNetworkAccessManager.fallbackProxy() is the real name; fallbackProxySettings() does not exist, and the contextlib.suppress around
+            # this block hid the AttributeError, so proxy detection returned None for every user (found 2026-10-16 against the 4.2 API reference)
+            proxy = nam.fallbackProxy()
             if proxy.type() != QNetworkProxy.ProxyType.NoProxy if hasattr(QNetworkProxy, "ProxyType") else proxy.type() != 0:
                 host = proxy.hostName()
                 port = proxy.port()

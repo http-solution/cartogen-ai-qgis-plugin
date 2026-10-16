@@ -66,6 +66,13 @@ def rename_layer_group(group_name, new_name):
     return {"success": True, "old_name": group_name, "new_name": name}
 
 
+def extent_changed(before, after, tolerance=1e-9):
+    """True when two QgsRectangle-like extents differ (any edge by more than `tolerance`). Pure given plain objects with x/yMinimum/Maximum."""
+    pairs = ((before.xMinimum(), after.xMinimum()), (before.xMaximum(), after.xMaximum()),
+             (before.yMinimum(), after.yMinimum()), (before.yMaximum(), after.yMaximum()))
+    return any(abs(a - b) > tolerance for a, b in pairs)
+
+
 @register_tool(
     "zoom_history",
     "Zoom the map canvas to the previous or the next extent in its history (like the Zoom Last / Zoom Next buttons). direction: previous or next.",
@@ -80,14 +87,15 @@ def zoom_history(direction):
         return {"error": "QGIS interface not available"}
     canvas = iface.mapCanvas()
     going_back = word in ("previous", "last", "back")
-    if going_back and not canvas.previousExtentsAvailable():
-        return {"error": "There is no earlier map extent in the history."}
-    if not going_back and not canvas.nextExtentsAvailable():
-        return {"error": "There is no later map extent in the history."}
+    # QgsMapCanvas has no previousExtentsAvailable()/nextExtentsAvailable() in QGIS 4.2 (only the zoomLastStatusChanged / zoomNextStatusChanged
+    # signals), so the first version of this tool raised AttributeError on a real canvas; CI has no canvas and could not see it. Found by
+    # checking the calls against the 4.2 API reference. Without a query, the history is stepped and an unchanged extent means there was no step.
+    before = canvas.extent()
     canvas.zoomToPreviousExtent() if going_back else canvas.zoomToNextExtent()
+    if not extent_changed(before, canvas.extent()):
+        return {"error": "There is no earlier map extent in the history." if going_back else "There is no later map extent in the history."}
     canvas.refresh()
-    return {"success": True, "scale": round(canvas.scale(), 1), "can_go_previous": bool(canvas.previousExtentsAvailable()),
-            "can_go_next": bool(canvas.nextExtentsAvailable())}
+    return {"success": True, "scale": round(canvas.scale(), 1)}
 
 
 def _metadata_dict(layer):
