@@ -339,6 +339,9 @@ TOOL_OPERATION_TYPES = {
     "hotspot_analysis": CREATE,
     "change_layer_color": MODIFY,
     "set_layer_transparency": MODIFY,
+    "set_layer_symbol": MODIFY,         # M4: how an existing layer is drawn (display only)
+    "set_label_style": MODIFY,
+    "set_raster_style": MODIFY,
     "auto_arrange_layer_order": MODIFY,
     "set_layer_order": MODIFY,
     "save_layer_style": PUBLISH,

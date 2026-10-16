@@ -2362,6 +2362,25 @@
    "group_name"
   ]
  },
+ "set_label_style": {
+  "properties": [
+   "bold",
+   "font_color",
+   "font_size",
+   "halo",
+   "halo_color",
+   "halo_size_mm",
+   "italic",
+   "layer_name",
+   "placement",
+   "show_labels",
+   "visible_zoomed_in_to",
+   "visible_zoomed_out_to"
+  ],
+  "required": [
+   "layer_name"
+  ]
+ },
  "set_layer_confidence": {
   "properties": [
    "layer_name",
@@ -2390,6 +2409,22 @@
   "required": [
    "layer_name",
    "level"
+  ]
+ },
+ "set_layer_symbol": {
+  "properties": [
+   "fill_color",
+   "fill_style",
+   "layer_name",
+   "line_style",
+   "marker_shape",
+   "marker_size_mm",
+   "opacity_percent",
+   "outline_color",
+   "outline_width_mm"
+  ],
+  "required": [
+   "layer_name"
   ]
  },
  "set_layer_transparency": {
@@ -2426,6 +2461,20 @@
    "variables"
   ],
   "required": []
+ },
+ "set_raster_style": {
+  "properties": [
+   "clear_nodata",
+   "layer_name",
+   "mode",
+   "nodata_max",
+   "nodata_min",
+   "opacity_percent",
+   "resampling"
+  ],
+  "required": [
+   "layer_name"
+  ]
  },
  "set_task_preview": {
   "properties": [
