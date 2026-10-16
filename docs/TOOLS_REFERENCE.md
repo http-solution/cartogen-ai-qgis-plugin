@@ -1,6 +1,6 @@
 # Tool Reference
 
-Auto-generated from the live tool registry (252 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
+Auto-generated from the live tool registry (260 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
 
 Flags: **network-only** tools bypass the main-thread QGIS dispatcher entirely (pure HTTP, safe from any background thread); **two-phase** tools split a network fetch (background thread) from the QGIS-touching part (main thread); **task-management** tools are excluded from auto-advance in the Task Manager.
 
@@ -1923,6 +1923,89 @@ Download elevation (a DEM raster) for an area from the Copernicus DEM GLO-30 ope
 | `radius_km` | number | no | Half-width of the square around the centre, km. |
 | `output_path` | string | no | Optional GeoTIFF path; relative paths are anchored to the project folder. |
 | `output_name` | string | no | Optional layer name. |
+
+## edit_ops_tools
+
+### `change_field_type`
+
+Change the data type of a field to string, integer, long or double, converting the values. Values that cannot be converted become NULL and numbers lose their fraction when going to integer: the preview says how many. The field moves to the end of the table.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes |  |
+| `field` | string | yes |  |
+| `new_type` | string | yes |  |
+
+### `merge_features`
+
+Merge (union) several features of a layer into one: those matching an expression or the selected ones. The first feature keeps its attributes and gets the combined geometry; the others are deleted. Needs at least two features. Destructive: a preview is shown first.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes |  |
+| `expression` | string | no | QGIS expression choosing the features |
+| `only_selected` | boolean | no | use the currently selected features instead |
+
+### `redo_manual_edit`
+
+Redo the last undone edit step on a layer that is in edit mode.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes |  |
+
+### `set_layer_editing`
+
+Start editing a layer, save its edits, or discard them (action: start, save or discard). Discarding unsaved edits is destructive and needs confirmation.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes |  |
+| `action` | string | yes | start, save or discard |
+
+### `set_layer_filter`
+
+Set or clear a layer's filter (definition query): only features matching the filter are shown and used. The filter is a plain condition in the data source's own syntax, such as "population" > 1000. Statements, comments and semicolons are refused. clear=true removes the filter. The data is not changed.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes |  |
+| `filter` | string | no |  |
+| `clear` | boolean | no |  |
+
+### `split_features_by_line`
+
+Cut features of a polygon or line layer along a line given as WKT (LINESTRING(x1 y1, x2 y2, ...)) in the layer's CRS or in the CRS given. Splits the features matching an expression or the selected ones that the line crosses. Changes data: a preview is shown first.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes |  |
+| `expression` | string | no | QGIS expression choosing the features |
+| `only_selected` | boolean | no | use the currently selected features instead |
+| `line_wkt` | string | yes |  |
+| `crs` | string | no | e.g. EPSG:4326 |
+
+### `transform_features`
+
+Move, rotate and/or scale features of a layer: those matching an expression, or the selected ones (only_selected). move_x and move_y are in the layer's units, rotate_degrees is clockwise about each feature's centre, scale_factor scales about each feature's centre. Changes geometry: a preview with the exact count is shown for confirmation first.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes |  |
+| `expression` | string | no | QGIS expression choosing the features |
+| `only_selected` | boolean | no | use the currently selected features instead |
+| `move_x` | number | no |  |
+| `move_y` | number | no |  |
+| `rotate_degrees` | number | no |  |
+| `scale_factor` | number | no |  |
+
+### `undo_manual_edit`
+
+Undo the last edit step on a layer that is in edit mode (the layer's own undo history, including edits made by hand). Use undo_last_operation for assistant operations on a layer not in edit mode.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes |  |
 
 ## engineering_tools
 

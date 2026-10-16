@@ -663,6 +663,18 @@
    "layer_name"
   ]
  },
+ "change_field_type": {
+  "properties": [
+   "field",
+   "layer_name",
+   "new_type"
+  ],
+  "required": [
+   "field",
+   "layer_name",
+   "new_type"
+  ]
+ },
  "change_layer_color": {
   "properties": [
    "color_hex",
@@ -1960,6 +1972,16 @@
    "points"
   ]
  },
+ "merge_features": {
+  "properties": [
+   "expression",
+   "layer_name",
+   "only_selected"
+  ],
+  "required": [
+   "layer_name"
+  ]
+ },
  "merge_layers": {
   "properties": [
    "layer_names_list"
@@ -2154,6 +2176,14 @@
    "manual_edition",
    "planning_cycle",
    "unit_of_analysis"
+  ]
+ },
+ "redo_manual_edit": {
+  "properties": [
+   "layer_name"
+  ],
+  "required": [
+   "layer_name"
   ]
  },
  "remove_layer": {
@@ -2470,6 +2500,26 @@
    "level"
   ]
  },
+ "set_layer_editing": {
+  "properties": [
+   "action",
+   "layer_name"
+  ],
+  "required": [
+   "action",
+   "layer_name"
+  ]
+ },
+ "set_layer_filter": {
+  "properties": [
+   "clear",
+   "filter",
+   "layer_name"
+  ],
+  "required": [
+   "layer_name"
+  ]
+ },
  "set_layer_order": {
   "properties": [
    "layer_names"
@@ -2621,6 +2671,19 @@
    "target_layer"
   ]
  },
+ "split_features_by_line": {
+  "properties": [
+   "crs",
+   "expression",
+   "layer_name",
+   "line_wkt",
+   "only_selected"
+  ],
+  "required": [
+   "layer_name",
+   "line_wkt"
+  ]
+ },
  "split_lines_by_zones": {
   "properties": [
    "line_layer",
@@ -2685,6 +2748,20 @@
    "layer_name"
   ]
  },
+ "transform_features": {
+  "properties": [
+   "expression",
+   "layer_name",
+   "move_x",
+   "move_y",
+   "only_selected",
+   "rotate_degrees",
+   "scale_factor"
+  ],
+  "required": [
+   "layer_name"
+  ]
+ },
  "travel_time_matrix": {
   "properties": [
    "allow_large",
@@ -2710,6 +2787,14 @@
    "confirmed"
   ],
   "required": []
+ },
+ "undo_manual_edit": {
+  "properties": [
+   "layer_name"
+  ],
+  "required": [
+   "layer_name"
+  ]
  },
  "union_layers": {
   "properties": [

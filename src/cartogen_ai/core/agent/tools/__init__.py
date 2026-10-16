@@ -9,6 +9,7 @@ from .registry import TOOL_REGISTRY, TOOLS_SCHEMA, get_tool_registry, get_tools_
 from . import vector_tools
 from . import data_source_tools
 from . import attribute_edit_tools
+from . import edit_ops_tools
 from . import web_research_tools
 from . import watershed_tools
 from . import raster_calculator_tool
@@ -85,6 +86,7 @@ __all__ = [
     "dataset_status_tools",
     "db_and_workflow_tools",
     "dem_tools",
+    "edit_ops_tools",
     "engineering_tools",
     "event_data_tools",
     "export_tools",
