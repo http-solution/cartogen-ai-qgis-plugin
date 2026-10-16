@@ -79,7 +79,9 @@ _ONE_WORD_REQUESTS = {"Boundary": "get the boundary of the polygons", "Polygoniz
                       "Extract layer extent": "extract layer extent as a polygon", "Generate points (pixel centroids) inside polygons":
                       "generate points at pixel centroids inside polygons", "Extract by attribute": "extract by attribute value",
                       "Extract selected features": "extract selected features to a new layer", "Add X/Y fields to layer": "add x y fields to layer",
-                      "Rasterize (vector to raster)": "rasterize the vector to a raster"}
+                      "Rasterize (vector to raster)": "rasterize the vector to a raster",
+                      # gap-closing package: mesh family names that are generic words
+                      "Export contours": "export mesh contours", "Surface to polygon": "surface to polygon from the mesh"}
 
 
 def _plain_request(name):

@@ -44,6 +44,7 @@
  "Measure distance, area, bearing between points": "COVERED",
  "Temporal controller / animation of a time layer": "PARTIAL",
  "Elevation profile of a line over a DEM": "PARTIAL",
+ "Layer elevation settings and project terrain": "COVERED",
  "3D map view": "MISSING",
  "Look at the map canvas (screenshot for the assistant)": "COVERED",
  "Undo the assistant's last change": "COVERED",
