@@ -133,8 +133,8 @@ class TestAddPostgisLayerLive(unittest.TestCase):
         conn = _admin_connection()
         for stmt in ("DROP SCHEMA IF EXISTS cartogen_pkgc CASCADE", "CREATE SCHEMA cartogen_pkgc",
                      "CREATE TABLE cartogen_pkgc.places (id integer PRIMARY KEY, name text, geom geometry(Point, 4326))",
-                     "INSERT INTO cartogen_pkgc.places VALUES (1,'a',ST_SetSRID(ST_MakePoint(1,1),4326)),"
-                     "(2,'b',ST_SetSRID(ST_MakePoint(2,2),4326))"):
+                     ("INSERT INTO cartogen_pkgc.places VALUES (1,'a',ST_SetSRID(ST_MakePoint(1,1),4326)),"
+                      "(2,'b',ST_SetSRID(ST_MakePoint(2,2),4326))")):
             conn.executeSql(stmt)
         s = QgsSettings()
         base = f"QGIS/connections-postgres/{self.CONNECTION}"
