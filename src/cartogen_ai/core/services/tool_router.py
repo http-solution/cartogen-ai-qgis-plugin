@@ -168,6 +168,26 @@ _TOOL_ALIASES = {
         "set up an atlas", "make an atlas", "create an atlas", "atlas of", "one page per feature", "one page per district", "page per district",
         "atlas coverage", "report with one page per", "atlas layout",
     ],
+    "set_rule_based_labels": [
+        "rule based labels", "rule-based labels", "rule based labelling", "label rules", "label only the", "different labels for",
+        "label the big", "label the large", "label by rules", "labels with rules",
+    ],
+    "set_label_callout": ["callout", "callouts", "label callout", "leader line", "leader lines", "label mask", "mask behind the text", "clear halo behind"],
+    "set_point_marker": [
+        "svg marker", "svg icon", "use an svg", "picture marker", "icon for the points", "use an icon", "font marker", "use a symbol font",
+        "use the svg", "marker from svg",
+    ],
+    "set_layer_diagram": [
+        "pie chart on the map", "pie charts on the map", "pie diagram", "bar diagram", "bar chart on each", "diagram on each", "diagrams on the map",
+        "draw a pie", "draw pies", "histogram diagram", "chart for each feature",
+    ],
+    "set_raster_relief": [
+        "hillshade renderer", "draw as a hillshade", "show as hillshade", "show the dem as hillshade", "contour lines on the dem", "contour renderer",
+        "draw as contours", "show contours on the raster", "shaded relief",
+    ],
+    "save_symbol_to_library": ["save the symbol", "save this symbol", "add the symbol to my library", "symbol library", "save the style as a symbol", "store this symbol"],
+    "list_saved_symbols": ["my saved symbols", "list the saved symbols", "saved symbols", "what symbols do i have", "symbols in my library"],
+    "apply_saved_symbol": ["use the saved symbol", "apply the saved symbol", "apply my symbol", "use the symbol called", "symbol from my library"],
     "find_broken_layers": [
         "broken layer", "broken layers", "broken path", "broken paths", "missing layer", "layer not found", "layers with a red",
         "unavailable layer", "fix the paths", "data source is missing", "lost layer", "moved the file",

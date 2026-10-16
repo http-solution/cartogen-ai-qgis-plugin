@@ -404,6 +404,14 @@ TOOL_OPERATION_TYPES = {
     "add_overview_map": CREATE,
     "set_layout_guides_grid": MODIFY,
     "set_layout_atlas": MODIFY,
+    "set_rule_based_labels": MODIFY,    # how labels are drawn; data untouched
+    "set_label_callout": MODIFY,
+    "set_point_marker": MODIFY,
+    "set_layer_diagram": MODIFY,
+    "set_raster_relief": MODIFY,
+    "save_symbol_to_library": PUBLISH,  # writes the user's QGIS symbol database
+    "list_saved_symbols": READ,
+    "apply_saved_symbol": MODIFY,
     "rename_layer_group": MODIFY,
     "zoom_history": READ,               # moves the canvas only
     "get_layer_metadata": READ,

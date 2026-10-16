@@ -1,6 +1,6 @@
 # Tool Reference
 
-Auto-generated from the live tool registry (279 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
+Auto-generated from the live tool registry (287 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
 
 Flags: **network-only** tools bypass the main-thread QGIS dispatcher entirely (pure HTTP, safe from any background thread); **two-phase** tools split a network fetch (background thread) from the QGIS-touching part (main thread); **task-management** tools are excluded from auto-advance in the Task Manager.
 
@@ -2972,6 +2972,98 @@ Summarise survey records into one figure per area (admin unit, camp, ...): the w
 | `confidence` | number | no | Confidence level of the intervals, default 0.95. |
 | `design_effect` | number | no | Design effect from the survey design (>= 1); divides the effective sample size. Default 1 (no clustering adjustment). |
 | `output_table_name` | string | no | Optional name for a results table layer. |
+
+## symbology_extra_tools
+
+### `apply_saved_symbol`
+
+Give a vector layer a symbol from your personal symbol library by name. The symbol kind must fit the layer (marker for points, line for lines, fill for polygons). A layer that uses categories or graduated colours is only switched to the single symbol after confirmation.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes |  |
+| `name` | string | yes |  |
+
+### `list_saved_symbols`
+
+List the symbols in your personal QGIS symbol library (name and kind: marker, line or fill).
+
+_No parameters._
+
+### `save_symbol_to_library`
+
+Save a vector layer's (single) symbol into your personal QGIS symbol library under a name, optionally with tags, so it can be reused on other layers and in other projects. An existing symbol with the same name is only replaced after confirmation.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes |  |
+| `name` | string | yes |  |
+| `tags` | array[string] | no |  |
+
+### `set_label_callout`
+
+Add or change callouts (lines from a label to its feature) and a text mask (a clear halo that hides what is behind the text) on a layer that already has simple labels (apply_labels). enabled switches callouts on or off; style is simple or manhattan; color and width_mm style the line; mask and mask_size_mm control the mask.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes |  |
+| `enabled` | boolean | no |  |
+| `style` | string | no | simple or manhattan |
+| `color` | string | no |  |
+| `width_mm` | number | no |  |
+| `mask` | boolean | no |  |
+| `mask_size_mm` | number | no |  |
+
+### `set_layer_diagram`
+
+Draw a pie or bar diagram on every feature of a vector layer from numeric fields (kind: pie, bar or histogram; fields: 1 to 8 numeric field names; size_mm; optional colors, one per field). clear=true removes the diagrams.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes |  |
+| `kind` | string | no |  |
+| `fields` | array[string] | no |  |
+| `size_mm` | number | no |  |
+| `colors` | array[string] | no |  |
+| `clear` | boolean | no |  |
+
+### `set_point_marker`
+
+Use an SVG picture or a single font character as the marker of a POINT layer. kind=svg needs svg_path (a local .svg file, or a name from QGIS's own SVG library such as arrows/Arrow_01.svg; URLs are refused); kind=font needs font_family and character. size_mm and color are optional. The layer must use a single symbol.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes |  |
+| `kind` | string | yes | svg or font |
+| `svg_path` | string | no |  |
+| `font_family` | string | no |  |
+| `character` | string | no |  |
+| `size_mm` | number | no |  |
+| `color` | string | no |  |
+
+### `set_raster_relief`
+
+Draw a raster (for example a DEM) as a hillshade (style=hillshade; azimuth 0-360, altitude 0-90, z_factor) or as contour lines (style=contour; interval and optional index_interval, in the raster's units). band defaults to 1. This changes how the raster is drawn, not its data; for a hillshade FILE use the hillshade analysis tool.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes |  |
+| `style` | string | yes | hillshade or contour |
+| `azimuth` | number | no |  |
+| `altitude` | number | no |  |
+| `z_factor` | number | no |  |
+| `interval` | number | no |  |
+| `index_interval` | number | no |  |
+| `band` | integer | no |  |
+
+### `set_rule_based_labels`
+
+Label a vector layer with RULES instead of one style: each rule has a field to show, an optional filter (a QGIS expression such as "population" > 10000), a font size and colour, and optional scales (min_scale = zoomed-out limit as a denominator, max_scale = zoomed-in limit). Up to 20 rules. This replaces the layer's current labels.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes |  |
+| `rules` | array[object] | yes |  |
 
 ## symbology_tools
 

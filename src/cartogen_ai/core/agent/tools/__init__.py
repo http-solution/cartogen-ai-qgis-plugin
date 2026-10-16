@@ -13,6 +13,7 @@ from . import edit_ops_tools
 from . import data_layer_tools
 from . import project_ops_tools
 from . import layout_extra_tools
+from . import symbology_extra_tools
 from . import web_research_tools
 from . import watershed_tools
 from . import raster_calculator_tool
@@ -133,6 +134,7 @@ __all__ = [
     "sensitivity_tools",
     "styling_tools",
     "survey_tools",
+    "symbology_extra_tools",
     "symbology_tools",
     "system_tools",
     "table_importers",
