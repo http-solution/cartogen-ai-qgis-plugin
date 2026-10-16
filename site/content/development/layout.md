@@ -32,7 +32,7 @@ core/
 │   ├── memory.py, chat_persistence.py, results_store.py, lineage.py, provenance.py
 │   ├── scheduler.py, cancel_signal.py, project_session.py, evidence.py, api_trace.py
 │   ├── services/               script_isolation.py and its worker process
-│   └── tools/                  284 tools, one module per domain, plus _helpers
+│   └── tools/                  287 tools, one module per domain, plus _helpers
 ├── services/              prompt refiner, tool router, response guard, task runner, learning
 ├── models/                confidence, sensitivity, egress gate, plan gate, model view, transactions, dataset status
 ├── validators/            schema contracts, P-code depth validation
