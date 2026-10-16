@@ -35,5 +35,26 @@ class RasterFamilyTests(unittest.TestCase):
         self.assertEqual(out["FIELDS"], ["a", "b"])
 
 
+    def test_a_raster_stack_refuses_vector_layers_before_running(self):
+        from cartogen_ai.core.agent.tools import processing_allowlist_tools as tools
+
+        class Raster:
+            def name(self):
+                return "dem"
+
+        class Vector:
+            def name(self):
+                return "pts"
+
+        with patch.object(tools, "QgsRasterLayer", Raster, create=True):
+            self.assertIsNone(tools._raster_list_violation("native:cellstackpercentile", {"INPUT": [Raster(), Raster()]}, {"INPUT"}))
+            message = tools._raster_list_violation("native:cellstackpercentile", {"INPUT": [Raster(), Vector(), "missing"]}, {"INPUT"})
+            self.assertIn("raster layers only", message)
+            self.assertIn("pts", message)
+            self.assertIn("missing", message)
+            # a vector overlay is not in the raster family, so its list is not touched
+            self.assertIsNone(tools._raster_list_violation("native:multiunion", {"LAYERS": [Vector()]}, {"LAYERS"}))
+
+
 if __name__ == "__main__":
     unittest.main()

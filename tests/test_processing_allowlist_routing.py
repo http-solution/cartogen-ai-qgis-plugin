@@ -70,7 +70,16 @@ _ONE_WORD_REQUESTS = {"Boundary": "get the boundary of the polygons", "Polygoniz
                       "Grid (Nearest neighbor)": "grid with nearest neighbor", "Hillshade": "gdal hillshade", "Slope": "gdal slope", "Aspect": "gdal aspect",
                       "Proximity (raster distance)": "raster proximity", "Translate (convert format)": "convert raster format",
                       "Warp (reproject)": "warp the raster", "Roughness": "roughness of the dem", "Sieve": "sieve the raster",
-                      "Fill NoData": "fill nodata", "Fill NoData cells": "fill nodata", "Fill sinks (Wang & Liu)": "fill sinks"}
+                      "Fill NoData": "fill nodata", "Fill NoData cells": "fill nodata", "Fill sinks (Wang & Liu)": "fill sinks",
+                      # package E: names shared with a dedicated tool or too short to be a phrase of their own
+                      "Difference (multiple)": "difference of multiple layers", "Intersection (multiple)": "intersection of multiple layers",
+                      "Union (multiple)": "union of multiple layers", "Drape (set Z value from raster)": "drape the lines on the dem",
+                      "Heatmap (Kernel Density Estimation)": "kernel density heatmap", "Service area (from layer)": "service area from a layer of facilities",
+                      "Rename field": "rename a table field", "Assign projection": "assign projection to the layer",
+                      "Extract layer extent": "extract layer extent as a polygon", "Generate points (pixel centroids) inside polygons":
+                      "generate points at pixel centroids inside polygons", "Extract by attribute": "extract by attribute value",
+                      "Extract selected features": "extract selected features to a new layer", "Add X/Y fields to layer": "add x y fields to layer",
+                      "Rasterize (vector to raster)": "rasterize the vector to a raster"}
 
 
 def _plain_request(name):

@@ -147,6 +147,33 @@ def _resolve_params(params, raster_output=False, destination_keys=None, raster_k
     return resolved
 
 
+def _raster_list_violation(alg_id, resolved_params, layer_list_keys):
+    """A message when a raster-family algorithm is given a layer list that holds something other than raster layers, else None.
+
+    CI run 38883595535 (package D/E probe): handing vector layers to native:cellstackpercentile, cellstackpercentrankfromrasterlayer and
+    cellstackpercentrankfromvalue crashed the QGIS process (SIGSEGV) and hung native:rasterrank. Processing's own parameter check lets such a
+    list through, and a crash would take the user's whole QGIS session with it, so the list is checked here. Every layer-list parameter in
+    the raster family is a stack of rasters."""
+    from ._processing_allowlist import RASTER_ALGORITHM_IDS
+    if alg_id not in RASTER_ALGORITHM_IDS or not layer_list_keys:
+        return None
+    for key in layer_list_keys:
+        values = resolved_params.get(key)
+        if isinstance(values, list):
+            bad = [v if isinstance(v, str) else getattr(v, "name", lambda: "a layer")() for v in values if not isinstance(v, QgsRasterLayer)]
+            if bad:
+                return (f"parameter '{key}' of '{alg_id}' must list raster layers only; these are not rasters or not loaded: "
+                        f"{', '.join(map(str, bad))}.")
+    return None
+
+
+def _check_raster_lists(alg_id, resolved_params, layer_list_keys):
+    """Raises ValueError (reported as "'<alg>' failed: ...") when _raster_list_violation finds a problem; the algorithm is not run."""
+    problem = _raster_list_violation(alg_id, resolved_params, layer_list_keys)
+    if problem:
+        raise ValueError(problem)
+
+
 def _run_allowlisted(alg_id, resolved_params):
     """processing.run(alg_id, params), off the GUI thread when that is safe (rc20 audit A14, #221).
 
@@ -226,6 +253,7 @@ def run_allowlisted_processing_algorithm(alg_id, params, new_layer_name=None):
         resolved_params = _resolve_params(params, raster_output=alg_id in RASTER_OUTPUT_ALGORITHM_IDS,
                                           destination_keys=destination_keys, raster_keys=raster_keys,
                                           layer_list_keys=layer_list_keys)
+        _check_raster_lists(alg_id, resolved_params, layer_list_keys)
         output = _run_allowlisted(alg_id, resolved_params)
     except _bg.AnalysisCancelledError:
         return {"error": f"Stopped before '{alg_id}' finished. Nothing was added to the project.", "cancelled": True}

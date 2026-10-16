@@ -10,6 +10,7 @@ LAYERS = {
     "lines": ("LineString", ["LINESTRING(0 0,1 1,2 0,3 1)", "LINESTRING(0 1,3 0)"]),
     # CI run 38684090553: native:climbalongline refuses a layer without Z values, so one 3D line layer is tried last.
     "linesz": ("LineStringZ", ["LINESTRING Z(0 0 0,1 1 5,2 0 10)", "LINESTRING Z(0 1 2,3 0 8)"]),
+    "polys2": ("Polygon", ["POLYGON((1 -1,3 -1,3 1,1 1,1 -1))", "POLYGON((3 0.5,5 0.5,5 2.5,3 2.5,3 0.5))"]),
     "pts": ("Point", ["POINT(0.2 0.2)", "POINT(1.5 0.4)", "POINT(0.9 1.7)", "POINT(2.5 1.5)", "POINT(3.1 0.2)"]),
 }
 
@@ -65,13 +66,27 @@ def params_for(algorithm, layer_name, distinct=False):
         elif kind == "band":
             params[p.name()] = 1
         elif kind == "multilayer":
-            params[p.name()] = ["dem", "dem2"]
+            # CI run 38878940104: native:multiunion / multiintersection / multidifference refuse rasters ("All layers must be vector layers"),
+            # so a multiple-layer parameter gets rasters only when it is declared a raster layer list
+            # (CI run 38883595535: judging by layerType() text sent vector layers into the cell-stack tools, which crashed the process with
+            # SIGSEGV; the algorithm's group is what tells a raster stack from a vector overlay)
+            raster_list = "raster" in algorithm.group().lower() or "raster" in algorithm.id().lower()
+            params[p.name()] = ["dem", "dem2"] if raster_list else ["polys", "polys2"]
+        elif kind == "layer":
+            # CI run 38878940104: native:polygonfromlayerextent has a plain layer parameter, which the probe left empty
+            params[p.name()] = layer_name
         elif kind == "crs":
             params[p.name()] = "EPSG:4326"
         elif kind == "extent":
             params[p.name()] = "0.5,3.5,0.2,1.8 [EPSG:4326]"
         elif kind == "point":
             params[p.name()] = "1,1 [EPSG:4326]"
+        elif kind == "string" and not _is_optional(p):
+            # package E: a required text parameter (a new field name, a value to match, a delimiter) needs something plausible
+            default = p.defaultValue()
+            params[p.name()] = default if isinstance(default, str) and default else ("newfield" if "FIELD" in p.name().upper() else "1")
+        elif kind == "heatmappixelsize":
+            params[p.name()] = 0.1
         elif kind == "expression" and not _is_optional(p):
             # M6d: an expression a user could plausibly type, per algorithm (a geometry for geometrybyexpression, a sort key, a count)
             params[p.name()] = EXPRESSIONS.get(algorithm.id(), '"val" > 0')
