@@ -420,6 +420,34 @@ _TOOL_ALIASES = {
         "cells above", "cells below", "cells where", "pixels above", "pixels below", "mask of cells", "threshold the raster",
         "raster threshold", "combine the rasters", "raster a minus", "difference between the two rasters",
     ],
+    "add_layout_item": [
+        "add a picture to the layout", "add a logo to the layout", "add an image to the layout", "add a logo to the map", "add a text box",
+        "add a label to the layout", "add a shape to the layout", "add a rectangle to the layout", "add an arrow", "add a table to the layout",
+        "add an attribute table", "put a logo", "insert a picture", "insert a logo", "layout item",
+    ],
+    "edit_layout_item": [
+        "move the legend", "move the scale bar", "move the north arrow", "move the title", "resize the legend", "resize the map",
+        "make the map bigger", "make the map smaller", "rotate the item", "remove the item from the layout", "delete the item from the layout",
+        "remove the legend", "remove the north arrow", "remove the scale bar",
+    ],
+    "set_layout_map": [
+        "set the map scale", "scale of the layout map", "layout map scale", "zoom the layout map", "layout extent", "change the map extent in the layout",
+        "rotate the layout map", "lock the layers", "freeze the layers", "map in the layout to", "layout to 1:",
+    ],
+    "set_layout_page": [
+        "page size", "change the page size", "paper size", "a3 page", "a4 page", "a5 page", "a2 page", "a1 page", "a0 page", "letter page",
+        "portrait layout", "landscape layout", "add a page", "second page", "two pages", "several pages", "multi-page",
+    ],
+    "save_layout_template": [
+        "save the layout as a template", "save layout template", "layout template", "save as a template", "export the template", ".qpt",
+    ],
+    "load_layout_template": [
+        "load a layout template", "load the template", "new layout from a template", "open the template", "layout from a template", "use the template",
+    ],
+    "export_layout": [
+        "export the layout", "export layout", "export the layout as svg", "layout to svg", "save the layout as pdf", "save the layout as png",
+        "export the existing layout", "export layout to",
+    ],
     "set_layer_symbol": [
         "outline color", "outline colour", "outline width", "outline thickness", "thicker outline", "thinner outline", "thin outline",
         "thick outline", "dashed outline", "dashed line", "dotted line", "dotted outline", "line pattern", "line style", "stroke width",
