@@ -3,10 +3,7 @@
 The older export tools append `export_warning_for(layer)` (models/sensitivity.py) to their result; package_layers_offline, add_layout_chart and
 set_layout_atlas did not, found by the 2026-10-16 integration audit. Advisory only, like the original: nothing is blocked. Uses the same
 RESTRICTED / SENSITIVE rule, so the two cannot disagree about which layers are protected."""
-try:
-    from ...models.sensitivity import get_layer_sensitivity
-except ImportError:      # pragma: no cover - the module is part of the package; guard only for odd import orders
-    get_layer_sensitivity = None
+from ...models.sensitivity import get_layer_sensitivity
 
 _PROTECTED = ("RESTRICTED", "SENSITIVE")
 
@@ -14,8 +11,6 @@ _PROTECTED = ("RESTRICTED", "SENSITIVE")
 def protected_layer_notes(layers, what_happens):
     """[str] one note per layer tagged RESTRICTED or SENSITIVE; [] when none is or the tag cannot be read. Never raises."""
     notes = []
-    if get_layer_sensitivity is None:
-        return notes
     for layer in layers or []:
         try:
             record = get_layer_sensitivity(layer)
