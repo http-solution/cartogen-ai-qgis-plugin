@@ -20,14 +20,14 @@
   <a href="https://cartogenai.com"><img src="https://img.shields.io/badge/website-cartogenai.com-0b6efd" alt="Website"></a>
 </p>
 
-**Community edition · Version 1.17.0-rc44 (pre-release) · GNU GPL v2 · QGIS 4.2–4.99 · [cartogenai.com](https://cartogenai.com)**
+**Community edition · Version 1.17.0-rc45 (pre-release) · GNU GPL v2 · QGIS 4.2–4.99 · [cartogenai.com](https://cartogenai.com)**
 
 Cartogen AI is built for GIS analysts, humanitarian teams, researchers, and anyone who
 needs to move from a question to a reproducible spatial result without leaving QGIS.
 The agent exposes its plan, tool calls, progress, and errors instead of returning a
 black-box answer.
 
-> **Project status (2026-10-06):** active Community edition, currently at the **1.17.0-rc44 pre-release** build (the last stable build is 1.16.3; rc20 to 1.17.0-rc44 add the audit fixes, hand-test fixes and the cost and routing work made after rc19).
+> **Project status (2026-10-06):** active Community edition, currently at the **1.17.0-rc45 pre-release** build (the last stable build is 1.16.3; rc20 to 1.17.0-rc45 add the audit fixes, hand-test fixes and the cost and routing work made after rc19).
 > - **Tests:** 3,570 automated tests, 0 failures in the offline run; the live-QGIS tests (and any needing optional libraries) are skipped there and
 >   the QGIS ones run in CI (the `qgis-live-tests` job, QGIS 4.2.2).
 > - **Architectural audit:** an external audit of rc12 raised 32 findings, filed as issues #137-#168 (tracking issue #169). The 15
@@ -86,6 +86,13 @@ black-box answer.
   a restricted execution sandbox for model-generated PyQGIS scripts, fail-closed
   read-only SQL enforcement, an SSRF guard on fetched URLs, and a destructive-action
   confirmation gate the model cannot self-approve.
+
+## What's new in 1.17.0-rc45
+
+Built on 1.17.0-rc44. Offline tests and the QGIS 4.2.2 live checks in CI pass; **not hand-tested** in desktop QGIS unless an item says so. Full list: the `v1.17.0-rc45` block in [metadata.txt](metadata.txt) and [CHANGELOG.md](CHANGELOG.md).
+
+- Fixes found against the QGIS 4.2.3 reference: The map-history tool (zoom_history) now says so when there is no earlier or later extent instead of reporting success; diagnose_topology counts invalid geometries again; the proxy check no longer fails on the QGIS network settings; and the point-displacement map style applies. A new test compares every QGIS call in the code with the 4.2.3 reference list and fails on a name that does not exist.
+- Not hand-tested: Everything above is checked by the offline suite and, for the QGIS parts, by CI on QGIS 4.2.2. None of it has been hand-tested in desktop QGIS. The check compares method names only, not argument lists or return types.
 
 ## What's new in 1.17.0-rc44
 
