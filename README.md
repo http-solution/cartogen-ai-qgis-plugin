@@ -20,14 +20,14 @@
   <a href="https://cartogenai.com"><img src="https://img.shields.io/badge/website-cartogenai.com-0b6efd" alt="Website"></a>
 </p>
 
-**Community edition · Version 1.17.0-rc43 (pre-release) · GNU GPL v2 · QGIS 4.2–4.99 · [cartogenai.com](https://cartogenai.com)**
+**Community edition · Version 1.17.0-rc44 (pre-release) · GNU GPL v2 · QGIS 4.2–4.99 · [cartogenai.com](https://cartogenai.com)**
 
 Cartogen AI is built for GIS analysts, humanitarian teams, researchers, and anyone who
 needs to move from a question to a reproducible spatial result without leaving QGIS.
 The agent exposes its plan, tool calls, progress, and errors instead of returning a
 black-box answer.
 
-> **Project status (2026-10-06):** active Community edition, currently at the **1.17.0-rc43 pre-release** build (the last stable build is 1.16.3; rc20 to 1.17.0-rc43 add the audit fixes, hand-test fixes and the cost and routing work made after rc19).
+> **Project status (2026-10-06):** active Community edition, currently at the **1.17.0-rc44 pre-release** build (the last stable build is 1.16.3; rc20 to 1.17.0-rc44 add the audit fixes, hand-test fixes and the cost and routing work made after rc19).
 > - **Tests:** 3,570 automated tests, 0 failures in the offline run; the live-QGIS tests (and any needing optional libraries) are skipped there and
 >   the QGIS ones run in CI (the `qgis-live-tests` job, QGIS 4.2.2).
 > - **Architectural audit:** an external audit of rc12 raised 32 findings, filed as issues #137-#168 (tracking issue #169). The 15
@@ -86,6 +86,18 @@ black-box answer.
   a restricted execution sandbox for model-generated PyQGIS scripts, fail-closed
   read-only SQL enforcement, an SSRF guard on fetched URLs, and a destructive-action
   confirmation gate the model cannot self-approve.
+
+## What's new in 1.17.0-rc44
+
+Built on 1.17.0-rc43. Offline tests and the QGIS 4.2.2 live checks in CI pass; **not hand-tested** in desktop QGIS unless an item says so. Full list: the `v1.17.0-rc44` block in [metadata.txt](metadata.txt) and [CHANGELOG.md](CHANGELOG.md).
+
+- Symbology and labels: New tools: rule-based labels, label callouts and masks, pie and bar diagrams, SVG and font point markers, hillshade and contour styles for rasters, and a personal symbol library (save a layer's symbol, list and re-apply it). Undo covers the label, callout, diagram, marker, relief and saved-symbol changes.
+- Print layouts: New tools: an overview (locator) map, layout guides and a snapping grid, an atlas with one page per feature, bar, line and pie charts, and an elevation profile along a line. A layout can be exported with a world file or as a GeoPDF. How charts and profiles look when drawn has not been checked.
+- New layer types: New tools: open a point cloud (.copc.laz or EPT; a plain .las or .laz needs a QGIS build with the PDAL provider and says so otherwise), a vector tile source (https XYZ, .mbtiles or .vtpk) and a 3D Tiles tileset. New settings tools: turn elevation on for a raster or set a vector layer's clamping and extrusion, and set the project's terrain (flat or a DEM).
+- GRASS and mesh algorithms: The approved Processing list grew from 267 to 427 algorithms: 154 GRASS algorithms (only where QGIS has GRASS installed; the ones that read or write files, take SQL or expressions, or install extensions are left out) and 6 mesh algorithms (export edges, faces, vertices and grid points, rasterize a dataset, surface to polygon). 12 GRASS algorithms and mesh contours failed their live run and are not offered.
+- Fixes found by an integration audit: More changes can now be undone with undo_last_operation (layer filter, labels, callouts, diagrams, markers, relief, saved symbols, elevation, time settings). A virtual layer built over a protected layer is now seen by the privacy gate and inherits that protection. Packaging layers offline, adding a chart and setting an atlas now warn when a RESTRICTED or SENSITIVE layer is involved. A plain 'animate the layer over time' is offered the animation tool again.
+- Results look better: Continuous raster, GRASS and mesh results (distance, cost, slope-like surfaces, interpolations) open with a colour ramp instead of plain grey; classified and shaded results stay as they are. GRASS buffers, hulls, overlays and network results get the same look as their native counterparts. This was checked by which algorithm gets which look, not by viewing the maps.
+- Not hand-tested: Everything above is checked by the offline suite and, for the QGIS parts, by CI on QGIS 4.2.2 (each new tool is read back from real QGIS objects, each Processing algorithm was run once on small test data). None of it has been hand-tested in desktop QGIS, no real model was used to choose these tools, and no real point cloud, vector-tile or 3D-tiles data was opened. Not built: GPS tools, PDAL point-cloud algorithms (this QGIS build has no PDAL) and a 3D map layout item (not available in the CI QGIS).
 
 ## What's new in 1.17.0-rc43
 
@@ -471,7 +483,7 @@ strategic orchestration. The full catalogue -- what each tool does, what it draw
 in [docs/HUMANITARIAN_TOOLS_CATALOGUE.md](docs/HUMANITARIAN_TOOLS_CATALOGUE.md); exact arguments are in
 [docs/TOOLS_REFERENCE.md](docs/TOOLS_REFERENCE.md), and what is still missing is in
 [docs/HUMANITARIAN_WORKFLOW_GAP_ANALYSIS_2026-10-04.md](docs/HUMANITARIAN_WORKFLOW_GAP_ANALYSIS_2026-10-04.md).
-1.17.0-rc42 and 1.17.0-rc43 added tools outside these workflows (see their notes and `docs/TOOLS_REFERENCE.md`), so none is marked **new** here; the newest are `search_fact_checks` (1.16.0-rc40) and `find_incident_reports` (1.16.0-rc37), tested offline and in CI on QGIS 4.2.2 and, for the rc37 tool, in the rc40 hand test.
+1.17.0-rc42, 1.17.0-rc43 and 1.17.0-rc44 added tools outside these workflows (see their notes and `docs/TOOLS_REFERENCE.md`), so none is marked **new** here; the newest are `search_fact_checks` (1.16.0-rc40) and `find_incident_reports` (1.16.0-rc37), tested offline and in CI on QGIS 4.2.2 and, for the rc37 tool, in the rc40 hand test.
 
 | Workflow | Tools |
 |---|---|
