@@ -401,6 +401,14 @@ TOOL_OPERATION_TYPES = {
     "assess_watershed_hydrology_request": READ,
     "calculate_rational_watershed_peak_flow": READ,
     "add_layer_from_path": CREATE,
+    "set_rule_based_labels": MODIFY,    # how labels are drawn; data untouched
+    "set_label_callout": MODIFY,
+    "set_point_marker": MODIFY,
+    "set_layer_diagram": MODIFY,
+    "set_raster_relief": MODIFY,
+    "save_symbol_to_library": PUBLISH,  # writes the user's QGIS symbol database
+    "list_saved_symbols": READ,
+    "apply_saved_symbol": MODIFY,
     "rename_layer_group": MODIFY,
     "zoom_history": READ,               # moves the canvas only
     "get_layer_metadata": READ,

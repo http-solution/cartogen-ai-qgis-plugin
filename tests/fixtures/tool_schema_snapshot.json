@@ -389,6 +389,16 @@
    "rules"
   ]
  },
+ "apply_saved_symbol": {
+  "properties": [
+   "layer_name",
+   "name"
+  ],
+  "required": [
+   "layer_name",
+   "name"
+  ]
+ },
  "aspect_analysis": {
   "properties": [
    "dem_layer"
@@ -1933,6 +1943,10 @@
   "properties": [],
   "required": []
  },
+ "list_saved_symbols": {
+  "properties": [],
+  "required": []
+ },
  "list_scheduled_workflows": {
   "properties": [],
   "required": []
@@ -2423,6 +2437,17 @@
   ],
   "required": []
  },
+ "save_symbol_to_library": {
+  "properties": [
+   "layer_name",
+   "name",
+   "tags"
+  ],
+  "required": [
+   "layer_name",
+   "name"
+  ]
+ },
  "save_workflow_preset": {
   "properties": [
    "preset_name",
@@ -2579,6 +2604,20 @@
    "group_name"
   ]
  },
+ "set_label_callout": {
+  "properties": [
+   "color",
+   "enabled",
+   "layer_name",
+   "mask",
+   "mask_size_mm",
+   "style",
+   "width_mm"
+  ],
+  "required": [
+   "layer_name"
+  ]
+ },
  "set_label_style": {
   "properties": [
    "bold",
@@ -2607,6 +2646,19 @@
   "required": [
    "layer_name",
    "level"
+  ]
+ },
+ "set_layer_diagram": {
+  "properties": [
+   "clear",
+   "colors",
+   "fields",
+   "kind",
+   "layer_name",
+   "size_mm"
+  ],
+  "required": [
+   "layer_name"
   ]
  },
  "set_layer_editing": {
@@ -2737,6 +2789,21 @@
   ],
   "required": []
  },
+ "set_point_marker": {
+  "properties": [
+   "character",
+   "color",
+   "font_family",
+   "kind",
+   "layer_name",
+   "size_mm",
+   "svg_path"
+  ],
+  "required": [
+   "kind",
+   "layer_name"
+  ]
+ },
  "set_project_crs": {
   "properties": [
    "crs"
@@ -2762,6 +2829,22 @@
    "start"
   ]
  },
+ "set_raster_relief": {
+  "properties": [
+   "altitude",
+   "azimuth",
+   "band",
+   "index_interval",
+   "interval",
+   "layer_name",
+   "style",
+   "z_factor"
+  ],
+  "required": [
+   "layer_name",
+   "style"
+  ]
+ },
  "set_raster_style": {
   "properties": [
    "clear_nodata",
@@ -2774,6 +2857,16 @@
   ],
   "required": [
    "layer_name"
+  ]
+ },
+ "set_rule_based_labels": {
+  "properties": [
+   "layer_name",
+   "rules"
+  ],
+  "required": [
+   "layer_name",
+   "rules"
   ]
  },
  "set_snapping_options": {
