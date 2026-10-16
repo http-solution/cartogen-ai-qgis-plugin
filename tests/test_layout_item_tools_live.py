@@ -109,7 +109,7 @@ class TestLayoutItemTools(unittest.TestCase):
         self.assertAlmostEqual(item.positionWithUnits().y(), 10)
         self.assertAlmostEqual(item.sizeWithUnits().width(), 80)
         self.assertAlmostEqual(item.sizeWithUnits().height(), 10)
-        self.assertTrue(item.hasFrame())
+        self.assertTrue(item.frameEnabled())
         # QGIS turns an item about its centre and moves the stored top-left corner to match, so rotation is checked on its own
         r = edit_layout_item("L1", "T", rotation=15)
         self.assertTrue(r.get("success"), r)
