@@ -7,6 +7,7 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 | Version | Date | Summary |
 |---|---|---|
+| [1.17.0-rc43](#v1-17-0-rc43) | 2026-10-16 | **Release candidate 43 for 1.17.0.** No breaking changes -- requires QGIS 4.2+. 34 more tools (242 to 276) and 101 more Processing algorithms (166 to 267): editing, data sources, symbology, print layouts and project settings by plain request. CI-checked, not hand-tested. |
 | [1.17.0-rc42](#v1-17-0-rc42) | 2026-10-15 | **Release candidate 42 for 1.17.0.** No breaking changes -- requires QGIS 4.2+. Many more QGIS actions by plain request: 124 more Processing algorithms, a raster calculator, layer groups, project CRS, bookmarks, selections and attribute editing, a watershed tool and sourced web research. CI-checked, not hand-tested. |
 | [1.16.3](#v1-16-3) | 2026-10-14 | **Stable release 1.16.3.** No breaking changes -- requires QGIS 4.2+. Plain requests such as 'create layer for Jordan ADM1' are offered their tools again (broken since rc23). |
 | [1.16.2](#v1-16-2) | 2026-10-14 | **Stable release 1.16.2.** No breaking changes -- requires QGIS 4.2+. A failed boundary download no longer ends with points drawn from memory. |
@@ -86,6 +87,19 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 The detailed narrative entries below are unchanged -- this table is purely an additive index on
 top of them.
+
+<a id="v1-17-0-rc43"></a>
+## [1.17.0-rc43] — 2026-10-16 — Release candidate 43 for 1.17.0: No breaking changes -- requires QGIS 4.2+. 34 more tools (242 to 276) and 101 more Processing algorithms (166 to 267): editing, data sources, symbology, print layouts and project settings by plain request. CI-checked, not hand-tested.
+
+No breaking changes; QGIS 4.2+. Everything after rc42:
+
+- More QGIS actions by plain request: The approved Processing list grew from 166 to 267 algorithms: 66 raster algorithms (terrain indices, proximity, sieve, fill no-data, warp, translate, grid interpolation, cell-stack and fuzzify tools, zonal tables, constant and random rasters) and 35 more table, analysis and geometry algorithms (X/Y fields, extract by attribute, kernel density heatmap, raster pixels to points or polygons, multi-layer union, intersection and difference, drape lines on a DEM, rasterize, service area from a layer and others). Each was run once in real QGIS 4.2.2 in CI; any that failed there was left off (find projection hangs, line density could not create its raster, shortest path from a layer needs a purpose-built network). A layer list given to a raster-stack algorithm must hold rasters: vector layers there crashed QGIS in a test, so they are now refused before the algorithm runs.
+- Edit features, not just values: New tools: set a layer filter, move, rotate and scale features, merge features, split features by a line, undo and redo manual edits on a layer in edit mode, change a field's type, and start, save or discard editing. Anything that changes or removes data shows a preview with exact counts first.
+- Open more kinds of data: New tools: add a PostGIS table through a connection saved in QGIS, create a virtual layer (SQL over the project's layers; a single SELECT only), load and save .qlr layer files, and package layers into one GeoPackage for offline use. NetCDF, GRIB, HDF, ECW, MrSID and mesh files (.nc .grb .2dm .slf) are opened when your QGIS build supports them.
+- Styling and print layouts: New tools: set a layer's fill, outline, marker and opacity, label style (halo, buffer, placement) and raster style (resampling, brightness and contrast). Layouts: add label, picture, shape, arrow and attribute-table items, edit, move, rotate or remove them, set the map's scale, extent and rotation, change the page size, save and load layout templates, and export to PDF, image or SVG. HTML frames and pictures given as a URL are refused on purpose.
+- Project settings: New tools: rename a layer group, zoom to the previous or next extent, read and set layer metadata, snapping options, 1-N relations between layers, time-aware layers and the project time range, and text annotations on the map.
+- Showcase services measured: A CI job now records which outside services answer from the build machine. The Copernicus DEM tile and Google News were reached; GDELT answered with a rate limit (HTTP 429) and DuckDuckGo returned no result list. The plugin falls back from GDELT to Google News and says when a service cannot be used.
+- Not hand-tested: Everything above is checked by the offline suite and, for the QGIS parts, by CI on QGIS 4.2.2 (each new tool is read back from real QGIS objects and each Processing algorithm was run once). None of it has been hand-tested in desktop QGIS. set_map_view, go_to_bookmark and zoom_history need the real map canvas, which CI does not have. PostGIS was tested against a throwaway server only. ECW and MrSID depend on your QGIS build's drivers and were not tested.
 
 <a id="v1-17-0-rc42"></a>
 ## [1.17.0-rc42] — 2026-10-15 — Release candidate 42 for 1.17.0: No breaking changes -- requires QGIS 4.2+. Many more QGIS actions by plain request: 124 more Processing algorithms, a raster calculator, layer groups, project CRS, bookmarks, selections and attribute editing, a watershed tool and sourced web research. CI-checked, not hand-tested.
