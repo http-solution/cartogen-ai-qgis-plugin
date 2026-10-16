@@ -72,13 +72,12 @@ class TestLayoutExtraTools(unittest.TestCase):
         res = set_layout_guides_grid("L2", guides=[{"orientation": "vertical", "position_mm": 20}, {"orientation": "horizontal", "position_mm": 15}],
                                      grid_mm=5, snap_to_grid=True, snap_to_guides=True)
         self.assertTrue(res.get("success"), res)
-        page = self.layout.pageCollection().page(0)
-        self.assertEqual(len(self.layout.guides().guides(Qt.Orientation.Vertical, page)), 1)
-        self.assertEqual(len(self.layout.guides().guides(Qt.Orientation.Horizontal, page)), 1)
+        self.assertEqual(len(self.layout.guides().guides(Qt.Orientation.Vertical, 0)), 1)
+        self.assertEqual(len(self.layout.guides().guides(Qt.Orientation.Horizontal, 0)), 1)
         self.assertAlmostEqual(self.layout.gridSettings().resolution().length(), 5)
         self.assertTrue(self.layout.snapper().snapToGrid())
         self.assertTrue(set_layout_guides_grid("L2", clear_guides=True)["success"])
-        self.assertEqual(len(self.layout.guides().guides(Qt.Orientation.Vertical, page)), 0)
+        self.assertEqual(len(self.layout.guides().guides(Qt.Orientation.Vertical, 0)), 0)
         self.assertIn("error", set_layout_guides_grid("L2", guides=[{"orientation": "diagonal", "position_mm": 1}]))
 
     def test_atlas(self):

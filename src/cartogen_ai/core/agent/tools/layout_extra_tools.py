@@ -126,8 +126,8 @@ def set_layout_guides_grid(layout_name, guides=None, clear_guides=None, grid_mm=
             layout.snapper().setSnapToGuides(options["snap_to_guides"])
     except Exception as e:
         return {"error": f"set_layout_guides_grid failed: {e}"}
-    page = layout.pageCollection().page(0)
-    guides_now = len(layout.guides().guides(Qt.Orientation.Horizontal, page)) + len(layout.guides().guides(Qt.Orientation.Vertical, page))
+    # guides(orientation, page NUMBER): the page object is refused (first live run, CI job 116931574287)
+    guides_now = len(layout.guides().guides(Qt.Orientation.Horizontal, 0)) + len(layout.guides().guides(Qt.Orientation.Vertical, 0))
     return {"success": True, "layout_name": layout_name, "guides_now": guides_now, "changed": sorted(options)}
 
 
