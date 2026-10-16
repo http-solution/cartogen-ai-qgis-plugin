@@ -243,7 +243,7 @@ _TOOL_ALIASES = {
         'hide the layer', 'show the layer', 'turn off the layer', 'turn on the layer', 'make the layer visible', 'make the layer invisible', 'switch off the layer', 'switch on the layer', 'untick the layer', 'tick the layer', 'hide it', 'unhide',
     ],
     'set_layer_order': [
-        'move the layer to the top', 'move the layer to the bottom', 'bring the layer to the front', 'send the layer to the back', 'layer order', 'draw order', 'put the layer above', 'put the layer below', 'move the layer above', 'move the layer below', 'reorder the layers', 'stacking order',
+        'move the layer to the top', 'move the layer to the bottom', 'bring the layer to the front', 'send the layer to the back', 'layer order', 'draw order', 'put the layer above', 'put the layer below', 'move the layer', 'move layer', 'put the layer', 'move the layer above', 'move the layer below', 'reorder the layers', 'stacking order',
     ],
     'export_layer': [
         'export the layer', 'export layer', 'save the layer as', 'save layer as', 'save as shapefile', 'save as geojson', 'save as geopackage', 'export to shapefile', 'export to geojson', 'export to geopackage', 'export to gpkg', 'export to kml', 'export the selected', 'export only the selected', 'write the layer to a file',
@@ -419,6 +419,23 @@ _TOOL_ALIASES = {
         "subtract the raster", "subtract raster", "add the rasters", "multiply the raster", "divide the raster", "raster where",
         "cells above", "cells below", "cells where", "pixels above", "pixels below", "mask of cells", "threshold the raster",
         "raster threshold", "combine the rasters", "raster a minus", "difference between the two rasters",
+    ],
+    "set_layer_symbol": [
+        "outline color", "outline colour", "outline width", "outline thickness", "thicker outline", "thinner outline", "thin outline",
+        "thick outline", "dashed outline", "dashed line", "dotted line", "dotted outline", "line pattern", "line style", "stroke width",
+        "stroke colour", "stroke color", "marker shape", "marker size", "symbol size", "bigger symbols", "smaller symbols", "star marker",
+        "square marker", "triangle marker", "diamond marker", "hatch", "hatched", "hatching", "fill pattern", "no fill", "hollow polygons",
+        "outline only", "symbol outline",
+    ],
+    "set_label_style": [
+        "label color", "label colour", "label size", "bigger labels", "smaller labels", "bold labels", "italic labels", "label halo",
+        "halo around", "label buffer", "label placement", "labels only when zoomed", "hide the labels", "show the labels", "turn off labels",
+        "turn on labels", "label font", "labels in bold",
+    ],
+    "set_raster_style": [
+        "unique values", "one color per value", "one colour per value", "class colors", "class colours", "paletted", "categorical raster",
+        "land cover colors", "land cover colours", "nodata", "no data", "no-data", "make zeros transparent", "resampling", "smooth the raster",
+        "blocky cells", "pixelated", "bilinear", "raster opacity", "raster transparency",
     ],
     "apply_raster_stretch": [
         "raster looks washed out", "raster looks flat", "fix the raster colors",

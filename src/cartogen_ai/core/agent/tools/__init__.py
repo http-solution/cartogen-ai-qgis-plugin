@@ -12,6 +12,7 @@ from . import attribute_edit_tools
 from . import web_research_tools
 from . import watershed_tools
 from . import raster_calculator_tool
+from . import symbology_tools
 from . import map_view_tools
 from . import raster_tools
 from . import styling_tools
@@ -122,6 +123,7 @@ __all__ = [
     "sensitivity_tools",
     "styling_tools",
     "survey_tools",
+    "symbology_tools",
     "system_tools",
     "table_importers",
     "task_grid_tools",

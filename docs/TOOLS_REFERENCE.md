@@ -1,6 +1,6 @@
 # Tool Reference
 
-Auto-generated from the live tool registry (242 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
+Auto-generated from the live tool registry (245 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
 
 Flags: **network-only** tools bypass the main-thread QGIS dispatcher entirely (pure HTTP, safe from any background thread); **two-phase** tools split a network fetch (background thread) from the QGIS-touching part (main thread); **task-management** tools are excluded from auto-advance in the Task Manager.
 
@@ -2578,6 +2578,57 @@ Summarise survey records into one figure per area (admin unit, camp, ...): the w
 | `confidence` | number | no | Confidence level of the intervals, default 0.95. |
 | `design_effect` | number | no | Design effect from the survey design (>= 1); divides the effective sample size. Default 1 (no clustering adjustment). |
 | `output_table_name` | string | no | Optional name for a results table layer. |
+
+## symbology_tools
+
+### `set_label_style`
+
+Style the labels already on a vector layer (add them first with apply_labels): font colour and size, bold, italic, the halo around the text (on/off, colour, size), placement (around_point, over_point, horizontal, free, curved, parallel), the scales between which labels show (visible_zoomed_out_to = the smallest scale such as 250000 for 1:250,000, visible_zoomed_in_to = the largest such as 5000), and show_labels to switch labels on or off. Give only what should change. Rule-based labeling is reported, not changed.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes |  |
+| `font_color` | string | no |  |
+| `font_size` | number | no | Points, 1 to 120. |
+| `bold` | boolean | no |  |
+| `italic` | boolean | no |  |
+| `halo` | boolean | no | Draw a halo (buffer) round the text. |
+| `halo_color` | string | no |  |
+| `halo_size_mm` | number | no | 0 to 10. |
+| `placement` | string | no |  |
+| `visible_zoomed_out_to` | number | no | Scale denominator, e.g. 250000. |
+| `visible_zoomed_in_to` | number | no | Scale denominator, e.g. 5000. |
+| `show_labels` | boolean | no |  |
+
+### `set_layer_symbol`
+
+Change how a vector layer's symbols are drawn beyond colour: outline colour and width, line pattern (solid, dashed, dotted, dash_dot), marker shape (circle, square, diamond, triangle, star, cross, x, pentagon, hexagon, heart, arrow) and size, fill pattern (solid, none, hatch_forward, hatch_backward, horizontal, vertical, cross, diagonal_cross, dots_dense, dots_sparse) and opacity. Give only what should change; everything else stays. Colours can be hex or plain words ('dark red'). On a categorized, graduated or rule-based layer it keeps the classification colours and sizes: fill_color and marker_size_mm are refused there (use the style tool that made the classes). Only simple symbols are changed; an SVG or font marker is reported, not overwritten.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes |  |
+| `fill_color` | string | no |  |
+| `outline_color` | string | no |  |
+| `outline_width_mm` | number | no | 0 to 20; 0.26 is a thin line, 1 a thick one. |
+| `opacity_percent` | number | no | 0 to 100 for the whole layer. |
+| `marker_shape` | string | no |  |
+| `marker_size_mm` | number | no | 0.1 to 100. |
+| `line_style` | string | no | Pattern of a line or of a polygon outline. |
+| `fill_style` | string | no | Pattern of a polygon fill, for example hatch_forward. |
+
+### `set_raster_style`
+
+Change how a raster layer is displayed: mode='unique_values' gives one colour per distinct cell value (for land cover, classes, zones; refused above 256 distinct values), resampling (nearest keeps blocky cells, bilinear or cubic smooth them), opacity_percent, and no-data: nodata_min/nodata_max make cells in that range transparent, clear_nodata=true restores the file's own no-data. Give only what should change. Display only; the cell values are not changed. For a continuous colour ramp use apply_raster_stretch.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes |  |
+| `mode` | string | no | 'unique_values' |
+| `resampling` | string | no | nearest, bilinear or cubic |
+| `opacity_percent` | number | no |  |
+| `nodata_min` | number | no |  |
+| `nodata_max` | number | no |  |
+| `clear_nodata` | boolean | no |  |
 
 ## table_importers
 
