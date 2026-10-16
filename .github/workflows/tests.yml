@@ -103,6 +103,20 @@ jobs:
           test -f dist/cartogen_ai_v*.zip
           python -c "import zipfile, os; z = zipfile.ZipFile('cartogen_ai.zip'); names = z.namelist(); assert any('cartogen_ai_plugin/metadata.txt' in n for n in names); assert any('cartogen_ai_plugin/src/cartogen_ai/core/agent/agent_orchestrator.py' in n for n in names); size_mb = os.path.getsize('cartogen_ai.zip') / (1024*1024); assert size_mb < 20.0, f'Package exceeds 20MB limit: {size_mb}MB'; print(f'Release ZIP verified: {len(names)} files, {size_mb:.2f}MB')"
 
+  service-reach:
+    # Package J: measures which showcase services (Copernicus DEM tile, DuckDuckGo, GDELT, Google News) the CI runner can reach, instead of
+    # leaving them "unverified". Informational: continue-on-error, and the script always exits 0 -- a rate-limited or blocked service is a
+    # recorded result in the job summary, not a failed build. Needs no QGIS and installs nothing.
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Reach each showcase service once
+        run: python -m tests._service_reach_check
+
   qgis-live-tests:
     # P1 fix, 2026-09-20 audit: no job in this workflow ever ran inside a real
     # QGIS process -- every check above runs with QGIS_AVAILABLE False. This
