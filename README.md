@@ -20,14 +20,14 @@
   <a href="https://cartogenai.com"><img src="https://img.shields.io/badge/website-cartogenai.com-0b6efd" alt="Website"></a>
 </p>
 
-**Community edition · Version 1.17.0-rc42 (pre-release) · GNU GPL v2 · QGIS 4.2–4.99 · [cartogenai.com](https://cartogenai.com)**
+**Community edition · Version 1.17.0-rc43 (pre-release) · GNU GPL v2 · QGIS 4.2–4.99 · [cartogenai.com](https://cartogenai.com)**
 
 Cartogen AI is built for GIS analysts, humanitarian teams, researchers, and anyone who
 needs to move from a question to a reproducible spatial result without leaving QGIS.
 The agent exposes its plan, tool calls, progress, and errors instead of returning a
 black-box answer.
 
-> **Project status (2026-10-06):** active Community edition, currently at the **1.17.0-rc42 pre-release** build (the last stable build is 1.16.3; rc20 to 1.17.0-rc42 add the audit fixes, hand-test fixes and the cost and routing work made after rc19).
+> **Project status (2026-10-06):** active Community edition, currently at the **1.17.0-rc43 pre-release** build (the last stable build is 1.16.3; rc20 to 1.17.0-rc43 add the audit fixes, hand-test fixes and the cost and routing work made after rc19).
 > - **Tests:** 3,570 automated tests, 0 failures in the offline run; the live-QGIS tests (and any needing optional libraries) are skipped there and
 >   the QGIS ones run in CI (the `qgis-live-tests` job, QGIS 4.2.2).
 > - **Architectural audit:** an external audit of rc12 raised 32 findings, filed as issues #137-#168 (tracking issue #169). The 15
@@ -86,6 +86,18 @@ black-box answer.
   a restricted execution sandbox for model-generated PyQGIS scripts, fail-closed
   read-only SQL enforcement, an SSRF guard on fetched URLs, and a destructive-action
   confirmation gate the model cannot self-approve.
+
+## What's new in 1.17.0-rc43
+
+Built on 1.17.0-rc42. Offline tests and the QGIS 4.2.2 live checks in CI pass; **not hand-tested** in desktop QGIS unless an item says so. Full list: the `v1.17.0-rc43` block in [metadata.txt](metadata.txt) and [CHANGELOG.md](CHANGELOG.md).
+
+- More QGIS actions by plain request: The approved Processing list grew from 166 to 267 algorithms: 66 raster algorithms (terrain indices, proximity, sieve, fill no-data, warp, translate, grid interpolation, cell-stack and fuzzify tools, zonal tables, constant and random rasters) and 35 more table, analysis and geometry algorithms (X/Y fields, extract by attribute, kernel density heatmap, raster pixels to points or polygons, multi-layer union, intersection and difference, drape lines on a DEM, rasterize, service area from a layer and others). Each was run once in real QGIS 4.2.2 in CI; any that failed there was left off (find projection hangs, line density could not create its raster, shortest path from a layer needs a purpose-built network). A layer list given to a raster-stack algorithm must hold rasters: vector layers there crashed QGIS in a test, so they are now refused before the algorithm runs.
+- Edit features, not just values: New tools: set a layer filter, move, rotate and scale features, merge features, split features by a line, undo and redo manual edits on a layer in edit mode, change a field's type, and start, save or discard editing. Anything that changes or removes data shows a preview with exact counts first.
+- Open more kinds of data: New tools: add a PostGIS table through a connection saved in QGIS, create a virtual layer (SQL over the project's layers; a single SELECT only), load and save .qlr layer files, and package layers into one GeoPackage for offline use. NetCDF, GRIB, HDF, ECW, MrSID and mesh files (.nc .grb .2dm .slf) are opened when your QGIS build supports them.
+- Styling and print layouts: New tools: set a layer's fill, outline, marker and opacity, label style (halo, buffer, placement) and raster style (resampling, brightness and contrast). Layouts: add label, picture, shape, arrow and attribute-table items, edit, move, rotate or remove them, set the map's scale, extent and rotation, change the page size, save and load layout templates, and export to PDF, image or SVG. HTML frames and pictures given as a URL are refused on purpose.
+- Project settings: New tools: rename a layer group, zoom to the previous or next extent, read and set layer metadata, snapping options, 1-N relations between layers, time-aware layers and the project time range, and text annotations on the map.
+- Showcase services measured: A CI job now records which outside services answer from the build machine. The Copernicus DEM tile and Google News were reached; GDELT answered with a rate limit (HTTP 429) and DuckDuckGo returned no result list. The plugin falls back from GDELT to Google News and says when a service cannot be used.
+- Not hand-tested: Everything above is checked by the offline suite and, for the QGIS parts, by CI on QGIS 4.2.2 (each new tool is read back from real QGIS objects and each Processing algorithm was run once). None of it has been hand-tested in desktop QGIS. set_map_view, go_to_bookmark and zoom_history need the real map canvas, which CI does not have. PostGIS was tested against a throwaway server only. ECW and MrSID depend on your QGIS build's drivers and were not tested.
 
 ## What's new in 1.17.0-rc42
 
@@ -459,7 +471,7 @@ strategic orchestration. The full catalogue -- what each tool does, what it draw
 in [docs/HUMANITARIAN_TOOLS_CATALOGUE.md](docs/HUMANITARIAN_TOOLS_CATALOGUE.md); exact arguments are in
 [docs/TOOLS_REFERENCE.md](docs/TOOLS_REFERENCE.md), and what is still missing is in
 [docs/HUMANITARIAN_WORKFLOW_GAP_ANALYSIS_2026-10-04.md](docs/HUMANITARIAN_WORKFLOW_GAP_ANALYSIS_2026-10-04.md).
-1.17.0-rc42 added tools outside these workflows (see its notes and `docs/TOOLS_REFERENCE.md`), so none is marked **new** here; the newest are `search_fact_checks` (1.16.0-rc40) and `find_incident_reports` (1.16.0-rc37), tested offline and in CI on QGIS 4.2.2 and, for the rc37 tool, in the rc40 hand test.
+1.17.0-rc42 and 1.17.0-rc43 added tools outside these workflows (see their notes and `docs/TOOLS_REFERENCE.md`), so none is marked **new** here; the newest are `search_fact_checks` (1.16.0-rc40) and `find_incident_reports` (1.16.0-rc37), tested offline and in CI on QGIS 4.2.2 and, for the rc37 tool, in the rc40 hand test.
 
 | Workflow | Tools |
 |---|---|
