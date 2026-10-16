@@ -201,4 +201,10 @@ def set_layout_atlas(layout_name, coverage_layer=None, page_name_field=None, sor
         pages = atlas.count()
     except Exception as e:
         return {"error": f"set_layout_atlas failed: {e}"}
-    return {"success": True, "layout_name": layout_name, "coverage_layer": layer.name(), "pages": pages, "map_item": map_item.id()}
+    from ._sensitivity_notes import protected_layer_notes
+    out = {"success": True, "layout_name": layout_name, "coverage_layer": layer.name(), "pages": pages, "map_item": map_item.id()}
+    notes = protected_layer_notes([layer], "each atlas page is built from its features and the layout's classification footer was not changed. "
+                                           "Check the pages before exporting. Advisory only, nothing was blocked.")
+    if notes:
+        out["warning"] = " ".join(notes)
+    return out

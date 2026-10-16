@@ -123,6 +123,11 @@ _TOOL_ALIASES = {
         "postgis table", "postgis layer", "add the postgis", "load the postgis", "table from postgis", "postgresql table", "postgres table",
         "add the table from the database", "layer from the database", "from the postgis connection",
     ],
+    # Integration audit 2026-10-16: this tool had no aliases, so "animate the layer over time" offered it before the temporal tools of package B
+    # existed and stopped offering it once set_layer_temporal / set_project_time_range took the "time" and "layer" word matches.
+    "export_temporal_animation_frames": [
+        "animate", "animation", "animated", "time lapse", "timelapse", "time-lapse", "frames over time", "temporal animation", "over time as frames",
+    ],
     "set_layer_elevation": [
         "layer elevation", "elevation settings", "enable elevation", "turn on elevation", "elevation of the layer", "layer z offset", "z scale",
         "extrude the layer", "extrusion", "altitude clamping", "elevation properties",

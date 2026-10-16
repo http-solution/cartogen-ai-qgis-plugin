@@ -85,9 +85,15 @@ def add_layout_chart(layout_name, layer_name, x_field, y_field, chart_type="bar"
         return {"error": series}
     item.setSeriesList([series])
     _place(item, layout, box, options["item_id"])
-    return {"success": True, "layout_name": layout_name, "item_id": item.id(), "chart_type": options["chart_type"], "layer_name": layer.name(),
-            "series": len(item.seriesList()),
-            "note": "The item is on the layout. How the chart renders or exports has not been checked by the plugin; look at the layout."}
+    from ._sensitivity_notes import protected_layer_notes
+    out = {"success": True, "layout_name": layout_name, "item_id": item.id(), "chart_type": options["chart_type"], "layer_name": layer.name(),
+           "series": len(item.seriesList()),
+           "note": "The item is on the layout. How the chart renders or exports has not been checked by the plugin; look at the layout."}
+    notes = protected_layer_notes([layer], "the chart shows its values and the layout's classification footer was not changed. Check the layout "
+                                           "before exporting. Advisory only, nothing was blocked.")
+    if notes:
+        out["warning"] = " ".join(notes)
+    return out
 
 
 @register_tool(
