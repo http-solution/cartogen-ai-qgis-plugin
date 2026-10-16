@@ -2063,7 +2063,7 @@ Undo the last edit step on a layer that is in edit mode (the layer's own undo hi
 
 ### `set_layer_elevation`
 
-Change a layer's elevation settings (used by elevation profiles and 3D views). Raster: enabled, mode 'surface' (the cells are heights) or 'fixed_range', band, z_offset, z_scale. Vector: enabled, clamping 'absolute', 'relative' or 'terrain', z_offset, z_scale, extrusion (metres). Only the values you give are changed; the result lists the settings read back.
+Change a layer's elevation settings (used by elevation profiles and 3D views). Raster: enabled, mode 'surface' (the cells are heights) or 'fixed_range', band, z_offset, z_scale. Vector (no on/off switch): clamping 'absolute', 'relative' or 'terrain', z_offset, z_scale, extrusion (metres). Only the values you give are changed; the result lists the settings read back.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
