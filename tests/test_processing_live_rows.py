@@ -2,7 +2,7 @@
 import unittest
 
 from cartogen_ai.core.agent.tools._processing_allowlist import ALLOWED_ALGORITHM_IDS, FAMILY_NAMES
-from tests._processing_live_rows import GEOMETRY_NOT_YET, GEOMETRY_REJECTED, LIVE_ROWS, NOT_YET
+from tests._processing_live_rows import GEOMETRY_NOT_YET, GEOMETRY_REJECTED, GRASS_REJECTED, LIVE_ROWS, NOT_YET
 
 
 class TestProcessingLiveRows(unittest.TestCase):
@@ -23,6 +23,10 @@ class TestProcessingLiveRows(unittest.TestCase):
     def test_rejected_geometry_algorithms_are_not_allow_listed_and_say_why(self):
         self.assertEqual(sorted(set(GEOMETRY_REJECTED) & set(ALLOWED_ALGORITHM_IDS)), [])
         self.assertEqual([k for k, v in GEOMETRY_REJECTED.items() if len(v) < 10], [])
+
+    def test_rejected_grass_algorithms_are_not_allow_listed_and_say_why(self):
+        self.assertEqual(sorted(set(GRASS_REJECTED) & set(ALLOWED_ALGORITHM_IDS)), [])
+        self.assertEqual([k for k, v in GRASS_REJECTED.items() if len(v) < 10], [])
 
     def test_every_not_yet_entry_states_a_reason(self):
         self.assertEqual([k for k, v in NOT_YET.items() if len(v) < 10], [])

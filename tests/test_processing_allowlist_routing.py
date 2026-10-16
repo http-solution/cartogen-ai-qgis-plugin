@@ -90,7 +90,8 @@ def _plain_request(name):
 
 
 for _alg_id, _name in FAMILY_NAMES.items():
-    ROWS[_alg_id] = (_plain_request(_name), None)
+    # M9 GRASS family: the display name is the GRASS command (r.watershed), which people write with the dots and a "grass" in front
+    ROWS[_alg_id] = (f"grass {_name}" if _alg_id.startswith("grass:") else _plain_request(_name), None)
 
 
 class TestAllowlistedAlgorithmsAreReachable(unittest.TestCase):

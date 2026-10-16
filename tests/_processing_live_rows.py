@@ -74,3 +74,7 @@ GEOMETRY_REJECTED = {
     "native:linedensity": "raster output could not be created with the probe's parameters on any of four test layers (GDAL provider error); cause not investigated",
     "native:shortestpathlayertopoint": "needs a purpose-built road network: the end point was 1.41 from the nearest edge on every test layer (limit 1)",
 }
+
+# GRASS-family candidates (M9) that did not run in a real QGIS session, with the error CI reported. They are NOT on the allow-list; the
+# offline test fails if one is listed in both places. Empty means every candidate ran.
+GRASS_REJECTED = {}
