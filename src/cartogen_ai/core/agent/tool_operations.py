@@ -401,6 +401,9 @@ TOOL_OPERATION_TYPES = {
     "assess_watershed_hydrology_request": READ,
     "calculate_rational_watershed_peak_flow": READ,
     "add_layer_from_path": CREATE,
+    "add_overview_map": CREATE,
+    "set_layout_guides_grid": MODIFY,
+    "set_layout_atlas": MODIFY,
     "rename_layer_group": MODIFY,
     "zoom_history": READ,               # moves the canvas only
     "get_layer_metadata": READ,

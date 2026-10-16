@@ -468,10 +468,12 @@ def load_layout_template(template_path, new_layout_name):
     "export_layout",
     "Export an existing print layout to a file: .pdf, .png, .jpg, .tif (image) or .svg (vector). dpi applies to PDF and images (default 150). "
     "Replacing an existing file needs confirmation. create_print_layout can export while it builds; this exports a layout that already exists.",
-    {"type": "object", "properties": {"layout_name": {"type": "string"}, "output_path": {"type": "string"}, "dpi": {"type": "integer"}},
+    {"type": "object", "properties": {"layout_name": {"type": "string"}, "output_path": {"type": "string"}, "dpi": {"type": "integer"},
+                                      "world_file": {"type": "boolean", "description": "image exports: also write a world file (.pgw, .jgw, .tfw) so GIS software can place the picture"},
+                                      "geopdf": {"type": "boolean", "description": "pdf exports: write a georeferenced PDF (needs the GDAL PDF driver)"}},
      "required": ["layout_name", "output_path"]},
 )
-def export_layout(layout_name, output_path, dpi=150, confirmed=False):
+def export_layout(layout_name, output_path, dpi=150, world_file=False, geopdf=False, confirmed=False):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
     kind, problem = validate_export_path(output_path)
@@ -479,13 +481,18 @@ def export_layout(layout_name, output_path, dpi=150, confirmed=False):
         return {"error": problem}
     if not (isinstance(dpi, int) and not isinstance(dpi, bool) and 30 <= dpi <= 1200):
         return {"error": "dpi must be a whole number from 30 to 1200."}
+    from .layout_extra_options import check_export_extras
+    problem = check_export_extras(kind, world_file, geopdf)
+    if problem:
+        return {"error": problem}
     layout = _layout(layout_name)
     if layout is None:
         return {"error": f"Layout '{layout_name}' not found. See list_layouts."}
     path = resolve_output_path(output_path)
     from .export_tools import overwrite_preview, remember_written
     if not confirmed:
-        preview = overwrite_preview("export_layout", {"layout_name": layout_name, "output_path": output_path, "dpi": dpi}, path)
+        preview = overwrite_preview("export_layout", {"layout_name": layout_name, "output_path": output_path, "dpi": dpi,
+                                                      "world_file": world_file, "geopdf": geopdf}, path)
         if preview:
             return preview
     exporter = QgsLayoutExporter(layout)
@@ -494,16 +501,27 @@ def export_layout(layout_name, output_path, dpi=150, confirmed=False):
         if kind == "pdf":
             settings = QgsLayoutExporter.PdfExportSettings()
             settings.dpi = dpi
+            if geopdf:
+                settings.writeGeoPdf = True
             code = exporter.exportToPdf(path, settings)
         elif kind == "svg":
             code = exporter.exportToSvg(path, QgsLayoutExporter.SvgExportSettings())
         else:
             settings = QgsLayoutExporter.ImageExportSettings()
             settings.dpi = dpi
+            if world_file:
+                settings.generateWorldFile = True
             code = exporter.exportToImage(path, settings)
     except Exception as e:
         return {"error": f"export_layout failed: {e}"}
     if code != QgsLayoutExporter.ExportResult.Success:
         return {"error": f"Export to '{path}' failed (QgsLayoutExporter result code {code})."}
     remember_written(path)
-    return {"success": True, "layout_name": layout_name, "output_path": path, "format": os.path.splitext(path)[1].lower().lstrip(".")}
+    out = {"success": True, "layout_name": layout_name, "output_path": path, "format": os.path.splitext(path)[1].lower().lstrip(".")}
+    if world_file:
+        stem, ext = os.path.splitext(path)
+        sidecar = next((stem + e for e in (ext[:2] + ext[-1] + "w", ".wld") if os.path.isfile(stem + e)), None)
+        out["world_file"] = sidecar or "requested, but no world file was found next to the image (the layout needs a map item)"
+    if geopdf:
+        out["geopdf"] = True
+    return out

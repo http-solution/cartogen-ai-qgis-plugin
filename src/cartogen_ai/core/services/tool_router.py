@@ -159,6 +159,15 @@ _TOOL_ALIASES = {
     "set_project_time_range": ["project time range", "temporal range", "set the time range", "set the temporal range", "animation range"],
     "add_text_annotation": ["add a text annotation", "text annotation", "annotate the map", "add an annotation", "add a note on the map", "write on the map"],
     "remove_annotations": ["remove the annotations", "delete the annotations", "clear the annotations", "remove all annotations"],
+    "add_overview_map": [
+        "overview map", "locator map", "inset map", "add an inset", "add a locator", "overview inset", "location map", "mini map",
+        "small map showing where", "show where the map is",
+    ],
+    "set_layout_guides_grid": ["layout guides", "add a guide", "add guides", "guide at", "snapping grid", "layout grid", "grid spacing", "snap to grid", "snap to guides"],
+    "set_layout_atlas": [
+        "set up an atlas", "make an atlas", "create an atlas", "atlas of", "one page per feature", "one page per district", "page per district",
+        "atlas coverage", "report with one page per", "atlas layout",
+    ],
     "find_broken_layers": [
         "broken layer", "broken layers", "broken path", "broken paths", "missing layer", "layer not found", "layers with a red",
         "unavailable layer", "fix the paths", "data source is missing", "lost layer", "moved the file",

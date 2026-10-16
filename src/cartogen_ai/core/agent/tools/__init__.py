@@ -12,6 +12,7 @@ from . import attribute_edit_tools
 from . import edit_ops_tools
 from . import data_layer_tools
 from . import project_ops_tools
+from . import layout_extra_tools
 from . import web_research_tools
 from . import watershed_tools
 from . import raster_calculator_tool
@@ -106,6 +107,7 @@ __all__ = [
     "jiaf_inputs",
     "jiaf_patterns",
     "jiaf_review",
+    "layout_extra_tools",
     "layout_item_tools",
     "layout_tools",
     "logistics_tools",
