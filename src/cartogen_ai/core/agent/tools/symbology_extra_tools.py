@@ -114,6 +114,7 @@ def set_label_callout(layer_name, enabled=None, style=None, color=None, width_mm
     layer, err = _layer(layer_name, QgsVectorLayer)
     if err:
         return err
+    import qgis.core as core
     from .symbology_tools import _label_settings
     labeling, settings, why = _label_settings(layer)
     if why:
@@ -125,22 +126,32 @@ def set_label_callout(layer_name, enabled=None, style=None, color=None, width_mm
             return {"error": f"Invalid color: {options['color']}."}
     try:
         if {"enabled", "style", "color", "width_mm"} & set(options):
-            callout_class = QgsSimpleLineCallout
-            if options.get("style") == "manhattan":
-                callout_class = getattr(__import__("qgis.core", fromlist=["QgsManhattanLineCallout"]), "QgsManhattanLineCallout", None)
-                if callout_class is None:
-                    return {"error": "This QGIS has no manhattan callout."}
             existing = settings.callout()
-            callout = callout_class() if (existing is None or "style" in options) else existing
-            callout.setEnabled(options.get("enabled", True))
+            if existing is None or "style" in options:
+                callout_class = QgsSimpleLineCallout
+                if options.get("style") == "manhattan":
+                    callout_class = getattr(core, "QgsManhattanLineCallout", None)
+                    if callout_class is None:
+                        return {"error": "This QGIS has no manhattan callout."}
+                callout = callout_class()
+                callout.setEnabled(options.get("enabled", True))
+                replace = True
+            else:
+                callout = existing
+                if "enabled" in options:
+                    callout.setEnabled(options["enabled"])
+                replace = False
+            # The callout owns its line symbol: change it IN PLACE. Passing it back through setLineSymbol() (or an existing callout back
+            # through settings.setCallout()) hands QGIS an object it already owns, so it deletes it and then uses it -- that crashed the whole
+            # QGIS process (SIGSEGV) in the first live run (CI job 116925382425, test_callout_and_mask).
             line = callout.lineSymbol()
             if line is not None:
                 if colour is not None:
                     line.setColor(colour)
                 if "width_mm" in options:
                     line.setWidth(options["width_mm"])
-                callout.setLineSymbol(line)
-            settings.setCallout(callout)
+            if replace:
+                settings.setCallout(callout)
         if "mask" in options or "mask_size_mm" in options:
             fmt = settings.format()
             mask_settings = fmt.mask()
