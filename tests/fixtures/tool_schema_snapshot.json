@@ -71,6 +71,49 @@
    "file_path"
   ]
  },
+ "add_layout_chart": {
+  "properties": [
+   "chart_type",
+   "height_mm",
+   "item_id",
+   "layer_name",
+   "layout_name",
+   "width_mm",
+   "x_field",
+   "x_mm",
+   "y_field",
+   "y_mm"
+  ],
+  "required": [
+   "layer_name",
+   "layout_name",
+   "x_field",
+   "y_field"
+  ]
+ },
+ "add_layout_elevation_profile": {
+  "properties": [
+   "end_x",
+   "end_y",
+   "height_mm",
+   "item_id",
+   "layer_names",
+   "layout_name",
+   "start_x",
+   "start_y",
+   "width_mm",
+   "x_mm",
+   "y_mm"
+  ],
+  "required": [
+   "end_x",
+   "end_y",
+   "layer_names",
+   "layout_name",
+   "start_x",
+   "start_y"
+  ]
+ },
  "add_layout_item": {
   "properties": [
    "fields",
@@ -2715,6 +2758,21 @@
    "layer_name"
   ]
  },
+ "set_layer_elevation": {
+  "properties": [
+   "band",
+   "clamping",
+   "enabled",
+   "extrusion",
+   "layer_name",
+   "mode",
+   "z_offset",
+   "z_scale"
+  ],
+  "required": [
+   "layer_name"
+  ]
+ },
  "set_layer_filter": {
   "properties": [
    "clear",
@@ -2892,6 +2950,17 @@
    "variables"
   ],
   "required": []
+ },
+ "set_project_terrain": {
+  "properties": [
+   "layer_name",
+   "offset",
+   "scale",
+   "source"
+  ],
+  "required": [
+   "source"
+  ]
  },
  "set_project_time_range": {
   "properties": [

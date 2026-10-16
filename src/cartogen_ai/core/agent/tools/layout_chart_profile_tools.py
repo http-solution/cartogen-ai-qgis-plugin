@@ -1,0 +1,111 @@
+"""M5 leftovers (gap-closing package): the chart and elevation-profile layout items the probe showed this QGIS has.
+
+add_layout_chart              a bar, line or pie chart of one layer's two fields, as a layout item
+add_layout_elevation_profile  an elevation profile along a straight line, from layers that have elevation turned on (set_layer_elevation)
+
+The 3D map layout item is NOT built: CI's QGIS has no QgsLayoutItem3DMap (docs/QGIS_CAPABILITY_PROBE_2026-10-16.md). Written without a QGIS install:
+tests/test_layout_chart_profile_live.py builds both items on a real layout and reads them back (CI's first run is its first execution); how they
+LOOK when rendered or exported has not been checked."""
+from .gap_options import check_box, check_chart, check_profile_line
+from .registry import register_tool
+
+try:
+    from qgis.core import (QgsBarChartPlot, QgsCoordinateReferenceSystem, QgsLayoutItemChart, QgsLayoutItemElevationProfile, QgsLineChartPlot,
+                           QgsLineString, QgsPieChartPlot, QgsPointXY, QgsProject, QgsVectorLayer)
+    from qgis.PyQt.QtCore import QRectF
+    QGIS_AVAILABLE = True
+except ImportError:
+    QGIS_AVAILABLE = False
+
+
+def _layout(name):
+    return QgsProject.instance().layoutManager().layoutByName(name)
+
+
+def _place(item, layout, box, item_id):
+    if item_id:
+        item.setId(item_id)
+    layout.addLayoutItem(item)
+    item.attemptSetSceneRect(QRectF(box["x_mm"], box["y_mm"], box["width_mm"], box["height_mm"]))
+
+
+@register_tool(
+    "add_layout_chart",
+    "Add a chart to a print layout: chart_type 'bar', 'line' or 'pie' of layer_name, with x_field (the categories) and y_field (the values), both "
+    "plain field names. Position and size in millimetres. A chart item draws the layer's own features, so it follows the layer.",
+    {"type": "object", "properties": {
+        "layout_name": {"type": "string"}, "layer_name": {"type": "string"}, "chart_type": {"type": "string"}, "x_field": {"type": "string"},
+        "y_field": {"type": "string"}, "x_mm": {"type": "number"}, "y_mm": {"type": "number"}, "width_mm": {"type": "number"},
+        "height_mm": {"type": "number"}, "item_id": {"type": "string"}},
+     "required": ["layout_name", "layer_name", "x_field", "y_field"]})
+def add_layout_chart(layout_name, layer_name, x_field, y_field, chart_type="bar", x_mm=10, y_mm=10, width_mm=120, height_mm=80, item_id=None):
+    if not QGIS_AVAILABLE:
+        return {"error": "QGIS not available"}
+    options, problem = check_chart(layout_name, chart_type, x_field, y_field, item_id)
+    if problem:
+        return {"error": problem}
+    box, problem = check_box(x_mm, y_mm, width_mm, height_mm)
+    if problem:
+        return {"error": problem}
+    layout = _layout(layout_name)
+    if layout is None:
+        return {"error": f"Layout '{layout_name}' not found. See list_layouts."}
+    found = QgsProject.instance().mapLayersByName(layer_name)
+    layer = found[0] if found and isinstance(found[0], QgsVectorLayer) else None
+    if layer is None:
+        return {"error": f"Vector layer '{layer_name}' not found."}
+    names = {f.name() for f in layer.fields()}
+    missing = [f for f in (options["x_field"], options["y_field"]) if f not in names]
+    if missing:
+        return {"error": f"Layer '{layer_name}' has no field(s) {missing}. Fields: {sorted(names)}."}
+    plots = {"bar": QgsBarChartPlot, "line": QgsLineChartPlot, "pie": QgsPieChartPlot}
+    item = QgsLayoutItemChart(layout)
+    item.setPlot(plots[options["chart_type"]]())
+    item.setSourceLayer(layer)
+    series = QgsLayoutItemChart.SeriesDetails(options["y_field"], f'"{options["x_field"]}"', f'"{options["y_field"]}"')
+    item.setSeriesList([series])
+    _place(item, layout, box, options["item_id"])
+    return {"success": True, "layout_name": layout_name, "item_id": item.id(), "chart_type": options["chart_type"], "layer_name": layer.name(),
+            "series": len(item.seriesList()),
+            "note": "The item is on the layout. How the chart renders or exports has not been checked by the plugin; look at the layout."}
+
+
+@register_tool(
+    "add_layout_elevation_profile",
+    "Add an elevation profile to a print layout along a straight line from (start_x, start_y) to (end_x, end_y) in the project CRS. layer_names "
+    "are the layers to profile; each needs elevation turned on first (set_layer_elevation). Position and size in millimetres.",
+    {"type": "object", "properties": {
+        "layout_name": {"type": "string"}, "layer_names": {"type": "array", "items": {"type": "string"}}, "start_x": {"type": "number"},
+        "start_y": {"type": "number"}, "end_x": {"type": "number"}, "end_y": {"type": "number"}, "x_mm": {"type": "number"},
+        "y_mm": {"type": "number"}, "width_mm": {"type": "number"}, "height_mm": {"type": "number"}, "item_id": {"type": "string"}},
+     "required": ["layout_name", "layer_names", "start_x", "start_y", "end_x", "end_y"]})
+def add_layout_elevation_profile(layout_name, layer_names, start_x, start_y, end_x, end_y, x_mm=10, y_mm=10, width_mm=180, height_mm=70, item_id=None):
+    if not QGIS_AVAILABLE:
+        return {"error": "QGIS not available"}
+    line, problem = check_profile_line(start_x, start_y, end_x, end_y)
+    if problem:
+        return {"error": problem}
+    box, problem = check_box(x_mm, y_mm, width_mm, height_mm)
+    if problem:
+        return {"error": problem}
+    if not isinstance(layer_names, list) or not layer_names:
+        return {"error": "layer_names must list at least one layer."}
+    layout = _layout(layout_name)
+    if layout is None:
+        return {"error": f"Layout '{layout_name}' not found. See list_layouts."}
+    layers, missing = [], []
+    for name in layer_names:
+        found = QgsProject.instance().mapLayersByName(str(name))
+        (layers if found else missing).append(found[0] if found else name)
+    if missing:
+        return {"error": f"Layer(s) not found: {missing}."}
+    off = [layer.name() for layer in layers if not (layer.elevationProperties() is not None and layer.elevationProperties().isEnabled())]
+    if off:
+        return {"error": f"Elevation is not turned on for {off}. Use set_layer_elevation (enabled=true) first."}
+    item = QgsLayoutItemElevationProfile(layout)
+    item.setCrs(QgsProject.instance().crs() if QgsProject.instance().crs().isValid() else QgsCoordinateReferenceSystem("EPSG:4326"))
+    item.setProfileCurve(QgsLineString([QgsPointXY(*line[0]), QgsPointXY(*line[1])]))
+    item.setLayers(layers)
+    _place(item, layout, box, item_id)
+    return {"success": True, "layout_name": layout_name, "item_id": item.id(), "layers": [layer.name() for layer in layers],
+            "note": "The item is on the layout. How the profile renders or exports has not been checked by the plugin; look at the layout."}

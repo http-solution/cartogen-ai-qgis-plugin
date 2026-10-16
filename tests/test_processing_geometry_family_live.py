@@ -12,7 +12,7 @@ try:
 except ImportError:
     LIVE = False
 
-from cartogen_ai.core.agent.tools._processing_allowlist import FAMILY_NAMES, GRASS_FAMILY
+from cartogen_ai.core.agent.tools._processing_allowlist import FAMILY_NAMES, GRASS_FAMILY, MESH_FAMILY
 from tests._processing_live_rows import GEOMETRY_NOT_YET
 
 TIMEOUT_SECONDS = 60
@@ -43,7 +43,7 @@ class TestGeometryFamilyRuns(unittest.TestCase):
         from concurrent.futures import ThreadPoolExecutor
         # the GRASS family has its own probe and test (tests/test_processing_grass_family_live.py): its raster and imagery algorithms refuse
         # the vector test layers on purpose, so running them here would only report that guard as a failure
-        ids = sorted(set(FAMILY_NAMES) - set(GEOMETRY_NOT_YET) - set(GRASS_FAMILY))
+        ids = sorted(set(FAMILY_NAMES) - set(GEOMETRY_NOT_YET) - set(GRASS_FAMILY) - set(MESH_FAMILY))
         with ThreadPoolExecutor(max_workers=6) as pool:
             outcomes = dict(zip(ids, pool.map(_run_one, ids), strict=True))
         failures = {k: v[1] for k, v in outcomes.items() if not v[0]}

@@ -77,6 +77,8 @@ GEOMETRY_REJECTED = {
 
 # GRASS-family candidates (M9) that did not run in a real QGIS session, with the error CI reported. They are NOT on the allow-list; the
 # offline test fails if one is listed in both places. Empty means every candidate ran.
+MESH_REJECTED = {}
+
 GRASS_REJECTED = {
     "grass:i.evapo.mh": "first live run (CI, QGIS 4.2.2, 2026-10-16): 'Unable to execute algorithm' with the probe's default inputs (GRASS gave no detail); likely needs purpose-built inputs; cause not investigated",
     "grass:i.landsat.acca": "first live run (CI, QGIS 4.2.2, 2026-10-16): 'Unable to execute algorithm' with the probe's default inputs (GRASS gave no detail); likely needs purpose-built inputs; cause not investigated",

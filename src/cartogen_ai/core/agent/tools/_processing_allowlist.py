@@ -547,7 +547,23 @@ GRASS_FAMILY = {
 GRASS_ALGORITHM_IDS = frozenset(GRASS_FAMILY)
 ALLOWED_ALGORITHM_IDS = frozenset(set(ALLOWED_ALGORITHM_IDS) | set(GRASS_FAMILY))
 GRASS_FORBIDDEN_PARAM_KEYS = frozenset({"GRASS_RASTER_FORMAT_OPT", "GRASS_RASTER_FORMAT_META", "GRASS_VECTOR_DSCO", "GRASS_VECTOR_LCO"})
-FAMILY_NAMES = {**GEOMETRY_FAMILY, **TABLE_FAMILY, **ANALYSIS_FAMILY, **EXPRESSION_FAMILY, **RASTER_FAMILY, **MIXED_FAMILY, **GRASS_FAMILY}
+# Gap-closing package: the mesh algorithms that were waiting on the mesh layer type (add_layer_from_path opens .nc/.grb/.2dm/.slf as a mesh
+# layer since package C). Left out: native:meshexportcrosssection and native:meshexporttimeseries (file destinations), and 3d:tessellate (needs
+# 3D polygons, no mesh). The 24 pdal: algorithms stay off the list: this QGIS image has no PDAL binary or point cloud provider to run them
+# (docs/QGIS_CAPABILITY_PROBE_2026-10-16.md), so none could be tested. As for the other families an id stays only while
+# tests/test_processing_mesh_family_live.py runs it successfully.
+MESH_FAMILY = {
+    "native:exportmeshedges": "Export mesh edges",
+    "native:exportmeshfaces": "Export mesh faces",
+    "native:exportmeshongrid": "Export mesh on grid",
+    "native:exportmeshvertices": "Export mesh vertices",
+    "native:meshcontours": "Export contours",
+    "native:meshrasterize": "Rasterize mesh dataset",
+    "native:surfacetopolygon": "Surface to polygon",
+}
+MESH_ALGORITHM_IDS = frozenset(MESH_FAMILY)
+ALLOWED_ALGORITHM_IDS = frozenset(set(ALLOWED_ALGORITHM_IDS) | set(MESH_FAMILY))
+FAMILY_NAMES = {**GEOMETRY_FAMILY, **TABLE_FAMILY, **ANALYSIS_FAMILY, **EXPRESSION_FAMILY, **RASTER_FAMILY, **MIXED_FAMILY, **GRASS_FAMILY, **MESH_FAMILY}
 
 # Algorithms whose OUTPUT is a RASTER FILE, not a vector sink. "memory:" is not a valid raster destination, and a raster
 # result comes back as a file path, not a layer: before 2026-10-01 these ran and the tool reported "no new layer output".

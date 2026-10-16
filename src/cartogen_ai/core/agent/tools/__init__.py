@@ -12,6 +12,8 @@ from . import attribute_edit_tools
 from . import edit_ops_tools
 from . import data_layer_tools
 from . import new_layer_tools
+from . import elevation_tools
+from . import layout_chart_profile_tools
 from . import project_ops_tools
 from . import layout_extra_tools
 from . import symbology_extra_tools
@@ -93,6 +95,7 @@ __all__ = [
     "db_and_workflow_tools",
     "dem_tools",
     "edit_ops_tools",
+    "elevation_tools",
     "engineering_tools",
     "event_data_tools",
     "export_tools",
@@ -109,6 +112,7 @@ __all__ = [
     "jiaf_inputs",
     "jiaf_patterns",
     "jiaf_review",
+    "layout_chart_profile_tools",
     "layout_extra_tools",
     "layout_item_tools",
     "layout_tools",

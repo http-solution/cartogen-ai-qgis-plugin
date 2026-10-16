@@ -123,6 +123,21 @@ _TOOL_ALIASES = {
         "postgis table", "postgis layer", "add the postgis", "load the postgis", "table from postgis", "postgresql table", "postgres table",
         "add the table from the database", "layer from the database", "from the postgis connection",
     ],
+    "set_layer_elevation": [
+        "layer elevation", "elevation settings", "enable elevation", "turn on elevation", "elevation of the layer", "layer z offset", "z scale",
+        "extrude the layer", "extrusion", "altitude clamping", "elevation properties",
+    ],
+    "set_project_terrain": [
+        "project terrain", "set the terrain", "terrain from the dem", "terrain elevation", "flat terrain", "terrain provider", "use the dem as terrain",
+    ],
+    "add_layout_chart": [
+        "chart in the layout", "add a chart", "bar chart in the layout", "pie chart in the layout", "line chart in the layout", "chart item",
+        "chart on the layout", "chart to the layout", "chart to the print",
+    ],
+    "add_layout_elevation_profile": [
+        "elevation profile in the layout", "add an elevation profile", "elevation profile to the layout", "profile item", "elevation profile along",
+        "terrain profile in the layout", "cross section in the layout",
+    ],
     "add_point_cloud_layer": [
         "point cloud", "lidar", "las file", "laz file", "copc", "load the point cloud", "add the point cloud",
     ],
@@ -296,6 +311,7 @@ _TOOL_ALIASES = {
     # _processing_allowlist.py; phrases are the names users know from the Processing toolbox and the Vector/Raster menus.
     "run_allowlisted_processing_algorithm": [
         # M9 GRASS family: users name GRASS commands (r.watershed, v.buffer) or say "grass"
+        "mesh edges", "mesh faces", "mesh vertices", "mesh on grid", "mesh contours", "rasterize mesh", "mesh dataset", "surface to polygon",
         "grass", "grass gis", "grass algorithm", "r.watershed", "r.slope.aspect", "r.cost", "r.viewshed", "v.buffer", "v.clean", "v.net",
         # M6a geometry family: the algorithm's own name, so a plain request reaches the generic tool (tests/test_processing_allowlist_routing.py)
         'add geometry attributes', 'affine transform', 'approximate medial axis', 'bounding box of each', 'bounding boxes', 'check validity', 'collect geometries', 'concave hull', 'convert geometry type', 'convert to curved geometries', 'convert to multipart', 'create wedge buffers', 'delete holes', 'delete the holes', 'densify', 'densify by count', 'densify by interval', 'dissolve coverage', 'drop m z values', 'explode lines', 'explode the lines', 'extend lines', 'extract clip by extent', 'extract vertices', 'extrude', 'fill gaps between polygons', 'fill the holes', 'filter vertices by m value', 'filter vertices by z value', 'force polygons', 'force polygons clockwise', 'force polygons counter clockwise', 'force right hand rule', 'geodesic line split at antimeridian', 'interpolate point on line', 'keep n biggest parts', 'line substring', 'lines to polygons', 'merge lines', 'minimum bounding', 'minimum bounding geometry', 'minimum enclosing circles', 'multi ring buffer', 'offset lines', 'offset the lines', 'oriented bounding box', 'oriented minimum bounding box', 'orthogonalize', 'point on surface', 'points along', 'points along geometry', 'points displacement', 'pole of inaccessibility', 'polygonize', 'polygons to lines', 'project points', 'promote to multi', 'promote to multipart', 'rectangles ovals diamonds', 'remove duplicate vertices', 'remove null geometries', 'remove parts by area', 'remove parts by length', 'reverse line', 'reverse line direction', 'reverse the line', 'right hand rule', 'rotate the features', 'roundness', 'segmentize', 'segmentize by maximum angle', 'segmentize by maximum distance', 'set m value', 'set z value', 'simplify coverage', 'single sided buffer', 'smooth the geometr', 'smooth the line', 'smooth the polygon', 'snap geometries to layer', 'snap points to grid', 'snap the points to', 'split lines by maximum length', 'split with lines', 'subdivide the', 'swap x and y', 'swap x and y coordinates', 'tapered buffer', 'tapered buffers', 'boundary of the polygon', 'boundary of each polygon', 'outline of the polygons as lines', 'translate the', 'validate coverage', 'variable width buffer', 'wedge buffer',

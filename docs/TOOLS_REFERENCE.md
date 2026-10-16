@@ -1,6 +1,6 @@
 # Tool Reference
 
-Auto-generated from the live tool registry (290 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
+Auto-generated from the live tool registry (294 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
 
 Flags: **network-only** tools bypass the main-thread QGIS dispatcher entirely (pure HTTP, safe from any background thread); **two-phase** tools split a network fetch (background thread) from the QGIS-touching part (main thread); **task-management** tools are excluded from auto-advance in the Task Manager.
 
@@ -2059,6 +2059,34 @@ Undo the last edit step on a layer that is in edit mode (the layer's own undo hi
 |---|---|---|---|
 | `layer_name` | string | yes |  |
 
+## elevation_tools
+
+### `set_layer_elevation`
+
+Change a layer's elevation settings (used by elevation profiles and 3D views). Raster: enabled, mode 'surface' (the cells are heights) or 'fixed_range', band, z_offset, z_scale. Vector: enabled, clamping 'absolute', 'relative' or 'terrain', z_offset, z_scale, extrusion (metres). Only the values you give are changed; the result lists the settings read back.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes |  |
+| `enabled` | boolean | no |  |
+| `mode` | string | no |  |
+| `band` | integer | no |  |
+| `z_offset` | number | no |  |
+| `z_scale` | number | no |  |
+| `clamping` | string | no |  |
+| `extrusion` | number | no |  |
+
+### `set_project_terrain`
+
+Set the project's terrain used by elevation profiles and 3D views: source 'flat' (optional offset) or 'dem' (a raster layer, optional offset and scale). Stored in the project; nothing is written to the data.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `source` | string | yes |  |
+| `layer_name` | string | no |  |
+| `offset` | number | no |  |
+| `scale` | number | no |  |
+
 ## engineering_tools
 
 ### `assess_watershed_hydrology_request`
@@ -2382,6 +2410,43 @@ Record the multi-partner group's JIAF 2 decisions for flagged units (support for
 | `pin_decisions` | array[object] | no |  |
 | `severity_decisions` | array[object] | no |  |
 | `replace` | boolean | no | Replace all stored decisions instead of merging. |
+
+## layout_chart_profile_tools
+
+### `add_layout_chart`
+
+Add a chart to a print layout: chart_type 'bar', 'line' or 'pie' of layer_name, with x_field (the categories) and y_field (the values), both plain field names. Position and size in millimetres. A chart item draws the layer's own features, so it follows the layer.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layout_name` | string | yes |  |
+| `layer_name` | string | yes |  |
+| `chart_type` | string | no |  |
+| `x_field` | string | yes |  |
+| `y_field` | string | yes |  |
+| `x_mm` | number | no |  |
+| `y_mm` | number | no |  |
+| `width_mm` | number | no |  |
+| `height_mm` | number | no |  |
+| `item_id` | string | no |  |
+
+### `add_layout_elevation_profile`
+
+Add an elevation profile to a print layout along a straight line from (start_x, start_y) to (end_x, end_y) in the project CRS. layer_names are the layers to profile; each needs elevation turned on first (set_layer_elevation). Position and size in millimetres.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layout_name` | string | yes |  |
+| `layer_names` | array[string] | yes |  |
+| `start_x` | number | yes |  |
+| `start_y` | number | yes |  |
+| `end_x` | number | yes |  |
+| `end_y` | number | yes |  |
+| `x_mm` | number | no |  |
+| `y_mm` | number | no |  |
+| `width_mm` | number | no |  |
+| `height_mm` | number | no |  |
+| `item_id` | string | no |  |
 
 ## layout_extra_tools
 
