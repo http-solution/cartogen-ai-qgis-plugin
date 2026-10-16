@@ -1,6 +1,6 @@
 # Tool Reference
 
-Auto-generated from the live tool registry (265 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
+Auto-generated from the live tool registry (276 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
 
 Flags: **network-only** tools bypass the main-thread QGIS dispatcher entirely (pure HTTP, safe from any background thread); **two-phase** tools split a network fetch (background thread) from the QGIS-touching part (main thread); **task-management** tools are excluded from auto-advance in the Task Manager.
 
@@ -2647,6 +2647,117 @@ Runs one QGIS Processing algorithm from a fixed, pre-approved list -- prefer thi
 | `alg_id` | string | yes | Processing algorithm id, e.g. 'native:buffer'. Must be an approved id; call find_processing_algorithm to search the approved list by words and see each algorithm's exact parameter names. |
 | `params` | object | yes | Flat dict of algorithm parameters, e.g. {"INPUT": "my_layer", "DISTANCE": 500}. String values matching a loaded layer's name are resolved to that layer automatically. |
 | `new_layer_name` | string | no | Name to give the algorithm's output layer once added to the project. Defaults to '<alg_id>_output' if omitted -- and an omitted name is treated as a signal that this output is an internal/scratch step (e.g. a reprojection before a buffer), so it's added to the project hidden (unchecked in the layer tree) rather than cluttering the visible map. Give this an explicit name whenever the output IS the deliverable you want the user to see. |
+
+## project_ops_tools
+
+### `add_text_annotation`
+
+Put a text note on the map at x, y (in crs, default EPSG:4326). It is kept in the project's annotation layer.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `text` | string | yes |  |
+| `x` | number | yes |  |
+| `y` | number | yes |  |
+| `crs` | string | no |  |
+
+### `create_relation`
+
+Create a 1-N relation between two layers: parent_layer.parent_field is referenced by child_layer.child_field (for example districts.pcode and schools.district_pcode). The relation is stored in the project.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `name` | string | yes |  |
+| `parent_layer` | string | yes |  |
+| `parent_field` | string | yes |  |
+| `child_layer` | string | yes |  |
+| `child_field` | string | yes |  |
+
+### `get_layer_metadata`
+
+Read a layer's metadata: title, abstract, licenses, rights, keywords and contacts.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes |  |
+
+### `list_relations`
+
+List the project's relations between layers.
+
+_No parameters._
+
+### `remove_annotations`
+
+Remove all text annotations from the map. Destructive: a preview with the count is shown first.
+
+_No parameters._
+
+### `rename_layer_group`
+
+Rename a layer group in the layer tree.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `group_name` | string | yes |  |
+| `new_name` | string | yes |  |
+
+### `set_layer_metadata`
+
+Set a layer's metadata: title, abstract, license, rights, keywords (a list of words) and one contact (name, organization, email). Fields you leave out are kept. The metadata is stored in the project (save the project to keep it).
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes |  |
+| `title` | string | no |  |
+| `abstract` | string | no |  |
+| `license` | string | no |  |
+| `rights` | string | no |  |
+| `keywords` | array[string] | no |  |
+| `contact_name` | string | no |  |
+| `contact_organization` | string | no |  |
+| `contact_email` | string | no |  |
+
+### `set_layer_temporal`
+
+Make a vector layer time-aware: give the date or date-time field (start_field) and optionally an end_field for features that last a period. Set clear=true to switch it off. The fields must be of date or date-time type.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes |  |
+| `start_field` | string | no |  |
+| `end_field` | string | no |  |
+| `clear` | boolean | no |  |
+
+### `set_project_time_range`
+
+Set the project's temporal range (the period the temporal controller covers). start and end are dates such as 2026-03-01 or 2026-03-01T12:00:00.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `start` | string | yes |  |
+| `end` | string | yes |  |
+
+### `set_snapping_options`
+
+Set the project's snapping: enabled, snap_type (vertex, segment, vertex and segment, centroid, middle of segment, line endpoint, area), tolerance, units (pixels or project units), mode (all layers, active layer, advanced) and topological editing. Options you leave out are kept.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `enabled` | boolean | no |  |
+| `snap_type` | string | no |  |
+| `tolerance` | number | no |  |
+| `units` | string | no |  |
+| `mode` | string | no |  |
+| `topological_editing` | boolean | no |  |
+
+### `zoom_history`
+
+Zoom the map canvas to the previous or the next extent in its history (like the Zoom Last / Zoom Next buttons). direction: previous or next.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `direction` | string | yes | previous or next |
 
 ## project_tidy_tools
 
