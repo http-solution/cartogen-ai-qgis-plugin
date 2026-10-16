@@ -102,15 +102,18 @@ class TestLayoutItemTools(unittest.TestCase):
     def test_edit_and_remove(self):
         from cartogen_ai.core.agent.tools.layout_item_tools import add_layout_item, edit_layout_item
         add_layout_item("L1", "label", item_id="T", x_mm=10, y_mm=10, width_mm=50, height_mm=10, text="x")
-        r = edit_layout_item("L1", "T", x_mm=30, width_mm=80, rotation=15, frame=True)
+        r = edit_layout_item("L1", "T", x_mm=30, width_mm=80, frame=True)
         self.assertTrue(r.get("success"), r)
         item = self.layout.itemById("T")
         self.assertAlmostEqual(item.positionWithUnits().x(), 30)
         self.assertAlmostEqual(item.positionWithUnits().y(), 10)
         self.assertAlmostEqual(item.sizeWithUnits().width(), 80)
         self.assertAlmostEqual(item.sizeWithUnits().height(), 10)
-        self.assertAlmostEqual(item.itemRotation(), 15)
         self.assertTrue(item.hasFrame())
+        # QGIS turns an item about its centre and moves the stored top-left corner to match, so rotation is checked on its own
+        r = edit_layout_item("L1", "T", rotation=15)
+        self.assertTrue(r.get("success"), r)
+        self.assertAlmostEqual(self.layout.itemById("T").itemRotation(), 15)
         self.assertIn("error", edit_layout_item("L1", "T"))
         self.assertIn("error", edit_layout_item("L1", "NOPE", x_mm=1))
         self.assertTrue(edit_layout_item("L1", "T", remove=True).get("success"))
