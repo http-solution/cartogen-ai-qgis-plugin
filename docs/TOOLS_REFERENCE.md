@@ -1,6 +1,6 @@
 # Tool Reference
 
-Auto-generated from the live tool registry (287 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
+Auto-generated from the live tool registry (290 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
 
 Flags: **network-only** tools bypass the main-thread QGIS dispatcher entirely (pure HTTP, safe from any background thread); **two-phase** tools split a network fetch (background thread) from the QGIS-touching part (main thread); **task-management** tools are excluded from auto-advance in the Task Manager.
 
@@ -2652,6 +2652,37 @@ Rank areas (or any features) on several weighted criteria and test how much the 
 | `trials` | integer | no | Number of perturbation trials, default 500, maximum 5000. |
 | `seed` | integer | no | Random seed for the perturbation. Omit for a generated one (returned). |
 | `output_prefix` | string | no | Optional: write <prefix>_score, <prefix>_rank, <prefix>_rank_min, <prefix>_rank_max to the layer. |
+
+## new_layer_tools
+
+### `add_3d_tiles_layer`
+
+Add a 3D Tiles tileset (a tileset.json, local or https) as a tiled scene layer. Only https URLs are accepted.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `source` | string | yes |  |
+| `layer_name` | string | no |  |
+
+### `add_point_cloud_layer`
+
+Add a point cloud (.las, .laz, .copc.laz, or an EPT dataset's ept.json) from a local file as a layer. Read-only: the file is not changed.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `file_path` | string | yes |  |
+| `layer_name` | string | no |  |
+
+### `add_vector_tile_layer`
+
+Add a vector tile layer: an https XYZ service URL containing {z}/{x}/{y}, or a local .mbtiles / .vtpk file. Only https URLs are accepted.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `source` | string | yes |  |
+| `layer_name` | string | no |  |
+| `min_zoom` | integer | no |  |
+| `max_zoom` | integer | no |  |
 
 ## pcode_validation_tools
 
