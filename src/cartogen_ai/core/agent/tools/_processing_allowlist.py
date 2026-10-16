@@ -235,7 +235,94 @@ EXPRESSION_FAMILY = {
 }
 EXPRESSION_ALGORITHM_IDS = frozenset(EXPRESSION_FAMILY)
 ALLOWED_ALGORITHM_IDS = frozenset(set(ALLOWED_ALGORITHM_IDS) | set(EXPRESSION_FAMILY))
-FAMILY_NAMES = {**GEOMETRY_FAMILY, **TABLE_FAMILY, **ANALYSIS_FAMILY, **EXPRESSION_FAMILY}
+# M7 (completion plan, package D): the raster family. Rule applied to docs/qgis_coverage/processing_matrix.csv: disposition CANDIDATE, wave
+# '2D raster', minus seven that must not run through a generic tool (see RASTER_EXCLUDED). The parameters are layers (rasters, vector
+# sources, lists of rasters), band numbers, numbers, enums, CRS, extents and destinations; the free-form text parameters (EXTRA, and the
+# OPTIONS / CREATION_OPTIONS of the GDAL tools, which are raw command-line text) are refused by parameter_violation. Outputs are
+# temporary rasters or memory tables, never a user path. As for the geometry family, an id stays here only while
+# tests/test_processing_geometry_family_live.py runs it successfully in real QGIS; a failing one is moved to GEOMETRY_NOT_YET with the
+# error and removed from this set.
+RASTER_EXCLUDED = {
+    "gdal:assignprojection": "rewrites the input file's projection in place",
+    "gdal:extractprojection": "writes .prj / .wld files next to the input",
+    "gdal:overviews": "adds pyramids to the input file in place",
+    "native:alignrasters": "needs a structured list parameter, not a plain value",
+    "native:rasterize": "takes a map theme and renders the canvas",
+    "native:zonalstatistics": "edits the vector layer in place",
+    "qgis:rastercalculator": "free-form formula: use the raster_calculator tool",
+}
+RASTER_FAMILY = {
+    "gdal:aspect": "Aspect",
+    "gdal:buildvirtualraster": "Build virtual raster",
+    "gdal:cliprasterbyextent": "Clip raster by extent",
+    "gdal:fillnodata": "Fill NoData",
+    "gdal:gridaverage": "Grid (Moving average)",
+    "gdal:griddatametrics": "Grid (Data metrics)",
+    "gdal:gridinversedistance": "Grid (Inverse distance to a power)",
+    "gdal:gridinversedistancenearestneighbor": "Grid (IDW with nearest neighbor searching)",
+    "gdal:gridlinear": "Grid (Linear)",
+    "gdal:gridnearestneighbor": "Grid (Nearest neighbor)",
+    "gdal:hillshade": "Hillshade",
+    "gdal:nearblack": "Near black",
+    "gdal:pcttorgb": "PCT to RGB",
+    "gdal:proximity": "Proximity (raster distance)",
+    "gdal:rearrange_bands": "Rearrange bands",
+    "gdal:rgbtopct": "RGB to PCT",
+    "gdal:roughness": "Roughness",
+    "gdal:sieve": "Sieve",
+    "gdal:slope": "Slope",
+    "gdal:tpitopographicpositionindex": "Topographic Position Index (TPI)",
+    "gdal:translate": "Translate (convert format)",
+    "gdal:triterrainruggednessindex": "Terrain Ruggedness Index (TRI)",
+    "gdal:viewshed": "Viewshed",
+    "gdal:warpreproject": "Warp (reproject)",
+    "native:alignsingleraster": "Align raster",
+    "native:cellstackpercentile": "Cell stack percentile",
+    "native:cellstackpercentrankfromrasterlayer": "Cell stack percentrank from raster layer",
+    "native:cellstackpercentrankfromvalue": "Cell stack percent rank from value",
+    "native:createconstantrasterlayer": "Create constant raster layer",
+    "native:createrandombinomialrasterlayer": "Create random raster layer (binomial distribution)",
+    "native:createrandomexponentialrasterlayer": "Create random raster layer (exponential distribution)",
+    "native:createrandomgammarasterlayer": "Create random raster layer (gamma distribution)",
+    "native:createrandomgeometricrasterlayer": "Create random raster layer (geometric distribution)",
+    "native:createrandomnegativebinomialrasterlayer": "Create random raster layer (negative binomial distribution)",
+    "native:createrandomnormalrasterlayer": "Create random raster layer (normal distribution)",
+    "native:createrandompoissonrasterlayer": "Create random raster layer (poisson distribution)",
+    "native:createrandomuniformrasterlayer": "Create random raster layer (uniform distribution)",
+    "native:dtmslopebasedfilter": "DTM filter (slope-based)",
+    "native:equaltofrequency": "Equal to frequency",
+    "native:fillnodata": "Fill NoData cells",
+    "native:fillsinkswangliu": "Fill sinks (Wang & Liu)",
+    "native:fuzzifyrastergaussianmembership": "Fuzzify raster (gaussian membership)",
+    "native:fuzzifyrasterlargemembership": "Fuzzify raster (large membership)",
+    "native:fuzzifyrasterlinearmembership": "Fuzzify raster (linear membership)",
+    "native:fuzzifyrasternearmembership": "Fuzzify raster (near membership)",
+    "native:fuzzifyrasterpowermembership": "Fuzzify raster (power membership)",
+    "native:fuzzifyrastersmallmembership": "Fuzzify raster (small membership)",
+    "native:greaterthanfrequency": "Greater than frequency",
+    "native:highestpositioninrasterstack": "Highest position in raster stack",
+    "native:lessthanfrequency": "Less than frequency",
+    "native:lowestpositioninrasterstack": "Lowest position in raster stack",
+    "native:rasterbooleanand": "Raster boolean AND",
+    "native:rasterfeaturepreservingsmoothing": "Feature preserving DEM smoothing",
+    "native:rastergaussianblur": "Gaussian blur",
+    "native:rasterlayerproperties": "Raster layer properties",
+    "native:rasterlayerzonalstats": "Raster layer zonal statistics",
+    "native:rasterlogicalor": "Raster boolean OR",
+    "native:rasterminmax": "Raster minimum/maximum",
+    "native:rasterrank": "Raster rank",
+    "native:reclassifybylayer": "Reclassify by layer",
+    "native:rescaleraster": "Rescale raster",
+    "native:roundrastervalues": "Round raster",
+    "native:ruggednessindex": "Ruggedness index",
+    "native:totalcurvature": "Total curvature",
+    "native:zonalhistogram": "Zonal histogram",
+    "native:zonalminmaxpoint": "Zonal minimum/maximum point",
+}
+RASTER_ALGORITHM_IDS = frozenset(RASTER_FAMILY)
+ALLOWED_ALGORITHM_IDS = frozenset(set(ALLOWED_ALGORITHM_IDS) | set(RASTER_FAMILY))
+RASTER_FORBIDDEN_PARAM_KEYS = frozenset({"OPTIONS", "CREATION_OPTIONS"})
+FAMILY_NAMES = {**GEOMETRY_FAMILY, **TABLE_FAMILY, **ANALYSIS_FAMILY, **EXPRESSION_FAMILY, **RASTER_FAMILY}
 
 # Algorithms whose OUTPUT is a RASTER FILE, not a vector sink. "memory:" is not a valid raster destination, and a raster
 # result comes back as a file path, not a layer: before 2026-10-01 these ran and the tool reported "no new layer output".
@@ -283,6 +370,9 @@ def parameter_violation(alg_id, params):
     if blocked:
         return blocked
     for key, value in (params or {}).items():
+        if alg_id in RASTER_ALGORITHM_IDS and str(key).upper() in RASTER_FORBIDDEN_PARAM_KEYS:
+            return (f"parameter '{key}' is not accepted: it carries raw GDAL creation options, which this tool does not pass to '{alg_id}'. "
+                    "Leave it out; the output is a temporary raster.")
         if str(key).upper() in FORBIDDEN_PARAM_KEYS:
             return (f"parameter '{key}' is not accepted: it carries a free-form expression or raw backend arguments, which "
                     f"this tool does not pass to '{alg_id}'. Use a dedicated tool, or execute_pyqgis_script (sandboxed).")

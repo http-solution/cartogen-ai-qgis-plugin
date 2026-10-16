@@ -62,7 +62,15 @@ _ONE_WORD_REQUESTS = {"Boundary": "get the boundary of the polygons", "Polygoniz
                       "Subdivide": "subdivide the polygons", "Translate": "translate the features by 100 m",
                       "Holes": "check the geometry for holes", "Overlaps": "check the geometry for overlaps",
                       "Mean coordinate(s)": "calculate the mean coordinate of the points", "Join by lines (hub lines)": "draw join by lines from the points to the hubs",
-                      "Create layer from extent": "create layer from extent", "Create layer from point": "create layer from point 10,10"}
+                      "Create layer from extent": "create layer from extent", "Create layer from point": "create layer from point 10,10",
+                      # package D raster family: names that are one word, shared with a dedicated tool, or a bracketed variant
+                      "Grid (Moving average)": "grid with moving average", "Grid (Data metrics)": "grid with data metrics",
+                      "Grid (Inverse distance to a power)": "grid with inverse distance",
+                      "Grid (IDW with nearest neighbor searching)": "grid with inverse distance", "Grid (Linear)": "grid with linear interpolation",
+                      "Grid (Nearest neighbor)": "grid with nearest neighbor", "Hillshade": "gdal hillshade", "Slope": "gdal slope", "Aspect": "gdal aspect",
+                      "Proximity (raster distance)": "raster proximity", "Translate (convert format)": "convert raster format",
+                      "Warp (reproject)": "warp the raster", "Roughness": "roughness of the dem", "Sieve": "sieve the raster",
+                      "Fill NoData": "fill nodata", "Fill NoData cells": "fill nodata", "Fill sinks (Wang & Liu)": "fill sinks"}
 
 
 def _plain_request(name):
