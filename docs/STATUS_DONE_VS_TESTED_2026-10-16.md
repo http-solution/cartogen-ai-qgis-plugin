@@ -1,8 +1,24 @@
-# Roadmap completion: what was done, and how far each piece was tested (2026-10-16, refreshed after the gap-closing work and the integration audit)
+# Roadmap completion: what was done, and how far each piece was tested (2026-10-16, refreshed after rc45)
 
 **State of main:** 294 tools; 427 Processing algorithm ids on the allow-list. Every roadmap package (A to J), the gap-closing package and the integration audit are merged.
-Release candidates rc42 and rc43 are published; everything from package F onwards (F, G, H, I, gap-closing, audit fixes) is in no release yet
-(rc44 is being prepared, see `CHANGELOG.md`).
+Release candidates rc42, rc43, rc44 and rc45 are published as pre-releases on GitHub (rc45 built from `39e72ccb`, zip SHA-256
+`149fae0e…84c7`). Nothing has been uploaded to plugins.qgis.org by the assistant; that step belongs to the owner. rc44 carries packages F to I, the
+gap-closing tools and the audit fixes. rc45 adds only the four fixes below and an API-name check; it adds no tools.
+
+## rc45 (#352, #353; hand-test sheet and bundle builder #354)
+The QGIS 4.2.3 Developer Reference was used to compare every QGIS method name called in the code with the 20,064 names it lists. Four calls named
+methods that do not exist; all four were in published rc44 (one since rc43), and rc45 fixes them:
+- `zoom_history` (rc43): never worked on a real canvas; now compares the extent before and after and returns an error when there is no earlier or later extent.
+- `diagnose_topology`: now uses `isGeosValid()`.
+- Proxy detection: now uses `fallbackProxy()` (the wrong name had been hidden by `contextlib.suppress`).
+- Point-displacement representation: removed the call to the nonexistent `setCircleRadiusSymbol`.
+New guard: `tests/test_pyqgis_call_names.py` fails on any QGIS call name missing from the reference list (61 reviewed Qt names are a fixed baseline).
+Evidence: offline suite (4534 tests), ruff, mypy and the QGIS 4.2.2 live job passed on #352 and #353; `tests/test_api_reference_fixes_live.py`
+runs the bow-tie polygon, the point-displacement representation and the proxy check against real QGIS objects. `zoom_history` is covered offline with a
+spec'd mock only, because CI has no canvas. Limits: the check compares names, not argument lists or return types; there may be more wrong-argument
+calls that no test has exercised. Not hand-tested.
+Hand testing: `docs/HAND_TEST_SHEET_rc44_2026-10-16.md` (run on rc45; its first section retests these four fixes), the two results CSVs, and
+`tools/build_hand_test_bundle.py`, which builds `dist/cartogen_ai_hand_test_1.17.0-rc45.zip` (local file, not committed).
 
 **Reading guide.** Three levels of evidence appear below. Nothing in this document is hand-tested.
 
@@ -132,5 +148,6 @@ Done: the new tools were compared with the router from before the roadmap and wi
 6. The owner's hand-test rows (smoke 16 to 18), the JIAF validation, the credentialed integrations (HX4), and the open secret-scanning alert.
 
 ## Open decisions
-- rc44 would bundle packages F, G, H, I and the gap-closing tools; it needs the owner's go-ahead.
+- Uploading rc45 to plugins.qgis.org, and whether to promote a later build to stable, are the owner's decisions; nothing is done for them.
+- Argument-list and return-type checks against the 4.2.3 reference are not built; they would find a class of bug the name check cannot.
 - If any of the "not built" items matters (GPS, PDAL, 3D map item), it needs a different CI image or a hand test on a machine that has the module.
