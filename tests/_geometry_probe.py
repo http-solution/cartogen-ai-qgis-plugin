@@ -45,12 +45,19 @@ def params_for(algorithm, layer_name, distinct=False):
             if p.name() == "NUMBER":
                 default = 1
             params[p.name()] = default if isinstance(default, (int, float)) and default > 0 else 1
+            # CI run 38876512875: the fuzzify tools refuse equal low and high bounds ("choose varying values"); the probe's fault, not theirs
+            if p.name().upper().endswith("HIGHBOUND"):
+                params[p.name()] = 20
+            elif p.name().upper().endswith("LOWBOUND"):
+                params[p.name()] = 1
         elif kind == "enum":
             params[p.name()] = p.defaultValue() if p.defaultValue() is not None else 0
         elif kind == "boolean":
             params[p.name()] = bool(p.defaultValue())
         elif kind == "field":
-            numeric = "numeric" in str(p.dataType()).lower()
+            # CI run 38876512875: native:reclassifybylayer reads its MIN/MAX/VALUE fields as numbers; their data type is not reported as
+            # numeric, so those names are matched too
+            numeric = "numeric" in str(p.dataType()).lower() or any(w in p.name().upper() for w in ("MIN", "MAX", "VALUE"))
             params[p.name()] = "val" if numeric else "name"
         elif kind == "raster":
             # package D: a second raster parameter gets the second raster, so "value raster vs. stack" style algorithms see two
