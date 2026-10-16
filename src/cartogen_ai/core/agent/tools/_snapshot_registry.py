@@ -244,6 +244,14 @@ def _make_property_restore_fn(set_value):
     return restore_fn
 
 
+# Integration audit 2026-10-16: the MODIFY tools added since package A were not in this registry, so undo_last_operation could not reverse them
+# (it reported "no snapshot" for a layer filter, a diagram, a callout, an elevation setting...). Reused, not new, mechanisms: set_layer_filter
+# writes the subset string exactly as run_query does; the symbology, labelling, diagram, elevation and temporal tools change what a layer's
+# QML style holds, which _snapshot_style / _restore_style already round-trip. Not covered, on purpose: the edit-buffer tools (transform,
+# merge, split, change_field_type) have their own undo_manual_edit, and project-wide settings (snapping, terrain, time range) are not per-layer.
+_STYLE_TOOLS = ("set_rule_based_labels", "set_label_callout", "set_layer_diagram", "set_point_marker", "set_raster_relief",
+                "apply_saved_symbol", "set_layer_elevation", "set_layer_temporal")
+
 SNAPSHOT_REGISTRY = {
     "remove_layer": (_snapshot_remove_layer, _restore_remove_layer),
     "field_calculator": (
@@ -277,6 +285,11 @@ SNAPSHOT_REGISTRY = {
         _make_property_snapshot_fn(_subsetstring_get),
         _make_property_restore_fn(_subsetstring_set),
     ),
+    "set_layer_filter": (
+        _make_property_snapshot_fn(_subsetstring_get),
+        _make_property_restore_fn(_subsetstring_set),
+    ),
+    **dict.fromkeys(_STYLE_TOOLS, (_snapshot_style, _restore_style)),
 }
 
 

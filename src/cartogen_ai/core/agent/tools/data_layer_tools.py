@@ -221,5 +221,10 @@ def package_layers_offline(layer_names, file_path, only_selected=False, confirme
         return {"error": "The package was not written."}
     remember_written(path)
     packed = (result or {}).get("OUTPUT_LAYERS") or []
-    return {"success": True, "file_path": path, "layers_packaged": len(packed) or len(layers), "layers": [layer.name() for layer in layers]}
+    from ._sensitivity_notes import protected_layer_notes
+    out = {"success": True, "file_path": path, "layers_packaged": len(packed) or len(layers), "layers": [layer.name() for layer in layers]}
+    notes = protected_layer_notes(layers, "its data is now in this package file; confirm sharing it is intended. Advisory only, nothing was blocked.")
+    if notes:
+        out["warning"] = " ".join(notes)
+    return out
 

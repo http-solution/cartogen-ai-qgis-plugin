@@ -36,6 +36,9 @@ class TestRegistryLookups(unittest.TestCase):
             "remove_layer", "field_calculator", "calculate_area", "calculate_length",
             "apply_categorized_style", "apply_graduated_style", "apply_graduated_symbol_style",
             "set_dataset_status", "set_layer_sensitivity", "set_layer_confidence", "run_query",
+            # integration audit 2026-10-16: the MODIFY tools added since package A that undo_last_operation can now reverse
+            "set_layer_filter", "set_rule_based_labels", "set_label_callout", "set_layer_diagram", "set_point_marker",
+            "set_raster_relief", "apply_saved_symbol", "set_layer_elevation", "set_layer_temporal",
         }
         self.assertEqual(set(SNAPSHOT_REGISTRY.keys()), expected)
 

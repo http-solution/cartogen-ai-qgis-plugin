@@ -63,6 +63,12 @@ WHOLE_PROJECT_TOOLS = frozenset({"execute_pyqgis_script"}) | WORKFLOW_TOOLS
 # connection runs against the project, so it counts as touching all of it.
 SQL_TOOLS = frozenset({"execute_read_only_sql"})
 
+# create_virtual_layer (package C) is the same case: its layers are named inside the SQL text ("SELECT ... FROM \"restricted\""), so the
+# exact-string scan saw none of them. Found by the 2026-10-16 integration audit: a virtual layer built over a RESTRICTED layer was neither
+# gated nor tagged with that layer as its source, so the derived layer looked open. Unlike execute_read_only_sql it can only read project
+# layers, so a query that names none touches none (no "whole project" fallback). {tool: name of the SQL argument}
+PROJECT_SQL_TOOLS = {"create_virtual_layer": "sql"}
+
 _MAX_LINEAGE_DEPTH = 8
 _MAX_ARG_DEPTH = 6
 
@@ -177,6 +183,9 @@ def argument_layer_names(tool_name, arguments, known_names):
         names |= sql_layer_names(args.get("sql_query"), known_names)
         if not args.get("connection_name") and not names:
             return set(known_names), True
+    sql_argument = PROJECT_SQL_TOOLS.get(tool_name)
+    if sql_argument and isinstance(arguments, dict):
+        names |= sql_layer_names(arguments.get(sql_argument), known_names)
     return names, False
 
 
