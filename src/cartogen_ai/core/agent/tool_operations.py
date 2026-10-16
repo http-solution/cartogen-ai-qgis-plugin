@@ -198,6 +198,13 @@ TOOL_OPERATION_TYPES = {
     "export_layout_atlas": PUBLISH,
     "list_layout_items": READ,
     "update_layout_item_text": MODIFY,
+    "add_layout_item": MODIFY,          # M5: adds an item to an existing layout (the layout is what changes)
+    "edit_layout_item": MODIFY,
+    "set_layout_map": MODIFY,
+    "set_layout_page": MODIFY,
+    "save_layout_template": PUBLISH,
+    "load_layout_template": CREATE,
+    "export_layout": PUBLISH,
 
     # -- logistics_tools.py --
     "optimal_hub_siting": READ,

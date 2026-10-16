@@ -1,6 +1,6 @@
 # Tool Reference
 
-Auto-generated from the live tool registry (245 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
+Auto-generated from the live tool registry (252 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
 
 Flags: **network-only** tools bypass the main-thread QGIS dispatcher entirely (pure HTTP, safe from any background thread); **two-phase** tools split a network fetch (background thread) from the QGIS-touching part (main thread); **task-management** tools are excluded from auto-advance in the Task Manager.
 
@@ -2247,6 +2247,107 @@ Record the multi-partner group's JIAF 2 decisions for flagged units (support for
 | `pin_decisions` | array[object] | no |  |
 | `severity_decisions` | array[object] | no |  |
 | `replace` | boolean | no | Replace all stored decisions instead of merging. |
+
+## layout_item_tools
+
+### `add_layout_item`
+
+Add one item to a print layout that already exists (see list_layouts): a text label, a picture from a local image file (png, jpg, svg), a shape (rectangle, ellipse, triangle), an arrow, or an attribute table of a vector layer. Position and size are in millimetres from the page's top-left corner (an A4 landscape page is 297 x 210). An arrow is given by its start and end points instead of a box. Give the item an item_id to find it again; list_layout_items shows what is there. HTML frames and pictures from a web address are refused on purpose.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layout_name` | string | yes |  |
+| `kind` | string | yes | label, picture, shape, arrow or table |
+| `item_id` | string | no | Letters, digits, space, - and _ (max 64). Generated if omitted. |
+| `x_mm` | number | no |  |
+| `y_mm` | number | no |  |
+| `width_mm` | number | no |  |
+| `height_mm` | number | no |  |
+| `text` | string | no |  |
+| `font_size` | number | no |  |
+| `font_color` | string | no |  |
+| `picture_path` | string | no |  |
+| `shape` | string | no |  |
+| `fill_color` | string | no |  |
+| `outline_color` | string | no |  |
+| `outline_width_mm` | number | no |  |
+| `from_x_mm` | number | no |  |
+| `from_y_mm` | number | no |  |
+| `to_x_mm` | number | no |  |
+| `to_y_mm` | number | no |  |
+| `layer_name` | string | no | For a table: the vector layer. |
+| `fields` | array[string] | no | For a table: the columns to show. |
+| `max_rows` | integer | no | For a table: rows to show (default 10, at most 200). |
+
+### `edit_layout_item`
+
+Change or remove one item of a print layout by its id (list_layout_items shows the ids): move it (x_mm, y_mm), resize it (width_mm, height_mm), rotate it (rotation in degrees), switch its frame on or off (frame), or remove it (remove=true). Give only what should change.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layout_name` | string | yes |  |
+| `item_id` | string | yes |  |
+| `x_mm` | number | no |  |
+| `y_mm` | number | no |  |
+| `width_mm` | number | no |  |
+| `height_mm` | number | no |  |
+| `rotation` | number | no |  |
+| `frame` | boolean | no |  |
+| `remove` | boolean | no |  |
+
+### `export_layout`
+
+Export an existing print layout to a file: .pdf, .png, .jpg, .tif (image) or .svg (vector). dpi applies to PDF and images (default 150). Replacing an existing file needs confirmation. create_print_layout can export while it builds; this exports a layout that already exists.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layout_name` | string | yes |  |
+| `output_path` | string | yes |  |
+| `dpi` | integer | no |  |
+
+### `load_layout_template`
+
+Create a new print layout from a template file (.qpt) made by save_layout_template or QGIS. The new layout gets new_layout_name, which must not be taken. A template that contains an HTML frame is refused (it would run web content).
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `template_path` | string | yes |  |
+| `new_layout_name` | string | yes |  |
+
+### `save_layout_template`
+
+Save a print layout as a reusable template file (.qpt) that load_layout_template can turn into a new layout later, in this or another project. Replacing an existing file needs confirmation.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layout_name` | string | yes |  |
+| `output_path` | string | yes | Ends in .qpt |
+
+### `set_layout_map`
+
+Set what a print layout's map shows: the scale (scale = the denominator, 250000 for 1:250,000), the extent (extent_layer = zoom to a layer, or bbox = [min_lon, min_lat, max_lon, max_lat] in degrees), the rotation in degrees, lock_layers=true to freeze the layers the map shows now so later changes in the project do not alter the layout, or map_theme to follow a saved map theme. Works on MAP_MAIN unless map_item_id names another map. If both an extent and a scale are given, the extent is set first and the scale applied around its centre.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layout_name` | string | yes |  |
+| `map_item_id` | string | no |  |
+| `scale` | number | no |  |
+| `rotation` | number | no |  |
+| `extent_layer` | string | no |  |
+| `bbox` | array[number] | no |  |
+| `lock_layers` | boolean | no |  |
+| `map_theme` | string | no |  |
+
+### `set_layout_page`
+
+Change a print layout's page: size (A0 to A5, Letter, Legal, Tabloid), orientation (landscape or portrait) and the number of pages (1 to 20; new pages copy the size). Items already on the page keep their positions: move them with edit_layout_item if the new size needs it.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layout_name` | string | yes |  |
+| `size` | string | no |  |
+| `orientation` | string | no |  |
+| `pages` | integer | no |  |
 
 ## map_view_tools
 
