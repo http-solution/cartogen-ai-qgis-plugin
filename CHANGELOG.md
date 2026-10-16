@@ -7,6 +7,7 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 | Version | Date | Summary |
 |---|---|---|
+| [1.17.0-rc45](#v1-17-0-rc45) | 2026-10-16 | **Release candidate 45 for 1.17.0.** No breaking changes -- requires QGIS 4.2+. Four calls to QGIS methods that do not exist are fixed (found by checking the code against the QGIS 4.2.3 reference), and a new test now blocks any new one. CI-checked, not hand-tested. |
 | [1.17.0-rc44](#v1-17-0-rc44) | 2026-10-16 | **Release candidate 44 for 1.17.0.** No breaking changes -- requires QGIS 4.2+. 18 more tools (276 to 294) and about 160 more Processing algorithms (267 to 427): symbology and labels, print-layout charts, atlas and elevation profile, point cloud, vector tile and 3D tiles layers, elevation settings, GRASS and mesh algorithms. CI-checked, not hand-tested. |
 | [1.17.0-rc43](#v1-17-0-rc43) | 2026-10-16 | **Release candidate 43 for 1.17.0.** No breaking changes -- requires QGIS 4.2+. 34 more tools (242 to 276) and 101 more Processing algorithms (166 to 267): editing, data sources, symbology, print layouts and project settings by plain request. CI-checked, not hand-tested. |
 | [1.17.0-rc42](#v1-17-0-rc42) | 2026-10-15 | **Release candidate 42 for 1.17.0.** No breaking changes -- requires QGIS 4.2+. Many more QGIS actions by plain request: 124 more Processing algorithms, a raster calculator, layer groups, project CRS, bookmarks, selections and attribute editing, a watershed tool and sourced web research. CI-checked, not hand-tested. |
@@ -88,6 +89,14 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 The detailed narrative entries below are unchanged -- this table is purely an additive index on
 top of them.
+
+<a id="v1-17-0-rc45"></a>
+## [1.17.0-rc45] — 2026-10-16 — Release candidate 45 for 1.17.0: No breaking changes -- requires QGIS 4.2+. Four calls to QGIS methods that do not exist are fixed (found by checking the code against the QGIS 4.2.3 reference), and a new test now blocks any new one. CI-checked, not hand-tested.
+
+No breaking changes; QGIS 4.2+. Everything after 1.17.0-rc44:
+
+- Fixes found against the QGIS 4.2.3 reference: The map-history tool (zoom_history) now says so when there is no earlier or later extent instead of reporting success; diagnose_topology counts invalid geometries again; the proxy check no longer fails on the QGIS network settings; and the point-displacement map style applies. A new test compares every QGIS call in the code with the 4.2.3 reference list and fails on a name that does not exist.
+- Not hand-tested: Everything above is checked by the offline suite and, for the QGIS parts, by CI on QGIS 4.2.2. None of it has been hand-tested in desktop QGIS. The check compares method names only, not argument lists or return types.
 
 <a id="v1-17-0-rc44"></a>
 ## [1.17.0-rc44] — 2026-10-16 — Release candidate 44 for 1.17.0: No breaking changes -- requires QGIS 4.2+. 18 more tools (276 to 294) and about 160 more Processing algorithms (267 to 427): symbology and labels, print-layout charts, atlas and elevation profile, point cloud, vector tile and 3D tiles layers, elevation settings, GRASS and mesh algorithms. CI-checked, not hand-tested.

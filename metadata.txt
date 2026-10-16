@@ -8,7 +8,7 @@ name=Cartogen AI
 qgisMinimumVersion=4.2
 qgisMaximumVersion=4.99
 description=Spatial AI that plans, executes, and shows its work inside QGIS.
-version=1.17.0-rc44
+version=1.17.0-rc45
 author=Alaa Alshoubaki
 email=cartogenai@gmail.com
 
@@ -25,7 +25,12 @@ license=GNU GPL v2
 hasProcessingProvider=yes
 # Declares Qt 6 support for QGIS 4 plugin managers that read this key; managers that do not know it ignore it (added by the rc28 self-audit; confirm against the directory page after the next upload).
 supportsQt6=True
-changelog=v1.17.0-rc44 (2026-10-16):
+changelog=v1.17.0-rc45 (2026-10-16):
+    No breaking changes -- requires QGIS 4.2+. Four calls to QGIS methods that do not exist are fixed (found by checking the code against the QGIS 4.2.3 reference), and a new test now blocks any new one. CI-checked, not hand-tested.
+    - Fixes found against the QGIS 4.2.3 reference: The map-history tool (zoom_history) now says so when there is no earlier or later extent instead of reporting success; diagnose_topology counts invalid geometries again; the proxy check no longer fails on the QGIS network settings; and the point-displacement map style applies. A new test compares every QGIS call in the code with the 4.2.3 reference list and fails on a name that does not exist.
+    - Not hand-tested: Everything above is checked by the offline suite and, for the QGIS parts, by CI on QGIS 4.2.2. None of it has been hand-tested in desktop QGIS. The check compares method names only, not argument lists or return types.
+
+v1.17.0-rc44 (2026-10-16):
     No breaking changes -- requires QGIS 4.2+. 18 more tools (276 to 294) and about 160 more Processing algorithms (267 to 427): symbology and labels, print-layout charts, atlas and elevation profile, point cloud, vector tile and 3D tiles layers, elevation settings, GRASS and mesh algorithms. CI-checked, not hand-tested.
     - Symbology and labels: New tools: rule-based labels, label callouts and masks, pie and bar diagrams, SVG and font point markers, hillshade and contour styles for rasters, and a personal symbol library (save a layer's symbol, list and re-apply it). Undo covers the label, callout, diagram, marker, relief and saved-symbol changes.
     - Print layouts: New tools: an overview (locator) map, layout guides and a snapping grid, an atlas with one page per feature, bar, line and pie charts, and an elevation profile along a line. A layout can be exported with a world file or as a GeoPDF. How charts and profiles look when drawn has not been checked.

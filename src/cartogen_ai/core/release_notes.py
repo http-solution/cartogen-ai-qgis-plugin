@@ -8,18 +8,13 @@ metadata changelog, CHANGELOG.md, README and this module agree). Checklist: CONT
 releases listed in NEW_MARK_VERSIONS.
 """
 
-WHATS_NEW_VERSION = "1.17.0-rc44"
-NEW_MARK_VERSIONS = ("1.17.0-rc43", "1.17.0-rc44")
+WHATS_NEW_VERSION = "1.17.0-rc45"
+NEW_MARK_VERSIONS = ("1.17.0-rc44", "1.17.0-rc45")
 
 # Headline items of the current version (the full list is the metadata.txt changelog block and CHANGELOG.md).
 WHATS_NEW_ITEMS = [
-    ('Symbology and labels', "New tools: rule-based labels, label callouts and masks, pie and bar diagrams, SVG and font point markers, hillshade and contour styles for rasters, and a personal symbol library (save a layer's symbol, list and re-apply it). Undo covers the label, callout, diagram, marker, relief and saved-symbol changes."),
-    ('Print layouts', 'New tools: an overview (locator) map, layout guides and a snapping grid, an atlas with one page per feature, bar, line and pie charts, and an elevation profile along a line. A layout can be exported with a world file or as a GeoPDF. How charts and profiles look when drawn has not been checked.'),
-    ('New layer types', "New tools: open a point cloud (.copc.laz or EPT; a plain .las or .laz needs a QGIS build with the PDAL provider and says so otherwise), a vector tile source (https XYZ, .mbtiles or .vtpk) and a 3D Tiles tileset. New settings tools: turn elevation on for a raster or set a vector layer's clamping and extrusion, and set the project's terrain (flat or a DEM)."),
-    ('GRASS and mesh algorithms', 'The approved Processing list grew from 267 to 427 algorithms: 154 GRASS algorithms (only where QGIS has GRASS installed; the ones that read or write files, take SQL or expressions, or install extensions are left out) and 6 mesh algorithms (export edges, faces, vertices and grid points, rasterize a dataset, surface to polygon). 12 GRASS algorithms and mesh contours failed their live run and are not offered.'),
-    ('Fixes found by an integration audit', "More changes can now be undone with undo_last_operation (layer filter, labels, callouts, diagrams, markers, relief, saved symbols, elevation, time settings). A virtual layer built over a protected layer is now seen by the privacy gate and inherits that protection. Packaging layers offline, adding a chart and setting an atlas now warn when a RESTRICTED or SENSITIVE layer is involved. A plain 'animate the layer over time' is offered the animation tool again."),
-    ('Results look better', 'Continuous raster, GRASS and mesh results (distance, cost, slope-like surfaces, interpolations) open with a colour ramp instead of plain grey; classified and shaded results stay as they are. GRASS buffers, hulls, overlays and network results get the same look as their native counterparts. This was checked by which algorithm gets which look, not by viewing the maps.'),
-    ('Not hand-tested', 'Everything above is checked by the offline suite and, for the QGIS parts, by CI on QGIS 4.2.2 (each new tool is read back from real QGIS objects, each Processing algorithm was run once on small test data). None of it has been hand-tested in desktop QGIS, no real model was used to choose these tools, and no real point cloud, vector-tile or 3D-tiles data was opened. Not built: GPS tools, PDAL point-cloud algorithms (this QGIS build has no PDAL) and a 3D map layout item (not available in the CI QGIS).'),
+    ('Fixes found against the QGIS 4.2.3 reference', 'The map-history tool (zoom_history) now says so when there is no earlier or later extent instead of reporting success; diagnose_topology counts invalid geometries again; the proxy check no longer fails on the QGIS network settings; and the point-displacement map style applies. A new test compares every QGIS call in the code with the 4.2.3 reference list and fails on a name that does not exist.'),
+    ('Not hand-tested', 'Everything above is checked by the offline suite and, for the QGIS parts, by CI on QGIS 4.2.2. None of it has been hand-tested in desktop QGIS. The check compares method names only, not argument lists or return types.')
 ]
 
 HUMANITARIAN_WORKFLOWS = [('1. Rapid crisis and base mapping',
