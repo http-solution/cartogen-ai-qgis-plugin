@@ -6,7 +6,7 @@ import tempfile
 import unittest
 
 try:
-    from qgis.core import QgsFeature, QgsGeometry, QgsPrintLayout, QgsProject, QgsRasterLayer, QgsVectorLayer
+    from qgis.core import QgsFeature, QgsGeometry, QgsLayoutItemMap, QgsPrintLayout, QgsProject, QgsRasterLayer, QgsVectorLayer
     LIVE = True
 except ImportError:
     LIVE = False
@@ -39,6 +39,9 @@ class TestIntegrationAuditLive(unittest.TestCase):
         self.layout = QgsPrintLayout(QgsProject.instance())
         self.layout.initializeDefaults()
         self.layout.setName("audit")
+        map_item = QgsLayoutItemMap(self.layout)       # the atlas needs a map item to follow
+        map_item.setId("MAP_MAIN")
+        self.layout.addLayoutItem(map_item)
         QgsProject.instance().layoutManager().addLayout(self.layout)
 
     def _round_trip(self, tool, args, run, read, changed):
