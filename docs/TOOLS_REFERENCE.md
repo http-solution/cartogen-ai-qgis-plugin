@@ -1,6 +1,6 @@
 # Tool Reference
 
-Auto-generated from the live tool registry (260 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
+Auto-generated from the live tool registry (265 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
 
 Flags: **network-only** tools bypass the main-thread QGIS dispatcher entirely (pure HTTP, safe from any background thread); **two-phase** tools split a network fetch (background thread) from the QGIS-touching part (main thread); **task-management** tools are excluded from auto-advance in the Task Manager.
 
@@ -1804,6 +1804,58 @@ Exports everything Cartogen AI has stored for this project and this machine -- p
 | Parameter | Type | Required | Description |
 |---|---|---|---|
 | `output_path` | string | yes | Full file path to write the JSON export to, e.g. 'C:/Users/me/Desktop/cartogen_data_export.json'. |
+
+## data_layer_tools
+
+### `add_postgis_layer`
+
+Add a PostGIS table or view to the project as a layer, using a database connection already saved in QGIS (Browser panel > PostgreSQL). Give the connection name, schema and table; geometry_column and key_column are only needed when the table has several geometry columns or no primary key. Read-only data access: it adds a layer, it changes nothing in the database. Use execute_read_only_sql for a query instead of a whole table.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `connection_name` | string | yes |  |
+| `table` | string | yes |  |
+| `schema` | string | no |  |
+| `geometry_column` | string | no |  |
+| `key_column` | string | no |  |
+| `layer_name` | string | no |  |
+
+### `create_virtual_layer`
+
+Create a virtual layer: a live SQL (SQLite/SpatiaLite) query over the layers in the project, for example SELECT a.name, count(b.id) AS n FROM districts a JOIN points b ON ST_Contains(a.geometry, b.geometry) GROUP BY a.name. Reference layers by their project layer name. Only a single SELECT is accepted; paths, URLs, comments, ATTACH and other statements are refused. The layer is not saved to disk and follows the source layers.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes |  |
+| `sql` | string | yes |  |
+| `geometry_column` | string | no | name of the geometry column in the result, if it is not detected |
+
+### `load_layer_definition`
+
+Load a QGIS layer definition file (.qlr) into the project: the layers it holds come with their styles. The layers read their own data sources, so a .qlr is only as safe as the files and services it points to.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `file_path` | string | yes |  |
+
+### `package_layers_offline`
+
+Package vector layers into ONE GeoPackage file for offline use or hand-over, keeping their styles and metadata (QGIS native:package). layer_names is the list of vector layers; file_path ends in .gpkg. only_selected packs just the selected features. An existing file is only replaced after confirmation. Raster layers are not packaged.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_names` | array[string] | yes |  |
+| `file_path` | string | yes |  |
+| `only_selected` | boolean | no |  |
+
+### `save_layer_definition`
+
+Save chosen layers of the project, with their styles, to a QGIS layer definition file (.qlr) that can be loaded into other projects. layer_names is the list of layers. An existing file is only replaced after confirmation.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_names` | array[string] | yes |  |
+| `file_path` | string | yes |  |
 
 ## data_source_tools
 

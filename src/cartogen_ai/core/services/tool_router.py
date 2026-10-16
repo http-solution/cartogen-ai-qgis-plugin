@@ -118,6 +118,24 @@ _TOOL_ALIASES = {
         "start editing", "toggle editing", "stop editing", "save the edits", "save my edits", "save layer edits", "discard the edits",
         "discard my edits", "discard the changes", "enter edit mode", "leave edit mode",
     ],
+    "add_postgis_layer": [
+        "postgis table", "postgis layer", "add the postgis", "load the postgis", "table from postgis", "postgresql table", "postgres table",
+        "add the table from the database", "layer from the database", "from the postgis connection",
+    ],
+    "create_virtual_layer": [
+        "virtual layer", "create a virtual layer", "sql layer", "query layer", "spatialite query", "sqlite query over the layers",
+        "join the layers with sql", "sql query over the layers", "live query layer",
+    ],
+    "load_layer_definition": [
+        "load the qlr", "open the qlr", "qlr file", "layer definition file", "load a layer definition", "import the layer definition",
+    ],
+    "save_layer_definition": [
+        "save as qlr", "save the layer definition", "export the layer definition", "save layers as qlr", "layer definition for",
+    ],
+    "package_layers_offline": [
+        "package the layers", "package the project layers", "package for offline", "offline package", "package into one geopackage",
+        "pack the layers into a geopackage", "use offline", "take the layers offline", "package layers",
+    ],
     "find_broken_layers": [
         "broken layer", "broken layers", "broken path", "broken paths", "missing layer", "layer not found", "layers with a red",
         "unavailable layer", "fix the paths", "data source is missing", "lost layer", "moved the file",

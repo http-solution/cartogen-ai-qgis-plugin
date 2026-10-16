@@ -10,6 +10,7 @@ from . import vector_tools
 from . import data_source_tools
 from . import attribute_edit_tools
 from . import edit_ops_tools
+from . import data_layer_tools
 from . import web_research_tools
 from . import watershed_tools
 from . import raster_calculator_tool
@@ -82,6 +83,7 @@ __all__ = [
     "corridor_tools",
     "critical_link_tools",
     "data_export_tools",
+    "data_layer_tools",
     "data_source_tools",
     "dataset_status_tools",
     "db_and_workflow_tools",
