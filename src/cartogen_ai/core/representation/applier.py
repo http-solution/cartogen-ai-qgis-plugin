@@ -76,7 +76,7 @@ def apply_representation(layer_or_name: Any, candidate: RepresentationCandidate)
                 "size": "3.5",
             })
             disp_renderer.setEmbeddedRenderer(QgsSingleSymbolRenderer(base_sym))
-            disp_renderer.setCircleRadiusSymbol(None)
+            # (a call to setCircleRadiusSymbol(None) was here: that method does not exist in QGIS and raised AttributeError for this renderer)
             layer.setRenderer(disp_renderer)
             layer.triggerRepaint()
             return {"success": True, "applied": "point_displacement", "layer_name": layer.name()}

@@ -925,7 +925,7 @@ class TestDiagnoseTopologyExtended(unittest.TestCase):
                        is_valid=True, is_empty=False, geom_type=2, bbox="bbox"):
         geom = MagicMock()
         geom.isEmpty.return_value = is_empty
-        geom.isGeomValid.return_value = is_valid
+        geom.isGeosValid.return_value = is_valid
         geom.type.return_value = geom_type
         geom.area.return_value = area
         geom.asWkt.return_value = wkt
