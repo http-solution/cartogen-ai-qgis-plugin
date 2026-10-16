@@ -92,6 +92,19 @@
    "layout_name"
   ]
  },
+ "add_overview_map": {
+  "properties": [
+   "color",
+   "extent_map_id",
+   "inset_box",
+   "layout_name",
+   "overview_map_id",
+   "width_mm"
+  ],
+  "required": [
+   "layout_name"
+  ]
+ },
  "add_point_layer": {
   "properties": [
    "crs",
@@ -1177,8 +1190,10 @@
  "export_layout": {
   "properties": [
    "dpi",
+   "geopdf",
    "layout_name",
-   "output_path"
+   "output_path",
+   "world_file"
   ],
   "required": [
    "layout_name",
@@ -2751,6 +2766,36 @@
   "required": [
    "layer_name",
    "opacity_percent"
+  ]
+ },
+ "set_layout_atlas": {
+  "properties": [
+   "coverage_layer",
+   "disable",
+   "filter_expression",
+   "hide_coverage",
+   "layout_name",
+   "map_item_id",
+   "margin_percent",
+   "page_name_field",
+   "scaling",
+   "sort_field"
+  ],
+  "required": [
+   "layout_name"
+  ]
+ },
+ "set_layout_guides_grid": {
+  "properties": [
+   "clear_guides",
+   "grid_mm",
+   "guides",
+   "layout_name",
+   "snap_to_grid",
+   "snap_to_guides"
+  ],
+  "required": [
+   "layout_name"
   ]
  },
  "set_layout_map": {

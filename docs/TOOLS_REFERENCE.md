@@ -1,6 +1,6 @@
 # Tool Reference
 
-Auto-generated from the live tool registry (284 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
+Auto-generated from the live tool registry (287 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
 
 Flags: **network-only** tools bypass the main-thread QGIS dispatcher entirely (pure HTTP, safe from any background thread); **two-phase** tools split a network fetch (background thread) from the QGIS-touching part (main thread); **task-management** tools are excluded from auto-advance in the Task Manager.
 
@@ -2383,6 +2383,51 @@ Record the multi-partner group's JIAF 2 decisions for flagged units (support for
 | `severity_decisions` | array[object] | no |  |
 | `replace` | boolean | no | Replace all stored decisions instead of merging. |
 
+## layout_extra_tools
+
+### `add_overview_map`
+
+Show where one layout map is looking on another map (a locator or overview inset): overview_map_id is the map that draws the frame (the small inset), extent_map_id is the map whose extent the frame shows (default MAP_MAIN). To create the inset too, give inset_box {x_mm, y_mm, width_mm, height_mm}; it is zoomed out around the main map. color and width_mm style the frame.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layout_name` | string | yes |  |
+| `overview_map_id` | string | no |  |
+| `extent_map_id` | string | no |  |
+| `color` | string | no |  |
+| `width_mm` | number | no |  |
+| `inset_box` | object | no |  |
+
+### `set_layout_atlas`
+
+Turn a print layout into an atlas: one page per feature of coverage_layer. page_name_field names each page, sort_field orders them, filter_expression keeps only some features (a QGIS expression), hide_coverage hides the coverage layer outside the current feature, margin_percent pads the map around each feature, scaling is auto, fixed or predefined, map_item_id is the map that follows the atlas (default MAP_MAIN). disable=true switches the atlas off. Export it with export_layout_atlas.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layout_name` | string | yes |  |
+| `coverage_layer` | string | no |  |
+| `page_name_field` | string | no |  |
+| `sort_field` | string | no |  |
+| `filter_expression` | string | no |  |
+| `hide_coverage` | boolean | no |  |
+| `margin_percent` | number | no |  |
+| `scaling` | string | no |  |
+| `map_item_id` | string | no |  |
+| `disable` | boolean | no |  |
+
+### `set_layout_guides_grid`
+
+Set a print layout's alignment aids: guides (a list of {orientation: horizontal|vertical, position_mm}; replaces the guides on the first page), clear_guides=true to remove them, grid_mm for the snapping grid spacing, snap_to_grid and snap_to_guides to switch snapping on or off. These affect how items snap when edited; they do not print.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layout_name` | string | yes |  |
+| `guides` | array[object] | no |  |
+| `clear_guides` | boolean | no |  |
+| `grid_mm` | number | no |  |
+| `snap_to_grid` | boolean | no |  |
+| `snap_to_guides` | boolean | no |  |
+
 ## layout_item_tools
 
 ### `add_layout_item`
@@ -2439,6 +2484,8 @@ Export an existing print layout to a file: .pdf, .png, .jpg, .tif (image) or .sv
 | `layout_name` | string | yes |  |
 | `output_path` | string | yes |  |
 | `dpi` | integer | no |  |
+| `world_file` | boolean | no | image exports: also write a world file (.pgw, .jgw, .tfw) so GIS software can place the picture |
+| `geopdf` | boolean | no | pdf exports: write a georeferenced PDF (needs the GDAL PDF driver) |
 
 ### `load_layout_template`
 
