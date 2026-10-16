@@ -104,6 +104,20 @@
    "points"
   ]
  },
+ "add_postgis_layer": {
+  "properties": [
+   "connection_name",
+   "geometry_column",
+   "key_column",
+   "layer_name",
+   "schema",
+   "table"
+  ],
+  "required": [
+   "connection_name",
+   "table"
+  ]
+ },
  "add_web_layer": {
   "properties": [
    "crs",
@@ -900,6 +914,17 @@
   ],
   "required": [
    "dem_layer"
+  ]
+ },
+ "create_virtual_layer": {
+  "properties": [
+   "geometry_column",
+   "layer_name",
+   "sql"
+  ],
+  "required": [
+   "layer_name",
+   "sql"
   ]
  },
  "delaunay_triangulation": {
@@ -1898,6 +1923,14 @@
    "org_field"
   ]
  },
+ "load_layer_definition": {
+  "properties": [
+   "file_path"
+  ],
+  "required": [
+   "file_path"
+  ]
+ },
  "load_layer_style": {
   "properties": [
    "layer_name",
@@ -2066,6 +2099,17 @@
   ],
   "required": [
    "stops_layer"
+  ]
+ },
+ "package_layers_offline": {
+  "properties": [
+   "file_path",
+   "layer_names",
+   "only_selected"
+  ],
+  "required": [
+   "file_path",
+   "layer_names"
   ]
  },
  "pan_sharpening": {
@@ -2287,6 +2331,16 @@
    "format",
    "layer_name",
    "output_path"
+  ]
+ },
+ "save_layer_definition": {
+  "properties": [
+   "file_path",
+   "layer_names"
+  ],
+  "required": [
+   "file_path",
+   "layer_names"
   ]
  },
  "save_layer_style": {

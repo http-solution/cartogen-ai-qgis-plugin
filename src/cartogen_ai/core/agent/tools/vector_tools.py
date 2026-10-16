@@ -11,7 +11,7 @@ from .registry import register_tool
 
 try:
     from qgis.core import (
-        QgsProject, QgsExpression, QgsRasterLayer, QgsVectorLayer,
+        QgsProject, QgsExpression, QgsMeshLayer, QgsRasterLayer, QgsVectorLayer,
         QgsCoordinateReferenceSystem, QgsCoordinateTransform, QgsFeature, QgsFeatureRequest, QgsGeometry,
         QgsPalLayerSettings, QgsTextFormat, QgsTextBufferSettings, QgsVectorLayerSimpleLabeling, QgsWkbTypes,
         QgsField, QgsPointXY, QgsSpatialIndex, QgsUnitTypes, QgsLabelObstacleSettings,
@@ -657,7 +657,12 @@ def _describe_unreadable_download(path):
 
 # Raster file types opened with QgsRasterLayer. rc42 added .vrt .hgt .bil .dem .grd (previously only the first nine, so a VRT or an
 # SRTM .hgt was tried as a vector and reported "Invalid layer"). Additive: every earlier extension is still here.
-RASTER_EXTENSIONS = (".tif", ".tiff", ".geotiff", ".img", ".asc", ".jp2", ".png", ".jpg", ".jpeg", ".vrt", ".hgt", ".bil", ".dem", ".grd")
+RASTER_EXTENSIONS = (".tif", ".tiff", ".geotiff", ".img", ".asc", ".jp2", ".png", ".jpg", ".jpeg", ".vrt", ".hgt", ".bil", ".dem", ".grd",
+                     # Package C: formats GDAL reads as rasters when the build has the driver (ECW and MrSID often do not; then the layer is
+                     # reported invalid as before). NetCDF and GRIB can also be meshes: see MESH_EXTENSIONS.
+                     ".ecw", ".sid", ".nc", ".grb", ".grb2", ".grib", ".grib2", ".hdf", ".h5")
+# Tried with the MDAL mesh provider when the file has no raster bands (a NetCDF/GRIB holding an unstructured mesh) or is a mesh-only format.
+MESH_EXTENSIONS = (".nc", ".grb", ".grb2", ".grib", ".grib2", ".2dm", ".slf")
 
 
 def archive_source(local_path, ext):
@@ -716,8 +721,12 @@ def add_layer_from_path(file_path, layer_name=None, source_label=None, sublayer=
 
         encoding_note = None
         sublayer_note = None
-        if ext in raster_exts:
-            layer = QgsRasterLayer(local_path, name)
+        if ext in raster_exts or ext in MESH_EXTENSIONS:
+            layer = QgsRasterLayer(local_path, name) if ext in raster_exts else None
+            if ext in MESH_EXTENSIONS and (layer is None or not layer.isValid() or layer.bandCount() == 0):
+                mesh = QgsMeshLayer(local_path, name, "mdal")
+                if mesh.isValid() or layer is None:
+                    layer = mesh
         else:
             source = archive_source(local_path, ext)
             layer = QgsVectorLayer(source, name, "ogr")
