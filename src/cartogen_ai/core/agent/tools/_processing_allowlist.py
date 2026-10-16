@@ -376,7 +376,7 @@ MIXED_ALGORITHM_IDS = frozenset(MIXED_FAMILY)
 ALLOWED_ALGORITHM_IDS = frozenset(set(ALLOWED_ALGORITHM_IDS) | set(MIXED_FAMILY))
 # M9 (completion plan, package I): the GRASS family. CI's QGIS 4.2.2 image has GRASS installed and the provider active with 307 algorithms
 # (docs/QGIS_CAPABILITY_PROBE_2026-10-16.md); on a desktop QGIS without GRASS these ids simply do not exist and the tool reports them as
-# unknown. Selection rule, applied to the registry dump of that image, leaving 166 of the 307:
+# unknown. Selection rule, applied to the registry dump of that image, leaving 166 of the 307 (154 after the first live run, see GRASS_REJECTED):
 #   * no file, file-destination or folder-destination parameter (those read or write user paths: the r.out.*, v.out.*, *.in.* importers,
 #     reports, r.colors, r.category, ...), and no *.in.* / *.external* / g.* / v.db.* algorithm (v.db.* takes SQL text that GRASS hands to
 #     its SQLite database);
@@ -387,6 +387,7 @@ ALLOWED_ALGORITHM_IDS = frozenset(set(ALLOWED_ALGORITHM_IDS) | set(MIXED_FAMILY)
 # Every GRASS run happens in a throw-away mapset QGIS creates; the result is exported to a temporary file and loaded as a new layer.
 # The raw format-option parameters (GRASS_RASTER_FORMAT_OPT / _META, GRASS_VECTOR_DSCO / _LCO) and any "where" SQL filter are refused by
 # parameter_violation. As for the other families an id stays only while tests/test_processing_grass_family_live.py runs it successfully.
+# First live run (CI, QGIS 4.2.2, 2026-10-16): 154 of the 166 candidates ran; the 12 that did not are in tests/_processing_live_rows.py GRASS_REJECTED.
 GRASS_FAMILY = {
     "grass:i.albedo": "i.albedo",
     "grass:i.biomass": "i.biomass",
@@ -397,7 +398,6 @@ GRASS_FAMILY = {
     "grass:i.eb.netrad": "i.eb.netrad",
     "grass:i.eb.soilheatflux": "i.eb.soilheatflux",
     "grass:i.emissivity": "i.emissivity",
-    "grass:i.evapo.mh": "i.evapo.mh",
     "grass:i.evapo.pm": "i.evapo.pm",
     "grass:i.evapo.pt": "i.evapo.pt",
     "grass:i.evapo.time": "i.evapo.time",
@@ -405,7 +405,6 @@ GRASS_FAMILY = {
     "grass:i.his.rgb": "i.his.rgb",
     "grass:i.ifft": "i.ifft",
     "grass:i.image.mosaic": "i.image.mosaic",
-    "grass:i.landsat.acca": "i.landsat.acca",
     "grass:i.modis.qc": "i.modis.qc",
     "grass:i.pansharpen": "i.pansharpen",
     "grass:i.rgb.his": "i.rgb.his",
@@ -426,7 +425,6 @@ GRASS_FAMILY = {
     "grass:r.contour": "r.contour",
     "grass:r.cost": "r.cost",
     "grass:r.cross": "r.cross",
-    "grass:r.drain": "r.drain",
     "grass:r.fill.dir": "r.fill.dir",
     "grass:r.fill.stats": "r.fill.stats",
     "grass:r.fillnulls": "r.fillnulls",
@@ -441,7 +439,6 @@ GRASS_FAMILY = {
     "grass:r.mask.rast": "r.mask.rast",
     "grass:r.mask.vect": "r.mask.vect",
     "grass:r.mode": "r.mode",
-    "grass:r.null": "r.null",
     "grass:r.param.scale": "r.param.scale",
     "grass:r.patch": "r.patch",
     "grass:r.path": "r.path",
@@ -455,13 +452,10 @@ GRASS_FAMILY = {
     "grass:r.relief": "r.relief",
     "grass:r.relief.scaling": "r.relief.scaling",
     "grass:r.resamp.bspline": "r.resamp.bspline",
-    "grass:r.resamp.filter": "r.resamp.filter",
     "grass:r.resamp.interp": "r.resamp.interp",
     "grass:r.resamp.rst": "r.resamp.rst",
     "grass:r.resamp.stats": "r.resamp.stats",
     "grass:r.resample": "r.resample",
-    "grass:r.rescale": "r.rescale",
-    "grass:r.rescale.eq": "r.rescale.eq",
     "grass:r.rgb": "r.rgb",
     "grass:r.ros": "r.ros",
     "grass:r.series": "r.series",
@@ -505,8 +499,6 @@ GRASS_FAMILY = {
     "grass:v.delaunay": "v.delaunay",
     "grass:v.dissolve": "v.dissolve",
     "grass:v.distance": "v.distance",
-    "grass:v.drape": "v.drape",
-    "grass:v.extrude": "v.extrude",
     "grass:v.generalize": "v.generalize",
     "grass:v.hull": "v.hull",
     "grass:v.kcv": "v.kcv",
@@ -522,9 +514,7 @@ GRASS_FAMILY = {
     "grass:v.net.bridge": "v.net.bridge",
     "grass:v.net.centrality": "v.net.centrality",
     "grass:v.net.components": "v.net.components",
-    "grass:v.net.connectivity": "v.net.connectivity",
     "grass:v.net.distance": "v.net.distance",
-    "grass:v.net.flow": "v.net.flow",
     "grass:v.net.iso": "v.net.iso",
     "grass:v.net.spanningtree": "v.net.spanningtree",
     "grass:v.net.steiner": "v.net.steiner",
@@ -544,7 +534,6 @@ GRASS_FAMILY = {
     "grass:v.surf.idw": "v.surf.idw",
     "grass:v.surf.rst": "v.surf.rst",
     "grass:v.surf.rst.cvdev": "v.surf.rst.cvdev",
-    "grass:v.to.3d": "v.to.3d",
     "grass:v.to.lines": "v.to.lines",
     "grass:v.to.points": "v.to.points",
     "grass:v.to.rast": "v.to.rast",
