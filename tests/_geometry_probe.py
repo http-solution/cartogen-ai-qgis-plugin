@@ -72,6 +72,12 @@ def params_for(algorithm, layer_name, distinct=False):
             params[p.name()] = "0.5,3.5,0.2,1.8 [EPSG:4326]"
         elif kind == "point":
             params[p.name()] = "1,1 [EPSG:4326]"
+        elif kind == "string" and not _is_optional(p):
+            # package E: a required text parameter (a new field name, a value to match, a delimiter) needs something plausible
+            default = p.defaultValue()
+            params[p.name()] = default if isinstance(default, str) and default else ("newfield" if "FIELD" in p.name().upper() else "1")
+        elif kind == "heatmappixelsize":
+            params[p.name()] = 0.1
         elif kind == "expression" and not _is_optional(p):
             # M6d: an expression a user could plausibly type, per algorithm (a geometry for geometrybyexpression, a sort key, a count)
             params[p.name()] = EXPRESSIONS.get(algorithm.id(), '"val" > 0')

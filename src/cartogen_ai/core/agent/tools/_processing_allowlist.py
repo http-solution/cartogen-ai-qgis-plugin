@@ -322,7 +322,62 @@ RASTER_FAMILY = {
 RASTER_ALGORITHM_IDS = frozenset(RASTER_FAMILY)
 ALLOWED_ALGORITHM_IDS = frozenset(set(ALLOWED_ALGORITHM_IDS) | set(RASTER_FAMILY))
 RASTER_FORBIDDEN_PARAM_KEYS = frozenset({"OPTIONS", "CREATION_OPTIONS"})
-FAMILY_NAMES = {**GEOMETRY_FAMILY, **TABLE_FAMILY, **ANALYSIS_FAMILY, **EXPRESSION_FAMILY, **RASTER_FAMILY}
+# M6 leftovers (completion plan, package E): the table, analysis, geometry and rasterize algorithms the first M6 waves did not take. Rule as
+# for the other families (matrix CANDIDATE, outputs memory or temporary file, no file/path/connection parameter, nothing that edits the
+# user's own layer or project), checked per algorithm by the live probe. Left off ON PURPOSE, with the reason:
+#   * the 10 fixgeometry* and 4 checkgeometry* (contained, gap, point-covered, point-in-polygon) algorithms need an ERRORS layer produced by
+#     a matching check, i.e. a check-then-fix workflow, not a single call: they want a dedicated tool;
+#   * truncatetable, randomselection(+subsets), selectbyattribute, selectwithindistance, eliminateselectedpolygons, createspatialindex,
+#     createattributeindex, definecurrentprojection, setlayerencoding, rename/update/copy/set layer metadata, addhistorymetadata,
+#     setprojectvariable, loadlayer, renamelayer: change the user's own layer, selection or project;
+#   * batchnominatimgeocoder and the importinto*/export to database algorithms: network or database writes;
+#   * calculateexpression, stringconcatenation, condition, filter, executesql, refactorfields (mapping object), alignrasters, explodehstorefield,
+#     flattenrelationships, extractlabels, transferannotationsfrommain: expression / structured-parameter / map-state algorithms;
+#   * concavehull, transect, transectfixeddistance, variabledistancebuffer, rectanglesovalsdiamondsvariable: rejected by the first M6a live runs
+#     (GEOMETRY_REJECTED).
+MIXED_FAMILY = {
+    "native:addfieldtoattributestable": "Add field to attributes table",
+    "native:adduniquevalueindexfield": "Add unique value index field",
+    "native:addxyfields": "Add X/Y fields to layer",
+    "native:assignprojection": "Assign projection",
+    "native:bookmarkstolayer": "Convert spatial bookmarks to layer",
+    "native:extractbyattribute": "Extract by attribute",
+    "native:findprojection": "Find projection",
+    "native:renametablefield": "Rename field",
+    "native:saveselectedfeatures": "Extract selected features",
+    "native:splitfeaturesbycharacter": "Split features by character",
+    "native:createpointslayerfromtable": "Create points layer from table",
+    "native:angletonearest": "Align points to features",
+    "native:calculatevectoroverlaps": "Overlap analysis",
+    "native:extractnetworkendpoints": "Extract network end points",
+    "native:linedensity": "Line density",
+    "native:heatmapkerneldensityestimation": "Heatmap (Kernel Density Estimation)",
+    "native:pixelstopoints": "Raster pixels to points",
+    "native:pixelstopolygons": "Raster pixels to polygons",
+    "native:generatepointspixelcentroidsinsidepolygons": "Generate points (pixel centroids) inside polygons",
+    "qgis:generatepointspixelcentroidsalongline": "Generate points (pixel centroids) along line",
+    "native:randompointsinextent": "Random points in extent",
+    "qgis:regularpoints": "Regular points",
+    "native:serviceareafromlayer": "Service area (from layer)",
+    "native:shortestpathlayertopoint": "Shortest path (layer to point)",
+    "native:stdbscanclustering": "ST-DBSCAN clustering",
+    "native:sumlinelengths": "Sum line lengths",
+    "native:validatenetwork": "Validate network",
+    "native:extractmvalues": "Extract M values",
+    "native:extractzvalues": "Extract Z values",
+    "native:extractspecificvertices": "Extract specific vertices",
+    "native:lineintersections": "Line intersections",
+    "native:multidifference": "Difference (multiple)",
+    "native:multiintersection": "Intersection (multiple)",
+    "native:multiunion": "Union (multiple)",
+    "native:setmfromraster": "Set M value from raster",
+    "native:setzfromraster": "Drape (set Z value from raster)",
+    "native:polygonfromlayerextent": "Extract layer extent",
+    "gdal:rasterize": "Rasterize (vector to raster)",
+}
+MIXED_ALGORITHM_IDS = frozenset(MIXED_FAMILY)
+ALLOWED_ALGORITHM_IDS = frozenset(set(ALLOWED_ALGORITHM_IDS) | set(MIXED_FAMILY))
+FAMILY_NAMES = {**GEOMETRY_FAMILY, **TABLE_FAMILY, **ANALYSIS_FAMILY, **EXPRESSION_FAMILY, **RASTER_FAMILY, **MIXED_FAMILY}
 
 # Algorithms whose OUTPUT is a RASTER FILE, not a vector sink. "memory:" is not a valid raster destination, and a raster
 # result comes back as a file path, not a layer: before 2026-10-01 these ran and the tool reported "no new layer output".
@@ -370,7 +425,7 @@ def parameter_violation(alg_id, params):
     if blocked:
         return blocked
     for key, value in (params or {}).items():
-        if alg_id in RASTER_ALGORITHM_IDS and str(key).upper() in RASTER_FORBIDDEN_PARAM_KEYS:
+        if (alg_id in RASTER_ALGORITHM_IDS or alg_id.startswith("gdal:")) and str(key).upper() in RASTER_FORBIDDEN_PARAM_KEYS:
             return (f"parameter '{key}' is not accepted: it carries raw GDAL creation options, which this tool does not pass to '{alg_id}'. "
                     "Leave it out; the output is a temporary raster.")
         if str(key).upper() in FORBIDDEN_PARAM_KEYS:
