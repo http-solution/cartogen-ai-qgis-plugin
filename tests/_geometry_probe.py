@@ -10,6 +10,7 @@ LAYERS = {
     "lines": ("LineString", ["LINESTRING(0 0,1 1,2 0,3 1)", "LINESTRING(0 1,3 0)"]),
     # CI run 38684090553: native:climbalongline refuses a layer without Z values, so one 3D line layer is tried last.
     "linesz": ("LineStringZ", ["LINESTRING Z(0 0 0,1 1 5,2 0 10)", "LINESTRING Z(0 1 2,3 0 8)"]),
+    "polys2": ("Polygon", ["POLYGON((1 -1,3 -1,3 1,1 1,1 -1))", "POLYGON((3 0.5,5 0.5,5 2.5,3 2.5,3 0.5))"]),
     "pts": ("Point", ["POINT(0.2 0.2)", "POINT(1.5 0.4)", "POINT(0.9 1.7)", "POINT(2.5 1.5)", "POINT(3.1 0.2)"]),
 }
 
@@ -65,7 +66,13 @@ def params_for(algorithm, layer_name, distinct=False):
         elif kind == "band":
             params[p.name()] = 1
         elif kind == "multilayer":
-            params[p.name()] = ["dem", "dem2"]
+            # CI run 38878940104: native:multiunion / multiintersection / multidifference refuse rasters ("All layers must be vector layers"),
+            # so a multiple-layer parameter gets rasters only when it is declared a raster layer list
+            raster_list = "raster" in str(getattr(p, "layerType", lambda: "")()).lower()
+            params[p.name()] = ["dem", "dem2"] if raster_list else ["polys", "polys2"]
+        elif kind == "layer":
+            # CI run 38878940104: native:polygonfromlayerextent has a plain layer parameter, which the probe left empty
+            params[p.name()] = layer_name
         elif kind == "crs":
             params[p.name()] = "EPSG:4326"
         elif kind == "extent":
