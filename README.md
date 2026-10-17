@@ -20,14 +20,14 @@
   <a href="https://cartogenai.com"><img src="https://img.shields.io/badge/website-cartogenai.com-0b6efd" alt="Website"></a>
 </p>
 
-**Community edition · Version 1.17.0-rc45 (pre-release) · GNU GPL v2 · QGIS 4.2–4.99 · [cartogenai.com](https://cartogenai.com)**
+**Community edition · Version 1.17.0-rc46 (pre-release) · GNU GPL v2 · QGIS 4.2–4.99 · [cartogenai.com](https://cartogenai.com)**
 
 Cartogen AI is built for GIS analysts, humanitarian teams, researchers, and anyone who
 needs to move from a question to a reproducible spatial result without leaving QGIS.
 The agent exposes its plan, tool calls, progress, and errors instead of returning a
 black-box answer.
 
-> **Project status (2026-10-06):** active Community edition, currently at the **1.17.0-rc45 pre-release** build (the last stable build is 1.16.3; rc20 to 1.17.0-rc45 add the audit fixes, hand-test fixes and the cost and routing work made after rc19).
+> **Project status (2026-10-06):** active Community edition, currently at the **1.17.0-rc46 pre-release** build (the last stable build is 1.16.3; rc20 to 1.17.0-rc46 add the audit fixes, hand-test fixes and the cost and routing work made after rc19).
 > - **Tests:** 3,570 automated tests, 0 failures in the offline run; the live-QGIS tests (and any needing optional libraries) are skipped there and
 >   the QGIS ones run in CI (the `qgis-live-tests` job, QGIS 4.2.2).
 > - **Architectural audit:** an external audit of rc12 raised 32 findings, filed as issues #137-#168 (tracking issue #169). The 15
@@ -86,6 +86,17 @@ black-box answer.
   a restricted execution sandbox for model-generated PyQGIS scripts, fail-closed
   read-only SQL enforcement, an SSRF guard on fetched URLs, and a destructive-action
   confirmation gate the model cannot self-approve.
+
+## What's new in 1.17.0-rc46
+
+Built on 1.17.0-rc45. Offline tests and the QGIS 4.2.2 live checks in CI pass; **not hand-tested** in desktop QGIS unless an item says so. Full list: the `v1.17.0-rc46` block in [metadata.txt](metadata.txt) and [CHANGELOG.md](CHANGELOG.md).
+
+- Find an algorithm by what it does: A request that describes a result (fill the gaps in an elevation raster, which areas can be seen from a point, disconnected parts of the road network) now reaches the right one of the 427 approved Processing algorithms without its name. find_processing_algorithm searches by meaning and can list a whole family with what each is for. Measured offline on 40 fresh plain requests, the algorithm was among the first 15 results 60 percent of the time; which one a real model then picks is not tested.
+- Requests no longer hijacked by an unrelated task: A request that names an algorithm, asks for a computation, or asks for a chart is no longer answered with a confirm card for a map task (OpenStreetMap mapping, bridge damage, population mapping). 37 humanitarian tasks (flood, drainage, terrain, density, hotspots, catchments, nearest facility, interpolation, watershed, fire) now name the approved algorithms that fit them.
+- Undo: undo_last_operation reaches back up to five messages, so 'undo that' typed as the next message works. delete_features can be undone, and rule-based labels can be removed (clear). A project switch clears the undo list.
+- Stalls and freezes: A background algorithm now stops by itself after 300 seconds with a clear message; its status line no longer says 'road network' for raster algorithms. A layer of the wrong kind in any algorithm parameter (a raster where a table is needed) is refused before anything runs. GRASS runs keep the window repainting, but Stop still cannot interrupt them and they can take minutes on Windows. The cause of five algorithms that stalled in the hand test is not found.
+- Smaller fixes: The overview map keeps the size asked for, snapping to vertices and segments sets both, a layout is found by a loose name (Test Layout for Layout_Test_Layout), the raster calculator refusal names the raster_calculator tool, every output of a multi-output algorithm gets its look, and the no-data range wording is clear.
+- Not hand-tested: Everything above is checked by the offline suite and, for the QGIS parts, by CI on QGIS 4.2.2. None of it has been hand-tested in desktop QGIS and no real model was observed choosing algorithms from plain requests. The plain-language hand test (385 prompts) is written but not run.
 
 ## What's new in 1.17.0-rc45
 

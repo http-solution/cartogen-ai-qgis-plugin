@@ -2,7 +2,7 @@
 """Builds the hand-test bundle for the current version: the plugin zip, the hand-test sheet for everything new in 1.17, the two results
 spreadsheets, and the PyQGIS fixture script as plain text. A tester needs no Python outside QGIS.
 
-    python tools/build_hand_test_bundle.py --plugin-zip dist/cartogen_ai_v1.17.0-rc45.zip   # writes dist/cartogen_ai_hand_test_<version>.zip
+    python tools/build_hand_test_bundle.py --plugin-zip dist/cartogen_ai_v1.17.0-rc46.zip   # writes dist/cartogen_ai_hand_test_<version>.zip
 
 The plugin zip is passed in (built with plugin_upload.py from the release commit) so the bundle and the directory upload carry one checksum.
 Standard library only. The bundle holds only synthetic data instructions and public documents; it never includes credentials, traces or results."""
@@ -15,7 +15,9 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parent.parent
 DOCS = REPO / "docs"
 SHEET = DOCS / "HAND_TEST_SHEET_rc44_2026-10-16.md"
-CSVS = (("HAND_TEST_rc44_tools.csv", "3_RESULTS_tools.csv"), ("HAND_TEST_rc44_algorithms.csv", "4_RESULTS_algorithms.csv"))
+PLAIN_SHEET = DOCS / "HAND_TEST_SHEET_plain_language_2026-10-17.md"
+CSVS = (("HAND_TEST_rc44_tools.csv", "3_RESULTS_tools.csv"), ("HAND_TEST_rc44_algorithms.csv", "4_RESULTS_algorithms.csv"),
+        ("HAND_TEST_rc46_algorithms_plain.csv", "6_PLAIN_LANGUAGE_algorithms.csv"))
 
 
 def version():
@@ -46,13 +48,15 @@ def main():
     readme = (
         f"Cartogen AI {v} - hand test of the new functionality\r\n"
         "=========================================================\r\n\r\n"
-        "What this is: a test of everything added in 1.17 (rc42, rc43, rc44; run on rc45, which fixes four rc44 bugs - retest those first, see the sheet) that nobody has tried by hand: 82 tools and 385 Processing\r\n"
+        "What this is: a test of everything added in 1.17 (rc42 to rc46; run on rc46) that nobody has tried by hand: 82 tools and 385 Processing\r\n"
         "algorithms. It is NOT an installation or update test.\r\n\r\n"
         "Files\r\n"
         f"  1_plugin/cartogen_ai_v{v}.zip      the plugin (QGIS: Plugins > Manage and Install > Install from ZIP). SHA-256 in checksum_sha256.txt\r\n"
         "  2_HAND_TEST_SHEET.md               START HERE: fixtures, scoring rules, every tool and integration check, algorithm priority list\r\n"
         "  3_RESULTS_tools.csv                one row per tool (83) - fill the Result and Notes columns\r\n"
         "  4_RESULTS_algorithms.csv           one row per algorithm (385) with a ready-to-paste prompt - fill Result and Notes\r\n"
+        "  6_PLAIN_LANGUAGE_algorithms.csv    the same 385 algorithms asked in plain humanitarian wording, never naming the algorithm. Read\r\n"
+        "                                     7_PLAIN_LANGUAGE_SHEET.md first. This is the test of whether the assistant FINDS an algorithm from a description\r\n"
         "  5_fixtures_script.txt              PyQGIS script that builds the test layers (paste into the QGIS Python console). Untested: if it errors, make\r\n"
         "                                     layers with the same names by hand (towns, roads, districts, dem, dem2, mesh1)\r\n"
         "  screenshots/ evidence/ logs/ outputs/   put proof of anything that fails or looks wrong here, named with the row\r\n\r\n"
@@ -67,6 +71,7 @@ def main():
         for src, dst in CSVS:
             z.write(DOCS / src, f"{top}/{dst}")
         z.writestr(f"{top}/5_fixtures_script.txt", fixture_script(sheet))
+        z.writestr(f"{top}/7_PLAIN_LANGUAGE_SHEET.md", PLAIN_SHEET.read_text(encoding="utf-8"))
         for folder, note in (("screenshots", "Save one screenshot per failing or odd row, named with the tool or algorithm id."),
                              ("evidence", "Copy any cartogen_evidence folder from next to your saved project here."),
                              ("logs", "Save the Log Messages text (CartogenAI tab) as log_<row>.txt, and the QGIS About text as qgis_about.txt."),

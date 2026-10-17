@@ -7,6 +7,7 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 | Version | Date | Summary |
 |---|---|---|
+| [1.17.0-rc46](#v1-17-0-rc46) | 2026-10-17 | **Release candidate 46 for 1.17.0.** No breaking changes -- requires QGIS 4.2+. Fixes from the rc45 hand-test run: describe what you want and the assistant finds the Processing algorithm without its name, requests are no longer answered by an unrelated task, undo reaches back a few messages, long runs are bounded. CI-checked, not hand-tested. |
 | [1.17.0-rc45](#v1-17-0-rc45) | 2026-10-16 | **Release candidate 45 for 1.17.0.** No breaking changes -- requires QGIS 4.2+. Four calls to QGIS methods that do not exist are fixed (found by checking the code against the QGIS 4.2.3 reference), and a new test now blocks any new one. CI-checked, not hand-tested. |
 | [1.17.0-rc44](#v1-17-0-rc44) | 2026-10-16 | **Release candidate 44 for 1.17.0.** No breaking changes -- requires QGIS 4.2+. 18 more tools (276 to 294) and about 160 more Processing algorithms (267 to 427): symbology and labels, print-layout charts, atlas and elevation profile, point cloud, vector tile and 3D tiles layers, elevation settings, GRASS and mesh algorithms. CI-checked, not hand-tested. |
 | [1.17.0-rc43](#v1-17-0-rc43) | 2026-10-16 | **Release candidate 43 for 1.17.0.** No breaking changes -- requires QGIS 4.2+. 34 more tools (242 to 276) and 101 more Processing algorithms (166 to 267): editing, data sources, symbology, print layouts and project settings by plain request. CI-checked, not hand-tested. |
@@ -89,6 +90,18 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 The detailed narrative entries below are unchanged -- this table is purely an additive index on
 top of them.
+
+<a id="v1-17-0-rc46"></a>
+## [1.17.0-rc46] — 2026-10-17 — Release candidate 46 for 1.17.0: No breaking changes -- requires QGIS 4.2+. Fixes from the rc45 hand-test run: describe what you want and the assistant finds the Processing algorithm without its name, requests are no longer answered by an unrelated task, undo reaches back a few messages, long runs are bounded. CI-checked, not hand-tested.
+
+No breaking changes; QGIS 4.2+. Everything after 1.17.0-rc45:
+
+- Find an algorithm by what it does: A request that describes a result (fill the gaps in an elevation raster, which areas can be seen from a point, disconnected parts of the road network) now reaches the right one of the 427 approved Processing algorithms without its name. find_processing_algorithm searches by meaning and can list a whole family with what each is for. Measured offline on 40 fresh plain requests, the algorithm was among the first 15 results 60 percent of the time; which one a real model then picks is not tested.
+- Requests no longer hijacked by an unrelated task: A request that names an algorithm, asks for a computation, or asks for a chart is no longer answered with a confirm card for a map task (OpenStreetMap mapping, bridge damage, population mapping). 37 humanitarian tasks (flood, drainage, terrain, density, hotspots, catchments, nearest facility, interpolation, watershed, fire) now name the approved algorithms that fit them.
+- Undo: undo_last_operation reaches back up to five messages, so 'undo that' typed as the next message works. delete_features can be undone, and rule-based labels can be removed (clear). A project switch clears the undo list.
+- Stalls and freezes: A background algorithm now stops by itself after 300 seconds with a clear message; its status line no longer says 'road network' for raster algorithms. A layer of the wrong kind in any algorithm parameter (a raster where a table is needed) is refused before anything runs. GRASS runs keep the window repainting, but Stop still cannot interrupt them and they can take minutes on Windows. The cause of five algorithms that stalled in the hand test is not found.
+- Smaller fixes: The overview map keeps the size asked for, snapping to vertices and segments sets both, a layout is found by a loose name (Test Layout for Layout_Test_Layout), the raster calculator refusal names the raster_calculator tool, every output of a multi-output algorithm gets its look, and the no-data range wording is clear.
+- Not hand-tested: Everything above is checked by the offline suite and, for the QGIS parts, by CI on QGIS 4.2.2. None of it has been hand-tested in desktop QGIS and no real model was observed choosing algorithms from plain requests. The plain-language hand test (385 prompts) is written but not run.
 
 <a id="v1-17-0-rc45"></a>
 ## [1.17.0-rc45] — 2026-10-16 — Release candidate 45 for 1.17.0: No breaking changes -- requires QGIS 4.2+. Four calls to QGIS methods that do not exist are fixed (found by checking the code against the QGIS 4.2.3 reference), and a new test now blocks any new one. CI-checked, not hand-tested.
