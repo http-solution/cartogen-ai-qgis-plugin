@@ -406,8 +406,18 @@ def run_allowlisted_processing_algorithm(alg_id, params, new_layer_name=None):
 
     # GitHub #163: algorithms with several outputs (for example a lines output AND a points output) return all of them, each as its
     # own layer named <layer_name>_<output key>; the first output keeps the plain name above.
+    extra = _add_extra_outputs(layers[1:], layer_name, alg_id, caller_named_it, project)
+    if extra:
+        result["primary_output"] = primary_key
+        result["additional_outputs"] = extra
+    return result
+
+
+def _add_extra_outputs(extra_layers, layer_name, alg_id, caller_named_it, project):
+    """Adds the second and later outputs of a multi-output algorithm to the project, each named <layer_name>_<output key>, styled by the
+    algorithm's kind, and hidden when the caller did not name the result. Returns the per-output summaries."""
     extra = []
-    for key, layer in layers[1:]:
+    for key, layer in extra_layers:
         extra_name = f"{layer_name}_{key.lower()}"
         layer.setName(extra_name)
         project.addMapLayer(layer)
@@ -417,11 +427,15 @@ def run_allowlisted_processing_algorithm(alg_id, params, new_layer_name=None):
         entry = {"output": key, "layer_name": extra_name}
         if hasattr(layer, "featureCount"):
             entry["feature_count"] = layer.featureCount()
+        # rc45 smoke run: grass:r.slope.aspect and the other multi-output algorithms opened plain grey, because only the FIRST output was ever
+        # styled. Every output gets the look the algorithm's kind calls for.
+        with contextlib.suppress(Exception):
+            from .output_style import style_algorithm_output
+            styled_extra = style_algorithm_output(layer, alg_id)
+            if styled_extra:
+                entry["styled_as"] = styled_extra
         extra.append(entry)
-    if extra:
-        result["primary_output"] = primary_key
-        result["additional_outputs"] = extra
-    return result
+    return extra
 
 
 def _load_output_path(path, as_vector=False):
