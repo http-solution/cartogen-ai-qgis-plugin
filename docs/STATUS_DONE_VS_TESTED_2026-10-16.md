@@ -138,6 +138,17 @@ Done: the new tools were compared with the router from before the roadmap and wi
   project-wide settings (snapping, terrain, time range), which are not covered on purpose.
 - Not done: no pre-built `run_steps` chains for the new tools (their argument names would need live testing with real layouts first).
 
+## rc46 (prepared 2026-10-17; PR #356 plus the version bump)
+From the rc45 hand-test run (an AI agent in desktop QGIS 4.2.3 on Windows: 56/22/1/4 on tools, 311/54/18/2 on algorithms, Part 4: 2 Pass, 5 Partial,
+2 Fail, 1 Skip; the four rc45 fixes all passed). Causes, changes and evidence level per item: `docs/RC46_SMOKE_FIXES_2026-10-17.md`. In short:
+- Plain-language discovery of the 427 approved algorithms (topic index, browse by family), the router offering the Processing tools for described
+  results, 37 humanitarian tasks naming fitting algorithms. Offline: 89 percent of 385 prompts found in the first 15 results, but 60 percent on 40
+  fresh requests (the first figure was tuned on). **Not tested: which algorithm a real model picks.**
+- No task-library answer for named-algorithm, computation or chart requests. Undo across five messages and for `delete_features`.
+- A 300 s limit and a wrong-layer-kind check for Processing runs; GRASS runs keep the window painting. **The cause of five stalled algorithms and
+  the `r.stream.extract` crash are not found; GRASS takes minutes per run on Windows.**
+- CI-live: the new live tests passed on QGIS 4.2.2 in PR #356. Hand-tested: nothing. The plain-language hand test is written, not run.
+
 ## Not tested at all, across the roadmap
 1. Any end-to-end conversation: a real model choosing these tools from a prompt, asking for confirmation, and the user seeing results in the dock.
    The router tests prove which tools are OFFERED for a request, not which one is CHOSEN.

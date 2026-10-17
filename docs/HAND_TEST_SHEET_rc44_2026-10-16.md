@@ -1,4 +1,4 @@
-# Hand-test sheet for everything new in 1.17.0 (rc42, rc43, rc44; run on the rc45 build) -- 2026-10-16
+# Hand-test sheet for everything new in 1.17.0 (rc42 to rc44; run on the rc46 build) -- 2026-10-16
 
 **Goal:** check by hand, in desktop QGIS with a real model, the functionality added since the last stable build (1.16.3) that no person has tried yet.
 It goes straight to the new tools and algorithms: no installation, update check or API-key steps. Everything here passed the offline suite and CI on QGIS
@@ -8,7 +8,16 @@ It goes straight to the new tools and algorithms: no installation, update check 
 Companion files (open in a spreadsheet, fill the Result column): `docs/HAND_TEST_rc44_tools.csv` (all 83 tool rows below) and
 `docs/HAND_TEST_rc44_algorithms.csv` (all 385 algorithm rows, with a ready-to-paste prompt each).
 
-## Run this on rc45, and retest four fixes first
+## Run this on rc46; what changed since rc45
+The rc45 run of this sheet found problems that rc46 changes. Retest these first (the four rc45 fixes below passed in that run):
+1. **Undo across messages.** Make a change (a filter, a diagram, rule labels, a deleted feature), send the NEXT message "undo the last operation", confirm. The change must be reversed, and a deleted feature must come back.
+2. **Remove labels.** "Take the rule labels off the towns" must work without an error.
+3. **A layer of the wrong kind.** Ask for a reclassification using a raster as the table; the chat must refuse before running, not hang.
+4. **Time limit.** A native algorithm that runs more than 5 minutes now stops itself with a message; note if you see it. GRASS runs keep the window painting but cannot be stopped.
+5. **Layout names, snapping, overview map.** "Test Layout" finds `Layout_Test_Layout`; snapping to vertices and segments sets both; the overview map is the size asked for (50 by 40 mm).
+6. **Plain-language algorithm test.** See `7_PLAIN_LANGUAGE_SHEET.md` in the bundle: the same 385 algorithms asked without naming them.
+
+## The four rc45 fixes (passed in the rc45 run)
 Use the rc45 plugin zip: rc44 has four calls to QGIS methods that do not exist, fixed in rc45. These four should now work; mark each row Pass only if it does, and note it on the row:
 1. `zoom_history` (row 25): zoom twice, ask for the previous extent, then the next; at the start of the history it must say there is no earlier extent, not report success.
 2. `diagnose_topology`: run it on a layer with a self-crossing (bow-tie) polygon; it must count that polygon as invalid.
