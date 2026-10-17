@@ -55,6 +55,17 @@ class TestRc46Live(unittest.TestCase):
         result = run_allowlisted_processing_algorithm("gdal:rastercalculator", {"FORMULA": "A>1"})
         self.assertEqual(result.get("use_tool"), "raster_calculator")
 
+    def test_vertex_and_segment_snapping_sets_both_flags(self):
+        """rc45 smoke run: 'vertices and segments' set vertex only. It is two flags combined, not one snapping type."""
+        from cartogen_ai.core.agent.tools.project_ops_tools import set_snapping_options
+        result = set_snapping_options(enabled=True, snap_type="vertex and segment", tolerance=12, units="pixels")
+        self.assertTrue(result.get("success"), result)
+        flag = QgsProject.instance().snappingConfig().typeFlag()
+        from qgis.core import Qgis
+        self.assertTrue(bool(flag & Qgis.SnappingType.Vertex) and bool(flag & Qgis.SnappingType.Segment), str(flag))
+        single = set_snapping_options(snap_type="vertex")
+        self.assertTrue(single.get("success"), single)
+
     def test_a_loosely_typed_layout_name_is_found(self):
         from qgis.core import QgsPrintLayout
 

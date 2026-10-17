@@ -186,7 +186,15 @@ def set_snapping_options(enabled=None, snap_type=None, tolerance=None, units=Non
         for extra in members[1:]:
             member = member | extra
         flags = getattr(Qgis, "SnappingTypes", None)
-        config.setTypeFlag(member if flags is None or isinstance(member, flags) else flags(member))
+        # CI (QGIS 4.2.2) showed `Qgis.SnappingTypes` is not a class isinstance() accepts; the original wrap-the-one-member call worked, so wrap
+        # and fall back to the member itself when it is already a combined flag value
+        value = member
+        if flags is not None:
+            try:
+                value = flags(member)
+            except TypeError:
+                value = member
+        config.setTypeFlag(value)
     if "mode" in options:
         member = _member(("SnappingMode",), options["mode"])
         if member is None:
