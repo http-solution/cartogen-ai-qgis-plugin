@@ -55,6 +55,33 @@ class RasterFamilyTests(unittest.TestCase):
             # a vector overlay is not in the raster family, so its list is not touched
             self.assertIsNone(tools._raster_list_violation("native:multiunion", {"LAYERS": [Vector()]}, {"LAYERS"}))
 
+    def test_a_layer_of_the_wrong_kind_in_any_parameter_is_refused_before_running(self):
+        """rc45 smoke run: a raster given as the reclassification TABLE of native:reclassifybylayer, and wrongly typed inputs to the cell-stack
+        tools, ran for minutes (CI had seen the vector-in-a-raster-stack case crash QGIS). Every layer parameter is now checked."""
+        from unittest.mock import patch
+
+        from cartogen_ai.core.agent.tools import processing_allowlist_tools as tools
+
+        class Raster:
+            def name(self):
+                return "dem2"
+
+        class Vector:
+            def name(self):
+                return "pts"
+
+        with patch.object(tools, "QgsRasterLayer", Raster, create=True), patch.object(tools, "QgsVectorLayer", Vector, create=True):
+            kinds = {"INPUT_RASTER": "raster", "INPUT_TABLE": "vector"}
+            self.assertIsNone(tools.layer_kind_violation("native:reclassifybylayer", {"INPUT_RASTER": Raster(), "INPUT_TABLE": Vector()}, kinds))
+            message = tools.layer_kind_violation("native:reclassifybylayer", {"INPUT_RASTER": Raster(), "INPUT_TABLE": Raster()}, kinds)
+            self.assertIn("INPUT_TABLE", message)
+            self.assertIn("needs a vector layer", message)
+            self.assertIn("raster layer", message)
+            # a name that is not a loaded layer, and a parameter the caller left out, are not this check's business
+            self.assertIsNone(tools.layer_kind_violation("native:reclassifybylayer", {"INPUT_TABLE": "somewhere.csv"}, kinds))
+            self.assertIsNone(tools.layer_kind_violation("native:reclassifybylayer", {}, kinds))
+            self.assertIsNone(tools.layer_kind_violation("native:buffer", {"INPUT": Raster()}, None))
+
 
 if __name__ == "__main__":
     unittest.main()

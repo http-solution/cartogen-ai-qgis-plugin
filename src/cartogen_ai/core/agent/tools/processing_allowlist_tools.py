@@ -24,7 +24,7 @@ from ._processing_allowlist import (ALLOWED_ALGORITHM_IDS, GRASS_ALGORITHM_IDS, 
                                     parameter_violation)
 
 try:
-    from qgis.core import QgsApplication, QgsProcessingContext, QgsProject, QgsRasterLayer, QgsVectorLayer
+    from qgis.core import QgsApplication, QgsMeshLayer, QgsProcessingContext, QgsProject, QgsRasterLayer, QgsVectorLayer  # noqa: F401 -- QgsMeshLayer is looked up by name in layer_kind_violation
     import processing
     QGIS_AVAILABLE = True
 except ImportError:
@@ -69,7 +69,7 @@ def _algorithm_definition(alg_id):
         destinations = {p.name() for p in params if p.isDestination()}
         raster_destinations = {p.name() for p in params if p.isDestination() and "raster" in str(p.type()).lower()}
         layer_lists = {p.name() for p in params if str(p.type()) == "multilayer"}
-        return names, destinations, raster_destinations, list(algorithm.outputDefinitions()), layer_lists
+        return names, destinations, raster_destinations, list(algorithm.outputDefinitions()), layer_lists, _expected_layer_kinds(params)
     except Exception:
         return None
 
@@ -149,6 +149,55 @@ def _resolve_params(params, raster_output=False, destination_keys=None, raster_k
     return resolved
 
 
+def _expected_layer_kinds(parameters):
+    """{parameter name: "raster" | "vector" | "mesh"} for the layer parameters whose kind the algorithm fixes. A single-layer parameter says so
+    by its type; a layer-list parameter by its layer type. Anything that accepts any layer is left out."""
+    kinds = {}
+    for p in parameters:
+        if p.isDestination():
+            continue
+        kind = str(p.type())
+        if kind == "raster":
+            kinds[p.name()] = "raster"
+        elif kind in ("source", "vector"):
+            kinds[p.name()] = "vector"
+        elif kind == "mesh":
+            kinds[p.name()] = "mesh"
+        elif kind == "multilayer":
+            text = str(getattr(p, "layerType", lambda: "")()).lower()
+            for word in ("raster", "mesh", "vector"):
+                if word in text:
+                    kinds[p.name()] = word
+                    break
+    return kinds
+
+
+def layer_kind_violation(alg_id, resolved_params, kinds):
+    """A message when a parameter that needs one kind of layer was given another (a raster where a table is needed, a vector in a stack of
+    rasters), else None. Pure given the layer classes.
+
+    rc45 smoke run: native:reclassifybylayer was given a raster as its reclassification TABLE and native:cellstackpercentile and
+    cellstackpercentrankfromvalue ran for 3 to 10 minutes until Stop; CI had already found that vector layers handed to the cell-stack tools
+    crash QGIS. Processing's own parameter check lets a wrongly-typed layer through to code that assumes the right type, so the kind is checked
+    here before anything runs, for every algorithm and every layer parameter, not only raster stacks."""
+    if not kinds:
+        return None
+    classes = {"raster": globals().get("QgsRasterLayer"), "vector": globals().get("QgsVectorLayer"), "mesh": globals().get("QgsMeshLayer")}
+    for key, kind in sorted(kinds.items()):
+        value = resolved_params.get(key)
+        wanted = classes.get(kind)
+        if value is None or wanted is None:
+            continue
+        for item in (value if isinstance(value, list) else [value]):
+            if isinstance(item, (str, wanted)):
+                continue                      # an unresolved name or path is Processing's to judge; a layer of the right kind is fine
+            other = next((k for k, c in classes.items() if c is not None and k != kind and isinstance(item, c)), None)
+            if other and hasattr(item, "name"):
+                return (f"parameter '{key}' of '{alg_id}' needs a {kind} layer, but '{item.name()}' is a {other} layer. "
+                        "Nothing was run; choose a layer of the right kind.")
+    return None
+
+
 def _raster_list_violation(alg_id, resolved_params, layer_list_keys):
     """A message when a raster-family algorithm is given a layer list that holds something other than raster layers, else None.
 
@@ -171,9 +220,9 @@ def _raster_list_violation(alg_id, resolved_params, layer_list_keys):
     return None
 
 
-def _check_raster_lists(alg_id, resolved_params, layer_list_keys):
-    """Raises ValueError (reported as "'<alg>' failed: ...") when _raster_list_violation finds a problem; the algorithm is not run."""
-    problem = _raster_list_violation(alg_id, resolved_params, layer_list_keys)
+def _check_raster_lists(alg_id, resolved_params, layer_list_keys, kinds=None):
+    """Raises ValueError (reported as "'<alg>' failed: ...") when a layer list or a single layer is of the wrong kind; the algorithm is not run."""
+    problem = _raster_list_violation(alg_id, resolved_params, layer_list_keys) or layer_kind_violation(alg_id, resolved_params, kinds)
     if problem:
         raise ValueError(problem)
 
@@ -288,7 +337,7 @@ def run_allowlisted_processing_algorithm(alg_id, params, new_layer_name=None):
         resolved_params = _resolve_params(params, raster_output=alg_id in RASTER_OUTPUT_ALGORITHM_IDS,
                                           destination_keys=destination_keys, raster_keys=raster_keys,
                                           layer_list_keys=layer_list_keys, temp_file_vectors=is_grass)
-        _check_raster_lists(alg_id, resolved_params, layer_list_keys)
+        _check_raster_lists(alg_id, resolved_params, layer_list_keys, definition[5] if definition is not None and len(definition) > 5 else None)
         output = _run_allowlisted(alg_id, resolved_params)
     except _bg.AnalysisCancelledError as e:
         timed_out = isinstance(e, _bg.AnalysisTimedOutError)
