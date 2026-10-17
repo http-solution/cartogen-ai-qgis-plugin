@@ -72,8 +72,8 @@ def tokenize(text, synonyms=False):
     return out
 
 
-_INDEX = {}
-_IDF = {}
+_INDEX: dict[str, dict] = {}
+_IDF: dict[str, float] = {}
 _LOADED: list[bool] = []
 
 
