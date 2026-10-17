@@ -7,7 +7,7 @@ library does not answer with an unrelated task. They check what is OFFERED and F
 import unittest
 
 from cartogen_ai.core.agent import algorithm_topics as topics
-from cartogen_ai.core.agent import task_matcher
+from cartogen_ai.core.agent import task_matcher, task_register
 from cartogen_ai.core.agent.tools import TOOLS_SCHEMA
 from cartogen_ai.core.agent.tools._processing_allowlist import ALLOWED_ALGORITHM_IDS
 from cartogen_ai.core.agent.tools.processing_allowlist_tools import search_allowed_algorithms
@@ -116,6 +116,40 @@ class ChartRequestTests(unittest.TestCase):
         for query in ("make a chart of population by district", "plot a histogram of the population of the districts"):
             verdict = task_matcher.classify(query)
             self.assertTrue(verdict["best"] is None or (verdict["ambiguous"] and verdict["reason"] == "below confidence floor"), query)
+
+
+
+class TaskAlgorithmTests(unittest.TestCase):
+    """rc46: register tasks now name the approved algorithms that fit them (data/task_algorithms.json)."""
+
+    def test_every_curated_pair_names_a_real_task_and_approved_algorithms(self):
+        import json
+
+        from cartogen_ai.core.agent import task_register
+        task_ids = {e["id"] for e in task_register.load()}
+        with open(topics._TASK_PATH, encoding="utf-8") as fh:
+            curated = json.load(fh)
+        self.assertGreaterEqual(len(curated), 30)
+        for task_id, algorithms in curated.items():
+            self.assertIn(task_id, task_ids, task_id)
+            self.assertTrue(algorithms, task_id)
+            for alg_id in algorithms:
+                self.assertIn(alg_id, ALLOWED_ALGORITHM_IDS, f"{task_id}: {alg_id}")
+
+    def test_the_task_directive_names_them_and_the_generic_tools(self):
+        entry = next(e for e in task_register.load() if e["id"] == "36.01")
+        directive = task_matcher.task_directive(entry, {}, "determine watershed characteristics for this basin")
+        self.assertIn("grass:r.watershed", directive)
+        self.assertIn("run_allowlisted_processing_algorithm", directive)
+
+    def test_a_request_the_register_recognises_gets_the_generic_processing_tools(self):
+        router = ToolRouter(TOOLS_SCHEMA)
+        for query in ("Map drainage systems for the camp", "Perform spatial interpolation of the rainfall readings"):
+            verdict = task_matcher.classify(query)
+            if verdict["best"] is None or (verdict["ambiguous"] and verdict["reason"] == "below confidence floor"):
+                continue        # not recognised as a task: the topic-index route covers it (tests above)
+            offered = {t["function"]["name"] for t in router.filter_relevant_tools(query)}
+            self.assertTrue(offered >= GENERIC, (query, verdict["best"]["id"]))
 
 
 if __name__ == "__main__":

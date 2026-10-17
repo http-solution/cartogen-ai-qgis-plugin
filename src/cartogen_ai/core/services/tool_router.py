@@ -878,8 +878,17 @@ class ToolRouter:
         # reached them (rc45 smoke run: every test prompt spelled the name and id).
         algorithm_topic_match = False
         with contextlib.suppress(Exception):
+            from ..agent.algorithm_topics import algorithms_for_task
             from ..agent.algorithm_topics import rank as _rank_algorithms
             algorithm_topic_match = bool(_rank_algorithms(user_query, limit=1))
+            if not algorithm_topic_match:
+                # a request the task register recognises, whose task names approved algorithms, is told about them (task_directive), so the
+                # two generic Processing tools must be among the offered ones for that advice to be usable
+                from ..agent.task_matcher import classify
+                verdict = classify(user_query)
+                best = verdict.get("best")
+                algorithm_topic_match = bool(best and not (verdict["ambiguous"] and verdict["reason"] == "below confidence floor")
+                                             and algorithms_for_task(best.get("id")))
 
         # Sort deterministically by tool name instead of randomizing -- 2026-09-19, live-
         # verified follow-up to the "hi" fix above. random.shuffle() reordered the whole tool

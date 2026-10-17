@@ -184,3 +184,21 @@ def computation_request(query, task_tools=()):
         return False
     top = best_for(query)
     return bool(top and top[1] >= STRONG_SCORE)
+
+
+_TASK_PATH = os.path.join(os.path.dirname(__file__), "task_algorithms.json")
+_TASK_ALGORITHMS: dict = {}
+_TASKS_LOADED: list[bool] = []
+
+
+def algorithms_for_task(task_id):
+    """Approved Processing algorithm ids a register task can use (task_algorithms.json, curated by hand). [] when none or unreadable.
+
+    The register's tool lists never named a Processing algorithm, so a matched task steered the model to the listed tools and away from the 427
+    approved algorithms (rc46 review of the humanitarian tasks): flood mapping never suggested a flood fill, drainage mapping no watershed,
+    hotspot mapping no kernel density. Those pairs are curated in the data file; tests/test_algorithm_topics.py checks every id."""
+    if not _TASKS_LOADED:
+        _TASKS_LOADED.append(True)
+        with contextlib.suppress(Exception), open(_TASK_PATH, encoding="utf-8") as fh:
+            _TASK_ALGORITHMS.update(json.load(fh))
+    return list(_TASK_ALGORITHMS.get(str(task_id), []))

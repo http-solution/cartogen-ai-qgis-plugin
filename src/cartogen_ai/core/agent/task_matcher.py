@@ -206,6 +206,7 @@ def named_tools(query):
 
 
 _ASKS_FOR_CHART = re.compile(r"\b(chart|charts|graph|graphs|histogram|histograms|plot|plots|scatter\s?plot|pie|bar\s+chart)\b")
+_DIRECTIVE_BUDGET = 495
 _TIE_MIN_COVERAGE = 0.25
 _SINGLE_HIT_MAX_TOKENS = 8
 
@@ -510,6 +511,21 @@ def task_directive(entry, filled=None, query=None):
         parts.append("Prefer these tools, in order: {}.".format(", ".join(tools)))
     if filled:
         parts.append("Given: " + "; ".join(f"{k} = {v}" for k, v in filled.items()) + ".")
+    with contextlib.suppress(Exception):
+        from .algorithm_topics import algorithms_for_task
+        algorithms = algorithms_for_task(entry.get("id"))
+        if algorithms:
+            # The directive rides beside the system prompt and has a character budget (tests/test_task_register.py): add algorithm ids
+            # only while they fit; the model can always search for more with find_processing_algorithm.
+            head = "Algorithms (find_processing_algorithm, then run_allowlisted_processing_algorithm): "
+            used = len(" ".join(parts)) + 1 + len(head) + 1
+            chosen = []
+            for alg_id in algorithms[:3]:
+                if used + len(alg_id) + 2 <= _DIRECTIVE_BUDGET:
+                    chosen.append(alg_id)
+                    used += len(alg_id) + 2
+            if chosen:
+                parts.append(head + ", ".join(chosen) + ".")
     return " ".join(parts)
 
 
@@ -631,6 +647,13 @@ def reasoning(entry, score, filled, plan, query=None):
                          "it will be passed as plain text.".format(p["name"]))
     if entry.get("tools"):
         lines.append("Tool order suggested to the model: {}.".format(", ".join(entry["tools"])))
+    with contextlib.suppress(Exception):
+        from .algorithm_topics import algorithms_for_task
+        algorithms = algorithms_for_task(entry.get("id"))
+        if algorithms:
+            lines.append("Approved Processing algorithms that fit this task (find_processing_algorithm gives each one's parameters, "
+                         "run_allowlisted_processing_algorithm runs it; use one only when a listed tool does not cover the step): {}."
+                         .format(", ".join(algorithms)))
     return lines
 
 
