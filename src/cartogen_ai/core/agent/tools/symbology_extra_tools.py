@@ -49,16 +49,28 @@ def _colour(text):
     "set_rule_based_labels",
     "Label a vector layer with RULES instead of one style: each rule has a field to show, an optional filter (a QGIS expression such as "
     "\"population\" > 10000), a font size and colour, and optional scales (min_scale = zoomed-out limit as a denominator, max_scale = "
-    "zoomed-in limit). Up to 20 rules. This replaces the layer's current labels.",
+    "zoomed-in limit). Up to 20 rules. This replaces the layer's current labels. clear=true removes the layer's labels (no rules needed). "
+    "To get the previous labels back after a change, use undo_last_operation.",
     {"type": "object", "properties": {
         "layer_name": {"type": "string"},
         "rules": {"type": "array", "items": {"type": "object", "properties": {
             "field": {"type": "string"}, "filter": {"type": "string"}, "font_size": {"type": "number"}, "font_color": {"type": "string"},
-            "min_scale": {"type": "number"}, "max_scale": {"type": "number"}, "description": {"type": "string"}}, "required": ["field"]}}},
-     "required": ["layer_name", "rules"]})
-def set_rule_based_labels(layer_name, rules):
+            "min_scale": {"type": "number"}, "max_scale": {"type": "number"}, "description": {"type": "string"}}, "required": ["field"]}},
+        "clear": {"type": "boolean"}},
+     "required": ["layer_name"]})
+def set_rule_based_labels(layer_name, rules=None, clear=False):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
+    if clear:
+        # rc45 smoke run: asked to take the rule labels off, the model called this tool with an empty rules list and got "rules must be a
+        # non-empty list" (and could not use undo, see transactions.py). Removing the labels is now a plain request.
+        layer, err = _layer(layer_name, QgsVectorLayer)
+        if err:
+            return err
+        layer.setLabeling(None)
+        layer.setLabelsEnabled(False)
+        layer.triggerRepaint()
+        return {"success": True, "layer_name": layer_name, "labeling": "none", "cleared": True}
     clean, problem = check_rules(rules)
     if problem:
         return {"error": problem}

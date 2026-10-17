@@ -39,6 +39,8 @@ class TestRegistryLookups(unittest.TestCase):
             # integration audit 2026-10-16: the MODIFY tools added since package A that undo_last_operation can now reverse
             "set_layer_filter", "set_rule_based_labels", "set_label_callout", "set_layer_diagram", "set_point_marker",
             "set_raster_relief", "apply_saved_symbol", "set_layer_elevation", "set_layer_temporal",
+            # rc46: the confirmed deletion of features can be put back
+            "delete_features",
         }
         self.assertEqual(set(SNAPSHOT_REGISTRY.keys()), expected)
 

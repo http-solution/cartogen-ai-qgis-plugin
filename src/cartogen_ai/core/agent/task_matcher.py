@@ -205,6 +205,8 @@ def named_tools(query):
     return candidates & _known_tool_names() if candidates else set()
 
 
+_ASKS_FOR_CHART = re.compile(r"\b(chart|charts|graph|graphs|histogram|histograms|plot|plots|scatter\s?plot|pie|bar\s+chart)\b")
+_DIRECTIVE_BUDGET = 495
 _TIE_MIN_COVERAGE = 0.25
 _SINGLE_HIT_MAX_TOKENS = 8
 
@@ -230,6 +232,11 @@ def classify(query):
     if _is_non_request_fragment(query):
         return {"matches": [], "best": None, "score": 0.0,
                 "ambiguous": False, "reason": "too short to be a request"}
+    with contextlib.suppress(Exception):
+        from .algorithm_topics import names_algorithm
+        if names_algorithm(query):
+            return {"matches": [], "best": None, "score": 0.0,
+                    "ambiguous": False, "reason": "names a Processing algorithm"}
     ms = match(query)
     if not ms:
         return {"matches": [], "best": None, "score": 0.0,
@@ -256,6 +263,19 @@ def classify(query):
         return {"matches": ms, "best": best, "score": top,
                 "ambiguous": True, "reason": "below confidence floor"}
     if top < CONFIDENT_SCORE:
+        return {"matches": ms, "best": best, "score": top,
+                "ambiguous": True, "reason": "below confidence floor"}
+    # "Calculate soil erosion risk" matched "Map erosion" (tools: load a file, style it) and "Create thiessen polygons around the health
+    # facilities" matched "Map health facilities": a task that can only show data cannot do a computation an approved Processing
+    # algorithm can (core/agent/algorithm_topics.py). No directive then; the message goes as typed and the router offers the algorithm tools.
+    with contextlib.suppress(Exception):
+        from .algorithm_topics import computation_request
+        if computation_request(query, best.get("tools")):
+            return {"matches": ms, "best": best, "score": top,
+                    "ambiguous": True, "reason": "below confidence floor"}
+    # rc45 smoke run, check I4: "make a chart of population by district" matched "Map population distribution" (WorldPop fetch, zonal
+    # statistics, styling) and the model was sent after a map nobody asked for. A request that names a chart is answered by the chart tools.
+    if _ASKS_FOR_CHART.search((query or "").lower()) and not any("chart" in t or "dashboard" in t for t in best.get("tools") or ()):
         return {"matches": ms, "best": best, "score": top,
                 "ambiguous": True, "reason": "below confidence floor"}
     # In a long request one shared word is a coincidence, whatever it scores: a task with a two-word keyword list scores 0.33-0.5 on
@@ -491,6 +511,21 @@ def task_directive(entry, filled=None, query=None):
         parts.append("Prefer these tools, in order: {}.".format(", ".join(tools)))
     if filled:
         parts.append("Given: " + "; ".join(f"{k} = {v}" for k, v in filled.items()) + ".")
+    with contextlib.suppress(Exception):
+        from .algorithm_topics import algorithms_for_task
+        algorithms = algorithms_for_task(entry.get("id"))
+        if algorithms:
+            # The directive rides beside the system prompt and has a character budget (tests/test_task_register.py): add algorithm ids
+            # only while they fit; the model can always search for more with find_processing_algorithm.
+            head = "Algorithms (find_processing_algorithm, then run_allowlisted_processing_algorithm): "
+            used = len(" ".join(parts)) + 1 + len(head) + 1
+            chosen = []
+            for alg_id in algorithms[:3]:
+                if used + len(alg_id) + 2 <= _DIRECTIVE_BUDGET:
+                    chosen.append(alg_id)
+                    used += len(alg_id) + 2
+            if chosen:
+                parts.append(head + ", ".join(chosen) + ".")
     return " ".join(parts)
 
 
@@ -612,6 +647,13 @@ def reasoning(entry, score, filled, plan, query=None):
                          "it will be passed as plain text.".format(p["name"]))
     if entry.get("tools"):
         lines.append("Tool order suggested to the model: {}.".format(", ".join(entry["tools"])))
+    with contextlib.suppress(Exception):
+        from .algorithm_topics import algorithms_for_task
+        algorithms = algorithms_for_task(entry.get("id"))
+        if algorithms:
+            lines.append("Approved Processing algorithms that fit this task (find_processing_algorithm gives each one's parameters, "
+                         "run_allowlisted_processing_algorithm runs it; use one only when a listed tool does not cover the step): {}."
+                         .format(", ".join(algorithms)))
     return lines
 
 

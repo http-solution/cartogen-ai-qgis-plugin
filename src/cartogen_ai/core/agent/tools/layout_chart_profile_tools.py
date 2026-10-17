@@ -19,7 +19,8 @@ except ImportError:
 
 
 def _layout(name):
-    return QgsProject.instance().layoutManager().layoutByName(name)
+    from ._layout_names import lookup
+    return lookup(QgsProject.instance().layoutManager(), name)
 
 
 def _place(item, layout, box, item_id):

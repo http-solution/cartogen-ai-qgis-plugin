@@ -1569,6 +1569,7 @@
  "find_processing_algorithm": {
   "properties": [
    "algorithm_id",
+   "family",
    "query"
   ],
   "required": []
@@ -3004,12 +3005,12 @@
  },
  "set_rule_based_labels": {
   "properties": [
+   "clear",
    "layer_name",
    "rules"
   ],
   "required": [
-   "layer_name",
-   "rules"
+   "layer_name"
   ]
  },
  "set_snapping_options": {

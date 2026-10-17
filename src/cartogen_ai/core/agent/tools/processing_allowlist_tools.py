@@ -24,7 +24,7 @@ from ._processing_allowlist import (ALLOWED_ALGORITHM_IDS, GRASS_ALGORITHM_IDS, 
                                     parameter_violation)
 
 try:
-    from qgis.core import QgsApplication, QgsProcessingContext, QgsProject, QgsRasterLayer, QgsVectorLayer
+    from qgis.core import QgsApplication, QgsMeshLayer, QgsProcessingContext, QgsProject, QgsRasterLayer, QgsVectorLayer  # noqa: F401 -- QgsMeshLayer is looked up by name in layer_kind_violation
     import processing
     QGIS_AVAILABLE = True
 except ImportError:
@@ -69,7 +69,7 @@ def _algorithm_definition(alg_id):
         destinations = {p.name() for p in params if p.isDestination()}
         raster_destinations = {p.name() for p in params if p.isDestination() and "raster" in str(p.type()).lower()}
         layer_lists = {p.name() for p in params if str(p.type()) == "multilayer"}
-        return names, destinations, raster_destinations, list(algorithm.outputDefinitions()), layer_lists
+        return names, destinations, raster_destinations, list(algorithm.outputDefinitions()), layer_lists, _expected_layer_kinds(params)
     except Exception:
         return None
 
@@ -149,6 +149,55 @@ def _resolve_params(params, raster_output=False, destination_keys=None, raster_k
     return resolved
 
 
+def _expected_layer_kinds(parameters):
+    """{parameter name: "raster" | "vector" | "mesh"} for the layer parameters whose kind the algorithm fixes. A single-layer parameter says so
+    by its type; a layer-list parameter by its layer type. Anything that accepts any layer is left out."""
+    kinds = {}
+    for p in parameters:
+        if p.isDestination():
+            continue
+        kind = str(p.type())
+        if kind == "raster":
+            kinds[p.name()] = "raster"
+        elif kind in ("source", "vector"):
+            kinds[p.name()] = "vector"
+        elif kind == "mesh":
+            kinds[p.name()] = "mesh"
+        elif kind == "multilayer":
+            text = str(getattr(p, "layerType", lambda: "")()).lower()
+            for word in ("raster", "mesh", "vector"):
+                if word in text:
+                    kinds[p.name()] = word
+                    break
+    return kinds
+
+
+def layer_kind_violation(alg_id, resolved_params, kinds):
+    """A message when a parameter that needs one kind of layer was given another (a raster where a table is needed, a vector in a stack of
+    rasters), else None. Pure given the layer classes.
+
+    rc45 smoke run: native:reclassifybylayer was given a raster as its reclassification TABLE and native:cellstackpercentile and
+    cellstackpercentrankfromvalue ran for 3 to 10 minutes until Stop; CI had already found that vector layers handed to the cell-stack tools
+    crash QGIS. Processing's own parameter check lets a wrongly-typed layer through to code that assumes the right type, so the kind is checked
+    here before anything runs, for every algorithm and every layer parameter, not only raster stacks."""
+    if not kinds:
+        return None
+    classes = {"raster": globals().get("QgsRasterLayer"), "vector": globals().get("QgsVectorLayer"), "mesh": globals().get("QgsMeshLayer")}
+    for key, kind in sorted(kinds.items()):
+        value = resolved_params.get(key)
+        wanted = classes.get(kind)
+        if value is None or wanted is None:
+            continue
+        for item in (value if isinstance(value, list) else [value]):
+            if isinstance(item, (str, wanted)):
+                continue                      # an unresolved name or path is Processing's to judge; a layer of the right kind is fine
+            other = next((k for k, c in classes.items() if c is not None and k != kind and isinstance(item, c)), None)
+            if other and hasattr(item, "name"):
+                return (f"parameter '{key}' of '{alg_id}' needs a {kind} layer, but '{item.name()}' is a {other} layer. "
+                        "Nothing was run; choose a layer of the right kind.")
+    return None
+
+
 def _raster_list_violation(alg_id, resolved_params, layer_list_keys):
     """A message when a raster-family algorithm is given a layer list that holds something other than raster layers, else None.
 
@@ -171,11 +220,37 @@ def _raster_list_violation(alg_id, resolved_params, layer_list_keys):
     return None
 
 
-def _check_raster_lists(alg_id, resolved_params, layer_list_keys):
-    """Raises ValueError (reported as "'<alg>' failed: ...") when _raster_list_violation finds a problem; the algorithm is not run."""
-    problem = _raster_list_violation(alg_id, resolved_params, layer_list_keys)
+def _check_raster_lists(alg_id, resolved_params, layer_list_keys, kinds=None):
+    """Raises ValueError (reported as "'<alg>' failed: ...") when a layer list or a single layer is of the wrong kind; the algorithm is not run."""
+    problem = _raster_list_violation(alg_id, resolved_params, layer_list_keys) or layer_kind_violation(alg_id, resolved_params, kinds)
     if problem:
         raise ValueError(problem)
+
+
+# rc45 smoke run: five native algorithms sat at "working on the road network" for 3 to 10 minutes on tiny test data before the tester pressed
+# Stop. A run that long on a person's data is a hang, not an analysis; this bounds the wait. Large real analyses that need longer can use a
+# dedicated tool (network analysis has no limit).
+MAX_RUNTIME_S = 300.0
+
+# Free-form-expression algorithms are not approved (they evaluate text as code); each has a dedicated, screened tool.
+_DEDICATED_INSTEAD = {"gdal:rastercalculator": "raster_calculator", "qgis:rastercalc": "raster_calculator", "native:rastercalc": "raster_calculator",
+                      "native:rastercalculator": "raster_calculator"}
+
+
+def _not_approved_error(alg_id):
+    """The refusal for an id that is not on the approved list, or None when it is approved."""
+    if alg_id in ALLOWED_ALGORITHM_IDS:
+        return None
+    if alg_id in _DEDICATED_INSTEAD:
+        # rc45 smoke run: asked for dem > 100 as a new layer, the model tried gdal:rastercalculator, was told it is not approved, and sent the
+        # user to the QGIS menu, although the checked raster_calculator tool does exactly this.
+        return {"error": f"'{alg_id}' is not approved; use the dedicated tool {_DEDICATED_INSTEAD[alg_id]} instead.",
+                "use_tool": _DEDICATED_INSTEAD[alg_id]}
+    return {
+        "error": f"'{alg_id}' is not on the allowed algorithm list. Call find_processing_algorithm with a few words to search the "
+                 f"{len(ALLOWED_ALGORITHM_IDS)} approved algorithms. "
+                 "Use execute_pyqgis_script as a last resort if genuinely nothing else covers this."
+    }
 
 
 def _run_allowlisted(alg_id, resolved_params):
@@ -184,12 +259,17 @@ def _run_allowlisted(alg_id, resolved_params):
     An algorithm that changes the user's own layer (a selection) stays synchronous: edits to a project layer are only safe on the
     GUI thread, and so do Python-implemented algorithms (gdal:, qgis:), which crashed CI on a worker thread. A native algorithm that
     creates new data goes through QGIS's task runner, so a long one no longer shows "Not Responding" and Stop works. Outside a real GUI thread (tests, the kill-switch setting) this is exactly processing.run."""
-    if alg_id in MUTATES_INPUT_ALGORITHM_IDS or not _bg.is_thread_safe_algorithm(alg_id) or not _bg.can_run_in_background():
+    if alg_id in MUTATES_INPUT_ALGORITHM_IDS:
         return processing.run(alg_id, resolved_params)
+    if not _bg.is_thread_safe_algorithm(alg_id) or not _bg.can_run_in_background():
+        return _bg.run_synchronously_with_repaint(
+            alg_id, lambda feedback: processing.run(alg_id, resolved_params) if feedback is None
+            else processing.run(alg_id, resolved_params, feedback=feedback))
     context = QgsProcessingContext()
     context.setProject(QgsProject.instance())
     return _bg.run_algorithm(alg_id, resolved_params, context,
-                             fallback=lambda a, p, context=None: processing.run(a, p), label=alg_id.split(":")[-1])
+                             fallback=lambda a, p, context=None: processing.run(a, p), label=alg_id.split(":")[-1],
+                             max_runtime_s=MAX_RUNTIME_S)
 
 
 # The registration decorator must sit directly on run_allowlisted_processing_algorithm. PR #249 (rc24) put _run_allowlisted between
@@ -231,12 +311,9 @@ def _run_allowlisted(alg_id, resolved_params):
 def run_allowlisted_processing_algorithm(alg_id, params, new_layer_name=None):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
-    if alg_id not in ALLOWED_ALGORITHM_IDS:
-        return {
-            "error": f"'{alg_id}' is not on the allowed algorithm list. Call find_processing_algorithm with a few words to search the "
-                     f"{len(ALLOWED_ALGORITHM_IDS)} approved algorithms. "
-                     "Use execute_pyqgis_script as a last resort if genuinely nothing else covers this."
-        }
+    refusal = _not_approved_error(alg_id)
+    if refusal:
+        return refusal
     if not isinstance(params, dict):
         return {"error": "params must be an object/dict of algorithm parameters."}
     violation = parameter_violation(alg_id, params)
@@ -260,10 +337,12 @@ def run_allowlisted_processing_algorithm(alg_id, params, new_layer_name=None):
         resolved_params = _resolve_params(params, raster_output=alg_id in RASTER_OUTPUT_ALGORITHM_IDS,
                                           destination_keys=destination_keys, raster_keys=raster_keys,
                                           layer_list_keys=layer_list_keys, temp_file_vectors=is_grass)
-        _check_raster_lists(alg_id, resolved_params, layer_list_keys)
+        _check_raster_lists(alg_id, resolved_params, layer_list_keys, definition[5] if definition is not None and len(definition) > 5 else None)
         output = _run_allowlisted(alg_id, resolved_params)
-    except _bg.AnalysisCancelledError:
-        return {"error": f"Stopped before '{alg_id}' finished. Nothing was added to the project.", "cancelled": True}
+    except _bg.AnalysisCancelledError as e:
+        timed_out = isinstance(e, _bg.AnalysisTimedOutError)
+        return {"error": str(e) if timed_out else f"Stopped before '{alg_id}' finished. Nothing was added to the project.",
+                "cancelled": True, **({"timed_out": True} if timed_out else {})}
     except Exception as e:
         return {"error": f"'{alg_id}' failed: {e}"}
 
@@ -327,8 +406,18 @@ def run_allowlisted_processing_algorithm(alg_id, params, new_layer_name=None):
 
     # GitHub #163: algorithms with several outputs (for example a lines output AND a points output) return all of them, each as its
     # own layer named <layer_name>_<output key>; the first output keeps the plain name above.
+    extra = _add_extra_outputs(layers[1:], layer_name, alg_id, caller_named_it, project)
+    if extra:
+        result["primary_output"] = primary_key
+        result["additional_outputs"] = extra
+    return result
+
+
+def _add_extra_outputs(extra_layers, layer_name, alg_id, caller_named_it, project):
+    """Adds the second and later outputs of a multi-output algorithm to the project, each named <layer_name>_<output key>, styled by the
+    algorithm's kind, and hidden when the caller did not name the result. Returns the per-output summaries."""
     extra = []
-    for key, layer in layers[1:]:
+    for key, layer in extra_layers:
         extra_name = f"{layer_name}_{key.lower()}"
         layer.setName(extra_name)
         project.addMapLayer(layer)
@@ -338,11 +427,15 @@ def run_allowlisted_processing_algorithm(alg_id, params, new_layer_name=None):
         entry = {"output": key, "layer_name": extra_name}
         if hasattr(layer, "featureCount"):
             entry["feature_count"] = layer.featureCount()
+        # rc45 smoke run: grass:r.slope.aspect and the other multi-output algorithms opened plain grey, because only the FIRST output was ever
+        # styled. Every output gets the look the algorithm's kind calls for.
+        with contextlib.suppress(Exception):
+            from .output_style import style_algorithm_output
+            styled_extra = style_algorithm_output(layer, alg_id)
+            if styled_extra:
+                entry["styled_as"] = styled_extra
         extra.append(entry)
-    if extra:
-        result["primary_output"] = primary_key
-        result["additional_outputs"] = extra
-    return result
+    return extra
 
 
 def _load_output_path(path, as_vector=False):
@@ -366,7 +459,36 @@ def search_allowed_algorithms(query, names=None, limit=15):
             scored.append((-hits, alg_id))
         elif not words:
             scored.append((0, alg_id))
-    return [(alg_id, names.get(alg_id, "")) for _score, alg_id in sorted(scored)[:limit]]
+    found = [(alg_id, names.get(alg_id, "")) for _score, alg_id in sorted(scored)[:limit]]
+    if words and len(found) < limit:
+        # rc46: describe what you want and the topic index finds it ("fill the gaps in my elevation raster" -> r.fillnulls); before this
+        # only a query whose every word was inside an algorithm's id or name found anything.
+        from ..algorithm_topics import rank
+        have = {alg_id for alg_id, _name in found}
+        for alg_id, _score, _hits in rank(query, limit=limit):
+            if alg_id in ALLOWED_ALGORITHM_IDS and alg_id not in have and len(found) < limit:
+                found.append((alg_id, names.get(alg_id, "")))
+                have.add(alg_id)
+    return found
+
+
+def _browse_family(family):
+    """The approved algorithms of one family as a short list (id, name, what it is for), so a model can pick by meaning when its search words
+    did not match any algorithm's name. Pure data: needs no QGIS."""
+    from ..algorithm_topics import about, family_ids
+    from ._processing_allowlist import FAMILY_NAMES
+    ids = family_ids(family)
+    if ids is None:
+        return {"error": f"Unknown family '{family}'. Use geometry, table, analysis, expression, raster, mixed, grass or mesh."}
+    items = []
+    for alg_id in ids:
+        entry = {"id": alg_id, "name": FAMILY_NAMES.get(alg_id) or alg_id.split(":", 1)[1]}
+        phrase = about(alg_id)
+        if phrase:
+            entry["for"] = phrase
+        items.append(entry)
+    return {"success": True, "family": family, "count": len(items), "algorithms": items,
+            "message": "Pick the one that does what the user wants, then call find_processing_algorithm with its algorithm_id for its parameters."}
 
 
 @register_tool(
@@ -374,8 +496,13 @@ def search_allowed_algorithms(query, names=None, limit=15):
     "Search the approved QGIS Processing algorithms by a few words (for example 'densify', 'polygons to lines', 'smooth') and get each "
     "match's id, name and exact parameter names with types and defaults, ready for run_allowlisted_processing_algorithm. Read-only. "
     "With algorithm_id set, returns just that algorithm's parameters.",
-    {"type": "object", "properties": {"query": {"type": "string"}, "algorithm_id": {"type": "string"}}, "required": []})
-def find_processing_algorithm(query="", algorithm_id=None):
+    {"type": "object", "properties": {"query": {"type": "string"}, "algorithm_id": {"type": "string"},
+                                      "family": {"type": "string", "description": "Browse one family instead of searching: geometry, table, analysis, "
+                                                 "expression, raster, mixed, grass or mesh. Lists id, name and what each is for."}},
+     "required": []})
+def find_processing_algorithm(query="", algorithm_id=None, family=None):
+    if family:
+        return _browse_family(family)
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
     from ._processing_allowlist import FAMILY_NAMES
@@ -399,7 +526,9 @@ def find_processing_algorithm(query="", algorithm_id=None):
             entry["parameters"] = "not available in this QGIS session"
         results.append(entry)
     if not results:
-        return {"success": True, "matches": [], "message": f"No approved algorithm matches '{query}'. Try other words, or a dedicated tool."}
+        return {"success": True, "matches": [],
+                "message": f"No approved algorithm matches '{query}'. Describe the result you want in other words, or browse a family with "
+                           "family=geometry, table, analysis, expression, raster, mixed, grass or mesh; or use a dedicated tool."}
     return {"success": True, "matches": results}
 
 

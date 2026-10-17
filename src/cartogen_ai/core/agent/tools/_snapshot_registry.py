@@ -244,6 +244,61 @@ def _make_property_restore_fn(set_value):
     return restore_fn
 
 
+# -- delete_features (DELETE, rc46) ------------------------------------------
+#
+# rc45 smoke run: deleting one feature worked (confirm card, 8 -> 7) but "undo the last operation" could not put it back, because nothing
+# remembered the features. The snapshot copies the features that are about to go (attributes and geometry), capped so a large deletion does not
+# hold the whole layer in memory; above the cap there is no undo and the tool's own confirm card is the safeguard. Only taken on the confirmed
+# call, like the field-write snapshots. Restoring re-adds them as NEW features (providers assign new ids; key columns such as a GeoPackage
+# "fid" are blanked so they do not collide), inside the same owned-edit helper the delete used.
+_MAX_UNDO_FEATURES = 5000
+
+
+def _snapshot_delete_features(arguments):
+    if not arguments.get("confirmed"):
+        return None
+    layer = _find_layer(arguments.get("layer_name"))
+    if layer is None:
+        return None
+    try:
+        from .attribute_edit_tools import _matching_ids
+        ids = _matching_ids(layer, arguments.get("expression"), bool(arguments.get("only_selected")))
+        if not ids or len(ids) > _MAX_UNDO_FEATURES:
+            return None
+        from qgis.core import QgsFeature, QgsFeatureRequest
+        features = [QgsFeature(f) for f in layer.getFeatures(QgsFeatureRequest().setFilterFids(ids))]
+        return {"kind": "restore_features", "layer_id": layer.id(), "features": features} if features else None
+    except Exception:
+        return None
+
+
+def _restore_delete_features(snapshot):
+    layer = _layer_by_id(snapshot.get("layer_id"))
+    if layer is None:
+        return False
+    try:
+        from qgis.core import QgsFeature
+        from ._edit_session import EditError, edit_command
+        pk = set(layer.primaryKeyAttributes())
+        fresh = []
+        for old in snapshot["features"]:
+            f = QgsFeature(layer.fields())
+            f.setGeometry(old.geometry())
+            for i in range(layer.fields().count()):
+                f.setAttribute(i, None if i in pk else old.attribute(i))
+            fresh.append(f)
+        try:
+            with edit_command(layer, "Cartogen AI: undo delete features"):
+                if not layer.addFeatures(fresh):
+                    raise EditError("the layer refused the features")
+        except EditError:
+            return False
+        layer.triggerRepaint()
+        return True
+    except Exception:
+        return False
+
+
 # Integration audit 2026-10-16: the MODIFY tools added since package A were not in this registry, so undo_last_operation could not reverse them
 # (it reported "no snapshot" for a layer filter, a diagram, a callout, an elevation setting...). Reused, not new, mechanisms: set_layer_filter
 # writes the subset string exactly as run_query does; the symbology, labelling, diagram, elevation and temporal tools change what a layer's
@@ -285,6 +340,7 @@ SNAPSHOT_REGISTRY = {
         _make_property_snapshot_fn(_subsetstring_get),
         _make_property_restore_fn(_subsetstring_set),
     ),
+    "delete_features": (_snapshot_delete_features, _restore_delete_features),
     "set_layer_filter": (
         _make_property_snapshot_fn(_subsetstring_get),
         _make_property_restore_fn(_subsetstring_set),

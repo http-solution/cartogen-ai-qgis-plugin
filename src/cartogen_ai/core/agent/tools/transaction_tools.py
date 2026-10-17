@@ -32,7 +32,7 @@ def bind_transaction_log(transaction_log):
     "List every tool call made so far during THIS turn (this one user request), each tagged "
     "with its operation type and, when it added a new layer, whether it can be undone with "
     "undo_last_operation. Use this before undo_last_operation to see what's actually available "
-    "to undo -- it does not reach back into earlier turns/messages, only the current one.",
+    "to undo. Also lists undoable calls from the last few earlier messages (marked earlier_turn).",
     {"type": "object", "properties": {}, "required": []},
 )
 def get_turn_transaction_log():
@@ -47,13 +47,15 @@ def get_turn_transaction_log():
 
 @register_tool(
     "undo_last_operation",
-    "Reverse the most recent undoable tool call made THIS turn (see get_turn_transaction_log to "
-    "check what qualifies first). Covers: a call that added a new layer (removes it); "
+    "Reverse the most recent undoable tool call: one made this turn, or if there is none, the latest one from the last few earlier "
+    "messages (the user just says 'undo that'; see get_turn_transaction_log to check what qualifies first). Call this tool for any "
+    "'undo' request instead of clearing or re-setting the thing by hand. Covers: a call that added a new layer (removes it); "
     "remove_layer (restores the removed layer and its data); field_calculator/calculate_area/"
     "calculate_length (restores the field's prior values, or deletes it if it didn't exist "
     "before); apply_categorized_style/apply_graduated_style/apply_graduated_symbol_style "
     "(restores the prior style); set_dataset_status/set_layer_sensitivity/set_layer_confidence/"
-    "run_query (restores the prior value). It cannot undo load_project or any other in-place "
+    "run_query/set_layer_filter (restores the prior value); labels, callouts, diagrams, point markers, raster relief, saved symbols, "
+    "layer elevation and layer time settings (restores the prior setting); delete_features (puts the deleted features back). It cannot undo load_project or any other in-place "
     "edit not in that list -- a real, separate, still-open gap, not something this tool silently "
     "skips without saying so. Destructive action requiring UI confirmation.",
     {
@@ -72,7 +74,7 @@ def undo_last_operation(confirmed: bool = False):
     if entry is None:
         return {
             "success": False,
-            "message": "Nothing undoable in this turn -- either nothing has been done yet, "
+            "message": "Nothing undoable -- either nothing has been done yet, "
                        "everything undoable already was, or the only calls made were "
                        "reads/in-place edits this mechanism can't reverse (see "
                        "get_turn_transaction_log).",
@@ -96,7 +98,7 @@ def _undo_remove_layers(entry, undo, confirmed):
             "tool_name": "undo_last_operation",
             "arguments": {"confirmed": True},
             "code_snippet": "\n".join(f"QgsProject.instance().removeMapLayer('{lid}')" for lid in layer_ids),
-            "rationale": f"Undo '{entry['name']}': remove {len(layer_ids)} layer(s) it added this turn.",
+            "rationale": f"Undo '{entry['name']}': remove {len(layer_ids)} layer(s) it added" + (" in an earlier message." if entry.get("earlier_turn") else " this turn."),
             "message": f"Confirmation required before undoing '{entry['name']}' "
                        f"(removes {len(layer_ids)} layer(s) it created).",
         }
@@ -142,7 +144,7 @@ def _undo_via_snapshot(entry, undo, confirmed):
             "is_destructive": True,
             "tool_name": "undo_last_operation",
             "arguments": {"confirmed": True},
-            "rationale": f"Undo '{entry['name']}': reverse its {label} from this turn.",
+            "rationale": f"Undo '{entry['name']}': reverse its {label}" + (" from an earlier message." if entry.get("earlier_turn") else " from this turn."),
             "message": f"Confirmation required before undoing '{entry['name']}'.",
         }
 
