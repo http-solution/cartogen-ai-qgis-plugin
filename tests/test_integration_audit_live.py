@@ -78,6 +78,32 @@ class TestIntegrationAuditLive(unittest.TestCase):
         self._round_trip("set_layer_elevation", {"layer_name": "dem"}, lambda: set_layer_elevation("dem", enabled=True, mode="surface"),
                          lambda: self.dem.elevationProperties().isEnabled(), lambda a, b: a != b)
 
+    def test_delete_features_is_undoable(self):
+        """rc45 smoke run: a confirmed delete_features could not be undone. The snapshot is taken on the confirmed call only."""
+        from cartogen_ai.core.agent.tools._snapshot_registry import get_restore_fn, get_snapshot_fn
+        from cartogen_ai.core.agent.tools.attribute_edit_tools import delete_features
+        args = {"layer_name": "towns", "expression": "\"pop\" > 10", "confirmed": True}
+        self.assertIsNone(get_snapshot_fn("delete_features")({**args, "confirmed": False}), "a preview must not snapshot")
+        snap = get_snapshot_fn("delete_features")(dict(args))
+        self.assertIsNotNone(snap)
+        before = sorted(f["name"] for f in self.towns.getFeatures())
+        result = delete_features("towns", expression='"pop" > 10', confirmed=True)
+        self.assertTrue(result.get("success"), result)
+        self.assertEqual(self.towns.featureCount(), 1)
+        self.assertTrue(get_restore_fn(snap["kind"], "delete_features")(snap))
+        self.assertEqual(sorted(f["name"] for f in self.towns.getFeatures()), before)
+        restored = {f["name"]: f["pop"] for f in self.towns.getFeatures()}
+        self.assertEqual(restored, {"a": 5, "b": 50, "c": 500})
+
+    def test_rule_based_labels_can_be_cleared(self):
+        from cartogen_ai.core.agent.tools.symbology_extra_tools import set_rule_based_labels
+        self.assertTrue(set_rule_based_labels("towns", [{"field": "name"}]).get("success"))
+        self.assertIsNotNone(self.towns.labeling())
+        result = set_rule_based_labels("towns", clear=True)
+        self.assertTrue(result.get("success"), result)
+        self.assertIsNone(self.towns.labeling())
+        self.assertFalse(self.towns.labelsEnabled())
+
     def test_layer_temporal_is_undoable(self):
         from cartogen_ai.core.agent.tools.project_ops_tools import set_layer_temporal
         self._round_trip("set_layer_temporal", {"layer_name": "towns"}, lambda: set_layer_temporal("towns", start_field="seen"),

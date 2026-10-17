@@ -528,6 +528,8 @@ class CartogenAi:
         with contextlib.suppress(Exception):
             self.task_manager.clear_plan()
             self.task_manager.plan_history = []
+        with contextlib.suppress(Exception):
+            self._transaction_log.clear()
         self._recent_tools = ((), 0)
         self._grounding_texts = []
         self._last_tool_call = None
@@ -1806,8 +1808,8 @@ class CartogenAi:
         # them without any of the log content itself being the user's actual query.
         correlation_id = uuid.uuid4().hex[:8]
         provider_name = type(getattr(self, "client", None)).__name__
-        # New turn -- undo must never reach back into a previous one (see
-        # transactions.py's docstring).
+        # New turn -- the log starts a fresh turn but keeps a few undoable entries from earlier ones, so "undo the last operation" typed as
+        # the next message works (rc46, transactions.py). A project switch clears them (reset_project_scoped_state).
         self._transaction_log.reset()
         # New turn -- a plan made last turn must not silently satisfy this turn's gate
         # (§1.6 option (b), plan_gate.py).

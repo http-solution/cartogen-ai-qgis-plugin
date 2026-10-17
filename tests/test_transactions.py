@@ -119,9 +119,56 @@ class TestMarkUndone(unittest.TestCase):
 
 
 class TestReset(unittest.TestCase):
-    def test_reset_clears_all_entries_and_undo_never_reaches_a_prior_turn(self):
+    """rc46: undo reaches back a few messages. The rc45 smoke run typed "undo the last operation" as the next message and found nothing."""
+
+    def _log_with_one_create(self):
         log = TurnTransactionLog()
         log.record("buffer_analysis", "CREATE", {"success": True}, {"a"}, {"a", "b"})
+        return log
+
+    def test_a_new_turn_starts_empty_of_its_own_calls_but_keeps_an_earlier_undoable_one(self):
+        log = self._log_with_one_create()
         log.reset()
+        entry = log.last_undoable()
+        self.assertIsNotNone(entry)
+        self.assertTrue(entry["earlier_turn"])
+        self.assertEqual(entry["name"], "buffer_analysis")
+
+    def test_the_current_turn_wins_over_an_earlier_one(self):
+        log = self._log_with_one_create()
+        log.reset()
+        log.record("clip_layer", "CREATE", {"success": True}, {"a", "b"}, {"a", "b", "c"})
+        self.assertEqual(log.last_undoable()["name"], "clip_layer")
+
+    def test_an_undone_entry_is_not_carried_again(self):
+        log = self._log_with_one_create()
+        log.mark_undone(log.summary()[0]["index"])
+        log.reset()
+        self.assertIsNone(log.last_undoable())
+
+    def test_entries_older_than_five_turns_are_dropped(self):
+        log = self._log_with_one_create()
+        for _ in range(TurnTransactionLog.MAX_CARRIED_TURNS + 1):
+            log.reset()
+        self.assertIsNone(log.last_undoable())
+
+    def test_at_most_ten_entries_are_carried(self):
+        log = TurnTransactionLog()
+        for n in range(15):
+            log.record("buffer_analysis", "CREATE", {"success": True}, {f"l{n}"}, {f"l{n}", f"l{n}x"})
+        log.reset()
+        self.assertEqual(len(log.summary()), TurnTransactionLog.MAX_CARRIED_ENTRIES)
+
+    def test_clear_drops_everything_for_a_new_project(self):
+        log = self._log_with_one_create()
+        log.reset()
+        log.clear()
         self.assertEqual(log.summary(), [])
         self.assertIsNone(log.last_undoable())
+
+    def test_a_failed_or_read_only_call_is_never_carried(self):
+        log = TurnTransactionLog()
+        log.record("get_layers", "READ", {"success": True}, {"a"}, {"a"})
+        log.record("buffer_analysis", "CREATE", {"error": "x"}, {"a"}, {"a"})
+        log.reset()
+        self.assertEqual(log.summary(), [])

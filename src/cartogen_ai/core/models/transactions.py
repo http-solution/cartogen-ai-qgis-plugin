@@ -77,11 +77,33 @@ class TurnTransactionLog:
 
     def __init__(self):
         self._entries = []
+        self._turn = 0
         self._lock = threading.Lock()
 
+    # rc46: how far back "undo the last operation" may reach. The rc45 smoke run typed that sentence as the NEXT message after a change, and
+    # every time the log had already been emptied by the new turn, so labels, diagrams and deleted features "could not be undone". A
+    # person says "undo that" a message later, so earlier undoable entries are carried over, but only a few: the preview still names
+    # the operation and asks first, and a failed restore reports itself (the layer may be gone).
+    MAX_CARRIED_ENTRIES = 10
+    MAX_CARRIED_TURNS = 5
+
     def reset(self):
-        """Called at the start of every run() call -- undo must never reach
-        back into a previous turn (see module docstring)."""
+        """Called at the start of every run() call. Entries of the new turn start empty; undoable entries from earlier turns are
+        kept (newest MAX_CARRIED_ENTRIES within MAX_CARRIED_TURNS turns) and marked `earlier_turn`. Use clear() for a new project."""
+        with self._lock:
+            self._turn += 1
+            kept = [e for e in self._entries
+                    if e.get("undo") and not e.get("undone") and self._turn - e.get("turn", self._turn) <= self.MAX_CARRIED_TURNS]
+            kept = kept[-self.MAX_CARRIED_ENTRIES:]
+            self._entries = []
+            for old in kept:
+                carried = dict(old)
+                carried["earlier_turn"] = True
+                carried["index"] = len(self._entries)
+                self._entries.append(carried)
+
+    def clear(self):
+        """Drops everything, including earlier turns: the project changed, so a snapshot of the old project's layers must not be restored."""
         with self._lock:
             self._entries = []
 
@@ -120,6 +142,7 @@ class TurnTransactionLog:
             "error": error,
             "undo": undo,
             "undone": False,
+            "turn": self._turn,
         }
         with self._lock:
             # index assigned here, under the lock, rather than from a len() read taken
