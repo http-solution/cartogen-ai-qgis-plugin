@@ -22,7 +22,8 @@ except ImportError:
 
 
 def _layout(name):
-    return QgsProject.instance().layoutManager().layoutByName(name)
+    from ._layout_names import lookup
+    return lookup(QgsProject.instance().layoutManager(), name)
 
 
 def _mm(value):
@@ -67,7 +68,8 @@ def add_overview_map(layout_name, overview_map_id=None, extent_map_id="MAP_MAIN"
         inset.setFrameEnabled(True)
         rect = main.extent()
         rect.scale(6.0)
-        inset.setExtent(rect)
+        # zoomToExtent keeps the box the user asked for (50 x 40 mm); setExtent resized the item to the extent's aspect ratio (42 mm high)
+        inset.zoomToExtent(rect)
         created = True
     from .layout_item_tools import _colour
     try:

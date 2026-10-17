@@ -205,6 +205,7 @@ def named_tools(query):
     return candidates & _known_tool_names() if candidates else set()
 
 
+_ASKS_FOR_CHART = re.compile(r"\b(chart|charts|graph|graphs|histogram|histograms|plot|plots|scatter\s?plot|pie|bar\s+chart)\b")
 _TIE_MIN_COVERAGE = 0.25
 _SINGLE_HIT_MAX_TOKENS = 8
 
@@ -271,6 +272,11 @@ def classify(query):
         if computation_request(query, best.get("tools")):
             return {"matches": ms, "best": best, "score": top,
                     "ambiguous": True, "reason": "below confidence floor"}
+    # rc45 smoke run, check I4: "make a chart of population by district" matched "Map population distribution" (WorldPop fetch, zonal
+    # statistics, styling) and the model was sent after a map nobody asked for. A request that names a chart is answered by the chart tools.
+    if _ASKS_FOR_CHART.search((query or "").lower()) and not any("chart" in t or "dashboard" in t for t in best.get("tools") or ()):
+        return {"matches": ms, "best": best, "score": top,
+                "ambiguous": True, "reason": "below confidence floor"}
     # In a long request one shared word is a coincidence, whatever it scores: a task with a two-word keyword list scores 0.33-0.5 on
     # a single hit. rc17 hand test R4: a raster colour-ramp request shared one word with a data-standards task. A long request needs
     # two distinct hits; a short one ("a dashboard of displacement by district") may be matched on one.

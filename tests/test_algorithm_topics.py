@@ -109,5 +109,14 @@ class NamedAlgorithmTests(unittest.TestCase):
         self.assertIn("zonal_statistics", verdict["best"]["tools"])
 
 
+
+class ChartRequestTests(unittest.TestCase):
+    def test_a_chart_request_is_not_answered_by_a_map_task(self):
+        """rc45 smoke run, I4: 'make a chart of population by district' was matched to the WorldPop mapping task and cancelled."""
+        for query in ("make a chart of population by district", "plot a histogram of the population of the districts"):
+            verdict = task_matcher.classify(query)
+            self.assertTrue(verdict["best"] is None or (verdict["ambiguous"] and verdict["reason"] == "below confidence floor"), query)
+
+
 if __name__ == "__main__":
     unittest.main()

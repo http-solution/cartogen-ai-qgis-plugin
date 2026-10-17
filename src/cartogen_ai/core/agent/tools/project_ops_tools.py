@@ -176,11 +176,17 @@ def set_snapping_options(enabled=None, snap_type=None, tolerance=None, units=Non
     if "enabled" in options:
         config.setEnabled(options["enabled"])
     if "type" in options:
-        member = _member(("SnappingType",), options["type"])
-        if member is None:
+        # "vertex and segment" is not one QGIS snapping type but two flags combined (rc45 smoke run: the tool answered that this QGIS does
+        # not know 'VertexAndSegment' and set vertex only).
+        names = ("Vertex", "Segment") if options["type"] == "VertexAndSegment" else (options["type"],)
+        members = [_member(("SnappingType",), n) for n in names]
+        if any(m is None for m in members):
             return {"error": f"This QGIS does not know the snapping type {options['type']}."}
+        member = members[0]
+        for extra in members[1:]:
+            member = member | extra
         flags = getattr(Qgis, "SnappingTypes", None)
-        config.setTypeFlag(flags(member) if flags is not None else member)
+        config.setTypeFlag(member if flags is None or isinstance(member, flags) else flags(member))
     if "mode" in options:
         member = _member(("SnappingMode",), options["mode"])
         if member is None:

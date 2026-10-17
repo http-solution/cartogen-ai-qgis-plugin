@@ -775,10 +775,8 @@ def unique_atlas_file_name(raw_name, used, fallback):
 def _find_layout_by_name(name):
     if not QGIS_AVAILABLE:
         return None
-    for layout in QgsProject.instance().layoutManager().printLayouts():
-        if layout.name() == name:
-            return layout
-    return None
+    from ._layout_names import resolve_layout
+    return resolve_layout(QgsProject.instance().layoutManager().printLayouts(), name)
 
 
 @register_tool(

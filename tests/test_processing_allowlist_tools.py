@@ -274,7 +274,8 @@ class TestNoFreeFormCodeSurface(unittest.TestCase):
     @patch("cartogen_ai.core.agent.tools.processing_allowlist_tools.processing", create=True)
     def test_the_calculator_is_rejected_before_processing_runs(self, mock_processing):
         result = run_allowlisted_processing_algorithm("gdal:rastercalculator", {"FORMULA": "__import__('os').getcwd()"})
-        self.assertIn("not on the allowed algorithm list", result["error"])
+        self.assertIn("not approved", result["error"])
+        self.assertEqual(result["use_tool"], "raster_calculator")      # rc46: point at the screened tool instead of leaving the user stuck
         mock_processing.run.assert_not_called()
 
     @patch("cartogen_ai.core.agent.tools.processing_allowlist_tools.QGIS_AVAILABLE", True)

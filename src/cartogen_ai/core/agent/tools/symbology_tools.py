@@ -303,7 +303,7 @@ def set_label_style(layer_name, font_color=None, font_size=None, bold=None, ital
     "set_raster_style",
     "Change how a raster layer is displayed: mode='unique_values' gives one colour per distinct cell value (for land cover, classes, zones; "
     "refused above 256 distinct values), resampling (nearest keeps blocky cells, bilinear or cubic smooth them), opacity_percent, and no-data: "
-    "nodata_min/nodata_max make cells in that range transparent, clear_nodata=true restores the file's own no-data. Give only what should "
+    "nodata_min/nodata_max make cells in that range transparent (both ends are INCLUDED: for 'below 0' give nodata_max just under 0, such as -0.000001), clear_nodata=true restores the file's own no-data. Give only what should "
     "change. Display only; the cell values are not changed. For a continuous colour ramp use apply_raster_stretch.",
     {"type": "object", "properties": {
         "layer_name": {"type": "string"},

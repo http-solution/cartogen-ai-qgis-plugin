@@ -178,18 +178,49 @@ def _check_raster_lists(alg_id, resolved_params, layer_list_keys):
         raise ValueError(problem)
 
 
+# rc45 smoke run: five native algorithms sat at "working on the road network" for 3 to 10 minutes on tiny test data before the tester pressed
+# Stop. A run that long on a person's data is a hang, not an analysis; this bounds the wait. Large real analyses that need longer can use a
+# dedicated tool (network analysis has no limit).
+MAX_RUNTIME_S = 300.0
+
+# Free-form-expression algorithms are not approved (they evaluate text as code); each has a dedicated, screened tool.
+_DEDICATED_INSTEAD = {"gdal:rastercalculator": "raster_calculator", "qgis:rastercalc": "raster_calculator", "native:rastercalc": "raster_calculator",
+                      "native:rastercalculator": "raster_calculator"}
+
+
+def _not_approved_error(alg_id):
+    """The refusal for an id that is not on the approved list, or None when it is approved."""
+    if alg_id in ALLOWED_ALGORITHM_IDS:
+        return None
+    if alg_id in _DEDICATED_INSTEAD:
+        # rc45 smoke run: asked for dem > 100 as a new layer, the model tried gdal:rastercalculator, was told it is not approved, and sent the
+        # user to the QGIS menu, although the checked raster_calculator tool does exactly this.
+        return {"error": f"'{alg_id}' is not approved; use the dedicated tool {_DEDICATED_INSTEAD[alg_id]} instead.",
+                "use_tool": _DEDICATED_INSTEAD[alg_id]}
+    return {
+        "error": f"'{alg_id}' is not on the allowed algorithm list. Call find_processing_algorithm with a few words to search the "
+                 f"{len(ALLOWED_ALGORITHM_IDS)} approved algorithms. "
+                 "Use execute_pyqgis_script as a last resort if genuinely nothing else covers this."
+    }
+
+
 def _run_allowlisted(alg_id, resolved_params):
     """processing.run(alg_id, params), off the GUI thread when that is safe (rc20 audit A14, #221).
 
     An algorithm that changes the user's own layer (a selection) stays synchronous: edits to a project layer are only safe on the
     GUI thread, and so do Python-implemented algorithms (gdal:, qgis:), which crashed CI on a worker thread. A native algorithm that
     creates new data goes through QGIS's task runner, so a long one no longer shows "Not Responding" and Stop works. Outside a real GUI thread (tests, the kill-switch setting) this is exactly processing.run."""
-    if alg_id in MUTATES_INPUT_ALGORITHM_IDS or not _bg.is_thread_safe_algorithm(alg_id) or not _bg.can_run_in_background():
+    if alg_id in MUTATES_INPUT_ALGORITHM_IDS:
         return processing.run(alg_id, resolved_params)
+    if not _bg.is_thread_safe_algorithm(alg_id) or not _bg.can_run_in_background():
+        return _bg.run_synchronously_with_repaint(
+            alg_id, lambda feedback: processing.run(alg_id, resolved_params) if feedback is None
+            else processing.run(alg_id, resolved_params, feedback=feedback))
     context = QgsProcessingContext()
     context.setProject(QgsProject.instance())
     return _bg.run_algorithm(alg_id, resolved_params, context,
-                             fallback=lambda a, p, context=None: processing.run(a, p), label=alg_id.split(":")[-1])
+                             fallback=lambda a, p, context=None: processing.run(a, p), label=alg_id.split(":")[-1],
+                             max_runtime_s=MAX_RUNTIME_S)
 
 
 # The registration decorator must sit directly on run_allowlisted_processing_algorithm. PR #249 (rc24) put _run_allowlisted between
@@ -231,12 +262,9 @@ def _run_allowlisted(alg_id, resolved_params):
 def run_allowlisted_processing_algorithm(alg_id, params, new_layer_name=None):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
-    if alg_id not in ALLOWED_ALGORITHM_IDS:
-        return {
-            "error": f"'{alg_id}' is not on the allowed algorithm list. Call find_processing_algorithm with a few words to search the "
-                     f"{len(ALLOWED_ALGORITHM_IDS)} approved algorithms. "
-                     "Use execute_pyqgis_script as a last resort if genuinely nothing else covers this."
-        }
+    refusal = _not_approved_error(alg_id)
+    if refusal:
+        return refusal
     if not isinstance(params, dict):
         return {"error": "params must be an object/dict of algorithm parameters."}
     violation = parameter_violation(alg_id, params)
@@ -262,8 +290,10 @@ def run_allowlisted_processing_algorithm(alg_id, params, new_layer_name=None):
                                           layer_list_keys=layer_list_keys, temp_file_vectors=is_grass)
         _check_raster_lists(alg_id, resolved_params, layer_list_keys)
         output = _run_allowlisted(alg_id, resolved_params)
-    except _bg.AnalysisCancelledError:
-        return {"error": f"Stopped before '{alg_id}' finished. Nothing was added to the project.", "cancelled": True}
+    except _bg.AnalysisCancelledError as e:
+        timed_out = isinstance(e, _bg.AnalysisTimedOutError)
+        return {"error": str(e) if timed_out else f"Stopped before '{alg_id}' finished. Nothing was added to the project.",
+                "cancelled": True, **({"timed_out": True} if timed_out else {})}
     except Exception as e:
         return {"error": f"'{alg_id}' failed: {e}"}
 

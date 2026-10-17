@@ -44,6 +44,18 @@ class AnalysisCancelledError(Exception):
     """The user pressed Stop while the analysis was running."""
 
 
+class AnalysisTimedOutError(AnalysisCancelledError):
+    """The analysis ran longer than its time limit and was stopped (rc46). A subclass so every existing `except AnalysisCancelledError`
+    still stops cleanly."""
+
+
+def timeout_message(label, limit_s, still_running=False):
+    """What the chat says when an analysis hit its time limit. Pure."""
+    tail = " It may still be winding down in the background." if still_running else ""
+    return (f"'{label}' ran longer than {limit_s:.0f} seconds and was stopped; nothing was added to the project.{tail} "
+            "Try a smaller area or fewer layers, or another algorithm that does the same job.")
+
+
 def is_no_route_message(error):
     """True for QGIS's per-destination 'There is no route from start point ... to end point ...' message."""
     return "no route from start point" in str(error).lower()
@@ -144,13 +156,18 @@ def can_run_in_background():
 
 
 def run_algorithm(algorithm_id, params, context, fallback, use_background=True, label="Analysis",
-                  poll_ms=100, status_every_s=3.0, first_status_after_s=2.0, abandon_after_s=20.0):
+                  poll_ms=100, status_every_s=3.0, first_status_after_s=2.0, abandon_after_s=20.0, max_runtime_s=None):
     """processing.run(algorithm_id, params, context=context), without freezing the GUI.
 
     `fallback(algorithm_id, params, context=context)` is the plain synchronous call, used whenever
     background execution isn't possible or wanted. Raises AnalysisCancelledError on Stop, and
     RuntimeError (with the algorithm's own message) if it fails -- like processing.run raises.
-    Returns the same results dict as processing.run, with output layers as QgsMapLayer objects."""
+    Returns the same results dict as processing.run, with output layers as QgsMapLayer objects.
+
+    max_runtime_s (rc46): stop the run by itself after this many seconds and raise AnalysisTimedOutError. The rc45 smoke run had four
+    raster algorithms and one vector one that showed the progress line for 3 to 10 minutes on 80 by 80 test data until the tester pressed
+    Stop; CI ran the same algorithms in seconds, so the cause is not known. A bounded wait with a clear message beats an open-ended one.
+    The default None keeps every other caller (network analysis on large road networks) unlimited."""
     if not use_background or not can_run_in_background():
         return fallback(algorithm_id, params, context=context)
 
@@ -161,8 +178,9 @@ def run_algorithm(algorithm_id, params, context, fallback, use_background=True, 
 
     feedback = _CollectingFeedback()
     task = QgsProcessingAlgRunnerTask(algorithm, params, context, feedback)
-    state = {"finished": False, "ok": False, "results": {}, "cancelled_at": None}
+    state = {"finished": False, "ok": False, "results": {}, "cancelled_at": None, "timed_out": False}
     loop = QEventLoop()
+    log_event("network_analysis", tag="Tools", tool=algorithm_id, status="started")   # a hang shows as a start with no done/abandoned
 
     def on_executed(ok, results):
         state.update(finished=True, ok=bool(ok), results=results or {})
@@ -174,7 +192,13 @@ def run_algorithm(algorithm_id, params, context, fallback, use_background=True, 
 
     def tick():
         now = time.monotonic()
-        if state["cancelled_at"] is None and cancel_signal.is_cancelled():
+        if state["cancelled_at"] is None and max_runtime_s and now - started > max_runtime_s:
+            state["cancelled_at"] = now
+            state["timed_out"] = True
+            feedback.cancel()
+            task.cancel()
+            cancel_signal.report(f"{label}: taking longer than {max_runtime_s:.0f}s, stopping...")
+        elif state["cancelled_at"] is None and cancel_signal.is_cancelled():
             state["cancelled_at"] = now
             feedback.cancel()
             task.cancel()
@@ -183,8 +207,8 @@ def run_algorithm(algorithm_id, params, context, fallback, use_background=True, 
             loop.quit()                                  # the algorithm is ignoring the cancel
         elif state["cancelled_at"] is None and now - last_status[0] >= status_every_s:
             last_status[0] = now
-            cancel_signal.report(f"{label}: working on the road network... {now - started:.0f}s "
-                                 "(press Stop to cancel)")
+            # was "working on the road network" for every algorithm, which told people running a raster algorithm about a road network
+            cancel_signal.report(f"{label}: still running... {now - started:.0f}s (press Stop to cancel)")
 
     timer = QTimer()
     timer.setInterval(poll_ms)
@@ -202,10 +226,14 @@ def run_algorithm(algorithm_id, params, context, fallback, use_background=True, 
         _abandon((task, algorithm, feedback, context, params))
         log_event("network_analysis", tag="Tools", tool=algorithm_id, status="abandoned",
                   duration_ms=int(elapsed * 1000))
+        if state["timed_out"]:
+            raise AnalysisTimedOutError(timeout_message(label, max_runtime_s, still_running=True))
         raise AnalysisCancelledError("Stopped; the analysis is still winding down in the background.")
     if state["cancelled_at"] is not None:
-        log_event("network_analysis", tag="Tools", tool=algorithm_id, status="cancelled",
+        log_event("network_analysis", tag="Tools", tool=algorithm_id, status="timed_out" if state["timed_out"] else "cancelled",
                   duration_ms=int(elapsed * 1000))
+        if state["timed_out"]:
+            raise AnalysisTimedOutError(timeout_message(label, max_runtime_s))
         raise AnalysisCancelledError("Stopped by the user.")
     if not state["ok"]:
         log_event("network_analysis", tag="Tools", tool=algorithm_id, status="failed",
@@ -225,6 +253,61 @@ def run_algorithm(algorithm_id, params, context, fallback, use_background=True, 
     log_event("network_analysis", tag="Tools", tool=algorithm_id, status="done", duration_ms=int(elapsed * 1000),
               count=feedback.no_route_count)
     return results
+
+
+def run_synchronously_with_repaint(algorithm_id, run, min_interval_s=0.25):
+    """processing.run for algorithms that must stay on the GUI thread (GRASS, GDAL, QGIS Python algorithms), but with the window kept
+    painting (rc46).
+
+    rc45 smoke run on Windows: GRASS algorithms took 2 to 12 minutes each even on 80 by 80 test data (v.voronoi 12 min, r.fillnulls 12 min,
+    v.net.iso 8 min) and QGIS showed "Not Responding" the whole time. CI on Linux ran the same algorithms in seconds, so the time is the
+    GRASS start-up and file import on that machine, which this cannot shorten. What it can do: the feedback object below lets Qt paint and
+    run timers every `min_interval_s` while the algorithm reports progress, so the window does not freeze and the user sees that
+    something is happening. User input events are excluded on purpose (no clicks on other tools while an algorithm runs on this thread),
+    which also means Stop cannot reach a run on this thread; that limit is stated in the tool description. Outside a real GUI thread, or
+    with the background-analysis setting off, this is exactly processing.run. Not verified in a desktop session.
+
+    `run(feedback)` performs the plain processing.run call; it is given None when no repainting feedback is wanted. The caller owns the
+    call so that its own processing import (and tests that replace it) stay in charge.
+    """
+    if not (QGIS_AVAILABLE and _on_gui_thread() and _enabled_in_settings()):
+        return run(None)
+
+    class _RepaintingFeedback(QgsProcessingFeedback):
+        def __init__(self):
+            super().__init__()
+            self._last = 0.0
+
+        def _pump(self):
+            now = time.monotonic()
+            if now - self._last >= min_interval_s:
+                self._last = now
+                QCoreApplication.processEvents(QEventLoop.ProcessEventsFlag.ExcludeUserInputEvents)
+
+        def setProgress(self, progress):  # noqa: N802
+            super().setProgress(progress)
+            self._pump()
+
+        def pushInfo(self, info):  # noqa: N802
+            super().pushInfo(info)
+            self._pump()
+
+        def pushConsoleInfo(self, info):  # noqa: N802
+            super().pushConsoleInfo(info)
+            self._pump()
+
+        def pushCommandInfo(self, info):  # noqa: N802
+            super().pushCommandInfo(info)
+            self._pump()
+
+    feedback = _RepaintingFeedback()
+    log_event("network_analysis", tag="Tools", tool=algorithm_id, status="started")
+    started = time.monotonic()
+    try:
+        return run(feedback)
+    finally:
+        log_event("network_analysis", tag="Tools", tool=algorithm_id, status="finished_on_gui_thread",
+                  duration_ms=int((time.monotonic() - started) * 1000))
 
 
 def run_callable(fn, label="Analysis", use_background=True, poll_ms=100, status_every_s=3.0, first_status_after_s=2.0,
