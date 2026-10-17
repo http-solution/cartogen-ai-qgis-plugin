@@ -230,6 +230,11 @@ def classify(query):
     if _is_non_request_fragment(query):
         return {"matches": [], "best": None, "score": 0.0,
                 "ambiguous": False, "reason": "too short to be a request"}
+    with contextlib.suppress(Exception):
+        from .algorithm_topics import names_algorithm
+        if names_algorithm(query):
+            return {"matches": [], "best": None, "score": 0.0,
+                    "ambiguous": False, "reason": "names a Processing algorithm"}
     ms = match(query)
     if not ms:
         return {"matches": [], "best": None, "score": 0.0,
@@ -258,6 +263,14 @@ def classify(query):
     if top < CONFIDENT_SCORE:
         return {"matches": ms, "best": best, "score": top,
                 "ambiguous": True, "reason": "below confidence floor"}
+    # "Calculate soil erosion risk" matched "Map erosion" (tools: load a file, style it) and "Create thiessen polygons around the health
+    # facilities" matched "Map health facilities": a task that can only show data cannot do a computation an approved Processing
+    # algorithm can (core/agent/algorithm_topics.py). No directive then; the message goes as typed and the router offers the algorithm tools.
+    with contextlib.suppress(Exception):
+        from .algorithm_topics import computation_request
+        if computation_request(query, best.get("tools")):
+            return {"matches": ms, "best": best, "score": top,
+                    "ambiguous": True, "reason": "below confidence floor"}
     # In a long request one shared word is a coincidence, whatever it scores: a task with a two-word keyword list scores 0.33-0.5 on
     # a single hit. rc17 hand test R4: a raster colour-ramp request shared one word with a data-standards task. A long request needs
     # two distinct hits; a short one ("a dashboard of displacement by district") may be matched on one.

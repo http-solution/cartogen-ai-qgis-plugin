@@ -794,6 +794,9 @@ _STOPWORDS = {
 }
 
 
+_PROCESSING_GENERIC_TOOLS = frozenset({"find_processing_algorithm", "run_allowlisted_processing_algorithm"})
+
+
 class ToolRouter:
     """Keyword & intent-based tool schema selector."""
 
@@ -869,6 +872,14 @@ class ToolRouter:
         # At most six carried tools, so a long previous turn cannot crowd the relevant ones out of top_k.
         always_include |= {n for n in tuple(carry_over_tools or ())[:6] if n in known_names and n != "execute_pyqgis_script"}
         fallback_tool = "execute_pyqgis_script"
+        # A request that describes WHAT is wanted ("fill the gaps in my elevation raster", "which areas are visible from this point")
+        # rather than naming an algorithm: the topic index (core/agent/algorithm_topics.py) finds the approved algorithms that fit, and the
+        # two generic Processing tools are offered, so the model can search and run them. Without this only an algorithm's own name
+        # reached them (rc45 smoke run: every test prompt spelled the name and id).
+        algorithm_topic_match = False
+        with contextlib.suppress(Exception):
+            from ..agent.algorithm_topics import rank as _rank_algorithms
+            algorithm_topic_match = bool(_rank_algorithms(user_query, limit=1))
 
         # Sort deterministically by tool name instead of randomizing -- 2026-09-19, live-
         # verified follow-up to the "hi" fix above. random.shuffle() reordered the whole tool
@@ -934,6 +945,8 @@ class ToolRouter:
             for alias in _TOOL_ALIASES.get(name, []):
                 if alias in alias_query_lower:
                     score += _ALIAS_MATCH_SCORE
+            if algorithm_topic_match and name in _PROCESSING_GENERIC_TOOLS:
+                score += _ALIAS_MATCH_SCORE
 
             scored_tools.append((score, tool_obj))
 

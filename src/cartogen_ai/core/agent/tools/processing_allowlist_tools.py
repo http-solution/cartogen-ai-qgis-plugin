@@ -366,7 +366,17 @@ def search_allowed_algorithms(query, names=None, limit=15):
             scored.append((-hits, alg_id))
         elif not words:
             scored.append((0, alg_id))
-    return [(alg_id, names.get(alg_id, "")) for _score, alg_id in sorted(scored)[:limit]]
+    found = [(alg_id, names.get(alg_id, "")) for _score, alg_id in sorted(scored)[:limit]]
+    if words and len(found) < limit:
+        # rc46: describe what you want and the topic index finds it ("fill the gaps in my elevation raster" -> r.fillnulls); before this
+        # only a query whose every word was inside an algorithm's id or name found anything.
+        from ..algorithm_topics import rank
+        have = {alg_id for alg_id, _name in found}
+        for alg_id, _score, _hits in rank(query, limit=limit):
+            if alg_id in ALLOWED_ALGORITHM_IDS and alg_id not in have and len(found) < limit:
+                found.append((alg_id, names.get(alg_id, "")))
+                have.add(alg_id)
+    return found
 
 
 @register_tool(
