@@ -28,10 +28,18 @@ Changes.
 - 37 register tasks (flood, drainage, terrain, density, hotspots, catchments, nearest facility, interpolation, duplicates, watershed, fire) now
   name the approved algorithms that fit, in `task_algorithms.json`; the directive lists up to three within its character budget.
 
-Evidence. Offline: 30 plain-language requests (no algorithm names) each find their algorithm, or an equivalent one, in the first five results
-and are offered the Processing tools (`tests/test_algorithm_topics.py`). On a separate set of 40 requests written during development the correct
-algorithm was first for 20 and in the first five for 35. The wording of the requests was chosen by the author of the index, so this overstates
-how a stranger would phrase them. **Not verified:** which algorithm a real model picks from the offered ones, and the effect on a live chat.
+- `find_processing_algorithm(family=...)` lists one family (geometry, table, analysis, expression, raster, mixed, grass, mesh) with each algorithm's
+  id, name and a short "what it is for" phrase, so the model can pick by meaning when its search words matched nothing.
+- 385 plain-language prompts in a humanitarian setting, one per algorithm of the hand-test sheet, never naming the algorithm
+  (`tools/plain_prompts_*.py`, `docs/HAND_TEST_rc46_algorithms_plain.csv`, `docs/HAND_TEST_SHEET_plain_language_2026-10-17.md`).
+
+Evidence. Offline, measured on those 385 prompts: before the index was improved the algorithm was among the first 15 search results for 259 (67
+percent) and among the first five for 235 (61 percent); after adding plain-language notes and vocabulary rules, 343 (89 percent) and 316 (82 percent). The
+router offers the Processing tools for 381 (99 percent). **These prompts were used to improve the index, so those numbers flatter it.** On 40 fresh
+requests written afterwards and not used for tuning, the algorithm was among the first 15 results for 24 (60 percent) and the first five for 23 (58
+percent): the honest figure for how a stranger's wording fares, and a reason the browse list exists. `tests/test_plain_prompts.py` keeps the 385-prompt
+figures from regressing. **Not verified:** which algorithm a real model picks from what is offered, and the effect in a live chat. The plain-language
+hand test is the check for that.
 
 ## 2. Undo
 Cause. `undo_last_operation` only reached back into the same turn (a deliberate rule in `models/transactions.py`), so "undo the last operation"
@@ -73,7 +81,6 @@ session, that the wrong-kind check is the cause of the five stalls. Stop still c
 - Not changed, by design: saving a second time to a file this session wrote itself does not ask again (the sheet expected a question).
 
 ## 5. Not done
-- The hand-test sheet still names algorithms in its prompts. A version with plain-language prompts for the algorithm rows is the right next test
-  of section 1, and has not been written.
+- The plain-language hand test (section 1) is written but not run.
 - No pre-built chains for the new tools; GPS, PDAL algorithms and the 3D map layout item are still not built.
 - Mesh and point-cloud rows were skipped for lack of fixtures.

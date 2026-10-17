@@ -54,6 +54,11 @@ def main():
     dest = REPO / "src/cartogen_ai/core/agent/algorithm_topics.json"
     dest.write_text(json.dumps(out, separators=(",", ":"), sort_keys=True), encoding="utf-8")
     print(f"wrote {dest} ({len(out)} algorithms, {dest.stat().st_size} bytes)")
+    # the hand-written phrases themselves (never the reference's sentences) so find_processing_algorithm can show what an algorithm is for
+    about = {alg_id: NOTES[alg_id] for alg_id in sorted(ALLOWED_ALGORITHM_IDS) if alg_id in NOTES}
+    about_dest = REPO / "src/cartogen_ai/core/agent/algorithm_about.json"
+    about_dest.write_text(json.dumps(about, separators=(",", ":"), sort_keys=True), encoding="utf-8")
+    print(f"wrote {about_dest} ({len(about)} phrases)")
 
 
 if __name__ == "__main__":

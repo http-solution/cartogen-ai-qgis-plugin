@@ -1569,6 +1569,7 @@
  "find_processing_algorithm": {
   "properties": [
    "algorithm_id",
+   "family",
    "query"
   ],
   "required": []

@@ -152,5 +152,33 @@ class TaskAlgorithmTests(unittest.TestCase):
             self.assertTrue(offered >= GENERIC, (query, verdict["best"]["id"]))
 
 
+
+class BrowseTests(unittest.TestCase):
+    """rc46: when search words match nothing the model can browse a family and pick by meaning."""
+
+    def test_every_family_lists_only_approved_algorithms_and_together_they_cover_all(self):
+        from cartogen_ai.core.agent.tools.processing_allowlist_tools import find_processing_algorithm
+        seen = set()
+        for family in topics.FAMILY_ALIASES:
+            result = find_processing_algorithm(family=family)
+            self.assertTrue(result["success"], family)
+            ids = {a["id"] for a in result["algorithms"]}
+            self.assertEqual(len(ids), result["count"])
+            self.assertTrue(ids <= set(ALLOWED_ALGORITHM_IDS), family)
+            seen |= ids
+        # the older hand-listed algorithms (buffer, clip...) belong to no family table, everything the family tables hold is covered
+        self.assertGreaterEqual(len(seen), 385)
+
+    def test_an_unknown_family_is_refused_with_the_valid_names(self):
+        from cartogen_ai.core.agent.tools.processing_allowlist_tools import find_processing_algorithm
+        self.assertIn("grass", find_processing_algorithm(family="nope")["error"])
+
+    def test_grass_entries_say_what_they_are_for(self):
+        from cartogen_ai.core.agent.tools.processing_allowlist_tools import find_processing_algorithm
+        entries = {a["id"]: a for a in find_processing_algorithm(family="grass")["algorithms"]}
+        self.assertTrue(all(entry.get("for") for entry in entries.values()))
+        self.assertIn("viewshed", entries["grass:r.viewshed"]["for"])
+
+
 if __name__ == "__main__":
     unittest.main()

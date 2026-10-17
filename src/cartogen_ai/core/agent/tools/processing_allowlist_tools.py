@@ -472,13 +472,37 @@ def search_allowed_algorithms(query, names=None, limit=15):
     return found
 
 
+def _browse_family(family):
+    """The approved algorithms of one family as a short list (id, name, what it is for), so a model can pick by meaning when its search words
+    did not match any algorithm's name. Pure data: needs no QGIS."""
+    from ..algorithm_topics import about, family_ids
+    from ._processing_allowlist import FAMILY_NAMES
+    ids = family_ids(family)
+    if ids is None:
+        return {"error": f"Unknown family '{family}'. Use geometry, table, analysis, expression, raster, mixed, grass or mesh."}
+    items = []
+    for alg_id in ids:
+        entry = {"id": alg_id, "name": FAMILY_NAMES.get(alg_id) or alg_id.split(":", 1)[1]}
+        phrase = about(alg_id)
+        if phrase:
+            entry["for"] = phrase
+        items.append(entry)
+    return {"success": True, "family": family, "count": len(items), "algorithms": items,
+            "message": "Pick the one that does what the user wants, then call find_processing_algorithm with its algorithm_id for its parameters."}
+
+
 @register_tool(
     "find_processing_algorithm",
     "Search the approved QGIS Processing algorithms by a few words (for example 'densify', 'polygons to lines', 'smooth') and get each "
     "match's id, name and exact parameter names with types and defaults, ready for run_allowlisted_processing_algorithm. Read-only. "
     "With algorithm_id set, returns just that algorithm's parameters.",
-    {"type": "object", "properties": {"query": {"type": "string"}, "algorithm_id": {"type": "string"}}, "required": []})
-def find_processing_algorithm(query="", algorithm_id=None):
+    {"type": "object", "properties": {"query": {"type": "string"}, "algorithm_id": {"type": "string"},
+                                      "family": {"type": "string", "description": "Browse one family instead of searching: geometry, table, analysis, "
+                                                 "expression, raster, mixed, grass or mesh. Lists id, name and what each is for."}},
+     "required": []})
+def find_processing_algorithm(query="", algorithm_id=None, family=None):
+    if family:
+        return _browse_family(family)
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
     from ._processing_allowlist import FAMILY_NAMES
@@ -502,7 +526,9 @@ def find_processing_algorithm(query="", algorithm_id=None):
             entry["parameters"] = "not available in this QGIS session"
         results.append(entry)
     if not results:
-        return {"success": True, "matches": [], "message": f"No approved algorithm matches '{query}'. Try other words, or a dedicated tool."}
+        return {"success": True, "matches": [],
+                "message": f"No approved algorithm matches '{query}'. Describe the result you want in other words, or browse a family with "
+                           "family=geometry, table, analysis, expression, raster, mixed, grass or mesh; or use a dedicated tool."}
     return {"success": True, "matches": results}
 
 

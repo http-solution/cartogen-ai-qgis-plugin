@@ -32,7 +32,6 @@ SYNONYMS = {
     "slope": "slope", "steep": "slope", "steepness": "slope",
     "river": "stream", "rivers": "stream", "creek": "stream", "drainage": "stream",
     "catchment": "watershed", "catchments": "watershed", "basin": "watershed", "basins": "watershed",
-    "road": "network", "roads": "network", "street": "network", "streets": "network",
     "smooth": "smooth", "smoothing": "smooth", "simplify": "generalize", "simplification": "generalize",
     "hotspot": "density", "hotspots": "density", "heatmap": "density", "concentration": "density",
     "resolution": "resample", "coarser": "resample", "finer": "resample", "regrid": "resample",
@@ -51,12 +50,13 @@ SYNONYMS = {
 
 
 def stem(word):
-    """Light suffix stripping so 'fills' / 'filling' / 'filled' meet. Deterministic; applied to both sides."""
+    """Light suffix stripping so 'fills' / 'filling' / 'filled' and 'rugged' / 'ruggedness' meet. Deterministic; applied to both sides."""
     w = word
-    for suf in ("ing", "ied", "ies", "ed", "es", "s"):
-        if len(w) > len(suf) + 3 and w.endswith(suf):
-            w = w[: -len(suf)] + ("y" if suf in ("ied", "ies") else "")
-            break
+    for _ in range(2):
+        for suf in ("ness", "ing", "ied", "ies", "ed", "es", "s"):
+            if len(w) > len(suf) + 3 and w.endswith(suf):
+                w = w[: -len(suf)] + ("y" if suf in ("ied", "ies") else "")
+                break
     return w
 
 
@@ -102,7 +102,7 @@ def rank(query, limit=8, index=None):
     for alg_id, entry in idx.items():
         names, keys = set(entry.get("n", [])), set(entry.get("k", []))
         hits = [s for s in q if s in names or s in keys]
-        if len(hits) < MIN_DISTINCT and not any(s in names and idf.get(s, 0) >= 3.0 for s in hits):
+        if len(hits) < MIN_DISTINCT and not any(s in names and idf.get(s, 0) >= 2.5 for s in hits):
             continue
         score = sum(idf.get(s, 1.0) * (_NAME_BONUS if s in names else 1.0) for s in hits)
         if alg_id.startswith("grass:"):
@@ -171,7 +171,7 @@ ANALYSIS_VERBS = re.compile(
     r"\b(calculat\w*|comput\w*|creat\w*|generat\w*|deriv\w*|extract\w*|delineat\w*|fill\w*|interpolat\w*|simulat\w*|run|"
     r"find|identif\w*|convert\w*|reclassif\w*|resampl\w*|reproject\w*|rasteri[sz]\w*|vectori[sz]\w*|cluster\w*|dissolv\w*|"
     r"smooth\w*|simplif\w*|merg\w*|union|intersect\w*)\b", re.IGNORECASE)
-STRONG_SCORE = 9.0
+STRONG_SCORE = 8.0
 # Tasks whose tools only load and style existing data: they cannot do the computation the request asks for.
 DISPLAY_ONLY_TOOLS = frozenset({"add_layer_from_path", "apply_categorized_style", "apply_graduated_style", "zoom_to_layer",
                                 "add_basemap", "get_layers", "style_layer", "apply_single_style"})
@@ -202,3 +202,31 @@ def algorithms_for_task(task_id):
         with contextlib.suppress(Exception), open(_TASK_PATH, encoding="utf-8") as fh:
             _TASK_ALGORITHMS.update(json.load(fh))
     return list(_TASK_ALGORITHMS.get(str(task_id), []))
+
+
+_ABOUT_PATH = os.path.join(os.path.dirname(__file__), "algorithm_about.json")
+_ABOUT: dict = {}
+_ABOUT_LOADED: list[bool] = []
+
+
+def about(alg_id):
+    """A short hand-written phrase saying what an algorithm is for, or "" (algorithm_about.json). Shown beside the name when the model browses."""
+    if not _ABOUT_LOADED:
+        _ABOUT_LOADED.append(True)
+        with contextlib.suppress(Exception), open(_ABOUT_PATH, encoding="utf-8") as fh:
+            _ABOUT.update(json.load(fh))
+    return _ABOUT.get(alg_id, "")
+
+
+FAMILY_ALIASES = {"geometry": "GEOMETRY_FAMILY", "table": "TABLE_FAMILY", "analysis": "ANALYSIS_FAMILY", "expression": "EXPRESSION_FAMILY",
+                  "raster": "RASTER_FAMILY", "mixed": "MIXED_FAMILY", "grass": "GRASS_FAMILY", "mesh": "MESH_FAMILY"}
+
+
+def family_ids(family):
+    """Sorted approved ids of one family ("geometry", "table", "analysis", "expression", "raster", "mixed", "grass", "mesh"), or None when the
+    name is not one of them."""
+    attribute = FAMILY_ALIASES.get(str(family or "").strip().lower())
+    if attribute is None:
+        return None
+    from .tools import _processing_allowlist as allow
+    return sorted(getattr(allow, attribute, {}))
