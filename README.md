@@ -20,14 +20,14 @@
   <a href="https://cartogenai.com"><img src="https://img.shields.io/badge/website-cartogenai.com-0b6efd" alt="Website"></a>
 </p>
 
-**Community edition · Version 1.17.0-rc46 (pre-release) · GNU GPL v2 · QGIS 4.2–4.99 · [cartogenai.com](https://cartogenai.com)**
+**Community edition · Version 1.17.0-rc47 (pre-release) · GNU GPL v2 · QGIS 4.2–4.99 · [cartogenai.com](https://cartogenai.com)**
 
 Cartogen AI is built for GIS analysts, humanitarian teams, researchers, and anyone who
 needs to move from a question to a reproducible spatial result without leaving QGIS.
 The agent exposes its plan, tool calls, progress, and errors instead of returning a
 black-box answer.
 
-> **Project status (2026-10-06):** active Community edition, currently at the **1.17.0-rc46 pre-release** build (the last stable build is 1.16.3; rc20 to 1.17.0-rc46 add the audit fixes, hand-test fixes and the cost and routing work made after rc19).
+> **Project status (2026-10-06):** active Community edition, currently at the **1.17.0-rc47 pre-release** build (the last stable build is 1.16.3; rc20 to 1.17.0-rc47 add the audit fixes, hand-test fixes and the cost and routing work made after rc19).
 > - **Tests:** 3,570 automated tests, 0 failures in the offline run; the live-QGIS tests (and any needing optional libraries) are skipped there and
 >   the QGIS ones run in CI (the `qgis-live-tests` job, QGIS 4.2.2).
 > - **Architectural audit:** an external audit of rc12 raised 32 findings, filed as issues #137-#168 (tracking issue #169). The 15
@@ -86,6 +86,17 @@ black-box answer.
   a restricted execution sandbox for model-generated PyQGIS scripts, fail-closed
   read-only SQL enforcement, an SSRF guard on fetched URLs, and a destructive-action
   confirmation gate the model cannot self-approve.
+
+## What's new in 1.17.0-rc47
+
+Built on 1.17.0-rc46. Offline tests and the QGIS 4.2.2 live checks in CI pass; **not hand-tested** in desktop QGIS unless an item says so. Full list: the `v1.17.0-rc47` block in [metadata.txt](metadata.txt) and [CHANGELOG.md](CHANGELOG.md).
+
+- Cheaper requests: 28 tool definitions are offered per request instead of 40, about 35 percent fewer tokens on every model call (measured offline: 14.3k to 9.4k on average). It is a setting (cartogen_ai/tool_router_top_k, 12 to 60) if the assistant ever says a tool is unavailable. Not measured against live model answers.
+- Requests that were refused or misrouted: 'Set the project CRS to EPSG:3857', 'Assign EPSG:4326 to the layer' and 'Go to the bookmark' are no longer dismissed as pasted fragments; 'Show the metadata of towns' reads the metadata instead of planning a metadata-creation task; a raster expression such as 'Calculate dem@1 > 100 as a new layer' offers the raster calculator; 'animate', 'produce' and 'charts linked to maps' reach their tools.
+- Elevation profile along a road: add_layout_elevation_profile takes along_layer, a line layer: the profile runs from the first to the last vertex of its selected or first feature, so no coordinates have to be typed.
+- Project tidy: tidy_project_layers no longer fails when the project has a vector tile layer.
+- More plain-language matches: 20 more approved Processing algorithms can be found from a description of the result (holes in polygons, sorting, constant rasters, raster properties, hub lines and others).
+- Not hand-tested: Everything above is checked by the offline suite and, for the QGIS parts, by CI on QGIS 4.2.2. None of it has been hand-tested in desktop QGIS, and no real model was observed with the smaller tool list. The cause of the animation how-to answer and the HTML dashboard for a layout chart (issue 362) is not confirmed.
 
 ## What's new in 1.17.0-rc46
 

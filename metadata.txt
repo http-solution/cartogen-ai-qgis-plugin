@@ -8,7 +8,7 @@ name=Cartogen AI
 qgisMinimumVersion=4.2
 qgisMaximumVersion=4.99
 description=Spatial AI that plans, executes, and shows its work inside QGIS.
-version=1.17.0-rc46
+version=1.17.0-rc47
 author=Alaa Alshoubaki
 email=cartogenai@gmail.com
 
@@ -25,7 +25,16 @@ license=GNU GPL v2
 hasProcessingProvider=yes
 # Declares Qt 6 support for QGIS 4 plugin managers that read this key; managers that do not know it ignore it (added by the rc28 self-audit; confirm against the directory page after the next upload).
 supportsQt6=True
-changelog=v1.17.0-rc46 (2026-10-17):
+changelog=v1.17.0-rc47 (2026-10-18):
+    No breaking changes -- requires QGIS 4.2+. Fixes from the rc46 hand-test run and a cheaper default: about a third fewer tool definitions are sent with each request, short imperative requests are no longer refused as fragments, reading a layer's metadata, raster expressions and elevation profiles along a road now reach the right tool. CI-checked, not hand-tested.
+    - Cheaper requests: 28 tool definitions are offered per request instead of 40, about 35 percent fewer tokens on every model call (measured offline: 14.3k to 9.4k on average). It is a setting (cartogen_ai/tool_router_top_k, 12 to 60) if the assistant ever says a tool is unavailable. Not measured against live model answers.
+    - Requests that were refused or misrouted: 'Set the project CRS to EPSG:3857', 'Assign EPSG:4326 to the layer' and 'Go to the bookmark' are no longer dismissed as pasted fragments; 'Show the metadata of towns' reads the metadata instead of planning a metadata-creation task; a raster expression such as 'Calculate dem@1 > 100 as a new layer' offers the raster calculator; 'animate', 'produce' and 'charts linked to maps' reach their tools.
+    - Elevation profile along a road: add_layout_elevation_profile takes along_layer, a line layer: the profile runs from the first to the last vertex of its selected or first feature, so no coordinates have to be typed.
+    - Project tidy: tidy_project_layers no longer fails when the project has a vector tile layer.
+    - More plain-language matches: 20 more approved Processing algorithms can be found from a description of the result (holes in polygons, sorting, constant rasters, raster properties, hub lines and others).
+    - Not hand-tested: Everything above is checked by the offline suite and, for the QGIS parts, by CI on QGIS 4.2.2. None of it has been hand-tested in desktop QGIS, and no real model was observed with the smaller tool list. The cause of the animation how-to answer and the HTML dashboard for a layout chart (issue 362) is not confirmed.
+
+v1.17.0-rc46 (2026-10-17):
     No breaking changes -- requires QGIS 4.2+. Fixes from the rc45 hand-test run: describe what you want and the assistant finds the Processing algorithm without its name, requests are no longer answered by an unrelated task, undo reaches back a few messages, long runs are bounded. CI-checked, not hand-tested.
     - Find an algorithm by what it does: A request that describes a result (fill the gaps in an elevation raster, which areas can be seen from a point, disconnected parts of the road network) now reaches the right one of the 427 approved Processing algorithms without its name. find_processing_algorithm searches by meaning and can list a whole family with what each is for. Measured offline on 40 fresh plain requests, the algorithm was among the first 15 results 60 percent of the time; which one a real model then picks is not tested.
     - Requests no longer hijacked by an unrelated task: A request that names an algorithm, asks for a computation, or asks for a chart is no longer answered with a confirm card for a map task (OpenStreetMap mapping, bridge damage, population mapping). 37 humanitarian tasks (flood, drainage, terrain, density, hotspots, catchments, nearest facility, interpolation, watershed, fire) now name the approved algorithms that fit them.
