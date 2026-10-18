@@ -1732,13 +1732,13 @@ class CartogenAi:
     def _prepare_turn_prompt(self, user_query, map_context):
         """Routes tools for this turn and builds the system prompt (plus chain-input discovery);
         split out of _run_impl purely to keep that loop's complexity reviewable."""
-        from ..services.tool_router import ToolRouter
+        from ..services.tool_router import ToolRouter, configured_top_k
         router = ToolRouter(TOOLS_SCHEMA)
         self._turn_counter = getattr(self, "_turn_counter", 0) + 1
         recent_names, recent_turn = getattr(self, "_recent_tools", ((), 0))
         # Only the last two turns count: a tool from twenty messages ago is not "what we were in the middle of".
         carry_over = recent_names if self._turn_counter - recent_turn <= 2 else ()
-        active_tools = router.filter_relevant_tools(user_query, top_k=40, carry_over_tools=carry_over)
+        active_tools = router.filter_relevant_tools(user_query, top_k=configured_top_k(), carry_over_tools=carry_over)
         active_tool_names = {
             t.get("function", {}).get("name", "") for t in active_tools if isinstance(t, dict)
         }

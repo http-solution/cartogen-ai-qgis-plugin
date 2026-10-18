@@ -104,6 +104,12 @@ def workflow_run_key(run_id: str) -> str:
 # synchronous behaviour without a new release. See core/agent/tools/_background_processing.py.
 SETTINGS_BACKGROUND_NETWORK_ANALYSIS = "cartogen_ai/network_analysis_in_background"
 
+# How many tool schemas the router offers the model per request (default 28, bounded 12-60). Every model call resends them, so this
+# is the main per-request token cost; 40 -> 28 cut the mean offered-schema size from ~14.3k to ~9.4k tokens with no change on the
+# routing test suites (measured offline 2026-10-18; NOT yet measured against live model answers). Raise it if the model reports a tool
+# missing. See core/services/tool_router.py.
+SETTINGS_TOOL_ROUTER_TOP_K = "cartogen_ai/tool_router_top_k"
+
 # Kill-switch for sending hosted-AI requests (Gemini, OpenAI, Claude, OpenRouter) through QGIS's network stack (default on). Set to
 # false in QGIS's advanced settings to send them with the Python `requests` library instead, as before 1.16.0-rc28. Added after a
 # 2026-10-11 field report of Gemini answering 403 to the QGIS-stack request while the same key worked outside QGIS. See

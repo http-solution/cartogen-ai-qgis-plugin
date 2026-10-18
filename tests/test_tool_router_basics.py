@@ -193,3 +193,13 @@ class TestEveryAliasStillOffersItsOwnTool(unittest.TestCase):
             lost.extend(f"{tool}: {phrase!r}" for phrase in phrases
                         if tool not in {t["function"]["name"] for t in router.filter_relevant_tools(phrase)})
         self.assertEqual(lost, [], "\n".join(lost))
+
+
+class TestConfiguredTopK(unittest.TestCase):
+    def test_default_outside_qgis_and_pie_chart_still_routed(self):
+        from cartogen_ai.core.services.tool_router import DEFAULT_TOP_K, configured_top_k
+        from cartogen_ai.core.agent.tools.registry import TOOLS_SCHEMA
+        self.assertEqual(configured_top_k(), DEFAULT_TOP_K)
+        # Regression guard for the 40 -> 28 default: this request lost set_layer_diagram at 36 until its aliases were widened.
+        names = {t["function"]["name"] for t in ToolRouter(TOOLS_SCHEMA).filter_relevant_tools("add pie charts of the categories")}
+        self.assertIn("set_layer_diagram", names)
