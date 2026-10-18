@@ -94,7 +94,7 @@ a PostGIS connection, a `.copc.laz` or `ept.json` point cloud, a vector-tile or 
 | 5 | `set_raster_relief` | Style dem as a hillshade with azimuth 315 and altitude 45. Then show contour lines every 20 with an index line every 100. | Hillshade renderer, then a contour renderer, on the dem. Undo restores the previous style. | | |
 | 6 | `save_symbol_to_library` | Save the symbol of the layer towns to my library as 'town-star'. | Success message with the name; saving the same name again asks before overwriting. | | |
 | 7 | `list_saved_symbols` | What symbols do I have in my library? | Lists 'town-star' (and any others) with tags. | | |
-| 8 | `apply_saved_symbol` | Apply the saved symbol town-star to the layer roads. | Asks for confirmation (symbol type must fit); after confirming the symbol changes; undo restores. | | |
+| 8 | `apply_saved_symbol` | Save the style of the layer roads as a symbol called road-test, then apply the saved symbol road-test to the layer roads. | Asks for confirmation (symbol type must fit); after confirming the symbol changes; undo restores. | | |
 | 9 | `add_overview_map` | In Test Layout add an overview map in the top-right corner, 50 by 40 mm, with a red frame. | An inset map appears with a red rectangle showing the main map's extent; moving the main map moves the frame. | | |
 | 10 | `set_layout_guides_grid` | In Test Layout add a vertical guide at 20 mm and a horizontal guide at 15 mm, and set the snapping grid to 5 mm. | Guides show in the layout designer; the grid spacing is 5 mm; items snap to it. | | |
 | 11 | `set_layout_atlas` | In Test Layout set up an atlas with one page per district, named by the name field, sorted by name. | Atlas panel shows the coverage layer districts and 4 pages; atlas preview steps through districts. | | |
@@ -115,8 +115,8 @@ a PostGIS connection, a `.copc.laz` or `ept.json` point cloud, a vector-tile or 
 |---|---|---|---|---|---|
 | 1 | `set_layer_filter` | Filter districts to only those with pop above 1000. Then clear the filter. | Only matching features draw; Layer Properties > Source > Query Builder shows the filter; clearing restores all. Text with ; or comments is refused. Undo restores. | | |
 | 2 | `transform_features` | Move the towns with pop above 100 by 0.5 degrees east, rotate them 30 degrees, scale them 1.2. | Shows a preview with the exact count first; after you confirm the geometries change (rotation and scale are about each feature's centre, so single points only move). Reversible with undo_manual_edit while the layer is in edit mode. | | |
-| 3 | `merge_features` | Merge the selected districts into one feature. | Preview with counts, then one merged feature: the first feature keeps its attributes and the others are deleted, so confirm only on a copy. Needs at least two features. | | |
-| 4 | `split_features_by_line` | Split districts with the line LINESTRING(2 -1, 2 5). | Preview, then districts crossing x=2 are split; a line that misses everything is reported. | | |
+| 3 | `merge_features` | Select the districts named A and B, then merge the selected districts into one feature. | Preview with counts, then one merged feature: the first feature keeps its attributes and the others are deleted, so confirm only on a copy. Needs at least two features. | | |
+| 4 | `split_features_by_line` | Split districts with the line LINESTRING(1 -1, 1 5). | Preview, then districts crossing x=2 are split; a line that misses everything is reported. | | |
 | 5 | `undo_manual_edit` | Start editing towns, change one value by hand, then say: undo my last edit on towns. | The hand edit is reversed (works only while the layer is in edit mode; for assistant operations on a layer not in edit mode the model should use undo_last_operation instead). | | |
 | 6 | `redo_manual_edit` | Redo the edit on towns. | The undone edit returns. | | |
 | 7 | `change_field_type` | Change the field pop on towns to text. | Preview says how many values cannot be converted (they become NULL); after confirming the type changes and the field moves to the end of the table. | | |
@@ -136,7 +136,7 @@ a PostGIS connection, a `.copc.laz` or `ept.json` point cloud, a vector-tile or 
 | 21 | `set_layout_page` | Set the Test Layout page to A3 landscape. | Page size changes. | | |
 | 22 | `save_layout_template` | Save Test Layout as a template at <path>. | A .qpt file is written (overwrite asks). | | |
 | 23 | `load_layout_template` | Load the template <path> as a new layout called From Template. | New layout appears with the template's items. | | |
-| 24 | `rename_layer_group` | Rename the group <name> to Base data. | Group renamed in the layer tree. | | |
+| 24 | `rename_layer_group` | Put the layers towns and roads in a group called Test group, then rename the group Test group to Base data. | Group renamed in the layer tree. | | |
 | 25 | `zoom_history` | Zoom to the previous extent, then to the next one. | Map returns to earlier extents (needs the real canvas). | | |
 | 26 | `get_layer_metadata` | Show the metadata of towns. | Title, abstract, keywords, etc. shown. | | |
 | 27 | `set_layer_metadata` | Set the title of towns to 'Test towns', abstract 'Hand test', keywords test, rc44. | Layer Properties > Metadata shows the values. | | |
@@ -161,7 +161,7 @@ a PostGIS connection, a `.copc.laz` or `ept.json` point cloud, a vector-tile or 
 | 7 | `select_by_expression` | Select the towns where pop > 100. | Matching points highlighted; a dangerous expression (file functions) is refused. | | |
 | 8 | `select_all_features` | Select all districts. | All selected. | | |
 | 9 | `clear_selection` | Clear the selection. | Selection cleared. | | |
-| 10 | `delete_features` | Delete the selected towns. | Preview with count; deleted only after confirmation; undo_manual_edit reverses. | | |
+| 10 | `delete_features` | Select the towns with pop below 50, then delete the selected towns. | Preview with count; deleted only after confirmation; undo_manual_edit reverses. | | |
 | 11 | `set_attribute_value` | Set pop to 0 for the town named a. | Preview with counts, then the value changes. | | |
 | 12 | `add_field` | Add a text field note to towns. | Field appears. | | |
 | 13 | `rename_field` | Rename the field note to remark. | Field renamed. | | |

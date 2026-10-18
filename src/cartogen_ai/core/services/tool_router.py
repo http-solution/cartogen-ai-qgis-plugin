@@ -135,7 +135,7 @@ _TOOL_ALIASES = {
     "set_project_terrain": [
         "project terrain", "set the terrain", "terrain from the dem", "terrain elevation", "flat terrain", "terrain provider", "use the dem as terrain",
     ],
-    "add_layout_chart": [
+    "add_layout_chart": ["charts linked to maps", "chart linked to the map", "charts linked to the map", "chart linked to maps",
         "chart in the layout", "add a chart", "bar chart in the layout", "pie chart in the layout", "line chart in the layout", "chart item",
         "chart on the layout", "chart to the layout", "chart to the print",
     ],
@@ -209,7 +209,7 @@ _TOOL_ALIASES = {
     ],
     "set_layer_diagram": [
         "pie chart on the map", "pie charts on the map", "pie diagram", "bar diagram", "bar chart on each", "diagram on each", "diagrams on the map",
-        "draw a pie", "draw pies", "histogram diagram", "chart for each feature",
+        "draw a pie", "add pie charts", "add a pie chart", "pie charts of the", "draw pies", "histogram diagram", "chart for each feature",
     ],
     "set_raster_relief": [
         "hillshade renderer", "draw as a hillshade", "show as hillshade", "show the dem as hillshade", "contour lines on the dem", "contour renderer",
@@ -565,7 +565,7 @@ _TOOL_ALIASES = {
         "cva viable",
     ],
     "raster_calculator": [
-        "raster calculator", "raster calc", "map algebra", "band math", "raster expression", "raster minus", "minus raster",
+        "@1", "@2", "band 1 >", "band 1 <", "calculate raster", "raster calculation", "raster calculator", "raster calc", "map algebra", "band math", "raster expression", "raster minus", "minus raster",
         "subtract the raster", "subtract raster", "add the rasters", "multiply the raster", "divide the raster", "raster where",
         "cells above", "cells below", "cells where", "pixels above", "pixels below", "mask of cells", "threshold the raster",
         "raster threshold", "combine the rasters", "raster a minus", "difference between the two rasters",
@@ -766,6 +766,20 @@ def _expand_query_with_fuzzy_corrections(query_words: set, query_lower: str) -> 
 _GENERIC_NAME_WORDS = frozenset({"generate", "calculate", "create", "apply", "get", "set", "add", "fetch", "run", "export", "extract",
                                  "analyze", "analyse", "layer", "layers", "map", "data", "style", "report", "analysis", "tool"})
 _LONG_QUERY_WORDS = 25
+
+DEFAULT_TOP_K = 28
+_MIN_TOP_K, _MAX_TOP_K = 12, 60
+
+
+def configured_top_k() -> int:
+    """Tools offered per request, from QGIS settings, clamped to a sane range; DEFAULT_TOP_K outside QGIS or on a bad value."""
+    try:
+        from qgis.core import QgsSettings
+        from ...infrastructure.settings_keys import SETTINGS_TOOL_ROUTER_TOP_K
+        value = int(QgsSettings().value(SETTINGS_TOOL_ROUTER_TOP_K, DEFAULT_TOP_K))
+    except Exception:
+        return DEFAULT_TOP_K
+    return max(_MIN_TOP_K, min(_MAX_TOP_K, value))
 _LONG_QUERY_MIN_SCORE = 6
 _DESCRIPTION_HIT_CAP = 4        # at most +8 from description words, however long the request
 # Was 10, the same as ONE generic name-word match. As the registry grew past 230 tools, more than 40 of them had "layer", "create" or "add" in
@@ -803,7 +817,7 @@ class ToolRouter:
     def __init__(self, full_schema_list: list[dict]):
         self.full_schema_list = full_schema_list
 
-    def filter_relevant_tools(self, user_query: str, top_k: int = 40, carry_over_tools=None) -> list[dict]:
+    def filter_relevant_tools(self, user_query: str, top_k: int = DEFAULT_TOP_K, carry_over_tools=None) -> list[dict]:
         """Returns top_k relevant tool schemas matching user query terms.
 
         `carry_over_tools`: names of tools the PREVIOUS turn used. A short follow-up ("EPSG:3857", "yes, the second one") shares no
