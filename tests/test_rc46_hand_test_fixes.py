@@ -93,3 +93,16 @@ class TestPart4Wording(unittest.TestCase):
 
     def test_linked_charts_offer_layout_chart(self):
         self.assertIn("add_layout_chart", _offered("Produce charts linked to maps"))
+
+
+class TestElevationProfileAlongLayer(unittest.TestCase):
+    def test_line_ends(self):
+        from cartogen_ai.core.agent.tools.gap_options import line_ends
+        self.assertEqual(line_ends([(0, 0), (1, 1), (4, 4)])[0], ((0.0, 0.0), (4.0, 4.0)))
+        self.assertIsNotNone(line_ends([(0, 0)])[1])
+        self.assertIsNotNone(line_ends([(0, 0), (1, 1), (0, 0)])[1])
+
+    def test_coordinates_are_optional_in_the_schema(self):
+        schema = next(t["function"]["parameters"] for t in TOOLS_SCHEMA if t["function"]["name"] == "add_layout_elevation_profile")
+        self.assertEqual(schema["required"], ["layout_name", "layer_names"])
+        self.assertIn("along_layer", schema["properties"])

@@ -55,6 +55,19 @@ def check_profile_line(start_x, start_y, end_x, end_y):
     return ((values[0], values[1]), (values[2], values[3])), None
 
 
+def line_ends(points):
+    """((x1, y1), (x2, y2)) from the first and last vertex of a line given as [(x, y), ...], or (None, problem). Pure.
+
+    rc46 hand test I6: "draw an elevation profile along the road" had no way to reach the road's coordinates, so the model listed
+    layout items in a loop and never added the profile. The tool now takes a line layer and uses the ends of its (selected or first) feature."""
+    pts = [(float(p[0]), float(p[1])) for p in points or ()]
+    if len(pts) < 2:
+        return None, "The line needs at least two vertices."
+    if pts[0] == pts[-1]:
+        return None, "The line starts and ends at the same point (a closed ring); give start and end coordinates instead."
+    return (pts[0], pts[-1]), None
+
+
 def check_layer_elevation(enabled, mode, band, z_offset, z_scale, clamping, extrusion):
     """Normalised options for set_layer_elevation, or an error. Nothing is required: only what is given is changed."""
     out = {}

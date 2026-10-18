@@ -93,6 +93,7 @@
  },
  "add_layout_elevation_profile": {
   "properties": [
+   "along_layer",
    "end_x",
    "end_y",
    "height_mm",
@@ -106,12 +107,8 @@
    "y_mm"
   ],
   "required": [
-   "end_x",
-   "end_y",
    "layer_names",
-   "layout_name",
-   "start_x",
-   "start_y"
+   "layout_name"
   ]
  },
  "add_layout_item": {

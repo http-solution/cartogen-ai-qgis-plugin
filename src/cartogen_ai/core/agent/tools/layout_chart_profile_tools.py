@@ -6,7 +6,7 @@ add_layout_elevation_profile  an elevation profile along a straight line, from l
 The 3D map layout item is NOT built: CI's QGIS has no QgsLayoutItem3DMap (docs/QGIS_CAPABILITY_PROBE_2026-10-16.md). Written without a QGIS install:
 tests/test_layout_chart_profile_live.py builds both items on a real layout and reads them back (CI's first run is its first execution); how they
 LOOK when rendered or exported has not been checked."""
-from .gap_options import check_box, check_chart, check_profile_line
+from .gap_options import check_box, check_chart, check_profile_line, line_ends
 from .registry import register_tool
 
 try:
@@ -21,6 +21,30 @@ except ImportError:
 def _layout(name):
     from ._layout_names import lookup
     return lookup(QgsProject.instance().layoutManager(), name)
+
+
+def _line_ends_of_layer(name):
+    """Ends of the selected (else first) feature of a line layer, in the project CRS."""
+    found = QgsProject.instance().mapLayersByName(str(name))
+    if not found or not isinstance(found[0], QgsVectorLayer):
+        return None, f"Line layer '{name}' not found."
+    layer = found[0]
+    features = layer.selectedFeatures() or list(layer.getFeatures())[:1]
+    if not features or features[0].geometry() is None or features[0].geometry().isEmpty():
+        return None, f"Layer '{name}' has no line feature."
+    geometry = features[0].geometry()
+    if geometry.type() != 1:  # QgsWkbTypes.LineGeometry
+        return None, f"Layer '{name}' is not a line layer."
+    parts = geometry.asMultiPolyline() if geometry.isMultipart() else [geometry.asPolyline()]
+    line = [(p.x(), p.y()) for p in parts[0]] if parts else []
+    ends, problem = line_ends(line)
+    if problem:
+        return None, problem
+    if layer.crs() != QgsProject.instance().crs() and QgsProject.instance().crs().isValid():
+        from qgis.core import QgsCoordinateTransform
+        transform = QgsCoordinateTransform(layer.crs(), QgsProject.instance().crs(), QgsProject.instance())
+        ends = tuple((lambda p: (p.x(), p.y()))(transform.transform(QgsPointXY(*end))) for end in ends)
+    return ends, None
 
 
 def _place(item, layout, box, item_id):
@@ -100,15 +124,26 @@ def add_layout_chart(layout_name, layer_name, x_field, y_field, chart_type="bar"
 @register_tool(
     "add_layout_elevation_profile",
     "Add an elevation profile to a print layout along a straight line from (start_x, start_y) to (end_x, end_y) in the project CRS. layer_names "
-    "are the layers to profile; each needs elevation turned on first (set_layer_elevation). Position and size in millimetres.",
+    "are the layers to profile; each needs elevation turned on first (set_layer_elevation). Give either start/end coordinates or along_layer, the name "
+    "of a LINE layer (a road, a river): the profile then runs from the first to the last vertex of its selected feature, or its first feature. "
+    "Position and size in millimetres.",
     {"type": "object", "properties": {
         "layout_name": {"type": "string"}, "layer_names": {"type": "array", "items": {"type": "string"}}, "start_x": {"type": "number"},
         "start_y": {"type": "number"}, "end_x": {"type": "number"}, "end_y": {"type": "number"}, "x_mm": {"type": "number"},
-        "y_mm": {"type": "number"}, "width_mm": {"type": "number"}, "height_mm": {"type": "number"}, "item_id": {"type": "string"}},
-     "required": ["layout_name", "layer_names", "start_x", "start_y", "end_x", "end_y"]})
-def add_layout_elevation_profile(layout_name, layer_names, start_x, start_y, end_x, end_y, x_mm=10, y_mm=10, width_mm=180, height_mm=70, item_id=None):
+        "y_mm": {"type": "number"}, "width_mm": {"type": "number"}, "height_mm": {"type": "number"}, "item_id": {"type": "string"},
+        "along_layer": {"type": "string"}},
+     "required": ["layout_name", "layer_names"]})
+def add_layout_elevation_profile(layout_name, layer_names, start_x=None, start_y=None, end_x=None, end_y=None, x_mm=10, y_mm=10, width_mm=180,
+                                 height_mm=70, item_id=None, along_layer=None):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
+    if along_layer and start_x is None and end_x is None:
+        ends, problem = _line_ends_of_layer(along_layer)
+        if problem:
+            return {"error": problem}
+        (start_x, start_y), (end_x, end_y) = ends
+    elif None in (start_x, start_y, end_x, end_y):
+        return {"error": "Give start_x, start_y, end_x and end_y, or along_layer (the name of a line layer)."}
     line, problem = check_profile_line(start_x, start_y, end_x, end_y)
     if problem:
         return {"error": problem}

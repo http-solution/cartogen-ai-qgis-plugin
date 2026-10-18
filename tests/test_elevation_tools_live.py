@@ -96,6 +96,23 @@ class TestElevationAndChartLive(unittest.TestCase):
         self.assertIsNotNone(self.layout.itemById("PROFILE1"))
         self.assertIn("error", add_layout_elevation_profile("gaps", ["dem"], 1, 1, 1, 1))
 
+    def test_elevation_profile_along_a_line_layer(self):
+        # rc46 I6: "along the road" had no coordinates to go on; along_layer takes the ends of the road's first feature.
+        from cartogen_ai.core.agent.tools.elevation_tools import set_layer_elevation
+        from cartogen_ai.core.agent.tools.layout_chart_profile_tools import add_layout_elevation_profile
+        roads = QgsVectorLayer("LineString?crs=EPSG:4326&field=name:string", "roads", "memory")
+        f = QgsFeature(roads.fields())
+        f.setGeometry(QgsGeometry.fromWkt("LINESTRING(0.2 0.2, 1 1.5, 3.5 3.5)"))
+        f.setAttributes(["r1"])
+        roads.dataProvider().addFeatures([f])
+        QgsProject.instance().addMapLayer(roads)
+        self.assertTrue(set_layer_elevation("dem", enabled=True, mode="surface").get("success"))
+        res = add_layout_elevation_profile("gaps", ["dem"], along_layer="roads", item_id="PROFILE_ROAD")
+        self.assertTrue(res.get("success"), res)
+        self.assertIsNotNone(self.layout.itemById("PROFILE_ROAD"))
+        self.assertIn("error", add_layout_elevation_profile("gaps", ["dem"], along_layer="towns"))
+        self.assertIn("error", add_layout_elevation_profile("gaps", ["dem"]))
+
 
 if __name__ == "__main__":
     unittest.main()
