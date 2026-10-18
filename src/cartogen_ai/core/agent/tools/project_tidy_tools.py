@@ -73,6 +73,10 @@ def _entries(project):
         if layer is None:
             continue
         is_raster = hasattr(layer, "bandCount")
+        # rc46 hand test: a vector tile layer has neither bandCount nor featureCount and crashed the whole scan; only real vector layers
+        # have features to fingerprint, anything else (vector tile, point cloud, mesh, 3D tiles) is left out of the duplicate scan.
+        if not is_raster and not hasattr(layer, "featureCount"):
+            continue
         provider = layer.providerType() if hasattr(layer, "providerType") else ""
         if is_raster:
             signature = f"src:{layer.source()}" if layer.source() else None

@@ -565,7 +565,7 @@ _TOOL_ALIASES = {
         "cva viable",
     ],
     "raster_calculator": [
-        "raster calculator", "raster calc", "map algebra", "band math", "raster expression", "raster minus", "minus raster",
+        "@1", "@2", "band 1 >", "band 1 <", "calculate raster", "raster calculation", "raster calculator", "raster calc", "map algebra", "band math", "raster expression", "raster minus", "minus raster",
         "subtract the raster", "subtract raster", "add the rasters", "multiply the raster", "divide the raster", "raster where",
         "cells above", "cells below", "cells where", "pixels above", "pixels below", "mask of cells", "threshold the raster",
         "raster threshold", "combine the rasters", "raster a minus", "difference between the two rasters",

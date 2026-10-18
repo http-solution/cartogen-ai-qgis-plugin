@@ -152,7 +152,12 @@ _ACCESS_TIME_LANGUAGE = re.compile(
 _ACTION_WORDS = re.compile(
     r"\b(calculate|compute|create|make|build|show|map|find|list|download|fetch|load|add|remove|delete|export|estimate|"
     r"generate|run|classify|compare|analy[sz]e|draw|plot|clip|buffer|merge|join|style|label|zoom|select|count|"
-    r"summari[sz]e|identify|extract|convert|how|what|which|where|who|when|why|can|could|please)\b"
+    r"summari[sz]e|identify|extract|convert|how|what|which|where|who|when|why|can|could|please|"
+    # rc46 hand test: "Set the project CRS to EPSG:3857." was refused as a fragment (no action word) and only worked on a retype.
+    r"set|change|rename|reproject|hide|turn|switch|open|undo|redo|apply|save|move|use|enable|disable|reset|clear|update|"
+    r"filter|sort|group|ungroup|duplicate|copy|paste|replace|fix|repair|tidy|dissolve|split|simplify|smooth|rotate|scale|"
+    r"assign|go|jump|pan|center|centre|reload|refresh|rebuild|insert|new|start|stop|cancel|abort|zoom|"
+    r"label|rasteri[sz]e|vectori[sz]e|polygoni[sz]e|snap|measure|query|tell|give|read|get|check|display|print|import)\b"
 )
 _FRAGMENT_MAX_WORDS = 4
 
@@ -217,6 +222,12 @@ def _coverage(query, entry):
     return len(tokens & set(entry.get("kw") or ())) / len(tokens) if tokens else 0.0
 
 
+# rc46 hand test: "Show the metadata of towns." matched task 20.04 "Create metadata" and planned provenance/export tools; the user only
+# wanted to read what the layer says about itself (get_layer_metadata). Reading is not creating: no task directive for it.
+_READS_METADATA = re.compile(r"\b(show|display|read|view|see|what(?:'s| is| are)?|get|list|open)\b.{0,30}\b(metadata|abstract)\b")
+_WRITES_METADATA = re.compile(r"\b(creat\w*|writ\w*|produc\w*|generat\w*|export\w*|develop\w*|sidecar|provenance|standard\w*|record)\b")
+
+
 def classify(query):
     """Full local verdict for a query.
 
@@ -232,6 +243,10 @@ def classify(query):
     if _is_non_request_fragment(query):
         return {"matches": [], "best": None, "score": 0.0,
                 "ambiguous": False, "reason": "too short to be a request"}
+    lowered = (query or "").lower()
+    if _READS_METADATA.search(lowered) and not _WRITES_METADATA.search(lowered):
+        return {"matches": [], "best": None, "score": 0.0,
+                "ambiguous": False, "reason": "reads layer metadata"}
     with contextlib.suppress(Exception):
         from .algorithm_topics import names_algorithm
         if names_algorithm(query):
