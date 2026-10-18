@@ -106,3 +106,23 @@ class TestElevationProfileAlongLayer(unittest.TestCase):
         schema = next(t["function"]["parameters"] for t in TOOLS_SCHEMA if t["function"]["name"] == "add_layout_elevation_profile")
         self.assertEqual(schema["required"], ["layout_name", "layer_names"])
         self.assertIn("along_layer", schema["properties"])
+
+
+class TestUsageLogSummary(unittest.TestCase):
+    def test_groups_calls_into_prompts(self):
+        import importlib.util
+        from pathlib import Path
+        spec = importlib.util.spec_from_file_location("summarize_usage_log", Path(__file__).resolve().parents[1] / "tools" / "summarize_usage_log.py")
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        lines = [
+            "12:00 [CartogenAI] model_call call_index=0 model=m input_tokens=1000 cached_tokens=200 output_tokens=50 tool_count=28",
+            "12:01 [CartogenAI] model_call call_index=1 model=m input_tokens=1500 cached_tokens=900 output_tokens=20 tool_count=28",
+            "12:02 [CartogenAI] model_call call_index=0 model=m input_tokens=900 output_tokens=10 tool_count=28",
+            "unrelated line",
+        ]
+        turns = mod.parse(lines)
+        self.assertEqual([t["calls"] for t in turns], [2, 1])
+        self.assertEqual(turns[0]["input_tokens"], 2500)
+        self.assertEqual(turns[0]["cached_tokens"], 1100)
+        self.assertEqual(turns[1]["tool_count"], 28)

@@ -13,4 +13,4 @@ sends about 24k tokens of system prompt and tool schemas per model call, plus th
    Processing-algorithm family that passed on the previous release and is unchanged is not re-run.
 4. **Plain-language prompts.** Sample about 40 (the offline misses plus a few per family), not 385.
 5. **One row, one chat** (new chat per row) so history does not pile up; screenshots only for failures; use a cheaper model for sweeps.
-6. **Record cost.** Note the token footer per row so cost per version is visible.
+6. **Record cost.** Save the CartogenAI log (QGIS Log Messages) after the run and run `python tools/summarize_usage_log.py cartogen.log --csv usage.csv`: one line per prompt with model calls, input/cached/output tokens and tools offered, plus the five most expensive prompts.
