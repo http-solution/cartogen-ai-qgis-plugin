@@ -76,8 +76,8 @@ def main():
     plain_rows = [(r["algorithm_id"], r["plain_prompt"], r["expected"]) for r in (*missed, *found)]
 
     sheet = [f"# Cartogen AI {v} - lean hand test\n",
-             "Run on a **fresh QGIS project** with the fixtures from `3_fixtures_script.txt`. **One new chat per row** (history makes every later row dearer). "
-             "Screenshots only for rows that fail or look wrong. Do not repeat rows that are not here: their code did not change.\n",
+             ("Run on a **fresh QGIS project** with the fixtures from `3_fixtures_script.txt`. **One new chat per row** (history makes every later row dearer). "
+              "Screenshots only for rows that fail or look wrong. Do not repeat rows that are not here: their code did not change.\n"),
              "Scoring per row: Pass / Partial / Fail / Skip. Note (1) did the assistant choose the right tool without being told its name, (2) does the result look right.\n",
              "Prerequisite for the layout rows: the request `create a print layout of the map called Test Layout`.\n",
              f"## A. Changed or fix-targeted rows ({len(tool_rows)})\n", "| # | Row | Prompt | Expect |", "|---|---|---|---|"]
