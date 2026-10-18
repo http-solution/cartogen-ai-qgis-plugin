@@ -7,6 +7,7 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 | Version | Date | Summary |
 |---|---|---|
+| [1.17.0-rc47](#v1-17-0-rc47) | 2026-10-18 | **Release candidate 47 for 1.17.0.** No breaking changes -- requires QGIS 4.2+. Fixes from the rc46 hand-test run and a cheaper default: about a third fewer tool definitions are sent with each request, short imperative requests are no longer refused as fragments, reading a layer's metadata, raster expressions and elevation profiles along a road now reach the right tool. CI-checked, not hand-tested. |
 | [1.17.0-rc46](#v1-17-0-rc46) | 2026-10-17 | **Release candidate 46 for 1.17.0.** No breaking changes -- requires QGIS 4.2+. Fixes from the rc45 hand-test run: describe what you want and the assistant finds the Processing algorithm without its name, requests are no longer answered by an unrelated task, undo reaches back a few messages, long runs are bounded. CI-checked, not hand-tested. |
 | [1.17.0-rc45](#v1-17-0-rc45) | 2026-10-16 | **Release candidate 45 for 1.17.0.** No breaking changes -- requires QGIS 4.2+. Four calls to QGIS methods that do not exist are fixed (found by checking the code against the QGIS 4.2.3 reference), and a new test now blocks any new one. CI-checked, not hand-tested. |
 | [1.17.0-rc44](#v1-17-0-rc44) | 2026-10-16 | **Release candidate 44 for 1.17.0.** No breaking changes -- requires QGIS 4.2+. 18 more tools (276 to 294) and about 160 more Processing algorithms (267 to 427): symbology and labels, print-layout charts, atlas and elevation profile, point cloud, vector tile and 3D tiles layers, elevation settings, GRASS and mesh algorithms. CI-checked, not hand-tested. |
@@ -90,6 +91,18 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 The detailed narrative entries below are unchanged -- this table is purely an additive index on
 top of them.
+
+<a id="v1-17-0-rc47"></a>
+## [1.17.0-rc47] — 2026-10-18 — Release candidate 47 for 1.17.0: No breaking changes -- requires QGIS 4.2+. Fixes from the rc46 hand-test run and a cheaper default: about a third fewer tool definitions are sent with each request, short imperative requests are no longer refused as fragments, reading a layer's metadata, raster expressions and elevation profiles along a road now reach the right tool. CI-checked, not hand-tested.
+
+No breaking changes; QGIS 4.2+. Everything after 1.17.0-rc46:
+
+- Cheaper requests: 28 tool definitions are offered per request instead of 40, about 35 percent fewer tokens on every model call (measured offline: 14.3k to 9.4k on average). It is a setting (cartogen_ai/tool_router_top_k, 12 to 60) if the assistant ever says a tool is unavailable. Not measured against live model answers.
+- Requests that were refused or misrouted: 'Set the project CRS to EPSG:3857', 'Assign EPSG:4326 to the layer' and 'Go to the bookmark' are no longer dismissed as pasted fragments; 'Show the metadata of towns' reads the metadata instead of planning a metadata-creation task; a raster expression such as 'Calculate dem@1 > 100 as a new layer' offers the raster calculator; 'animate', 'produce' and 'charts linked to maps' reach their tools.
+- Elevation profile along a road: add_layout_elevation_profile takes along_layer, a line layer: the profile runs from the first to the last vertex of its selected or first feature, so no coordinates have to be typed.
+- Project tidy: tidy_project_layers no longer fails when the project has a vector tile layer.
+- More plain-language matches: 20 more approved Processing algorithms can be found from a description of the result (holes in polygons, sorting, constant rasters, raster properties, hub lines and others).
+- Not hand-tested: Everything above is checked by the offline suite and, for the QGIS parts, by CI on QGIS 4.2.2. None of it has been hand-tested in desktop QGIS, and no real model was observed with the smaller tool list. The cause of the animation how-to answer and the HTML dashboard for a layout chart (issue 362) is not confirmed.
 
 <a id="v1-17-0-rc46"></a>
 ## [1.17.0-rc46] — 2026-10-17 — Release candidate 46 for 1.17.0: No breaking changes -- requires QGIS 4.2+. Fixes from the rc45 hand-test run: describe what you want and the assistant finds the Processing algorithm without its name, requests are no longer answered by an unrelated task, undo reaches back a few messages, long runs are bounded. CI-checked, not hand-tested.

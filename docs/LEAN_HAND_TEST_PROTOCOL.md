@@ -14,3 +14,5 @@ sends about 24k tokens of system prompt and tool schemas per model call, plus th
 4. **Plain-language prompts.** Sample about 40 (the offline misses plus a few per family), not 385.
 5. **One row, one chat** (new chat per row) so history does not pile up; screenshots only for failures; use a cheaper model for sweeps.
 6. **Record cost.** Save the CartogenAI log (QGIS Log Messages) after the run and run `python tools/summarize_usage_log.py cartogen.log --csv usage.csv`: one line per prompt with model calls, input/cached/output tokens and tools offered, plus the five most expensive prompts.
+
+Build the lean bundle with `python tools/build_lean_bundle.py --plugin-zip dist/cartogen_ai_v<version>.zip` (rows A: fix-targeted tool rows; rows B: plain-language sample). Build it around the zip the release workflow published, not a local build: the hashes differ.

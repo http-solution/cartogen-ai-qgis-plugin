@@ -8,17 +8,17 @@ metadata changelog, CHANGELOG.md, README and this module agree). Checklist: CONT
 releases listed in NEW_MARK_VERSIONS.
 """
 
-WHATS_NEW_VERSION = "1.17.0-rc46"
-NEW_MARK_VERSIONS = ("1.17.0-rc45", "1.17.0-rc46")
+WHATS_NEW_VERSION = "1.17.0-rc47"
+NEW_MARK_VERSIONS = ("1.17.0-rc46", "1.17.0-rc47")
 
 # Headline items of the current version (the full list is the metadata.txt changelog block and CHANGELOG.md).
 WHATS_NEW_ITEMS = [
-    ('Find an algorithm by what it does', 'A request that describes a result (fill the gaps in an elevation raster, which areas can be seen from a point, disconnected parts of the road network) now reaches the right one of the 427 approved Processing algorithms without its name. find_processing_algorithm searches by meaning and can list a whole family with what each is for. Measured offline on 40 fresh plain requests, the algorithm was among the first 15 results 60 percent of the time; which one a real model then picks is not tested.'),
-    ('Requests no longer hijacked by an unrelated task', 'A request that names an algorithm, asks for a computation, or asks for a chart is no longer answered with a confirm card for a map task (OpenStreetMap mapping, bridge damage, population mapping). 37 humanitarian tasks (flood, drainage, terrain, density, hotspots, catchments, nearest facility, interpolation, watershed, fire) now name the approved algorithms that fit them.'),
-    ('Undo', "undo_last_operation reaches back up to five messages, so 'undo that' typed as the next message works. delete_features can be undone, and rule-based labels can be removed (clear). A project switch clears the undo list."),
-    ('Stalls and freezes', "A background algorithm now stops by itself after 300 seconds with a clear message; its status line no longer says 'road network' for raster algorithms. A layer of the wrong kind in any algorithm parameter (a raster where a table is needed) is refused before anything runs. GRASS runs keep the window repainting, but Stop still cannot interrupt them and they can take minutes on Windows. The cause of five algorithms that stalled in the hand test is not found."),
-    ('Smaller fixes', 'The overview map keeps the size asked for, snapping to vertices and segments sets both, a layout is found by a loose name (Test Layout for Layout_Test_Layout), the raster calculator refusal names the raster_calculator tool, every output of a multi-output algorithm gets its look, and the no-data range wording is clear.'),
-    ('Not hand-tested', 'Everything above is checked by the offline suite and, for the QGIS parts, by CI on QGIS 4.2.2. None of it has been hand-tested in desktop QGIS and no real model was observed choosing algorithms from plain requests. The plain-language hand test (385 prompts) is written but not run.')
+    ('Cheaper requests', '28 tool definitions are offered per request instead of 40, about 35 percent fewer tokens on every model call (measured offline: 14.3k to 9.4k on average). It is a setting (cartogen_ai/tool_router_top_k, 12 to 60) if the assistant ever says a tool is unavailable. Not measured against live model answers.'),
+    ('Requests that were refused or misrouted', "'Set the project CRS to EPSG:3857', 'Assign EPSG:4326 to the layer' and 'Go to the bookmark' are no longer dismissed as pasted fragments; 'Show the metadata of towns' reads the metadata instead of planning a metadata-creation task; a raster expression such as 'Calculate dem@1 > 100 as a new layer' offers the raster calculator; 'animate', 'produce' and 'charts linked to maps' reach their tools."),
+    ('Elevation profile along a road', 'add_layout_elevation_profile takes along_layer, a line layer: the profile runs from the first to the last vertex of its selected or first feature, so no coordinates have to be typed.'),
+    ('Project tidy', 'tidy_project_layers no longer fails when the project has a vector tile layer.'),
+    ('More plain-language matches', '20 more approved Processing algorithms can be found from a description of the result (holes in polygons, sorting, constant rasters, raster properties, hub lines and others).'),
+    ('Not hand-tested', 'Everything above is checked by the offline suite and, for the QGIS parts, by CI on QGIS 4.2.2. None of it has been hand-tested in desktop QGIS, and no real model was observed with the smaller tool list. The cause of the animation how-to answer and the HTML dashboard for a layout chart (issue 362) is not confirmed.')
 ]
 
 HUMANITARIAN_WORKFLOWS = [('1. Rapid crisis and base mapping',
