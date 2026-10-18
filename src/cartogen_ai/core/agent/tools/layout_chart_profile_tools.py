@@ -10,7 +10,7 @@ from .gap_options import check_box, check_chart, check_profile_line, line_ends
 from .registry import register_tool
 
 try:
-    from qgis.core import (QgsBarChartPlot, QgsCoordinateReferenceSystem, QgsLayoutItemChart, QgsLayoutItemElevationProfile, QgsLineChartPlot,
+    from qgis.core import (Qgis, QgsBarChartPlot, QgsCoordinateReferenceSystem, QgsLayoutItemChart, QgsLayoutItemElevationProfile, QgsLineChartPlot,
                            QgsLineString, QgsPieChartPlot, QgsPointXY, QgsProject, QgsVectorLayer)
     from qgis.PyQt.QtCore import QRectF
     QGIS_AVAILABLE = True
@@ -33,7 +33,7 @@ def _line_ends_of_layer(name):
     if not features or features[0].geometry() is None or features[0].geometry().isEmpty():
         return None, f"Layer '{name}' has no line feature."
     geometry = features[0].geometry()
-    if geometry.type() != 1:  # QgsWkbTypes.LineGeometry
+    if geometry.type() != Qgis.GeometryType.Line:
         return None, f"Layer '{name}' is not a line layer."
     parts = geometry.asMultiPolyline() if geometry.isMultipart() else [geometry.asPolyline()]
     line = [(p.x(), p.y()) for p in parts[0]] if parts else []
