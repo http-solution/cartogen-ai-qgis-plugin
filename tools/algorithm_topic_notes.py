@@ -292,3 +292,28 @@ NOTES = {
     "grass:v.what.rast": "read raster value at points sample raster under points add to attribute",
     "grass:v.what.vect": "read attribute of nearest or containing feature from another vector layer join",
 }
+
+
+# rc47: plain prompts (docs/HAND_TEST_rc46_algorithms_plain.csv) whose algorithm was not among the first 15 matches. update() replaces earlier text.
+NOTES.update({
+    "native:boundingboxes": "smallest rectangle around each feature district bounding box map tiles",
+    "native:deleteholes": "fill holes in polygons remove gaps rings inside polygon digitising errors",
+    "native:extrude": "3d blocks raised height extrude buildings population show as boxes",
+    "native:projectpointcartesian": "new point offset distance direction northeast bearing from each point candidate site",
+    "native:setmvalue": "measure value m on vertices linear referencing kilometre marker",
+    "native:setzvalue": "elevation height z value on vertices set 3d",
+    "native:dropgeometries": "attribute table only without location without geometry plain table spreadsheet",
+    "native:extractwithindistance": "pick features within distance of other layer near reach trucks",
+    "native:arraytranslatedfeatures": "make copies of each feature shifted offset repeat array layout of tents blocks",
+    "native:checkgeometryduplicate": "find features that duplicate each other exactly same geometry duplicates check",
+    "native:hublines": "line from each point to its district hub spoke lines which office serves",
+    "native:extractbyexpression": "show only keep features where value above below greater than population filter expression",
+    "native:geometrybyexpression": "replace geometry by expression circle radius grows with value",
+    "native:orderbyexpression": "sort order rank features by population biggest first descending ascending",
+    "native:extractbyattribute": "pull out only the feature named equal to value district named select by attribute",
+    "native:createconstantrasterlayer": "empty raster every cell same value 1 constant base for scoring",
+    "native:rasterlayerproperties": "size cell size extent projection resolution bands of raster information properties",
+    "native:alignsingleraster": "line up raster to another cell for cell same grid resample align",
+    "gdal:griddatametrics": "raster count of points in each cell density grid of settlements",
+    "gdal:gridinversedistancenearestneighbor": "estimate surface from points closest nearest neighbours weighting",
+})
