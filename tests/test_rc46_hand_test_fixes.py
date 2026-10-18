@@ -84,3 +84,12 @@ class TestHandTestToolPromptsRouteOffline(unittest.TestCase):
             if best and not verdict["ambiguous"] and tool not in best.get("tools", []):
                 problems.append(f"{tool}: task {best['id']} {best['text']!r} would steer away from it: {prompt!r}")
         self.assertEqual(problems, [])
+
+
+class TestPart4Wording(unittest.TestCase):
+    def test_animate_and_produce_are_requests(self):
+        for q in ("animate the layer over time", "Produce charts linked to maps"):
+            self.assertFalse(tm._is_non_request_fragment(q), q)
+
+    def test_linked_charts_offer_layout_chart(self):
+        self.assertIn("add_layout_chart", _offered("Produce charts linked to maps"))

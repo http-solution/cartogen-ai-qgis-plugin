@@ -156,6 +156,8 @@ _ACTION_WORDS = re.compile(
     # rc46 hand test: "Set the project CRS to EPSG:3857." was refused as a fragment (no action word) and only worked on a retype.
     r"set|change|rename|reproject|hide|turn|switch|open|undo|redo|apply|save|move|use|enable|disable|reset|clear|update|"
     r"filter|sort|group|ungroup|duplicate|copy|paste|replace|fix|repair|tidy|dissolve|split|simplify|smooth|rotate|scale|"
+    r"produce|animate|prepare|publish|share|package|write|design|plan|assess|evaluate|monitor|track|simulate|overlay|"
+    r"intersect|aggregate|rank|score|prioriti[sz]e|allocate|optimi[sz]e|route|geocode|georeference|mosaic|reclassify|interpolate|"
     r"assign|go|jump|pan|center|centre|reload|refresh|rebuild|insert|new|start|stop|cancel|abort|zoom|"
     r"label|rasteri[sz]e|vectori[sz]e|polygoni[sz]e|snap|measure|query|tell|give|read|get|check|display|print|import)\b"
 )

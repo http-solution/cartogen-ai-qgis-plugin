@@ -135,7 +135,7 @@ _TOOL_ALIASES = {
     "set_project_terrain": [
         "project terrain", "set the terrain", "terrain from the dem", "terrain elevation", "flat terrain", "terrain provider", "use the dem as terrain",
     ],
-    "add_layout_chart": [
+    "add_layout_chart": ["charts linked to maps", "chart linked to the map", "charts linked to the map", "chart linked to maps",
         "chart in the layout", "add a chart", "bar chart in the layout", "pie chart in the layout", "line chart in the layout", "chart item",
         "chart on the layout", "chart to the layout", "chart to the print",
     ],
