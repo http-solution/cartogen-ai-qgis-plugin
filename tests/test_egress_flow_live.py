@@ -68,10 +68,11 @@ class TestProtectedLayerSurvivesMergeAndRenames(unittest.TestCase):
     def test_merge_then_two_renames_then_read_is_blocked(self):
         from cartogen_ai.core.agent.tools.vector_tools import merge_layers
         args = {"layer_names_list": ["smoke_points", "smoke_hubs"]}
+        before = self.agent._loaded_layer_ids()
         result = merge_layers(**args)
         print(f"EGRESSFLOW merge result {result}")
         self.assertTrue(result.get("success"), result)
-        self.agent._tag_created_layers("merge_layers", args, result)
+        self.agent._tag_created_layers("merge_layers", args, result, before)
         merged = QgsProject.instance().mapLayersByName(result["layer_name"])[0]
         from cartogen_ai.core.agent.lineage import get_layer_lineage
         print(f"EGRESSFLOW lineage after merge {get_layer_lineage(merged)}")
@@ -87,10 +88,11 @@ class TestProtectedLayerSurvivesMergeAndRenames(unittest.TestCase):
     def test_a_merge_through_the_generic_processing_tool_is_blocked_too(self):
         from cartogen_ai.core.agent.tools.processing_allowlist_tools import run_allowlisted_processing_algorithm
         args = {"alg_id": "native:mergevectorlayers", "params": {"LAYERS": ["smoke_points", "smoke_hubs"]}, "new_layer_name": "generic_merge"}
+        before = self.agent._loaded_layer_ids()          # taken before the tool runs, as the dispatcher does
         result = run_allowlisted_processing_algorithm(**args)
         print(f"EGRESSFLOW generic merge result {str(result)[:300]}")
         self.assertTrue(result.get("success"), result)
-        self.agent._tag_created_layers("run_allowlisted_processing_algorithm", args, result)
+        self.agent._tag_created_layers("run_allowlisted_processing_algorithm", args, result, before)
         name = result.get("layer_name") or "generic_merge"
         decision = self._decision("get_attributes", name)
         self.assertIsNotNone(decision, "the generic Processing merge output was let through")
