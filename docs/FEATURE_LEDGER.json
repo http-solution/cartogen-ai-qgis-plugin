@@ -423,6 +423,23 @@
       "tests/test_project_tidy_live.py::TestTidyProjectLayers::test_identical_scratch_layers_are_duplicates_and_apply_hides_not_deletes"
     ],
     "hand_verified": "not hand-tested; found by the rc48 hand test (rows A22, OI-120), fix is CI live only"
+  },
+  {
+    "id": "matrix-access-legs",
+    "feature": "travel_time_matrix reports access_leg_m (straight distance from each destination to its nearest road) beside the road-only costs, and says to add it for a total-travel-budget question",
+    "issues": [
+      148
+    ],
+    "since": "rc49 (unreleased)",
+    "sources": [
+      "src/cartogen_ai/core/agent/tools/logistics_tools.py",
+      "docs/plans/PLAN-008-rc48-hand-test-findings.md"
+    ],
+    "guards": [
+      "tests/test_ubend_access_live.py::TestUBendLegs::test_the_matrix_gives_road_costs_and_the_access_legs",
+      "tests/test_ubend_access_live.py::TestUBendLegs::test_the_totals_decide_a_300_m_budget"
+    ],
+    "hand_verified": "not hand-tested; found by the rc48 hand test (OI-148), fix is CI live only"
   }
  ]
 }
