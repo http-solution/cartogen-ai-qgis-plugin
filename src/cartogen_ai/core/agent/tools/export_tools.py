@@ -359,6 +359,21 @@ def export_layer(layer_name, format, output_path=None, only_selected=None, confi
 _DXF_MAX_LAYERS = 20
 
 
+def _fill_unset_boolean_options(algorithm_id, params):
+    """Set every boolean parameter of the algorithm that `params` leaves out to its declared default, else False, so a boolean added in a
+    later QGIS cannot make the call fail the way EXPORT_LINES_WITH_ZERO_WIDTH did. Best effort: any lookup problem leaves `params` as is."""
+    try:
+        from qgis.core import QgsProcessingParameterBoolean
+        algorithm = QgsApplication.processingRegistry().algorithmById(algorithm_id)
+        for definition in algorithm.parameterDefinitions():
+            if isinstance(definition, QgsProcessingParameterBoolean) and definition.name() not in params:
+                default = definition.defaultValue()
+                params[definition.name()] = bool(default) if default is not None else False
+    except Exception:
+        return
+
+
+
 @register_tool("export_layers_to_dxf", "Export one or more vector layers to a single DXF file for CAD software (AutoCAD and similar). "
                "A DXF holds geometry and layer names, not attribute tables or QGIS styling: say so if the user expects either. "
                "output_path is optional -- omit it to save under the project's data/20_processed folder (or the QGIS profile folder if the "
@@ -401,10 +416,15 @@ def export_layers_to_dxf(layer_names, output_path=None, confirmed=False):
     try:
         import processing
         os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
-        processing.run("native:dxfexport", {
+        params = {
             "LAYERS": [{"layer": layer.id(), "attributeIndex": -1} for layer in layers],
             "OUTPUT": output_path,
-        })
+            # CI's first live run (2026-10-23) failed with "Incorrect parameter value for EXPORT_LINES_WITH_ZERO_WIDTH": the boolean
+            # options have no usable default when the algorithm is run from Python, so each is stated. No symbology: a DXF for CAD hand-over.
+            "USE_LAYER_TITLE": False, "MTEXT": False, "EXPORT_LINES_WITH_ZERO_WIDTH": False, "FORCE_2D": False, "SYMBOLOGY_MODE": 0,
+        }
+        _fill_unset_boolean_options("native:dxfexport", params)
+        processing.run("native:dxfexport", params)
     except Exception as e:
         return {"error": f"DXF export failed: {e}"}
     if not os.path.isfile(output_path) or os.path.getsize(output_path) == 0:
