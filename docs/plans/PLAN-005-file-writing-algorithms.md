@@ -42,3 +42,4 @@ Each wave is one pull request that adds ids to the allow-list; revert it, or rem
 ## Status log
 - 2026-10-23: plan and dispositions written (this pull request). No algorithm added yet; waiting for the owner to confirm rules R1 to R6 before wave E1 is built.
 - 2026-10-23: owner confirmed R1 to R6 and the reduction of E1 to 8 algorithms (7 GDAL twins and gdal:contour moved to COVERED-ELSEWHERE). Wave E1 built: 8 ids on the allow-list (427 to 435), file destinations become temporary files, statistics returned, small vector results copied to memory. Offline tests pass; the live test runs in CI only. Hand test rows: next bundle.
+- 2026-10-23: wave E1 merged (PR 371). CI green on the merge head, including the QGIS 4.2.2 live test of all 8 ids (first real run). Not hand-tested yet; rows go in the next bundle. Unreleased until the owner asks for rc48.
