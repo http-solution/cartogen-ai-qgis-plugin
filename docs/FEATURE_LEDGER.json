@@ -325,6 +325,21 @@
     "tests/test_qgis_coverage_ratchet.py::TestCoverageRatchet::test_no_action_got_worse"
    ],
    "hand_verified": "offline only by design; the 21 hand-tested algorithms are the rc46 Part 5 priority list"
+  },
+  {
+   "id": "plan005-dispositions",
+   "feature": "Every file-writing Processing algorithm has exactly one planned wave (none forgotten)",
+   "issues": [],
+   "since": "rc47",
+   "sources": [
+    "docs/plans/PLAN-005-dispositions.csv",
+    "docs/qgis_coverage/processing_matrix.csv"
+   ],
+   "guards": [
+    "tests/test_plan005_dispositions.py::TestPlan005Dispositions::test_every_file_writing_algorithm_has_exactly_one_wave",
+    "tests/test_plan005_dispositions.py::TestPlan005Dispositions::test_wave_counts_match_the_plan"
+   ],
+   "hand_verified": "offline only by design"
   }
  ]
 }
