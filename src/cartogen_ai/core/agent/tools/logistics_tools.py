@@ -2363,7 +2363,7 @@ def _with_matrix_options(result, speed_field, closed_segments, direction_field):
     "default_speed regardless of surface or condition -- when the network layer has a per-segment "
     "speed or condition field, pass it as speed_field with strategy='fastest' for a more realistic "
     "matrix. direction_field makes one-way roads one-way instead of assuming every segment is "
-    "traversable both directions. SLOW for many destinations (every destination is tied into the road graph, which QGIS does by brute force; "
+    "traversable both directions. The costs are along the road only: the result also gives access_leg_m (straight distance from each destination to its nearest road); ADD it when the question is total travel within a budget. SLOW for many destinations (every destination is tied into the road graph, which QGIS does by brute force; "
     "~44 minutes for 3,369): for 'which facilities are within/beyond N of this origin' use "
     "classify_facilities_by_access instead; destination layers over 200 features use a single shortest-path tree per origin (fast; each destination is charged the cost to its projected point on the nearest road segment) when the QGIS network classes are available.",
     {
@@ -2440,6 +2440,7 @@ def travel_time_matrix(origins_layer, destinations_layer, road_network_layer, st
                          "segment and charged the cost to that spot, direction-aware, as QGIS's own point-to-layer tool does. "
                          "The short leg from the destination to the road is not added. Destination keys are feature ids."),
             }
+            _with_access_legs(result, destinations, network)
             return _with_matrix_options(result, speed_field, closed_segments, direction_field)
         origin_ids = unique_labels([feature_label(f) for f in origin_features], "origin")
         destination_points = []
@@ -2501,6 +2502,7 @@ def travel_time_matrix(origins_layer, destinations_layer, road_network_layer, st
         if unmatched_keys:
             result["destination_keys_note"] = (f"{unmatched_keys} destination(s) could not be matched back to a feature id and "
                                                "keep the end-point text QGIS reported as their key.")
+        _with_access_legs(result, destinations, network)
         return _with_matrix_options(result, speed_field, closed_segments, direction_field)
     except _bg.AnalysisCancelledError:
         return _cancelled_result("travel-time matrix")
@@ -2688,6 +2690,34 @@ def _nearest_distances_m(facilities, facilities_crs, reached_layers):
     return out
 
 
+def _with_access_legs(result, destinations, network, max_features=5000):
+    """Adds `access_leg_m` (feature id -> metres from the destination to the nearest road) to a travel_time_matrix result.
+
+    GitHub #148, rc48 hand test OI-148 (2026-10-24): on the U-shaped road fixture the matrix gave the right road costs (70 m and 200 m)
+    but not the 300 m and 80 m the two facilities sit off the road, so the answer called both "reached within 300 m" when the
+    totals are 370 m and 280 m. The costs stay road-only (the matrix is documented that way); this reports the leg next to them.
+    Best effort: any failure leaves the result as it was."""
+    try:
+        feats = []
+        for f in _ck.features(destinations, "Logistics: reading features"):
+            if f.hasGeometry() and not f.geometry().isEmpty():
+                feats.append(f)
+            if len(feats) >= max_features:
+                break
+        legs = _nearest_distances_m(feats, destinations.crs(), [network])
+        result["access_leg_m"] = {str(f.id()): (None if d is None else round(d, 1)) for f, d in zip(feats, legs, strict=False)}
+        if result.get("strategy") == "shortest":
+            result["access_leg_note"] = ("matrix costs are along the road only. access_leg_m is the straight distance from each "
+                                         "destination to its nearest road; for a question about TOTAL travel within a budget, add it "
+                                         "(cost + access_leg_m).")
+        else:
+            result["access_leg_note"] = ("matrix costs are along the road only (hours). access_leg_m is the straight distance in metres "
+                                         "from each destination to its nearest road, not included in the time.")
+    except Exception as e:
+        log_event("swallowed_exception", tag="Tools", tool="travel_time_matrix_access_legs", error_class=type(e).__name__, error=True)
+    return result
+
+
 @register_tool(
     "classify_facilities_by_access",
     "Answer 'which facilities are within / beyond N hours (or N metres) of this origin' FAST. Runs ONE "
@@ -2699,7 +2729,8 @@ def _nearest_distances_m(facilities, facilities_crs, reached_layers):
     "access_class and dist_to_reach_m fields, plus the service-area layers. APPROXIMATION to state in the "
     "answer: it ignores the access leg from the road to the facility (up to snap_distance_m) and is not a "
     "per-facility routed cost; use travel_time_matrix (small destination sets only) when exact per-facility "
-    "costs are needed.",
+    "costs are needed, and for a question about TOTAL travel within a budget pass a small snap_distance_m "
+    "(for example 50) so a facility far from the road is not counted as reached.",
     {
         "type": "object",
         "properties": {
