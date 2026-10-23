@@ -116,6 +116,7 @@ TOOL_OPERATION_TYPES = {
     # -- export_tools.py --
     "export_layer": PUBLISH,
     "export_to_csv": PUBLISH,
+    "export_layers_to_dxf": PUBLISH,
     "print_map": PUBLISH,
     "generate_report": PUBLISH,
     # Returns a markdown string only -- no file write, no project mutation.

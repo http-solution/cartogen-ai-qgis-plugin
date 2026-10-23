@@ -364,6 +364,27 @@
     "tests/test_algorithm_topics.py::TopicIndexTests::test_plain_requests_find_their_algorithm_in_the_first_five"
    ],
    "hand_verified": "not hand-tested; CI live test only (first run). Rows for it go in the next test bundle"
+  },
+  {
+    "id": "export-routing-and-dxf",
+    "feature": "Plain export requests reach the dedicated export tools (map or layout as PDF/image, bundle the project data, layer to a geopackage), and export_layers_to_dxf writes a DXF for CAD users inside the project export folder with the overwrite card and sensitivity warning",
+    "issues": [],
+    "since": "rc48 (unreleased)",
+    "sources": [
+      "src/cartogen_ai/core/agent/tools/export_tools.py",
+      "src/cartogen_ai/core/services/tool_router.py",
+      "src/cartogen_ai/core/agent/tool_operations.py",
+      "docs/plans/PLAN-006-wave-e2-info-plots-exports.md"
+    ],
+    "guards": [
+      "tests/test_tool_router_basics.py::TestPlainRequestsAreOfferedTheirTools::test_golden_requests",
+      "tests/test_export_dxf.py::TestExportLayersToDxf::test_it_is_registered_and_classified_as_a_file_write",
+      "tests/test_export_dxf.py::TestExportLayersToDxf::test_the_model_cannot_pass_confirmed",
+      "tests/test_export_dxf.py::TestExportLayersToDxf::test_too_many_layers_are_refused",
+      "tests/test_export_dxf_live.py::TestExportLayersToDxfLive::test_a_real_dxf_is_written_and_names_the_layer",
+      "tests/test_export_dxf_live.py::TestExportLayersToDxfLive::test_an_existing_file_asks_before_it_is_replaced"
+    ],
+    "hand_verified": "not hand-tested; the live DXF test runs in CI only (first run). Rows go in the next test bundle"
   }
  ]
 }

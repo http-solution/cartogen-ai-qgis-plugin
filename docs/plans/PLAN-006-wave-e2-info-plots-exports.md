@@ -1,6 +1,6 @@
 # PLAN-006: PLAN-005 wave E2 (information reports, plots, exports)
 
-Status: planned
+Status: in progress
 
 ## Goal
 Finish the file-writing part of the QGIS algorithm coverage that wave E1 left: a user can ask in plain words for a file information report ("what projection and extent does this file have"), a chart of their data ("a histogram of the dem", "scatter plot of population against distance") and a DXF or spreadsheet export, and get the result, with the model never choosing a file path. Parent plan: PLAN-005 (rules R1 to R6 apply unchanged). Closes the coverage row "Import / export DXF" and adds the first plots. No GitHub issue yet; the coverage list is the source (`docs/qgis_coverage/`).
@@ -37,3 +37,4 @@ One pull request per package: revert it, or remove an id from the allow-list. No
 ## Status log
 - 2026-10-23: plan drafted (this pull request). Nothing built.
 - 2026-10-23: owner agreed the reorder (E2c, probe, E2b, E2a last) and "not planned" as the default for the 10 undecided exports; plan updated. Next: route the 5 and add DXF and spreadsheet, then cut rc48 with wave E1 so one hand-test pass covers both.
+- 2026-10-23: package E2c step 1 built (branch claude/export-routing-dxf): measured offline which plain export requests missed their tool ("send me the map as a pdf", "bundle the project data for sharing", "save the roads layer to a geopackage") and fixed them with router aliases; the other routed requests already worked. Added `export_layers_to_dxf` (native:dxfexport; project export folder, overwrite card, sensitivity warning, 20 layers max; geometry and layer names only). Spreadsheet export is the next E2c step, not in this change. Offline tests pass; the live DXF test is CI only, not hand-tested.

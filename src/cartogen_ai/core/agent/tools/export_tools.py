@@ -224,7 +224,7 @@ def _write_vector(layer, output_path, driver_name, layer_options=None, only_sele
 # (2026-10-06): "preview before replacing" was ignored and an existing CSV was overwritten silently. The `confirmed` argument is
 # stripped from the model's own arguments by the dispatcher, so only the user's Apply button can set it.
 _WRITTEN_THIS_SESSION: dict = {}
-_DRIVER_EXTENSIONS = (".csv", ".shp", ".gpkg", ".geojson", ".kml")
+_DRIVER_EXTENSIONS = (".csv", ".shp", ".gpkg", ".geojson", ".kml", ".dxf")
 
 
 def _norm_path(path):
@@ -353,6 +353,88 @@ def export_layer(layer_name, format, output_path=None, only_selected=None, confi
     result = _write_vector(layer, output_path, driver, only_selected=only_selected)
     if isinstance(result, dict) and result.get("success"):
         remember_written(output_path)
+    return result
+
+
+_DXF_MAX_LAYERS = 20
+
+
+def _fill_unset_boolean_options(algorithm_id, params):
+    """Set every boolean parameter of the algorithm that `params` leaves out to its declared default, else False, so a boolean added in a
+    later QGIS cannot make the call fail the way EXPORT_LINES_WITH_ZERO_WIDTH did. Best effort: any lookup problem leaves `params` as is."""
+    try:
+        from qgis.core import QgsProcessingParameterBoolean
+        algorithm = QgsApplication.processingRegistry().algorithmById(algorithm_id)
+        for definition in algorithm.parameterDefinitions():
+            if isinstance(definition, QgsProcessingParameterBoolean) and definition.name() not in params:
+                default = definition.defaultValue()
+                params[definition.name()] = bool(default) if default is not None else False
+    except Exception:
+        return
+
+
+
+@register_tool("export_layers_to_dxf", "Export one or more vector layers to a single DXF file for CAD software (AutoCAD and similar). "
+               "A DXF holds geometry and layer names, not attribute tables or QGIS styling: say so if the user expects either. "
+               "output_path is optional -- omit it to save under the project's data/20_processed folder (or the QGIS profile folder if the "
+               "project is not saved yet); a relative path is anchored to the project folder and the reply's output_path is the real location. "
+               "At most 20 layers per file. Replacing an existing file asks the user first.",
+               {"type": "object", "properties": {"layer_names": {"type": "array", "items": {"type": "string"}}, "output_path": {"type": "string"}}, "required": ["layer_names"]})
+def export_layers_to_dxf(layer_names, output_path=None, confirmed=False):
+    """native:dxfexport behind the same path anchoring, overwrite preview and sensitivity warning as export_layer.
+
+    Why a dedicated tool and not the generic Processing tool: that one forces every output to a temporary file (PLAN-005 rule R1), but a DXF
+    exists to be handed to someone, so the user's file is the product. No CAD export existed (PLAN-006, coverage row "Import / export DXF").
+    Unverified against a live QGIS session by hand; the live test is CI only."""
+    if isinstance(layer_names, str):
+        layer_names = [layer_names]
+    names = [str(n) for n in (layer_names or []) if str(n).strip()]
+    if not names:
+        return {"error": "Name at least one vector layer to export."}
+    if len(names) > _DXF_MAX_LAYERS:
+        return {"error": f"A DXF export takes at most {_DXF_MAX_LAYERS} layers; {len(names)} were named."}
+    if not QGIS_AVAILABLE:
+        return {"error": "QGIS not available"}
+    layers = []
+    for name in names:
+        layer = _find_layer_by_name(name)
+        if layer is None:
+            return {"error": f"Layer '{name}' not found"}
+        if not isinstance(layer, QgsVectorLayer):
+            return {"error": f"'{name}' is not a vector layer; a DXF holds vector layers only."}
+        layers.append(layer)
+    output_path = resolve_output_path(output_path)
+    if not output_path:
+        stem = _sanitize_filename(layers[0].name() if len(layers) == 1 else "cartogen_export")
+        output_path = os.path.join(_default_export_dir("exports/geospatial"), f"{stem}.dxf")
+    elif not output_path.lower().endswith(".dxf"):
+        output_path = os.path.splitext(output_path)[0] + ".dxf"
+    if not confirmed:
+        preview = overwrite_preview("export_layers_to_dxf", {"layer_names": names, "output_path": output_path}, output_path)
+        if preview:
+            return preview
+    try:
+        import processing
+        os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
+        params = {
+            "LAYERS": [{"layer": layer.id(), "attributeIndex": -1} for layer in layers],
+            "OUTPUT": output_path,
+            # CI's first live run (2026-10-23) failed with "Incorrect parameter value for EXPORT_LINES_WITH_ZERO_WIDTH": the boolean
+            # options have no usable default when the algorithm is run from Python, so each is stated. No symbology: a DXF for CAD hand-over.
+            "USE_LAYER_TITLE": False, "MTEXT": False, "EXPORT_LINES_WITH_ZERO_WIDTH": False, "FORCE_2D": False, "SYMBOLOGY_MODE": 0,
+        }
+        _fill_unset_boolean_options("native:dxfexport", params)
+        processing.run("native:dxfexport", params)
+    except Exception as e:
+        return {"error": f"DXF export failed: {e}"}
+    if not os.path.isfile(output_path) or os.path.getsize(output_path) == 0:
+        return {"error": f"The DXF export finished but '{output_path}' was not written."}
+    remember_written(output_path)
+    result = {"success": True, "output_path": output_path, "format": "DXF", "layer_names": names,
+              "note": "A DXF carries geometry and layer names only, not attribute tables or QGIS styling."}
+    warnings = [w for w in (_sens.export_warning_for(layer) for layer in layers) if w]
+    if warnings:
+        result["warning"] = " ".join(dict.fromkeys(warnings))
     return result
 
 

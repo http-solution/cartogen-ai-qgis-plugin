@@ -16,7 +16,7 @@
  "Open a point cloud (LAS, LAZ, COPC, EPT)": "COVERED",
  "Create an empty scratch (memory) layer with chosen geometry type and fields": "COVERED",
  "Create a new GeoPackage / Shapefile / SpatiaLite / GPX layer": "COVERED",
- "Import / export DXF": "MISSING",
+ "Import / export DXF": "COVERED",
  "Download OpenStreetMap features": "COVERED",
  "Load / save a QLR layer definition file": "COVERED",
  "Georeference a scanned map or image": "COVERED",

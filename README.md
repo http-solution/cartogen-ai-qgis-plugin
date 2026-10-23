@@ -28,7 +28,7 @@ The agent exposes its plan, tool calls, progress, and errors instead of returnin
 black-box answer.
 
 > **Project status (2026-10-23):** active Community edition, currently at the **1.17.0-rc47 pre-release** build (the last stable build is 1.16.3; rc20 to 1.17.0-rc47 add the audit fixes, hand-test fixes and the cost and routing work made after rc19).
-> - **Tests:** 4,631 automated tests run offline, 0 failures (620 skipped there: the live-QGIS tests and those needing optional libraries). The QGIS ones run in CI (the `qgis-live-tests` job, QGIS 4.2.2) together with ruff, mypy and a release-zip check.
+> - **Tests:** 4,641 automated tests run offline, 0 failures (634 skipped there: the live-QGIS tests and those needing optional libraries). The QGIS ones run in CI (the `qgis-live-tests` job, QGIS 4.2.2) together with ruff, mypy and a release-zip check.
 > - **Hand testing:** rc44 to rc46 were hand-tested in desktop QGIS 4.2.3 (tool sweep: 65 of 83 rows Pass, 1 Fail, the rest Partial or Skip; 21 of 21 priority algorithms Pass); the plain-language algorithm test (385 prompts) has **not** been run. rc47 changes are CI-checked only until its lean hand test ([docs/LEAN_HAND_TEST_PROTOCOL.md](docs/LEAN_HAND_TEST_PROTOCOL.md)) is run.
 > - **Open issues (28):** the external architectural audit of rc12 (tracking issue #169) and the smoke-test findings (#72 and its children) are fixed in code and CI-verified except where a comment on the issue says otherwise; they stay open until a hand-verified PASS, because no issue is closed without one. Per-issue status: [docs/OPEN_ISSUES_STATUS_2026-10-23.md](docs/OPEN_ISSUES_STATUS_2026-10-23.md).
 > - **Not yet verified:** a clean-profile install and an in-place upgrade on a recent release candidate (last done on rc6), and the 28-tool default of rc47 against live model answers.
@@ -43,7 +43,7 @@ black-box answer.
   (`cartogen_ai.processing`), exposing native algorithms (e.g. `OptimalHubSitingAlgorithm`,
   `CalculateServiceAreaAlgorithm`) directly to the QGIS Processing Toolbox, Graphical Model Designer,
   batch processing, and headless `qgis_process` CLI execution.
-- **294 tools** covering vector and raster geoprocessing, OGC SLD 1.1.0/1.0.0 export, point cluster
+- **295 tools** covering vector and raster geoprocessing, OGC SLD 1.1.0/1.0.0 export, point cluster
   and displacement renderers, styling and labeling (with text halos and obstacle avoidance), print
   layouts with coordinate graticules and inset locator maps, exports, humanitarian data (HDX /
   OpenStreetMap / geoBoundaries / building footprints), satellite imagery search, database queries,
@@ -603,7 +603,7 @@ the folder directly on GitHub.
 | Doc | Covers |
 |---|---|
 | [docs/USER_GUIDE.md](docs/USER_GUIDE.md) | Chat, Task Manager, memory, file attachments, settings, live hazard monitoring — with screenshots |
-| [docs/TOOLS_REFERENCE.md](docs/TOOLS_REFERENCE.md) | All 294 tools, auto-generated from the live registry |
+| [docs/TOOLS_REFERENCE.md](docs/TOOLS_REFERENCE.md) | All 295 tools, auto-generated from the live registry |
 | [site/](site/) | The documentation site (architecture, security and privacy, tool reference by category, development guides), built from the documents in this repository by `site/build.py` and published to GitHub Pages by `.github/workflows/docs-site.yml`; it will be at https://http-solution.github.io/cartogen-ai-qgis-plugin/ once Pages is switched on for the repository |
 
 ### Security & compliance
@@ -700,7 +700,7 @@ The codebase is organized as:
   - `models/` — Domain models, transaction logging (`TurnTransactionLog`), and QA gate lifecycle states.
   - `validators/` — Schema contract and P-code depth validation engines.
   - `services/` — Core orchestration services (tool router, prompt refiner, background task runners).
-  - `agent/` — Tool-calling loop, multi-provider interfaces (Gemini, OpenRouter, Ollama; the OpenAI and Claude clients stay in the code but are not offered since rc25), and 294 tools across the domain modules.
+  - `agent/` — Tool-calling loop, multi-provider interfaces (Gemini, OpenRouter, Ollama; the OpenAI and Claude clients stay in the code but are not offered since rc25), and 295 tools across the domain modules.
   - `ui/` — Dock widget, settings, layer context picker, and theme integration.
   - `exceptions.py` & `logger.py` — Exception hierarchy and structured `QgsMessageLog` logging.
 - `tests/` — 3,069 automated unit and integration tests, runnable outside QGIS; the `*_live.py` modules (247 tests) need a real QGIS and run in the CI job `qgis-live-tests` on QGIS 4.2.2.

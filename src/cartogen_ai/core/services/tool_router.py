@@ -165,6 +165,12 @@ _TOOL_ALIASES = {
     "package_layers_offline": [
         "package the layers", "package the project layers", "package for offline", "offline package", "package into one geopackage",
         "pack the layers into a geopackage", "use offline", "take the layers offline", "package layers",
+        "bundle the project", "bundle the layers", "bundle the data", "package the data", "package the project", "share the project data",
+        "share the layers", "zip the layers", "zip the project data", "hand over the data", "send the project data",
+    ],
+    "export_layers_to_dxf": [
+        "dxf", "autocad", "cad file", "cad software", "cad format", "for cad", "to cad", "into cad", "civil 3d", "microstation", "draftsman",
+        "engineers can open", "engineer can open",
     ],
     "rename_layer_group": ["rename the group", "rename group", "rename the layer group", "change the group name", "call the group"],
     "zoom_history": [
@@ -396,6 +402,7 @@ _TOOL_ALIASES = {
         'move the layer to the top', 'move the layer to the bottom', 'bring the layer to the front', 'send the layer to the back', 'layer order', 'draw order', 'put the layer above', 'put the layer below', 'move the layer', 'move layer', 'put the layer', 'move the layer above', 'move the layer below', 'reorder the layers', 'stacking order',
     ],
     'export_layer': [
+        'to a geopackage', 'to a shapefile', 'as a geopackage', 'as a shapefile', 'to a kml', 'as a kml', 'to a geojson', 'as a geojson',
         'export the layer', 'export layer', 'save the layer as', 'save layer as', 'save as shapefile', 'save as geojson', 'save as geopackage', 'export to shapefile', 'export to geojson', 'export to geopackage', 'export to gpkg', 'export to kml', 'export the selected', 'export only the selected', 'write the layer to a file',
     ],
     'export_to_csv': [
@@ -596,7 +603,8 @@ _TOOL_ALIASES = {
     ],
     "export_layout": [
         "export the layout", "export layout", "export the layout as svg", "layout to svg", "save the layout as pdf", "save the layout as png",
-        "export the existing layout", "export layout to",
+        "export the existing layout", "export layout to", "map as a pdf", "map as pdf", "map as a png", "map as an image", "map as a jpg",
+        "map to pdf", "pdf of the map", "pdf of the layout", "pdf copy of the map", "printable map", "print the layout to",
     ],
     "set_layer_symbol": [
         "outline color", "outline colour", "outline width", "outline thickness", "thicker outline", "thinner outline", "thin outline",
