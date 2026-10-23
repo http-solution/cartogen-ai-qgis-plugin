@@ -27,6 +27,13 @@
 - [ ] Roadmap / partial — describe what's left and where that's tracked (issue link or
       `docs/IMPLEMENTATION_TRACKER.md`)
 
+## Plan, ledger and guards (CONTRIBUTING.md section 10)
+
+- [ ] Plan: `docs/plans/PLAN-___` created or its status log updated (or "no behaviour change")
+- [ ] Ledger: `docs/FEATURE_LEDGER.json` entry added or updated, with guard tests that fail without this change
+- [ ] `python tools/ledger_guard.py` run: every ledger feature this change touches still passes
+- [ ] Hand-verified claim is specific ("CI only" / "hand-tested on rcNN, row ID")
+
 ## Checklist
 
 - [ ] `python -m unittest discover -s tests -t . -p "test_*.py"` passes locally

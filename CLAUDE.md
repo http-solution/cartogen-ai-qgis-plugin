@@ -52,6 +52,12 @@ step, no compiled artifacts beyond the release zip.
 - `metadata.txt` — QGIS plugin manifest, including an embedded `changelog=` field. Its historical
   entries are frozen (see below) — only ever prepend a new entry, never edit an old one.
 
+## Working agreement (added 2026-10-23, binding for any agent or person)
+
+Finished work must not be broken again, and progress must be on record. Before you change behaviour: find the feature in `docs/FEATURE_LEDGER.json` (the source files and guard tests listed there are the contract), open or update its plan in `docs/plans/`, and make the change with a regression test. Before you push: `python tools/ledger_guard.py` and `tools/local_ci.sh --offline`. After you merge: update the plan's status log, the ledger, and the open-issue status table. CONTRIBUTING.md section 10 has the full list; `docs/SELF_AUDIT_2026-10-23.md` records the gaps this agreement closes. Never close an issue without a hand-verified pass or an owner decision.
+
+Tooling note for cloud sandboxes: graphify (see the section at the end of this file) is not installed there, so "run `graphify update .`" cannot be done in a cloud session; do it on a machine that has it and do not claim it was done.
+
 ## Before you touch anything: read CONTRIBUTING.md
 
 It's short and specific to this codebase, not a generic PR-process doc. The two rules that matter
