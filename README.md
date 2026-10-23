@@ -27,19 +27,12 @@ needs to move from a question to a reproducible spatial result without leaving Q
 The agent exposes its plan, tool calls, progress, and errors instead of returning a
 black-box answer.
 
-> **Project status (2026-10-06):** active Community edition, currently at the **1.17.0-rc47 pre-release** build (the last stable build is 1.16.3; rc20 to 1.17.0-rc47 add the audit fixes, hand-test fixes and the cost and routing work made after rc19).
-> - **Tests:** 3,570 automated tests, 0 failures in the offline run; the live-QGIS tests (and any needing optional libraries) are skipped there and
->   the QGIS ones run in CI (the `qgis-live-tests` job, QGIS 4.2.2).
-> - **Architectural audit:** an external audit of rc12 raised 32 findings, filed as issues #137-#168 (tracking issue #169). The 15
->   highest-severity findings (#137-#151) are fixed in code and CI-verified where a live test exists, except #151 (PostGIS), which needs a
->   database and is untouched. The other 17 (#152-#168) were addressed in work packages 1-6 (merged, CI-verified); some have parts still
->   open (raster auto-alignment, DEM vertical unit, raster-unit validation, running-task invalidation at unload). All 32 issues remain open
->   because none of the fixes has been hand-verified yet; the per-issue hand checks are in
->   [docs/ISSUE_VERIFICATION_CHECKLIST_2026-10-05.md](docs/ISSUE_VERIFICATION_CHECKLIST_2026-10-05.md).
-> - **Not yet verified:** a complete hands-on smoke test of rc12 to rc23 in a desktop QGIS session (rc18 was partly hand-tested: rows R1-R7 and N1-N9 ran, rows V, T, J and P did not). A clean-profile install and an in-place upgrade
->   were verified on an earlier release candidate (rc6); the rc23 build has passed local packaging checks, the release workflow's zip checks and GitHub Actions on the merged head.
-> - Details: [the release smoke test](docs/RELEASE_SMOKE_TEST.md), [the implementation tracker](docs/IMPLEMENTATION_TRACKER.md),
->   [the rc12 live-test and audit plan (still applies to rc23)](docs/RC12_LIVE_TEST_AND_AUDIT_PLAN_2026-10-04.md).
+> **Project status (2026-10-23):** active Community edition, currently at the **1.17.0-rc47 pre-release** build (the last stable build is 1.16.3; rc20 to 1.17.0-rc47 add the audit fixes, hand-test fixes and the cost and routing work made after rc19).
+> - **Tests:** 4,591 automated tests run offline, 0 failures (620 skipped there: the live-QGIS tests and those needing optional libraries). The QGIS ones run in CI (the `qgis-live-tests` job, QGIS 4.2.2) together with ruff, mypy and a release-zip check.
+> - **Hand testing:** rc44 to rc46 were hand-tested in desktop QGIS 4.2.3 (tool sweep: 65 of 83 rows Pass, 1 Fail, the rest Partial or Skip; 21 of 21 priority algorithms Pass); the plain-language algorithm test (385 prompts) has **not** been run. rc47 changes are CI-checked only until its lean hand test ([docs/LEAN_HAND_TEST_PROTOCOL.md](docs/LEAN_HAND_TEST_PROTOCOL.md)) is run.
+> - **Open issues (28):** the external architectural audit of rc12 (tracking issue #169) and the smoke-test findings (#72 and its children) are fixed in code and CI-verified except where a comment on the issue says otherwise; they stay open until a hand-verified PASS, because no issue is closed without one. Per-issue status: [docs/OPEN_ISSUES_STATUS_2026-10-23.md](docs/OPEN_ISSUES_STATUS_2026-10-23.md).
+> - **Not yet verified:** a clean-profile install and an in-place upgrade on a recent release candidate (last done on rc6), and the 28-tool default of rc47 against live model answers.
+> - Details: [the release smoke test](docs/RELEASE_SMOKE_TEST.md), [the implementation tracker](docs/IMPLEMENTATION_TRACKER.md), [done versus tested](docs/STATUS_DONE_VS_TESTED_2026-10-16.md).
 
 ## What it does
 

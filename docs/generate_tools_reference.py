@@ -53,7 +53,8 @@ def _flag_str(name):
     return f" _({', '.join(flags)})_" if flags else ""
 
 
-def generate():
+def render():
+    """The full text of TOOLS_REFERENCE.md and its group count (also used by tests/test_tools_reference_in_sync.py)."""
     groups = {}
     for entry in TOOLS_SCHEMA:
         fn = entry["function"]
@@ -105,10 +106,15 @@ def generate():
                 lines.append("_No parameters._")
                 lines.append("")
 
+    return "\n".join(lines), len(groups)
+
+
+def generate():
+    text, group_count = render()
     out_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "TOOLS_REFERENCE.md")
     with open(out_path, "w", encoding="utf-8") as f:
-        f.write("\n".join(lines))
-    print(f"Wrote {out_path} ({len(TOOLS_SCHEMA)} tools across {len(groups)} groups)")
+        f.write(text)
+    print(f"Wrote {out_path} ({len(TOOLS_SCHEMA)} tools across {group_count} groups)")
 
 
 if __name__ == "__main__":
