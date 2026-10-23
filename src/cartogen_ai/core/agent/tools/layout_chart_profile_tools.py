@@ -6,7 +6,7 @@ add_layout_elevation_profile  an elevation profile along a straight line, from l
 The 3D map layout item is NOT built: CI's QGIS has no QgsLayoutItem3DMap (docs/QGIS_CAPABILITY_PROBE_2026-10-16.md). Written without a QGIS install:
 tests/test_layout_chart_profile_live.py builds both items on a real layout and reads them back (CI's first run is its first execution); how they
 LOOK when rendered or exported has not been checked."""
-from .gap_options import check_box, check_chart, check_profile_line, line_ends
+from .gap_options import check_box, check_chart, check_profile_line, free_box, line_ends
 from .registry import register_tool
 
 try:
@@ -47,6 +47,29 @@ def _line_ends_of_layer(name):
     return ends, None
 
 
+def _auto_box(layout, x_mm, y_mm, width_mm, height_mm):
+    """(x_mm, y_mm, note): the caller's position, or when it gave none a free spot on the first page (see gap_options.free_box). note says when
+    the page had no free spot and the default was used."""
+    if x_mm is not None or y_mm is not None:
+        return (10 if x_mm is None else x_mm), (10 if y_mm is None else y_mm), None
+    try:
+        size = layout.pageCollection().page(0).pageSize()
+        page_w, page_h = size.width(), size.height()
+        taken = []
+        for existing in layout.items():
+            if type(existing).__name__ == "QgsLayoutItemPage" or not hasattr(existing, "positionWithUnits"):
+                continue
+            where = layout.convertToLayoutUnits(existing.positionWithUnits())
+            size = layout.convertToLayoutUnits(existing.sizeWithUnits())
+            taken.append((where.x(), where.y(), size.width(), size.height()))
+        spot = free_box(taken, page_w, page_h, float(width_mm), float(height_mm))
+    except Exception:
+        spot = None
+    if spot is None:
+        return 10, 10, "No free spot of that size was found on the page, so the item was placed at 10, 10 and may overlap another."
+    return spot[0], spot[1], None
+
+
 def _place(item, layout, box, item_id):
     if item_id:
         item.setId(item_id)
@@ -81,18 +104,19 @@ def _make_series(name, x_expression, y_expression):
         "y_field": {"type": "string"}, "x_mm": {"type": "number"}, "y_mm": {"type": "number"}, "width_mm": {"type": "number"},
         "height_mm": {"type": "number"}, "item_id": {"type": "string"}},
      "required": ["layout_name", "layer_name", "x_field", "y_field"]})
-def add_layout_chart(layout_name, layer_name, x_field, y_field, chart_type="bar", x_mm=10, y_mm=10, width_mm=120, height_mm=80, item_id=None):
+def add_layout_chart(layout_name, layer_name, x_field, y_field, chart_type="bar", x_mm=None, y_mm=None, width_mm=120, height_mm=80, item_id=None):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
     options, problem = check_chart(layout_name, chart_type, x_field, y_field, item_id)
     if problem:
         return {"error": problem}
-    box, problem = check_box(x_mm, y_mm, width_mm, height_mm)
+    box, problem = check_box(0 if x_mm is None else x_mm, 0 if y_mm is None else y_mm, width_mm, height_mm)
     if problem:
         return {"error": problem}
     layout = _layout(layout_name)
     if layout is None:
         return {"error": f"Layout '{layout_name}' not found. See list_layouts."}
+    box["x_mm"], box["y_mm"], placement_note = _auto_box(layout, x_mm, y_mm, box["width_mm"], box["height_mm"])
     found = QgsProject.instance().mapLayersByName(layer_name)
     layer = found[0] if found and isinstance(found[0], QgsVectorLayer) else None
     if layer is None:
@@ -112,12 +136,14 @@ def add_layout_chart(layout_name, layer_name, x_field, y_field, chart_type="bar"
     _place(item, layout, box, options["item_id"])
     from ._sensitivity_notes import protected_layer_notes
     out = {"success": True, "layout_name": layout_name, "item_id": item.id(), "chart_type": options["chart_type"], "layer_name": layer.name(),
-           "series": len(item.seriesList()),
+           "series": len(item.seriesList()), "x_mm": box["x_mm"], "y_mm": box["y_mm"],
            "note": "The item is on the layout. How the chart renders or exports has not been checked by the plugin; look at the layout."}
     notes = protected_layer_notes([layer], "the chart shows its values and the layout's classification footer was not changed. Check the layout "
                                            "before exporting. Advisory only, nothing was blocked.")
     if notes:
         out["warning"] = " ".join(notes)
+    if placement_note:
+        out["placement_note"] = placement_note
     return out
 
 
@@ -133,7 +159,7 @@ def add_layout_chart(layout_name, layer_name, x_field, y_field, chart_type="bar"
         "y_mm": {"type": "number"}, "width_mm": {"type": "number"}, "height_mm": {"type": "number"}, "item_id": {"type": "string"},
         "along_layer": {"type": "string"}},
      "required": ["layout_name", "layer_names"]})
-def add_layout_elevation_profile(layout_name, layer_names, start_x=None, start_y=None, end_x=None, end_y=None, x_mm=10, y_mm=10, width_mm=180,
+def add_layout_elevation_profile(layout_name, layer_names, start_x=None, start_y=None, end_x=None, end_y=None, x_mm=None, y_mm=None, width_mm=180,
                                  height_mm=70, item_id=None, along_layer=None):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
@@ -147,7 +173,7 @@ def add_layout_elevation_profile(layout_name, layer_names, start_x=None, start_y
     line, problem = check_profile_line(start_x, start_y, end_x, end_y)
     if problem:
         return {"error": problem}
-    box, problem = check_box(x_mm, y_mm, width_mm, height_mm)
+    box, problem = check_box(0 if x_mm is None else x_mm, 0 if y_mm is None else y_mm, width_mm, height_mm)
     if problem:
         return {"error": problem}
     if not isinstance(layer_names, list) or not layer_names:
@@ -155,6 +181,7 @@ def add_layout_elevation_profile(layout_name, layer_names, start_x=None, start_y
     layout = _layout(layout_name)
     if layout is None:
         return {"error": f"Layout '{layout_name}' not found. See list_layouts."}
+    box["x_mm"], box["y_mm"], placement_note = _auto_box(layout, x_mm, y_mm, box["width_mm"], box["height_mm"])
     layers, missing = [], []
     for name in layer_names:
         found = QgsProject.instance().mapLayersByName(str(name))
@@ -170,5 +197,9 @@ def add_layout_elevation_profile(layout_name, layer_names, start_x=None, start_y
     item.setProfileCurve(QgsLineString([QgsPointXY(*line[0]), QgsPointXY(*line[1])]))
     item.setLayers(layers)
     _place(item, layout, box, item_id)
-    return {"success": True, "layout_name": layout_name, "item_id": item.id(), "layers": [layer.name() for layer in layers],
-            "note": "The item is on the layout. How the profile renders or exports has not been checked by the plugin; look at the layout."}
+    out = {"success": True, "layout_name": layout_name, "item_id": item.id(), "layers": [layer.name() for layer in layers],
+           "x_mm": box["x_mm"], "y_mm": box["y_mm"],
+           "note": "The item is on the layout. How the profile renders or exports has not been checked by the plugin; look at the layout."}
+    if placement_note:
+        out["placement_note"] = placement_note
+    return out
