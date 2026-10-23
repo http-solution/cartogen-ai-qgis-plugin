@@ -18,8 +18,16 @@ tail -4 /tmp/cartogen_offline.log
 step "byte-compile"
 find . -name "*.py" -not -path "./.git/*" -not -path "./build/*" -not -path "./dist/*" -print0 | xargs -0 -n1 python -m py_compile || { echo "FAILED: py_compile"; status=1; }
 
-step "ruff"
-ruff check . || status=1
+step "ruff (the version CI pins -- an older ruff on PATH let a CI-only ISC004 failure through on 2026-10-18)"
+RUFF_PIN=$(grep -oE "ruff==[0-9.]+" .github/workflows/tests.yml | head -1)
+python -m ruff --version | grep -q "${RUFF_PIN#ruff==}" || { echo "installed ruff differs from CI ($RUFF_PIN): pip install $RUFF_PIN"; status=1; }
+python -m ruff check . || status=1
+
+step "mypy"
+python -m mypy || status=1
+
+step "feature ledger (finished work must stay protected)"
+python tools/ledger_guard.py --base origin/main || status=1
 
 step "release zip"
 python plugin_upload.py >/dev/null 2>&1 && test -f cartogen_ai.zip && python -c "

@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
-"""Builds the LEAN hand-test bundle: only what changed since the last tested release, not the whole sheet.
+"""Builds the ONE hand-test bundle for a release: only what is not already proven, not the whole sheet.
 
-    python tools/build_lean_bundle.py --plugin-zip dist/cartogen_ai_v1.17.0-rc47.zip   # writes dist/cartogen_ai_lean_test_<version>.zip
+    python tools/build_lean_bundle.py --plugin-zip dist/cartogen_ai_v1.17.0-rc47.zip   # writes dist/cartogen_ai_test_bundle_<version>.zip
 
-Rows (see docs/LEAN_HAND_TEST_PROTOCOL.md): the tool rows a fix this release targeted, a few canaries, the Part 4 prompts whose cause is
-still unconfirmed, and a sample of the plain-language prompts (the ones the offline check could not place in the first 15 matches, plus a
-few that it could, so a wrong offline number shows). Standard library only; the bundle holds no credentials and no .py files."""
+Part 1, open issues: the rows of docs/FULL_LIVE_TEST_open_issues_ROWS.csv whose issue is still open according to the table in
+docs/OPEN_ISSUES_STATUS_<date>.md (the single source of truth for what is open). Rows whose issues were closed with evidence are left out.
+Part 2, this release (see docs/LEAN_HAND_TEST_PROTOCOL.md): the tool rows a fix targeted, a few canaries, the Part 4 prompts whose cause is
+unconfirmed, and a sample of plain-language prompts (the ones the offline check could not place in the first 15 matches, plus a few it could,
+so a wrong offline number shows). Standard library only; the bundle holds no credentials and no .py files."""
 import csv
 import hashlib
 import random
@@ -33,6 +35,9 @@ EXTRA_ROWS = (
     ("I10 undo", "undo the last operation", "The last change is undone (one confirm card); no second stale card."),
 )
 PLAIN_FOUND, PLAIN_SAMPLE_SEED = 6, 47
+SETUP_ROWS = ("OI-S1", "OI-S2")          # the open-issue rows need these layers loaded and renamed first
+UMBRELLA_ROWS = ("OI-233",)              # tracking lists, not tests
+INPUTS = DOCS / "release_smoke_assets" / "inputs"
 
 
 def version():
@@ -42,6 +47,30 @@ def version():
 def read_csv(name):
     with open(DOCS / name, encoding="utf-8-sig") as fh:
         return list(csv.DictReader(fh))
+
+
+def open_issue_numbers():
+    """Issue numbers still open, read from the first column of the newest docs/OPEN_ISSUES_STATUS_*.md table."""
+    latest = sorted(DOCS.glob("OPEN_ISSUES_STATUS_20*.md"))[-1]
+    numbers = set()
+    for line in latest.read_text(encoding="utf-8").splitlines():
+        cell = line.split("|")[1].strip() if line.startswith("|") and line.count("|") > 3 else ""
+        if cell and re.fullmatch(r"\d+(, \d+)*|\d+/\d+", cell):
+            numbers.update(int(n) for n in re.findall(r"\d+", cell))
+    return numbers
+
+
+def open_issue_rows():
+    """Rows of the open-issue sheet that test an issue that is still open, plus the set-up rows they depend on."""
+    open_numbers = open_issue_numbers()
+    chosen = []
+    for row in read_csv("FULL_LIVE_TEST_open_issues_ROWS.csv"):
+        if row["id"] in UMBRELLA_ROWS:
+            continue
+        cited = {int(n) for n in re.findall(r"#(\d+)", row["source"].split("(")[0])}
+        if row["id"] in SETUP_ROWS or cited & open_numbers:
+            chosen.append(row)
+    return chosen
 
 
 def plain_sample():
@@ -74,43 +103,56 @@ def main():
     tool_rows = [(t, tools[t]["prompt"], tools[t]["expected"]) for t in (*TARGET_TOOLS, *CANARY_TOOLS) if t in tools] + list(EXTRA_ROWS)
     missed, found = plain_sample()
     plain_rows = [(r["algorithm_id"], r["plain_prompt"], r["expected"]) for r in (*missed, *found)]
+    oi_rows = open_issue_rows()
 
-    sheet = [f"# Cartogen AI {v} - lean hand test\n",
-             ("Run on a **fresh QGIS project** with the fixtures from `3_fixtures_script.txt`. **One new chat per row** (history makes every later row dearer). "
-              "Screenshots only for rows that fail or look wrong. Do not repeat rows that are not here: their code did not change.\n"),
-             "Scoring per row: Pass / Partial / Fail / Skip. Note (1) did the assistant choose the right tool without being told its name, (2) does the result look right.\n",
-             "Prerequisite for the layout rows: the request `create a print layout of the map called Test Layout`.\n",
-             f"## A. Changed or fix-targeted rows ({len(tool_rows)})\n", "| # | Row | Prompt | Expect |", "|---|---|---|---|"]
+    sheet = [f"# Cartogen AI {v} - hand test (open issues + this release)\n",
+             ("One new chat per row (history makes every later row dearer). Screenshots only for rows that fail or look wrong. "
+              "Rows already proven are not here. Scoring: Pass / Partial / Fail / Skip; note which tool the assistant chose and whether the result looks right.\n"),
+             "**Order:** Part 1 first in the project made by its two set-up rows; then start a NEW project, run `3_fixtures_script.txt` in the QGIS Python console, and do Part 2.\n",
+             f"## Part 1. Open issues ({len(oi_rows)} rows, input files in `2_test_files/`)\n"]
+    for row in oi_rows:
+        sheet += [f"### {row['id']} ({row['source']})", "",
+                  f"- **Do/Send:** {row['prompt_or_action']}", f"- **Expect:** {row['expected']}",
+                  f"- **Inputs:** {row['inputs_used'] or 'none'}", f"- **Last known:** {row['last_known']}",
+                  f"- **Save:** {row['evidence_to_save']}", ""]
+    sheet += ["Prerequisite for the layout rows of Part 2: the request `create a print layout of the map called Test Layout`.\n",
+              f"## Part 2. This release ({len(tool_rows)} tool rows + {len(plain_rows)} plain-language rows)\n",
+              f"### A. Changed or fix-targeted rows ({len(tool_rows)})\n", "| # | Row | Prompt | Expect |", "|---|---|---|---|"]
     sheet += [f"| A{i} | `{t}` | {p} | {e} |" for i, (t, p, e) in enumerate(tool_rows, 1)]
-    sheet += [f"\n## B. Plain-language sample ({len(plain_rows)})\n",
+    sheet += [f"\n### B. Plain-language sample ({len(plain_rows)})\n",
               "The prompt never names the algorithm. Pass = the assistant found and ran an algorithm that does the job (write which one in the notes).\n",
               "| # | Algorithm that fits | Prompt |", "|---|---|---|"]
     sheet += [f"| B{i} | `{a}` | {p} |" for i, (a, p, _) in enumerate(plain_rows, 1)]
     sheet_text = "\n".join(sheet) + "\n"
 
-    results = [("id", "row", "prompt", "result (Pass/Partial/Fail/Skip)", "notes")]
-    results += [(f"A{i}", t, p, "", "") for i, (t, p, _) in enumerate(tool_rows, 1)]
-    results += [(f"B{i}", a, p, "", "") for i, (a, p, _) in enumerate(plain_rows, 1)]
+    results = [("id", "row", "prompt", "result (Pass/Partial/Fail/Skip)", "tool/algorithm the assistant chose", "model calls", "notes")]
+    results += [(r["id"], r["source"], r["prompt_or_action"], "", "", "", "") for r in oi_rows]
+    results += [(f"A{i}", t, p, "", "", "", "") for i, (t, p, _) in enumerate(tool_rows, 1)]
+    results += [(f"B{i}", a, p, "", "", "", "") for i, (a, p, _) in enumerate(plain_rows, 1)]
 
     fixtures_sheet = (DOCS / "HAND_TEST_SHEET_rc44_2026-10-16.md").read_text(encoding="utf-8")
     fixture = re.search(r"```python\n(.*?)```", fixtures_sheet, re.S)
     if not fixture:
         raise SystemExit("the full sheet has no fixture script block")
     digest = hashlib.sha256(plugin_zip.read_bytes()).hexdigest()
-    top = f"cartogen_ai_lean_test_{v}"
+    top = f"cartogen_ai_test_bundle_{v}"
     out = REPO / "dist" / f"{top}.zip"
     out.parent.mkdir(exist_ok=True)
-    readme = (f"Cartogen AI {v} - LEAN hand test ({len(tool_rows)} + {len(plain_rows)} rows)\r\n"
-              "====================================================\r\n\r\n"
-              "1_plugin/ the plugin zip (SHA-256 in checksum_sha256.txt)\r\n2_LEAN_SHEET.md START HERE\r\n3_fixtures_script.txt PyQGIS script for the test layers\r\n"
-              "4_RESULTS.csv fill result + notes\r\n\r\n"
+    total = len(oi_rows) + len(tool_rows) + len(plain_rows)
+    readme = (f"Cartogen AI {v} - hand test bundle ({total} rows: {len(oi_rows)} open-issue, {len(tool_rows)} release, {len(plain_rows)} plain-language)\r\n"
+              "=====================================================================\r\n\r\n"
+              "1_plugin/ the plugin zip (SHA-256 in checksum_sha256.txt)\r\n2_SHEET.md START HERE\r\n2_test_files/ input data for Part 1\r\n"
+              "3_fixtures_script.txt PyQGIS script for the layers of Part 2\r\n4_RESULTS.csv fill result + the tool the assistant chose + notes\r\n\r\n"
               "Keep the cost down: new chat per row; screenshots only for failures; after the run save Log Messages (CartogenAI tab) as cartogen.log and send it.\r\n"
               "It is turned into a cost table with: python tools/summarize_usage_log.py cartogen.log\r\n")
+    inputs = [p for p in sorted(INPUTS.iterdir()) if p.is_file()]
     with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as z:
         z.writestr(f"{top}/README_FIRST.txt", readme)
         z.write(plugin_zip, f"{top}/1_plugin/{plugin_zip.name}")
         z.writestr(f"{top}/1_plugin/checksum_sha256.txt", f"{digest}  {plugin_zip.name}\n")
-        z.writestr(f"{top}/2_LEAN_SHEET.md", sheet_text)
+        z.writestr(f"{top}/2_SHEET.md", sheet_text)
+        for path in inputs:
+            z.write(path, f"{top}/2_test_files/{path.name}")
         z.writestr(f"{top}/3_fixtures_script.txt", fixture.group(1))
         import io
         buffer = io.StringIO()
@@ -120,7 +162,7 @@ def main():
     with zipfile.ZipFile(out) as z:
         if [n for n in z.namelist() if n.endswith(".py")]:
             raise SystemExit("the bundle must not contain .py files")
-    print(f"wrote {out} ({out.stat().st_size} bytes); A rows {len(tool_rows)}, B rows {len(plain_rows)}; plugin sha256 {digest}")
+    print(f"wrote {out} ({out.stat().st_size} bytes); open-issue rows {len(oi_rows)}, A rows {len(tool_rows)}, B rows {len(plain_rows)}; plugin sha256 {digest}")
 
 
 if __name__ == "__main__":

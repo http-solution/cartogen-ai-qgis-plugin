@@ -334,6 +334,20 @@ here verbatim as accurate history — not a description of this repo. This repo'
 `cartogen_ai_v*.zip` (see `plugin_upload.py`'s `PLUGIN_NAME`), and it's a single tree, so there's
 no second copy to propagate this file to.
 
+## Found by the rc46 hand test (2026-10-18), fixed in rc47, not yet hand-verified
+
+| ID | Severity | Status | What was wrong | Found how | Fix and guard |
+|---|---|---|---|---|---|
+| BUG-2026-10-18-1 (#358) | medium | fixed-unverified | "Set the project CRS to EPSG:3857", "Assign EPSG:4326 to the layer", "Go to the bookmark" were refused as pasted fragments | rc46 tool sweep, row `set_project_crs` | verb list in `task_matcher.py`; ledger `fragment-guard` |
+| BUG-2026-10-18-2 (#359) | medium | fixed-unverified | "Show the metadata of towns" matched the "Create metadata" task and planned export tools | rc46 tool sweep, row `get_layer_metadata` (the only Fail) | read-versus-create guard in `classify`; ledger `metadata-read-no-task` |
+| BUG-2026-10-18-3 (#360) | medium | fixed-unverified | A raster expression (`dem@1 > 100`) did not offer `raster_calculator`, so the model hit the allowlist refusal | rc46 tool sweep, row `raster_calculator` | aliases; ledger `raster-expression-routing` |
+| BUG-2026-10-18-4 (#361) | medium | fixed-unverified | `tidy_project_layers` crashed on a vector tile layer (no `featureCount`) | rc46 tool sweep | skip such layers; ledger `tidy-vector-tile` |
+| BUG-2026-10-18-5 (#362) | medium | fixed-unverified (loop); unconfirmed cause (how-to answer, HTML dashboard) | Elevation profile had no way to get "the road's" coordinates, so the agent looped on `list_layout_items`; "animate" and "produce" were not recognised as requests; linked charts were not offered `add_layout_chart` | rc46 Part 4, I4, I6, I9 | `along_layer`, verbs, aliases; ledger `elevation-profile-along-layer`, `linked-charts-routing`; PLAN-002 |
+| BUG-2026-10-18-6 | low | fixed (process) | `docs/TOOLS_REFERENCE.md` still showed the old `add_layout_elevation_profile` parameters after the code changed; nothing failed | docs review 2026-10-23 | `tests/test_tools_reference_in_sync.py`; ledger `tools-reference-sync` |
+| BUG-2026-10-18-7 | low | fixed (process) | A CI-only lint failure (ISC004) got past local checks because an older `ruff` was first on the PATH | PR #365, 2026-10-18 | `tools/local_ci.sh` checks the pinned ruff and runs mypy |
+
+Still unexplained (no code fix yet, need a live session): five Processing algorithms that stalled in the rc45 hand test, and the `grass:r.stream.extract` crash.
+
 ## How to file a new bug
 
 Add a row above (in "Open bugs," converting the "None currently known" line to a real table

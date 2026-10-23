@@ -1,0 +1,311 @@
+{
+ "_about": "Features that were fixed or built and must not be broken again. Each entry names the source files that implement it and the tests that guard it. tests/test_feature_ledger.py fails if a guard test or source file disappears. Add an entry in the same PR as every fix or feature (CONTRIBUTING.md section 10). hand_verified says honestly what has and has not been seen in a real QGIS session.",
+ "features": [
+  {
+   "id": "router-top-k",
+   "feature": "Router offers 28 tool definitions per request (setting cartogen_ai/tool_router_top_k, range 12-60)",
+   "issues": [],
+   "since": "rc47",
+   "sources": [
+    "src/cartogen_ai/core/services/tool_router.py",
+    "src/cartogen_ai/core/agent/agent_orchestrator.py",
+    "src/cartogen_ai/infrastructure/settings_keys.py"
+   ],
+   "guards": [
+    "tests/test_tool_router_basics.py::TestConfiguredTopK::test_default_outside_qgis_and_pie_chart_still_routed",
+    "tests/test_tool_router_basics.py::TestPlainRequestsAreOfferedTheirTools::test_golden_requests",
+    "tests/test_tool_router_basics.py::TestPlainRequestsAreOfferedTheirTools::test_golden_long_requests"
+   ],
+   "hand_verified": "not hand-tested; not measured against live model answers"
+  },
+  {
+   "id": "fragment-guard",
+   "feature": "Short imperative requests ('Set the project CRS', 'Assign EPSG', 'Go to the bookmark', 'animate', 'produce') are never dismissed as pasted fragments; 'template: access_map' still is",
+   "issues": [
+    358,
+    130
+   ],
+   "since": "rc47",
+   "sources": [
+    "src/cartogen_ai/core/agent/task_matcher.py"
+   ],
+   "guards": [
+    "tests/test_rc46_hand_test_fixes.py::TestRc46HandTestFixes::test_set_project_crs_is_not_a_fragment",
+    "tests/test_rc46_hand_test_fixes.py::TestRc46HandTestFixes::test_pasted_key_value_is_still_a_fragment",
+    "tests/test_rc46_hand_test_fixes.py::TestPart4Wording::test_animate_and_produce_are_requests"
+   ],
+   "hand_verified": "rows A1-A3, A15 of the rc47 bundle"
+  },
+  {
+   "id": "metadata-read-no-task",
+   "feature": "'Show the metadata of X' reads metadata and gets no task directive; creating metadata still matches the task",
+   "issues": [
+    359
+   ],
+   "since": "rc47",
+   "sources": [
+    "src/cartogen_ai/core/agent/task_matcher.py"
+   ],
+   "guards": [
+    "tests/test_rc46_hand_test_fixes.py::TestRc46HandTestFixes::test_reading_metadata_has_no_task",
+    "tests/test_rc46_hand_test_fixes.py::TestRc46HandTestFixes::test_creating_metadata_still_matches_a_task",
+    "tests/test_rc46_hand_test_fixes.py::TestRc46HandTestFixes::test_metadata_read_offers_get_layer_metadata"
+   ],
+   "hand_verified": "not hand-tested; row A4 of the rc47 bundle"
+  },
+  {
+   "id": "raster-expression-routing",
+   "feature": "A QGIS raster expression (dem@1 > 100) offers raster_calculator",
+   "issues": [
+    360
+   ],
+   "since": "rc47",
+   "sources": [
+    "src/cartogen_ai/core/services/tool_router.py"
+   ],
+   "guards": [
+    "tests/test_rc46_hand_test_fixes.py::TestRc46HandTestFixes::test_raster_expression_offers_raster_calculator"
+   ],
+   "hand_verified": "not hand-tested; row A5 of the rc47 bundle"
+  },
+  {
+   "id": "tidy-vector-tile",
+   "feature": "tidy_project_layers skips layers without featureCount (vector tile, point cloud, mesh)",
+   "issues": [
+    361
+   ],
+   "since": "rc47",
+   "sources": [
+    "src/cartogen_ai/core/agent/tools/project_tidy_tools.py"
+   ],
+   "guards": [
+    "tests/test_rc46_hand_test_fixes.py::TestRc46HandTestFixes::test_tidy_scan_skips_layers_without_feature_count"
+   ],
+   "hand_verified": "not hand-tested; row A14 of the rc47 bundle"
+  },
+  {
+   "id": "elevation-profile-along-layer",
+   "feature": "add_layout_elevation_profile accepts along_layer (a line layer) so no coordinates are needed",
+   "issues": [
+    362
+   ],
+   "since": "rc47",
+   "sources": [
+    "src/cartogen_ai/core/agent/tools/layout_chart_profile_tools.py",
+    "src/cartogen_ai/core/agent/tools/gap_options.py"
+   ],
+   "guards": [
+    "tests/test_rc46_hand_test_fixes.py::TestElevationProfileAlongLayer::test_line_ends",
+    "tests/test_rc46_hand_test_fixes.py::TestElevationProfileAlongLayer::test_coordinates_are_optional_in_the_schema",
+    "tests/test_elevation_tools_live.py::TestElevationAndChartLive::test_elevation_profile_along_a_line_layer"
+   ],
+   "hand_verified": "not hand-tested; row A16 of the rc47 bundle"
+  },
+  {
+   "id": "linked-charts-routing",
+   "feature": "'charts linked to maps' offers add_layout_chart",
+   "issues": [
+    362
+   ],
+   "since": "rc47",
+   "sources": [
+    "src/cartogen_ai/core/services/tool_router.py"
+   ],
+   "guards": [
+    "tests/test_rc46_hand_test_fixes.py::TestPart4Wording::test_linked_charts_offer_layout_chart"
+   ],
+   "hand_verified": "not hand-tested; row A17 of the rc47 bundle"
+  },
+  {
+   "id": "tool-prompt-replay",
+   "feature": "Every prompt of the tool hand-test sheet is offered its tool by the router and is not dismissed or hijacked by the task library",
+   "issues": [],
+   "since": "rc47",
+   "sources": [
+    "src/cartogen_ai/core/services/tool_router.py",
+    "src/cartogen_ai/core/agent/task_matcher.py",
+    "docs/HAND_TEST_rc44_tools.csv"
+   ],
+   "guards": [
+    "tests/test_rc46_hand_test_fixes.py::TestHandTestToolPromptsRouteOffline::test_every_tool_row_routes"
+   ],
+   "hand_verified": "offline only by design"
+  },
+  {
+   "id": "tools-reference-sync",
+   "feature": "docs/TOOLS_REFERENCE.md equals what the live registry generates",
+   "issues": [],
+   "since": "rc47",
+   "sources": [
+    "docs/TOOLS_REFERENCE.md",
+    "docs/generate_tools_reference.py"
+   ],
+   "guards": [
+    "tests/test_tools_reference_in_sync.py::TestToolsReferenceInSync::test_committed_reference_matches_the_registry"
+   ],
+   "hand_verified": "offline only by design"
+  },
+  {
+   "id": "plain-language-discovery",
+   "feature": "A request that describes a result finds an approved Processing algorithm by meaning, without its name",
+   "issues": [],
+   "since": "rc46",
+   "sources": [
+    "src/cartogen_ai/core/agent/algorithm_topics.py",
+    "src/cartogen_ai/core/agent/algorithm_topics.json",
+    "src/cartogen_ai/core/agent/algorithm_about.json",
+    "src/cartogen_ai/core/agent/tools/processing_allowlist_tools.py"
+   ],
+   "guards": [
+    "tests/test_algorithm_topics.py::TopicIndexTests::test_plain_requests_find_their_algorithm_in_the_first_five",
+    "tests/test_plain_prompts.py::PlainPromptTests::test_the_search_finds_the_algorithm_for_most_prompts",
+    "tests/test_plain_prompts.py::PlainPromptTests::test_the_router_offers_the_processing_tools_for_nearly_all_prompts"
+   ],
+   "hand_verified": "plain-language hand test (385 prompts) not run; rows B1-B40 of the rc47 bundle sample it"
+  },
+  {
+   "id": "named-algorithm-no-task",
+   "feature": "A request that names an algorithm, asks for a computation or a chart is not answered by an unrelated task",
+   "issues": [],
+   "since": "rc46",
+   "sources": [
+    "src/cartogen_ai/core/agent/task_matcher.py"
+   ],
+   "guards": [
+    "tests/test_algorithm_topics.py::NamedAlgorithmTests::test_an_id_or_quoted_display_name_is_a_named_algorithm"
+   ],
+   "hand_verified": "rc45 smoke run confirmed the misroutes; fix not hand-tested"
+  },
+  {
+   "id": "processing-layer-kind",
+   "feature": "A layer of the wrong kind in any Processing parameter is refused before anything runs",
+   "issues": [],
+   "since": "rc46",
+   "sources": [
+    "src/cartogen_ai/core/agent/tools/processing_allowlist_tools.py"
+   ],
+   "guards": [
+    "tests/test_processing_raster_family.py::RasterFamilyTests::test_a_layer_of_the_wrong_kind_in_any_parameter_is_refused_before_running"
+   ],
+   "hand_verified": "hand-tested rc46 retest 3: Pass"
+  },
+  {
+   "id": "undo-across-messages",
+   "feature": "undo_last_operation reaches back up to five messages; delete_features is undoable",
+   "issues": [],
+   "since": "rc46",
+   "sources": [
+    "src/cartogen_ai/core/models/transactions.py",
+    "src/cartogen_ai/core/agent/tools/_snapshot_registry.py"
+   ],
+   "guards": [
+    "tests/test_transactions.py::TestRecord::test_successful_create_with_new_layer_is_undoable",
+    "tests/test_snapshot_registry.py::TestRegistryLookups::test_every_registered_entry_has_a_snapshot_and_restore_pair"
+   ],
+   "hand_verified": "hand-tested rc46 retest 1: Pass"
+  },
+  {
+   "id": "tool-schema-no-removal",
+   "feature": "No tool or parameter is removed or renamed and the tool count never drops",
+   "issues": [],
+   "since": "rc43",
+   "sources": [
+    "src/cartogen_ai/core/agent/tools/registry.py",
+    "tests/fixtures/tool_schema_snapshot.json"
+   ],
+   "guards": [
+    "tests/test_tool_schema_snapshot.py::TestToolSchemaSnapshot::test_no_tool_was_removed_or_renamed",
+    "tests/test_tool_schema_snapshot.py::TestToolSchemaSnapshot::test_no_parameter_was_removed_or_renamed",
+    "tests/test_tool_schema_snapshot.py::TestToolSchemaSnapshot::test_the_tool_count_never_drops"
+   ],
+   "hand_verified": "offline only by design"
+  },
+  {
+   "id": "golden-routing-never-shrinks",
+   "feature": "The golden routing tables keep every row they had",
+   "issues": [],
+   "since": "rc43",
+   "sources": [
+    "tests/test_tool_router_basics.py"
+   ],
+   "guards": [
+    "tests/test_golden_suite_size_pins.py::TestGoldenSuiteSizePins::test_basic_requests_table",
+    "tests/test_golden_suite_size_pins.py::TestGoldenSuiteSizePins::test_long_requests_table"
+   ],
+   "hand_verified": "offline only by design"
+  },
+  {
+   "id": "release-docs-in-sync",
+   "feature": "A version bump updates metadata, CHANGELOG, README, in-plugin Help and counts together",
+   "issues": [],
+   "since": "rc20",
+   "sources": [
+    "metadata.txt",
+    "CHANGELOG.md",
+    "README.md",
+    "src/cartogen_ai/core/release_notes.py"
+   ],
+   "guards": [
+    "tests/test_release_docs_in_sync.py::TestReleaseDocsInSync::test_every_place_names_the_metadata_version",
+    "tests/test_release_docs_in_sync.py::TestReleaseDocsInSync::test_quoted_counts_match_the_live_registries"
+   ],
+   "hand_verified": "offline only by design"
+  },
+  {
+   "id": "usage-log-summary",
+   "feature": "tools/summarize_usage_log.py groups model_call lines into prompts",
+   "issues": [],
+   "since": "rc47",
+   "sources": [
+    "tools/summarize_usage_log.py"
+   ],
+   "guards": [
+    "tests/test_rc46_hand_test_fixes.py::TestUsageLogSummary::test_groups_calls_into_prompts"
+   ],
+   "hand_verified": "offline only by design"
+  },
+  {
+   "id": "test-bundle-selection",
+   "feature": "The hand-test bundle contains only open-issue rows whose issue is still open (per docs/OPEN_ISSUES_STATUS), never a closed one",
+   "issues": [],
+   "since": "rc47",
+   "sources": [
+    "tools/build_lean_bundle.py",
+    "docs/FULL_LIVE_TEST_open_issues_ROWS.csv"
+   ],
+   "guards": [
+    "tests/test_test_bundle.py::TestBundleSelection::test_only_rows_of_open_issues_are_selected"
+   ],
+   "hand_verified": "offline only by design"
+  },
+  {
+   "id": "feature-ledger-guard",
+   "feature": "Guard tests named in this ledger cannot disappear unnoticed",
+   "issues": [],
+   "since": "rc47",
+   "sources": [
+    "docs/FEATURE_LEDGER.json",
+    "tools/ledger_guard.py"
+   ],
+   "guards": [
+    "tests/test_feature_ledger.py::TestFeatureLedger::test_every_guard_test_still_exists",
+    "tests/test_feature_ledger.py::TestFeatureLedger::test_every_source_file_exists"
+   ],
+   "hand_verified": "offline only by design"
+  },
+  {
+   "id": "plans-template",
+   "feature": "Every plan in docs/plans follows the template and has a dated status log",
+   "issues": [],
+   "since": "rc47",
+   "sources": [
+    "docs/plans/README.md"
+   ],
+   "guards": [
+    "tests/test_plans.py::TestPlans::test_every_plan_has_the_template_headings_in_order_and_a_status",
+    "tests/test_plans.py::TestPlans::test_the_status_log_has_a_dated_line"
+   ],
+   "hand_verified": "offline only by design"
+  }
+ ]
+}

@@ -124,7 +124,7 @@ When you change `version=` in `metadata.txt`, update ALL of these in the same ch
 2. `CHANGELOG.md`: a new row in the "Recent releases" table and a new `## [version]` section with its `<a id="v...">` anchor.
 3. `src/cartogen_ai/core/release_notes.py`: `WHATS_NEW_VERSION`, `NEW_MARK_VERSIONS`, `WHATS_NEW_ITEMS` (shown in the plugin's Help dialog), any new tool in `HUMANITARIAN_WORKFLOWS` with its `TOOL_NEW_IN` entry.
 4. `README.md`: the version line, the status line, a new "What's new in <version>" section (keep the previous one below it), and the humanitarian table -- regenerate it from `release_notes.render_readme_table()`.
-5. Counts: tool count (README, `docs/TOOLS_REFERENCE.md` via `python docs/generate_tools_reference.py`) and task/section counts (`docs/USER_GUIDE.md`); the Help dialog reads them live.
+5. Counts: the offline test count in the README status block (take it from the last green offline run, never from memory), tool count (README, `docs/TOOLS_REFERENCE.md` via `python docs/generate_tools_reference.py`; `tests/test_tools_reference_in_sync.py` fails if it is stale) and task/section counts (`docs/USER_GUIDE.md`); the Help dialog reads them live.
 6. Say plainly what was and was not verified (hand-tested vs CI only), then build the zip with `python plugin_upload.py`.
 
 
@@ -143,3 +143,16 @@ These follow the PyQGIS Developer Cookbook, **QGIS 4.2 source** (`docs/pyqgis_de
 9. **Packaging and metadata (Plugins and Releasing chapters).** Required metadata: name, qgisMinimumVersion, description (one line, no HTML), about, version (unique per upload), author, email, repository; also tracker, homepage, tags and a real icon. `category` may only be Vector, Raster, Database, Mesh or Web, or be left out (we leave it out: the plugin sits in the default Plugins menu). No `%` in the file (§8). All metadata UTF-8. A `LICENSE` file with no extension at the package root. The package is one top folder containing `metadata.txt`, `__init__.py` and `LICENSE`; the folder name uses only ASCII letters, digits, `_` and `-` and does not start with a digit (we use lower-case snake_case, which the directory's own validator also requires). No generated files (`ui_*.py`, `resources_rc.py`), `.gitignore`, `.pyc`, `__pycache__`, hidden files or `..` paths. Zip at most 25 MB. `tests/test_directory_validator.py` covers most of this. Translations, if added, are named `<plugin>_<2-letter language>.ts` and the `.ts` and `.qm` files are regenerated after UI changes.
 10. **Dynamic code.** No `eval`/`exec` of model- or user-supplied text in the plugin process. The one script tool runs in the isolated process described in `SECURITY.md` §1 and fails closed when isolation is unavailable; do not widen it. (Our own rule, not from the cookbook.)
 11. **Verification.** Anything that touches QGIS objects needs a live test in `tests/test_*_live.py` (runs in the pinned QGIS 4.2.2 image), not only the offline suite. Say in the commit and release notes whether a change was live-tested, CI-only, or hand-tested (§2).
+
+## 10. Plan first, ledger always, never regress finished work
+
+Added 2026-10-23 after finished work was broken by later changes three times (rc23 router regression, rc40 routing gap, rc46 fragment guard).
+
+1. **Plan before behaviour.** A feature, a behaviour-changing fix or a test campaign gets a file in `docs/plans/` (template and rules: `docs/plans/README.md`) in the same pull request as its first line of code, and the plan's status log is updated in the same pull request as each later step.
+2. **Ledger entry in the same pull request.** Every fix or feature adds or updates an entry in `docs/FEATURE_LEDGER.json`: the source files that implement it, the tests that guard it, and an honest `hand_verified` line. `tests/test_feature_ledger.py` fails if a named guard test or source file disappears, so deleting or renaming a guard is a visible decision, not an accident.
+3. **Run the guards before you push.** `python tools/ledger_guard.py` lists the ledger features your change touches and runs exactly their guard tests. `tools/local_ci.sh --offline` runs the same ruff and mypy versions CI pins (a different ruff on the PATH let a CI-only failure through on 2026-10-18).
+4. **A regression test comes with every defect fix.** The test reproduces the report (the real prompt, the real layer type), fails without the fix and is named in the ledger. Rows of the hand-test sheets are replayed offline by `tests/test_rc46_hand_test_fixes.py`; add the new row there too.
+5. **Hand-test claims are specific.** Write "CI only" or "hand-tested on rc47, row A5" in the plan, the ledger, the changelog and the README. Do not close an issue without a hand-verified pass or an owner decision (`docs/OPEN_ISSUES_STATUS_*.md` lists what each open issue needs).
+6. **Pull request body uses `.github/PULL_REQUEST_TEMPLATE.md`**, including the before/after table and the ledger and plan boxes.
+7. **After a release, record it** the same day: `docs/STATUS_DONE_VS_TESTED_2026-10-16.md`, `docs/IMPLEMENTATION_TRACKER.md`, `docs/BUG_TRACKER.md` for defects found or fixed, and the open-issue status table.
+
