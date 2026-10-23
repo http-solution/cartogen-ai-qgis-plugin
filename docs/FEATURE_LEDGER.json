@@ -425,6 +425,27 @@
     "hand_verified": "not hand-tested; found by the rc48 hand test (rows A22, OI-120), fix is CI live only"
   },
   {
+    "id": "lineage-named-output",
+    "feature": "An output the caller names (new_layer_name) is tagged with the layers it was made from, so a merge of a SENSITIVE layer stays protected through renames and the cloud gate blocks a read of it",
+    "issues": [
+      150
+    ],
+    "since": "rc49 (unreleased)",
+    "sources": [
+      "src/cartogen_ai/core/agent/agent_orchestrator.py",
+      "src/cartogen_ai/core/agent/lineage.py",
+      "docs/plans/PLAN-008-rc48-hand-test-findings.md"
+    ],
+    "guards": [
+      "tests/test_lineage_tagging.py::TestNamedOutputIsTagged::test_a_caller_named_output_is_tagged_with_its_inputs",
+      "tests/test_lineage_tagging.py::TestNamedOutputIsTagged::test_the_output_name_is_never_one_of_its_own_sources",
+      "tests/test_lineage_tagging.py::TestNamedOutputIsTagged::test_a_tool_that_edits_an_existing_layer_does_not_tag_it_as_derived_from_itself",
+      "tests/test_egress_flow_live.py::TestProtectedLayerSurvivesMergeAndRenames::test_a_merge_through_the_generic_processing_tool_is_blocked_too",
+      "tests/test_egress_flow_live.py::TestProtectedLayerSurvivesMergeAndRenames::test_merge_then_two_renames_then_read_is_blocked"
+    ],
+    "hand_verified": "not hand-tested; found by the rc48 hand test (OI-150) and reproduced in CI; fix is CI only until the row is re-run"
+  },
+  {
     "id": "matrix-access-legs",
     "feature": "travel_time_matrix reports access_leg_m (straight distance from each destination to its nearest road) beside the road-only costs, and says to add it for a total-travel-budget question",
     "issues": [
