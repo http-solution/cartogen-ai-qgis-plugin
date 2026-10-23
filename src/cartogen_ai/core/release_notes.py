@@ -8,17 +8,16 @@ metadata changelog, CHANGELOG.md, README and this module agree). Checklist: CONT
 releases listed in NEW_MARK_VERSIONS.
 """
 
-WHATS_NEW_VERSION = "1.17.0-rc47"
-NEW_MARK_VERSIONS = ("1.17.0-rc46", "1.17.0-rc47")
+WHATS_NEW_VERSION = "1.17.0-rc48"
+NEW_MARK_VERSIONS = ("1.17.0-rc47", "1.17.0-rc48")
 
 # Headline items of the current version (the full list is the metadata.txt changelog block and CHANGELOG.md).
 WHATS_NEW_ITEMS = [
-    ('Cheaper requests', '28 tool definitions are offered per request instead of 40, about 35 percent fewer tokens on every model call (measured offline: 14.3k to 9.4k on average). It is a setting (cartogen_ai/tool_router_top_k, 12 to 60) if the assistant ever says a tool is unavailable. Not measured against live model answers.'),
-    ('Requests that were refused or misrouted', "'Set the project CRS to EPSG:3857', 'Assign EPSG:4326 to the layer' and 'Go to the bookmark' are no longer dismissed as pasted fragments; 'Show the metadata of towns' reads the metadata instead of planning a metadata-creation task; a raster expression such as 'Calculate dem@1 > 100 as a new layer' offers the raster calculator; 'animate', 'produce' and 'charts linked to maps' reach their tools."),
-    ('Elevation profile along a road', 'add_layout_elevation_profile takes along_layer, a line layer: the profile runs from the first to the last vertex of its selected or first feature, so no coordinates have to be typed.'),
-    ('Project tidy', 'tidy_project_layers no longer fails when the project has a vector tile layer.'),
-    ('More plain-language matches', '20 more approved Processing algorithms can be found from a description of the result (holes in polygons, sorting, constant rasters, raster properties, hub lines and others).'),
-    ('Not hand-tested', 'Everything above is checked by the offline suite and, for the QGIS parts, by CI on QGIS 4.2.2. None of it has been hand-tested in desktop QGIS, and no real model was observed with the smaller tool list. The cause of the animation how-to answer and the HTML dashboard for a layout chart (issue 362) is not confirmed.')
+    ('Excel and CAD export', "New tools export_layers_to_spreadsheet (one Excel .xlsx or .ods file, one sheet per layer, attributes only) and export_layers_to_dxf (a DXF for CAD software: geometry and layer names, no attribute tables or styling). Both save under the project's export folder unless you name a path, and ask before replacing an existing file."),
+    ('Plain export requests', "'Send me the map as a pdf', 'Bundle the project data for sharing' and 'Save the roads layer to a geopackage' now reach the export tools; before, the tool was not offered for those words. 'Export to Excel' reaches the spreadsheet export and 'export to csv' still reaches the CSV export."),
+    ('Statistics and raster to polygons', '8 more approved Processing algorithms (435 in all): basic statistics for fields, unique values, nearest-neighbour analysis, raster layer statistics, raster unique values report, raster surface volume, polygonize and contour polygons. The numbers come back in the reply, report files and file results are temporary, and small vector results are copied into the project.'),
+    ('Includes rc47', 'Everything in rc47 is in this build: 28 tool definitions per request instead of 40, the request fixes, elevation profile along a road, project tidy with vector tile layers and 20 more plain-language algorithm matches. rc47 itself was never installed for testing.'),
+    ('Not hand-tested', 'Everything above is checked by the offline suite and, for the QGIS parts, by CI on QGIS 4.2.2 (the DXF and spreadsheet files are written and read back there). None of it has been hand-tested in desktop QGIS. The 8 new algorithms and both exports have only run in CI.'),
 ]
 
 HUMANITARIAN_WORKFLOWS = [('1. Rapid crisis and base mapping',

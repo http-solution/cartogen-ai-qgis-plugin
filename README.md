@@ -20,14 +20,14 @@
   <a href="https://cartogenai.com"><img src="https://img.shields.io/badge/website-cartogenai.com-0b6efd" alt="Website"></a>
 </p>
 
-**Community edition · Version 1.17.0-rc47 (pre-release) · GNU GPL v2 · QGIS 4.2–4.99 · [cartogenai.com](https://cartogenai.com)**
+**Community edition · Version 1.17.0-rc48 (pre-release) · GNU GPL v2 · QGIS 4.2–4.99 · [cartogenai.com](https://cartogenai.com)**
 
 Cartogen AI is built for GIS analysts, humanitarian teams, researchers, and anyone who
 needs to move from a question to a reproducible spatial result without leaving QGIS.
 The agent exposes its plan, tool calls, progress, and errors instead of returning a
 black-box answer.
 
-> **Project status (2026-10-23):** active Community edition, currently at the **1.17.0-rc47 pre-release** build (the last stable build is 1.16.3; rc20 to 1.17.0-rc47 add the audit fixes, hand-test fixes and the cost and routing work made after rc19).
+> **Project status (2026-10-23):** active Community edition, currently at the **1.17.0-rc48 pre-release** build (the last stable build is 1.16.3; rc20 to 1.17.0-rc48 add the audit fixes, hand-test fixes and the cost and routing work made after rc19).
 > - **Tests:** 4,650 automated tests run offline, 0 failures (639 skipped there: the live-QGIS tests and those needing optional libraries). The QGIS ones run in CI (the `qgis-live-tests` job, QGIS 4.2.2) together with ruff, mypy and a release-zip check.
 > - **Hand testing:** rc44 to rc46 were hand-tested in desktop QGIS 4.2.3 (tool sweep: 65 of 83 rows Pass, 1 Fail, the rest Partial or Skip; 21 of 21 priority algorithms Pass); the plain-language algorithm test (385 prompts) has **not** been run. rc47 changes are CI-checked only until its lean hand test ([docs/LEAN_HAND_TEST_PROTOCOL.md](docs/LEAN_HAND_TEST_PROTOCOL.md)) is run.
 > - **Open issues (28):** the external architectural audit of rc12 (tracking issue #169) and the smoke-test findings (#72 and its children) are fixed in code and CI-verified except where a comment on the issue says otherwise; they stay open until a hand-verified PASS, because no issue is closed without one. Per-issue status: [docs/OPEN_ISSUES_STATUS_2026-10-23.md](docs/OPEN_ISSUES_STATUS_2026-10-23.md).
@@ -79,6 +79,16 @@ black-box answer.
   a restricted execution sandbox for model-generated PyQGIS scripts, fail-closed
   read-only SQL enforcement, an SSRF guard on fetched URLs, and a destructive-action
   confirmation gate the model cannot self-approve.
+
+## What's new in 1.17.0-rc48
+
+Built on 1.17.0-rc47. Offline tests and the QGIS 4.2.2 live checks in CI pass; **not hand-tested** in desktop QGIS unless an item says so. Full list: the `v1.17.0-rc48` block in [metadata.txt](metadata.txt) and [CHANGELOG.md](CHANGELOG.md).
+
+- Excel and CAD export: New tools export_layers_to_spreadsheet (one Excel .xlsx or .ods file, one sheet per layer, attributes only) and export_layers_to_dxf (a DXF for CAD software: geometry and layer names, no attribute tables or styling). Both save under the project's export folder unless you name a path, and ask before replacing an existing file.
+- Plain export requests: 'Send me the map as a pdf', 'Bundle the project data for sharing' and 'Save the roads layer to a geopackage' now reach the export tools; before, the tool was not offered for those words. 'Export to Excel' reaches the spreadsheet export and 'export to csv' still reaches the CSV export.
+- Statistics and raster to polygons: 8 more approved Processing algorithms (435 in all): basic statistics for fields, unique values, nearest-neighbour analysis, raster layer statistics, raster unique values report, raster surface volume, polygonize and contour polygons. The numbers come back in the reply, report files and file results are temporary, and small vector results are copied into the project.
+- Includes rc47: Everything in rc47 is in this build: 28 tool definitions per request instead of 40, the request fixes, elevation profile along a road, project tidy with vector tile layers and 20 more plain-language algorithm matches. rc47 itself was never installed for testing.
+- Not hand-tested: Everything above is checked by the offline suite and, for the QGIS parts, by CI on QGIS 4.2.2 (the DXF and spreadsheet files are written and read back there). None of it has been hand-tested in desktop QGIS. The 8 new algorithms and both exports have only run in CI.
 
 ## What's new in 1.17.0-rc47
 

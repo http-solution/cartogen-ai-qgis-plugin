@@ -33,7 +33,36 @@ EXTRA_ROWS = (
     ("I9 chart", "Produce charts linked to maps",
      "add_layout_chart and/or the atlas tools are used on a layout. An HTML dashboard instead is a Fail."),
     ("I10 undo", "undo the last operation", "The last change is undone (one confirm card); no second stale card."),
+    # rc48 (wave E1 of PLAN-005 and package E2c of PLAN-006): none of these has been run outside CI.
+    ("E1 raster stats", "what are the minimum, maximum and mean elevation of the dem",
+     "The generic Processing tool runs native:rasterlayerstatistics and the reply gives minimum, maximum and mean numbers that look right for the dem; no file path is asked for."),
+    ("E1 field stats", "give me the basic statistics of the pop field of towns",
+     "native:basicstatisticsforfields; the reply says minimum 5, maximum 700, mean about 190.6 (8 towns); no file path is asked for."),
+    ("E1 polygonize", "turn the dem_classes raster into editable polygons",
+     "gdal:polygonize; a polygon layer appears in the project, is marked temporary with an offer to save it; the polygon values are 1, 2 and 3."),
+    ("E2c pdf", "send me the map as a pdf",
+     "export_layout is used on Test Layout (create it first with the prerequisite request); a PDF exists at the reported path and opens."),
+    ("E2c package", "bundle the project data for sharing",
+     "package_layers_offline is used; a GeoPackage with the project layers exists at the reported path."),
+    ("E2c geopackage", "save the roads layer to a geopackage",
+     "export_layer with format gpkg; the file is in the project export folder and holds 3 road features."),
+    ("E2c dxf", "export the roads and towns to dxf",
+     "export_layers_to_dxf; the DXF opens (in QGIS or a CAD program) and shows the lines and points; the reply says it carries geometry and layer names only. Send the same request again: the second run must ask before replacing the file."),
+    ("E2c excel", "export the towns and districts to excel, one sheet each",
+     "export_layers_to_spreadsheet; the .xlsx opens in Excel or LibreOffice with two sheets (towns 8 rows, districts 4 rows) and the right columns."),
 )
+# Added to the fixture script: a small integer raster for the polygonize row (the dem is continuous, so its polygons would be one per pixel).
+FIXTURE_EXTRA = """
+# rc48: classified raster for the polygonize row
+_classes_path = os.path.join(folder, "dem_classes.tif")
+_ds = gdal.GetDriverByName("GTiff").Create(_classes_path, 80, 80, 1, gdal.GDT_Int16)
+_ds.SetGeoTransform((0.0, 0.05, 0.0, 4.0, 0.0, -0.05))
+_srs = osr.SpatialReference(); _srs.ImportFromEPSG(4326); _ds.SetProjection(_srs.ExportToWkt())
+_y, _x = np.mgrid[0:80, 0:80]
+_ds.GetRasterBand(1).WriteArray((1 + (_x // 27)).astype("int16")); _ds.FlushCache(); _ds = None
+QgsProject.instance().addMapLayer(QgsRasterLayer(_classes_path, "dem_classes"))
+print("dem_classes added")
+"""
 PLAIN_FOUND, PLAIN_SAMPLE_SEED = 6, 47
 SETUP_ROWS = ("OI-S1", "OI-S2")          # the open-issue rows need these layers loaded and renamed first
 UMBRELLA_ROWS = ("OI-233",)              # tracking lists, not tests
@@ -153,7 +182,7 @@ def main():
         z.writestr(f"{top}/2_SHEET.md", sheet_text)
         for path in inputs:
             z.write(path, f"{top}/2_test_files/{path.name}")
-        z.writestr(f"{top}/3_fixtures_script.txt", fixture.group(1))
+        z.writestr(f"{top}/3_fixtures_script.txt", fixture.group(1) + FIXTURE_EXTRA)
         import io
         buffer = io.StringIO()
         csv.writer(buffer).writerows(results)
