@@ -149,6 +149,23 @@ From the rc45 hand-test run (an AI agent in desktop QGIS 4.2.3 on Windows: 56/22
   the `r.stream.extract` crash are not found; GRASS takes minutes per run on Windows.**
 - CI-live: the new live tests passed on QGIS 4.2.2 in PR #356. Hand-tested: nothing. The plain-language hand test is written, not run.
 
+## rc46 hand-test results (checkpoint uploaded 2026-10-18; partial run)
+Run by an AI agent in desktop QGIS 4.2.3 (Gemini flash). Tool sweep, 83 rows: 65 Pass, 10 Partial, 7 Skip, 1 Fail (`get_layer_metadata`, misrouted). Priority
+algorithms: 21 of 21 Pass. Part 4: I1 to I3, I5, I8 Pass; I4, I6, I7, I9, I10 Partial. Not run: the other ~364 algorithm rows and all 385 plain-language rows.
+Real defects found: the set/assign/go fragment refusal, the metadata misroute, `raster_calculator` not offered, `tidy_project_layers` on a vector tile layer,
+the elevation-profile loop, wording of "animate" and "produce". Several Partial rows were test-design mismatches (no selection, a line that misses, a point
+symbol on a line layer); those rows are rewritten. Cost: the run was expensive because ~245 unchanged algorithm rows were repeated and every model call
+resends ~24k tokens of system prompt and tool definitions (`docs/LEAN_HAND_TEST_PROTOCOL.md`).
+
+## rc47 (released 2026-10-18 as a pre-release; PRs #363 to #366)
+- Offered tools per request 40 to 28 (`cartogen_ai/tool_router_top_k`), mean definition size 14.3k to 9.4k tokens offline. **Not measured against live answers.**
+- The five defects above fixed with regression tests; `add_layout_elevation_profile` takes `along_layer`; 20 more algorithms found by description (343 to 351 of
+  385 prompts in the first 15 results, measured on the prompts the notes were written from).
+- Tooling: offline replay of every tool-sheet prompt through the router and task matcher, `tools/plan_hand_test.py`, `tools/build_lean_bundle.py`,
+  `tools/summarize_usage_log.py`, a test that `docs/TOOLS_REFERENCE.md` matches the registry.
+- CI on QGIS 4.2.2 passed (including a live test of `along_layer`). **Hand-tested: nothing.** The lean bundle (18 tool rows, 40 plain-language prompts) is the test.
+- Unconfirmed: the animation how-to answer (I4) and the HTML dashboard instead of a layout chart (I9), issue #362.
+
 ## Not tested at all, across the roadmap
 1. Any end-to-end conversation: a real model choosing these tools from a prompt, asking for confirmation, and the user seeing results in the dock.
    The router tests prove which tools are OFFERED for a request, not which one is CHOSEN.

@@ -2432,21 +2432,22 @@ Add a chart to a print layout: chart_type 'bar', 'line' or 'pie' of layer_name, 
 
 ### `add_layout_elevation_profile`
 
-Add an elevation profile to a print layout along a straight line from (start_x, start_y) to (end_x, end_y) in the project CRS. layer_names are the layers to profile; each needs elevation turned on first (set_layer_elevation). Position and size in millimetres.
+Add an elevation profile to a print layout along a straight line from (start_x, start_y) to (end_x, end_y) in the project CRS. layer_names are the layers to profile; each needs elevation turned on first (set_layer_elevation). Give either start/end coordinates or along_layer, the name of a LINE layer (a road, a river): the profile then runs from the first to the last vertex of its selected feature, or its first feature. Position and size in millimetres.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
 | `layout_name` | string | yes |  |
 | `layer_names` | array[string] | yes |  |
-| `start_x` | number | yes |  |
-| `start_y` | number | yes |  |
-| `end_x` | number | yes |  |
-| `end_y` | number | yes |  |
+| `start_x` | number | no |  |
+| `start_y` | number | no |  |
+| `end_x` | number | no |  |
+| `end_y` | number | no |  |
 | `x_mm` | number | no |  |
 | `y_mm` | number | no |  |
 | `width_mm` | number | no |  |
 | `height_mm` | number | no |  |
 | `item_id` | string | no |  |
+| `along_layer` | string | no |  |
 
 ## layout_extra_tools
 
@@ -2780,6 +2781,7 @@ Search the approved QGIS Processing algorithms by a few words (for example 'dens
 |---|---|---|---|
 | `query` | string | no |  |
 | `algorithm_id` | string | no |  |
+| `family` | string | no | Browse one family instead of searching: geometry, table, analysis, expression, raster, mixed, grass or mesh. Lists id, name and what each is for. |
 
 ### `run_allowlisted_processing_algorithm`
 
@@ -3154,12 +3156,13 @@ Draw a raster (for example a DEM) as a hillshade (style=hillshade; azimuth 0-360
 
 ### `set_rule_based_labels`
 
-Label a vector layer with RULES instead of one style: each rule has a field to show, an optional filter (a QGIS expression such as "population" > 10000), a font size and colour, and optional scales (min_scale = zoomed-out limit as a denominator, max_scale = zoomed-in limit). Up to 20 rules. This replaces the layer's current labels.
+Label a vector layer with RULES instead of one style: each rule has a field to show, an optional filter (a QGIS expression such as "population" > 10000), a font size and colour, and optional scales (min_scale = zoomed-out limit as a denominator, max_scale = zoomed-in limit). Up to 20 rules. This replaces the layer's current labels. clear=true removes the layer's labels (no rules needed). To get the previous labels back after a change, use undo_last_operation.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
 | `layer_name` | string | yes |  |
-| `rules` | array[object] | yes |  |
+| `rules` | array[object] | no |  |
+| `clear` | boolean | no |  |
 
 ## symbology_tools
 
@@ -3200,7 +3203,7 @@ Change how a vector layer's symbols are drawn beyond colour: outline colour and 
 
 ### `set_raster_style`
 
-Change how a raster layer is displayed: mode='unique_values' gives one colour per distinct cell value (for land cover, classes, zones; refused above 256 distinct values), resampling (nearest keeps blocky cells, bilinear or cubic smooth them), opacity_percent, and no-data: nodata_min/nodata_max make cells in that range transparent, clear_nodata=true restores the file's own no-data. Give only what should change. Display only; the cell values are not changed. For a continuous colour ramp use apply_raster_stretch.
+Change how a raster layer is displayed: mode='unique_values' gives one colour per distinct cell value (for land cover, classes, zones; refused above 256 distinct values), resampling (nearest keeps blocky cells, bilinear or cubic smooth them), opacity_percent, and no-data: nodata_min/nodata_max make cells in that range transparent (both ends are INCLUDED: for 'below 0' give nodata_max just under 0, such as -0.000001), clear_nodata=true restores the file's own no-data. Give only what should change. Display only; the cell values are not changed. For a continuous colour ramp use apply_raster_stretch.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
@@ -3284,13 +3287,13 @@ List every registered tool classified under one operation-type category (READ, C
 
 ### `get_turn_transaction_log`
 
-List every tool call made so far during THIS turn (this one user request), each tagged with its operation type and, when it added a new layer, whether it can be undone with undo_last_operation. Use this before undo_last_operation to see what's actually available to undo -- it does not reach back into earlier turns/messages, only the current one.
+List every tool call made so far during THIS turn (this one user request), each tagged with its operation type and, when it added a new layer, whether it can be undone with undo_last_operation. Use this before undo_last_operation to see what's actually available to undo. Also lists undoable calls from the last few earlier messages (marked earlier_turn).
 
 _No parameters._
 
 ### `undo_last_operation`
 
-Reverse the most recent undoable tool call made THIS turn (see get_turn_transaction_log to check what qualifies first). Covers: a call that added a new layer (removes it); remove_layer (restores the removed layer and its data); field_calculator/calculate_area/calculate_length (restores the field's prior values, or deletes it if it didn't exist before); apply_categorized_style/apply_graduated_style/apply_graduated_symbol_style (restores the prior style); set_dataset_status/set_layer_sensitivity/set_layer_confidence/run_query (restores the prior value). It cannot undo load_project or any other in-place edit not in that list -- a real, separate, still-open gap, not something this tool silently skips without saying so. Destructive action requiring UI confirmation.
+Reverse the most recent undoable tool call: one made this turn, or if there is none, the latest one from the last few earlier messages (the user just says 'undo that'; see get_turn_transaction_log to check what qualifies first). Call this tool for any 'undo' request instead of clearing or re-setting the thing by hand. Covers: a call that added a new layer (removes it); remove_layer (restores the removed layer and its data); field_calculator/calculate_area/calculate_length (restores the field's prior values, or deletes it if it didn't exist before); apply_categorized_style/apply_graduated_style/apply_graduated_symbol_style (restores the prior style); set_dataset_status/set_layer_sensitivity/set_layer_confidence/run_query/set_layer_filter (restores the prior value); labels, callouts, diagrams, point markers, raster relief, saved symbols, layer elevation and layer time settings (restores the prior setting); delete_features (puts the deleted features back). It cannot undo load_project or any other in-place edit not in that list -- a real, separate, still-open gap, not something this tool silently skips without saying so. Destructive action requiring UI confirmation.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
