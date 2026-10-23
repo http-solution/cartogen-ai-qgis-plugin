@@ -10,7 +10,7 @@ import unittest
 
 try:
     from qgis.core import QgsFeature, QgsGeometry, QgsLayoutExporter, QgsPrintLayout, QgsProject, QgsRasterLayer, QgsVectorLayer
-    from qgis.PyQt.QtCore import QSize
+    from qgis.PyQt.QtCore import QBuffer, QByteArray, QIODevice, QSize
     from qgis.PyQt.QtGui import QColor
     LIVE = True
 except ImportError:
@@ -92,6 +92,14 @@ class TestLayoutItemsRender(unittest.TestCase):
         stats = {k: colour_stats(image, self.layout.itemById(v).sceneBoundingRect()) for k, v in ids.items()}
         report = "; ".join(f"{k}: coloured {c:.3f}, not-white {n:.3f}, {t} px" for k, (c, n, t) in stats.items())
         print(f"LAYOUTRENDER {report}")
+        for k in ("line", "profile"):   # rc48 A12/A6: the colour share cannot tell "thin dark line" from "nothing", so print the picture itself
+            rect = self.layout.itemById(ids[k]).sceneBoundingRect()
+            crop = image.copy(int(rect.x() * PX_PER_MM), int(rect.y() * PX_PER_MM), int(rect.width() * PX_PER_MM), int(rect.height() * PX_PER_MM))
+            data = QByteArray()
+            buf = QBuffer(data)
+            buf.open(QIODevice.OpenModeFlag.WriteOnly)
+            crop.save(buf, "PNG")
+            print(f"LAYOUTPNG {k} {bytes(data.toBase64()).decode()}")
         empty = [k for k, (c, _n, _t) in stats.items() if c < 0.01]
         self.assertEqual(empty, [], f"these items drew no colour (measured: {report})")
 
