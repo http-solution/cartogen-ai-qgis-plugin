@@ -461,6 +461,25 @@
       "tests/test_ubend_access_live.py::TestUBendLegs::test_the_totals_decide_a_300_m_budget"
     ],
     "hand_verified": "not hand-tested; found by the rc48 hand test (OI-148), fix is CI live only"
+  },
+  {
+    "id": "population-ramp-renders",
+    "feature": "apply_raster_stretch on a population-named raster (yem_ppp_2020) leaves a coloured pseudocolor ramp that actually renders in colour, and does not touch a plain DEM loaded beside it",
+    "issues": [
+      128
+    ],
+    "since": "rc49 (unreleased)",
+    "sources": [
+      "src/cartogen_ai/core/agent/tools/raster_tools.py",
+      "src/cartogen_ai/core/agent/tools/output_style.py",
+      "docs/plans/PLAN-008-rc48-hand-test-findings.md"
+    ],
+    "guards": [
+      "tests/test_population_ramp_render_live.py::TestPopulationRampRenders::test_apply_raster_stretch_on_a_population_named_raster_renders_in_colour",
+      "tests/test_population_ramp_render_live.py::TestPopulationRampRenders::test_the_renderer_the_tool_reports_is_the_one_on_the_layer",
+      "tests/test_population_ramp_render_live.py::TestPopulationRampRenders::test_the_plain_dem_next_to_it_is_left_alone"
+    ],
+    "hand_verified": "not hand-tested; CI renders the layer and checks the pixels. The grey result of the rc48 run (OI-128) is explained by routing (PLAN-008 item 5), not by this tool"
   }
  ]
 }
