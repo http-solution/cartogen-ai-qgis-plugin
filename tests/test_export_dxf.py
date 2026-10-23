@@ -28,5 +28,25 @@ class TestExportLayersToDxf(unittest.TestCase):
         self.assertIn(".dxf", export_tools._DRIVER_EXTENSIONS)
 
 
+class TestExportLayersToSpreadsheet(unittest.TestCase):
+    """PLAN-006 package E2c: the spreadsheet export shares the DXF export's refusals; the real write is test_export_spreadsheet_live."""
+
+    def test_it_is_registered_and_classified_as_a_file_write(self):
+        self.assertIn("export_layers_to_spreadsheet", {t["function"]["name"] for t in TOOLS_SCHEMA})
+        self.assertEqual(get_tool_operation_type("export_layers_to_spreadsheet"), PUBLISH)
+
+    def test_the_model_cannot_pass_confirmed(self):
+        schema = next(t for t in TOOLS_SCHEMA if t["function"]["name"] == "export_layers_to_spreadsheet")["function"]["parameters"]
+        self.assertNotIn("confirmed", schema["properties"])
+
+    def test_empty_and_too_many_layers_are_refused(self):
+        self.assertIn("error", export_tools.export_layers_to_spreadsheet([]))
+        result = export_tools.export_layers_to_spreadsheet([f"l{i}" for i in range(export_tools._DXF_MAX_LAYERS + 1)])
+        self.assertIn("spreadsheet export takes at most", result["error"])
+
+    def test_spreadsheet_targets_are_known_to_the_overwrite_check(self):
+        self.assertTrue({".xlsx", ".ods"} <= set(export_tools._DRIVER_EXTENSIONS))
+
+
 if __name__ == "__main__":
     unittest.main()

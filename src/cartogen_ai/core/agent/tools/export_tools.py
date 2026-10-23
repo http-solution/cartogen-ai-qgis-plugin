@@ -224,7 +224,7 @@ def _write_vector(layer, output_path, driver_name, layer_options=None, only_sele
 # (2026-10-06): "preview before replacing" was ignored and an existing CSV was overwritten silently. The `confirmed` argument is
 # stripped from the model's own arguments by the dispatcher, so only the user's Apply button can set it.
 _WRITTEN_THIS_SESSION: dict = {}
-_DRIVER_EXTENSIONS = (".csv", ".shp", ".gpkg", ".geojson", ".kml", ".dxf")
+_DRIVER_EXTENSIONS = (".csv", ".shp", ".gpkg", ".geojson", ".kml", ".dxf", ".xlsx", ".ods")
 
 
 def _norm_path(path):
@@ -374,6 +374,29 @@ def _fill_unset_boolean_options(algorithm_id, params):
 
 
 
+def _vector_layers_for_export(layer_names, label):
+    """(names, layers, None) for the vector layers a multi-layer export named, else (None, None, {"error": ...}). Shared by the DXF and
+    spreadsheet exports so both refuse the same things: no layer, more than _DXF_MAX_LAYERS, an unknown layer, a raster."""
+    if isinstance(layer_names, str):
+        layer_names = [layer_names]
+    names = [str(n) for n in (layer_names or []) if str(n).strip()]
+    if not names:
+        return None, None, {"error": "Name at least one vector layer to export."}
+    if len(names) > _DXF_MAX_LAYERS:
+        return None, None, {"error": f"A {label} takes at most {_DXF_MAX_LAYERS} layers; {len(names)} were named."}
+    if not QGIS_AVAILABLE:
+        return None, None, {"error": "QGIS not available"}
+    layers = []
+    for name in names:
+        layer = _find_layer_by_name(name)
+        if layer is None:
+            return None, None, {"error": f"Layer '{name}' not found"}
+        if not isinstance(layer, QgsVectorLayer):
+            return None, None, {"error": f"'{name}' is not a vector layer; a {label} takes vector layers and tables only."}
+        layers.append(layer)
+    return names, layers, None
+
+
 @register_tool("export_layers_to_dxf", "Export one or more vector layers to a single DXF file for CAD software (AutoCAD and similar). "
                "A DXF holds geometry and layer names, not attribute tables or QGIS styling: say so if the user expects either. "
                "output_path is optional -- omit it to save under the project's data/20_processed folder (or the QGIS profile folder if the "
@@ -386,23 +409,9 @@ def export_layers_to_dxf(layer_names, output_path=None, confirmed=False):
     Why a dedicated tool and not the generic Processing tool: that one forces every output to a temporary file (PLAN-005 rule R1), but a DXF
     exists to be handed to someone, so the user's file is the product. No CAD export existed (PLAN-006, coverage row "Import / export DXF").
     Unverified against a live QGIS session by hand; the live test is CI only."""
-    if isinstance(layer_names, str):
-        layer_names = [layer_names]
-    names = [str(n) for n in (layer_names or []) if str(n).strip()]
-    if not names:
-        return {"error": "Name at least one vector layer to export."}
-    if len(names) > _DXF_MAX_LAYERS:
-        return {"error": f"A DXF export takes at most {_DXF_MAX_LAYERS} layers; {len(names)} were named."}
-    if not QGIS_AVAILABLE:
-        return {"error": "QGIS not available"}
-    layers = []
-    for name in names:
-        layer = _find_layer_by_name(name)
-        if layer is None:
-            return {"error": f"Layer '{name}' not found"}
-        if not isinstance(layer, QgsVectorLayer):
-            return {"error": f"'{name}' is not a vector layer; a DXF holds vector layers only."}
-        layers.append(layer)
+    names, layers, error = _vector_layers_for_export(layer_names, "DXF export")
+    if error:
+        return error
     output_path = resolve_output_path(output_path)
     if not output_path:
         stem = _sanitize_filename(layers[0].name() if len(layers) == 1 else "cartogen_export")
@@ -432,6 +441,55 @@ def export_layers_to_dxf(layer_names, output_path=None, confirmed=False):
     remember_written(output_path)
     result = {"success": True, "output_path": output_path, "format": "DXF", "layer_names": names,
               "note": "A DXF carries geometry and layer names only, not attribute tables or QGIS styling."}
+    warnings = [w for w in (_sens.export_warning_for(layer) for layer in layers) if w]
+    if warnings:
+        result["warning"] = " ".join(dict.fromkeys(warnings))
+    return result
+
+
+@register_tool("export_layers_to_spreadsheet", "Export one or more vector layers or tables to a single spreadsheet (Excel .xlsx, or .ods) with one sheet "
+               "per layer, attributes only (no styling). Use it when the user asks for an Excel or spreadsheet file; export_to_csv is for CSV. "
+               "output_path is optional -- omit it to save under the project's data/20_processed folder (or the QGIS profile folder if the "
+               "project is not saved yet); a relative path is anchored to the project folder and the reply's output_path is the real location. "
+               "At most 20 layers per file. Replacing an existing file asks the user first.",
+               {"type": "object", "properties": {"layer_names": {"type": "array", "items": {"type": "string"}}, "output_path": {"type": "string"}}, "required": ["layer_names"]})
+def export_layers_to_spreadsheet(layer_names, output_path=None, confirmed=False):
+    """native:exporttospreadsheet behind the same path anchoring, overwrite preview and sensitivity warning as export_layer.
+
+    A dedicated tool, like the DXF export, because the user's file is the product (the generic Processing tool forces temporary outputs).
+    export_to_csv covers CSV only; there was no .xlsx/.ods writer (PLAN-006 package E2c). Unverified by hand; the live test is CI only."""
+    names, layers, error = _vector_layers_for_export(layer_names, "spreadsheet export")
+    if error:
+        return error
+    output_path = resolve_output_path(output_path)
+    if not output_path:
+        stem = _sanitize_filename(layers[0].name() if len(layers) == 1 else "cartogen_export")
+        output_path = os.path.join(_default_export_dir("exports/geospatial"), f"{stem}.xlsx")
+    elif not output_path.lower().endswith((".xlsx", ".ods")):
+        output_path = os.path.splitext(output_path)[0] + ".xlsx"
+    if not confirmed:
+        preview = overwrite_preview("export_layers_to_spreadsheet", {"layer_names": names, "output_path": output_path}, output_path)
+        if preview:
+            return preview
+    try:
+        import processing
+        os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
+        params = {
+            "LAYERS": [layer.id() for layer in layers],
+            "OUTPUT": output_path,
+            # Stated, not left to defaults: the DXF export's first live run showed booleans without a usable default fail from Python.
+            # OVERWRITE is True because an existing target was either absent or already confirmed above.
+            "USE_ALIAS": False, "FORMATTED_VALUES": False, "OVERWRITE": True,
+        }
+        _fill_unset_boolean_options("native:exporttospreadsheet", params)
+        processing.run("native:exporttospreadsheet", params)
+    except Exception as e:
+        return {"error": f"Spreadsheet export failed: {e}"}
+    if not os.path.isfile(output_path) or os.path.getsize(output_path) == 0:
+        return {"error": f"The spreadsheet export finished but '{output_path}' was not written."}
+    remember_written(output_path)
+    result = {"success": True, "output_path": output_path, "format": output_path.rsplit(".", 1)[-1].upper(), "layer_names": names,
+              "note": "One sheet per layer; attributes only, no geometry or styling."}
     warnings = [w for w in (_sens.export_warning_for(layer) for layer in layers) if w]
     if warnings:
         result["warning"] = " ".join(dict.fromkeys(warnings))

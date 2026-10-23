@@ -28,8 +28,8 @@ qgis:scatter3dplot,Vector layer scatterplot 3D,E2-PLOT,HTML or image plot: tempo
 qgis:vectorlayerhistogram,Vector layer histogram,E2-PLOT,HTML or image plot: temporary file plus its path; needs a probe that the plot modules (plotly) exist in the QGIS image
 qgis:vectorlayerscatterplot,Vector layer scatterplot,E2-PLOT,HTML or image plot: temporary file plus its path; needs a probe that the plot modules (plotly) exist in the QGIS image
 native:generateelevationprofileimage,Generate elevation profile image,E2-PLOT,HTML or image plot: temporary file plus its path; needs a probe that the plot modules (plotly) exist in the QGIS image
-native:dxfexport,Export layers to DXF,E2-EXPORT,fills the coverage row 'Import / export DXF'; no dedicated tool exists
-native:exporttospreadsheet,Export to spreadsheet,E2-EXPORT,no dedicated tool exists (export_to_csv covers CSV only)
+native:dxfexport,Export layers to DXF,E2-EXPORT,built 2026-10-23 as the dedicated tool export_layers_to_dxf (PLAN-006 E2c); fills the coverage row 'Import / export DXF'
+native:exporttospreadsheet,Export to spreadsheet,E2-EXPORT,built 2026-10-23 as the dedicated tool export_layers_to_spreadsheet (PLAN-006 E2c); export_to_csv covers CSV only
 native:package,Package layers,E2-EXPORT,"dedicated tool package_layers_offline exists; route to it, do not duplicate"
 native:savefeatures,Save vector features to file,E2-EXPORT,dedicated tools export_layer and save_layer_as exist; route to them
 native:printlayouttopdf,Export print layout as PDF,E2-EXPORT,dedicated tool export_layout exists

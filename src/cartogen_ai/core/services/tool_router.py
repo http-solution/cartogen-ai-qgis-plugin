@@ -168,6 +168,10 @@ _TOOL_ALIASES = {
         "bundle the project", "bundle the layers", "bundle the data", "package the data", "package the project", "share the project data",
         "share the layers", "zip the layers", "zip the project data", "hand over the data", "send the project data",
     ],
+    "export_layers_to_spreadsheet": [
+        "excel", "xlsx", ".ods", "libreoffice", "open document spreadsheet", "to a spreadsheet", "as a spreadsheet", "into a spreadsheet",
+        "spreadsheet file", "spreadsheet of the", "export to a spreadsheet", "export the table to excel", "one sheet per layer",
+    ],
     "export_layers_to_dxf": [
         "dxf", "autocad", "cad file", "cad software", "cad format", "for cad", "to cad", "into cad", "civil 3d", "microstation", "draftsman",
         "engineers can open", "engineer can open",
