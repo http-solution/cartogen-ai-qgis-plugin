@@ -6,6 +6,8 @@ add_layout_elevation_profile  an elevation profile along a straight line, from l
 The 3D map layout item is NOT built: CI's QGIS has no QgsLayoutItem3DMap (docs/QGIS_CAPABILITY_PROBE_2026-10-16.md). Written without a QGIS install:
 tests/test_layout_chart_profile_live.py builds both items on a real layout and reads them back (CI's first run is its first execution); how they
 LOOK when rendered or exported has not been checked."""
+import contextlib
+
 from .gap_options import check_box, check_chart, check_profile_line, free_box, line_ends
 from .registry import register_tool
 
@@ -131,10 +133,8 @@ def add_layout_chart(layout_name, layer_name, x_field, y_field, chart_type="bar"
     if options["chart_type"] != "pie":
         # rc48 A12: bar/line charts drew nothing. The QGIS 4.2 reference says series X values are converted to numbers unless the X axis is
         # Categorical, so text categories (names) came out empty; the pie reads them as labels, which is why it alone drew.
-        try:
+        with contextlib.suppress(AttributeError):
             plot.xAxis().setType(Qgis.PlotAxisType.Categorical)
-        except AttributeError:
-            pass
     item.setPlot(plot)
     item.setSourceLayer(layer)
     series = _make_series(options["y_field"], f'"{options["x_field"]}"', f'"{options["y_field"]}"')
