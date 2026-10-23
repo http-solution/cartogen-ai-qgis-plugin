@@ -127,7 +127,15 @@ def add_layout_chart(layout_name, layer_name, x_field, y_field, chart_type="bar"
         return {"error": f"Layer '{layer_name}' has no field(s) {missing}. Fields: {sorted(names)}."}
     plots = {"bar": QgsBarChartPlot, "line": QgsLineChartPlot, "pie": QgsPieChartPlot}
     item = QgsLayoutItemChart(layout)
-    item.setPlot(plots[options["chart_type"]]())
+    plot = plots[options["chart_type"]]()
+    if options["chart_type"] != "pie":
+        # rc48 A12: bar/line charts drew nothing. The QGIS 4.2 reference says series X values are converted to numbers unless the X axis is
+        # Categorical, so text categories (names) came out empty; the pie reads them as labels, which is why it alone drew.
+        try:
+            plot.xAxis().setType(Qgis.PlotAxisType.Categorical)
+        except AttributeError:
+            pass
+    item.setPlot(plot)
     item.setSourceLayer(layer)
     series = _make_series(options["y_field"], f'"{options["x_field"]}"', f'"{options["y_field"]}"')
     if isinstance(series, str):
