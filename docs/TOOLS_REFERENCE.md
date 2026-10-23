@@ -2930,7 +2930,7 @@ Find and repair clutter left in a project by older Cartogen AI builds: (1) the s
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
-| `apply` | boolean | no | false (default): report only. true: hide duplicate copies, restyle population rasters and save scratch layers. |
+| `apply` | boolean | no | false (default): report only. true: ask the user to confirm, then hide duplicate copies, restyle population rasters and save scratch layers. |
 
 ## provenance_tools
 
