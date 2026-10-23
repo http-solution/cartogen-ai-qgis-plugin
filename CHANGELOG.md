@@ -7,6 +7,7 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 | Version | Date | Summary |
 |---|---|---|
+| [1.17.0-rc48](#v1-17-0-rc48) | 2026-10-23 | **Release candidate 48 for 1.17.0.** No breaking changes -- requires QGIS 4.2+. Excel and CAD export, plain export requests that now reach their tools, statistics and raster-to-polygon from plain words, and everything from rc47 (which was never hand-tested, so test this build instead). CI-checked, not hand-tested. |
 | [1.17.0-rc47](#v1-17-0-rc47) | 2026-10-18 | **Release candidate 47 for 1.17.0.** No breaking changes -- requires QGIS 4.2+. Fixes from the rc46 hand-test run and a cheaper default: about a third fewer tool definitions are sent with each request, short imperative requests are no longer refused as fragments, reading a layer's metadata, raster expressions and elevation profiles along a road now reach the right tool. CI-checked, not hand-tested. |
 | [1.17.0-rc46](#v1-17-0-rc46) | 2026-10-17 | **Release candidate 46 for 1.17.0.** No breaking changes -- requires QGIS 4.2+. Fixes from the rc45 hand-test run: describe what you want and the assistant finds the Processing algorithm without its name, requests are no longer answered by an unrelated task, undo reaches back a few messages, long runs are bounded. CI-checked, not hand-tested. |
 | [1.17.0-rc45](#v1-17-0-rc45) | 2026-10-16 | **Release candidate 45 for 1.17.0.** No breaking changes -- requires QGIS 4.2+. Four calls to QGIS methods that do not exist are fixed (found by checking the code against the QGIS 4.2.3 reference), and a new test now blocks any new one. CI-checked, not hand-tested. |
@@ -91,6 +92,17 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 The detailed narrative entries below are unchanged -- this table is purely an additive index on
 top of them.
+
+<a id="v1-17-0-rc48"></a>
+## [1.17.0-rc48] — 2026-10-23 — Release candidate 48 for 1.17.0: No breaking changes -- requires QGIS 4.2+. Excel and CAD export, plain export requests that now reach their tools, statistics and raster-to-polygon from plain words, and everything from rc47 (which was never hand-tested, so test this build instead). CI-checked, not hand-tested.
+
+No breaking changes; QGIS 4.2+. Everything after 1.17.0-rc47:
+
+- Excel and CAD export: New tools export_layers_to_spreadsheet (one Excel .xlsx or .ods file, one sheet per layer, attributes only) and export_layers_to_dxf (a DXF for CAD software: geometry and layer names, no attribute tables or styling). Both save under the project's export folder unless you name a path, and ask before replacing an existing file.
+- Plain export requests: 'Send me the map as a pdf', 'Bundle the project data for sharing' and 'Save the roads layer to a geopackage' now reach the export tools; before, the tool was not offered for those words. 'Export to Excel' reaches the spreadsheet export and 'export to csv' still reaches the CSV export.
+- Statistics and raster to polygons: 8 more approved Processing algorithms (435 in all): basic statistics for fields, unique values, nearest-neighbour analysis, raster layer statistics, raster unique values report, raster surface volume, polygonize and contour polygons. The numbers come back in the reply, report files and file results are temporary, and small vector results are copied into the project.
+- Includes rc47: Everything in rc47 is in this build: 28 tool definitions per request instead of 40, the request fixes, elevation profile along a road, project tidy with vector tile layers and 20 more plain-language algorithm matches. rc47 itself was never installed for testing.
+- Not hand-tested: Everything above is checked by the offline suite and, for the QGIS parts, by CI on QGIS 4.2.2 (the DXF and spreadsheet files are written and read back there). None of it has been hand-tested in desktop QGIS. The 8 new algorithms and both exports have only run in CI.
 
 <a id="v1-17-0-rc47"></a>
 ## [1.17.0-rc47] — 2026-10-18 — Release candidate 47 for 1.17.0: No breaking changes -- requires QGIS 4.2+. Fixes from the rc46 hand-test run and a cheaper default: about a third fewer tool definitions are sent with each request, short imperative requests are no longer refused as fragments, reading a layer's metadata, raster expressions and elevation profiles along a road now reach the right tool. CI-checked, not hand-tested.

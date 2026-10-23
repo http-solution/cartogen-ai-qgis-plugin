@@ -8,7 +8,7 @@ name=Cartogen AI
 qgisMinimumVersion=4.2
 qgisMaximumVersion=4.99
 description=Spatial AI that plans, executes, and shows its work inside QGIS.
-version=1.17.0-rc47
+version=1.17.0-rc48
 author=Alaa Alshoubaki
 email=cartogenai@gmail.com
 
@@ -25,7 +25,14 @@ license=GNU GPL v2
 hasProcessingProvider=yes
 # Declares Qt 6 support for QGIS 4 plugin managers that read this key; managers that do not know it ignore it (added by the rc28 self-audit; confirm against the directory page after the next upload).
 supportsQt6=True
-changelog=v1.17.0-rc47 (2026-10-18):
+changelog=v1.17.0-rc48 (2026-10-23):
+    No breaking changes -- requires QGIS 4.2+. Excel and CAD export, plain export requests that now reach their tools, statistics and raster-to-polygon from plain words, and everything from rc47 (which was never hand-tested, so test this build instead). CI-checked, not hand-tested.
+    - Excel and CAD export: New tools export_layers_to_spreadsheet (one Excel .xlsx or .ods file, one sheet per layer, attributes only) and export_layers_to_dxf (a DXF for CAD software: geometry and layer names, no attribute tables or styling). Both save under the project's export folder unless you name a path, and ask before replacing an existing file.
+    - Plain export requests: 'Send me the map as a pdf', 'Bundle the project data for sharing' and 'Save the roads layer to a geopackage' now reach the export tools; before, the tool was not offered for those words. 'Export to Excel' reaches the spreadsheet export and 'export to csv' still reaches the CSV export.
+    - Statistics and raster to polygons: 8 more approved Processing algorithms (435 in all): basic statistics for fields, unique values, nearest-neighbour analysis, raster layer statistics, raster unique values report, raster surface volume, polygonize and contour polygons. The numbers come back in the reply, report files and file results are temporary, and small vector results are copied into the project.
+    - Includes rc47: Everything in rc47 is in this build: 28 tool definitions per request instead of 40, the request fixes, elevation profile along a road, project tidy with vector tile layers and 20 more plain-language algorithm matches. rc47 itself was never installed for testing.
+    - Not hand-tested: Everything above is checked by the offline suite and, for the QGIS parts, by CI on QGIS 4.2.2 (the DXF and spreadsheet files are written and read back there). None of it has been hand-tested in desktop QGIS. The 8 new algorithms and both exports have only run in CI.
+v1.17.0-rc47 (2026-10-18):
     No breaking changes -- requires QGIS 4.2+. Fixes from the rc46 hand-test run and a cheaper default: about a third fewer tool definitions are sent with each request, short imperative requests are no longer refused as fragments, reading a layer's metadata, raster expressions and elevation profiles along a road now reach the right tool. CI-checked, not hand-tested.
     - Cheaper requests: 28 tool definitions are offered per request instead of 40, about 35 percent fewer tokens on every model call (measured offline: 14.3k to 9.4k on average). It is a setting (cartogen_ai/tool_router_top_k, 12 to 60) if the assistant ever says a tool is unavailable. Not measured against live model answers.
     - Requests that were refused or misrouted: 'Set the project CRS to EPSG:3857', 'Assign EPSG:4326 to the layer' and 'Go to the bookmark' are no longer dismissed as pasted fragments; 'Show the metadata of towns' reads the metadata instead of planning a metadata-creation task; a raster expression such as 'Calculate dem@1 > 100 as a new layer' offers the raster calculator; 'animate', 'produce' and 'charts linked to maps' reach their tools.

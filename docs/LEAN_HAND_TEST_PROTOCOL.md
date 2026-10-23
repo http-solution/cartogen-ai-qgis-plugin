@@ -16,3 +16,5 @@ sends about 24k tokens of system prompt and tool schemas per model call, plus th
 6. **Record cost.** Save the CartogenAI log (QGIS Log Messages) after the run and run `python tools/summarize_usage_log.py cartogen.log --csv usage.csv`: one line per prompt with model calls, input/cached/output tokens and tools offered, plus the five most expensive prompts.
 
 Build the lean bundle with `python tools/build_lean_bundle.py --plugin-zip dist/cartogen_ai_v<version>.zip` (rows A: fix-targeted tool rows; rows B: plain-language sample). Build it around the zip the release workflow published, not a local build: the hashes differ.
+
+rc48: the bundle for 1.17.0-rc48 replaces the rc47 one (rc47 was never run). It adds 8 rows for wave E1 (statistics, polygonize) and the export routing, DXF and spreadsheet changes, and appends a `dem_classes` raster to the fixture script for the polygonize row. See PLAN-007.
