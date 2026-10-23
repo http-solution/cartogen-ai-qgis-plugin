@@ -20,8 +20,8 @@ preference, not a replacement.
 import contextlib
 from .registry import register_tool
 from . import _background_processing as _bg
-from ._processing_allowlist import (ALLOWED_ALGORITHM_IDS, GRASS_ALGORITHM_IDS, MUTATES_INPUT_ALGORITHM_IDS, RASTER_OUTPUT_ALGORITHM_IDS,
-                                    parameter_violation)
+from ._processing_allowlist import (ALLOWED_ALGORITHM_IDS, FILE_VECTOR_ALGORITHM_IDS, GRASS_ALGORITHM_IDS, MUTATES_INPUT_ALGORITHM_IDS,
+                                    RASTER_OUTPUT_ALGORITHM_IDS, parameter_violation)
 
 try:
     from qgis.core import QgsApplication, QgsMeshLayer, QgsProcessingContext, QgsProject, QgsRasterLayer, QgsVectorLayer  # noqa: F401 -- QgsMeshLayer is looked up by name in layer_kind_violation
@@ -40,6 +40,9 @@ except ImportError:
 _OUTPUT_KEY_SUFFIXES = ("output", "output_lines")
 _SAFE_OUTPUT_VALUE = "memory:"
 _SAFE_RASTER_OUTPUT_VALUE = "TEMPORARY_OUTPUT"   # a temporary file: rasters cannot go to "memory:"
+MEMORY_COPY_LIMIT = 50000      # PLAN-005 rule R1: a file-backed vector result up to this many features is copied into a memory layer
+MAX_STATISTICS = 40            # PLAN-005 rule R3: at most this many plain values from a result dictionary reach the model
+MAX_STATISTIC_TEXT = 200
 
 
 def _find_layer_by_name(name):
@@ -69,7 +72,9 @@ def _algorithm_definition(alg_id):
         destinations = {p.name() for p in params if p.isDestination()}
         raster_destinations = {p.name() for p in params if p.isDestination() and "raster" in str(p.type()).lower()}
         layer_lists = {p.name() for p in params if str(p.type()) == "multilayer"}
-        return names, destinations, raster_destinations, list(algorithm.outputDefinitions()), layer_lists, _expected_layer_kinds(params)
+        # a report (HTML) destination is a FILE, not a sink: "memory:" is not valid for it (PLAN-005 wave E1)
+        file_destinations = {p.name() for p in params if p.isDestination() and str(p.type()) == "fileDestination"}
+        return names, destinations, raster_destinations, list(algorithm.outputDefinitions()), layer_lists, _expected_layer_kinds(params), file_destinations
     except Exception:
         return None
 
@@ -96,7 +101,26 @@ def harvest_outputs(output, definition=None, path_outputs=False):
     return found
 
 
-def _resolve_params(params, raster_output=False, destination_keys=None, raster_keys=None, layer_list_keys=None, temp_file_vectors=False):
+def scalar_results(output, skip_keys=()):
+    """{key: value} for the plain numbers and short texts in an algorithm's result dictionary, in dictionary order. Pure.
+
+    PLAN-005 rule R3: this is all the model learns from a statistics algorithm. A layer, a file path (the keys in `skip_keys`), a list, a dict
+    or a long text is never passed on, and at most MAX_STATISTICS values are. The numbers are the algorithm's own (MEAN, COUNT, VOLUME ...)."""
+    if not isinstance(output, dict):
+        return {}
+    found = {}
+    for key, value in output.items():
+        if key in skip_keys or hasattr(value, "setName") or isinstance(value, (list, tuple, dict, set, bytes)):
+            continue
+        if isinstance(value, (int, float)) or (isinstance(value, str) and 0 < len(value) <= MAX_STATISTIC_TEXT):   # a bool is an int
+            found[str(key)] = value
+        if len(found) >= MAX_STATISTICS:
+            break
+    return found
+
+
+def _resolve_params(params, raster_output=False, destination_keys=None, raster_keys=None, layer_list_keys=None, temp_file_vectors=False,
+                    file_keys=None):
     """Any string value that matches a layer currently loaded in the
     project is resolved to that QgsMapLayer object -- the same shape every
     existing processing.run() call in this codebase already uses
@@ -125,7 +149,8 @@ def _resolve_params(params, raster_output=False, destination_keys=None, raster_k
             is_destination = any(key_lower == suffix or key_lower.endswith("_" + suffix) for suffix in _OUTPUT_KEY_SUFFIXES)
         if is_destination:
             as_raster = (key in raster_keys) if raster_keys is not None else raster_output
-            resolved[key] = _SAFE_RASTER_OUTPUT_VALUE if (as_raster or temp_file_vectors) else _SAFE_OUTPUT_VALUE
+            as_file = bool(file_keys) and key in file_keys
+            resolved[key] = _SAFE_RASTER_OUTPUT_VALUE if (as_raster or as_file or temp_file_vectors) else _SAFE_OUTPUT_VALUE
             has_output_key = True
             continue
         if isinstance(value, str):
@@ -143,7 +168,8 @@ def _resolve_params(params, raster_output=False, destination_keys=None, raster_k
         for key in destination_keys:
             if key not in resolved:
                 as_raster = (key in raster_keys) if raster_keys is not None else raster_output
-                resolved[key] = _SAFE_RASTER_OUTPUT_VALUE if (as_raster or temp_file_vectors) else _SAFE_OUTPUT_VALUE
+                as_file = bool(file_keys) and key in file_keys
+                resolved[key] = _SAFE_RASTER_OUTPUT_VALUE if (as_raster or as_file or temp_file_vectors) else _SAFE_OUTPUT_VALUE
     elif not has_output_key:
         resolved["OUTPUT"] = _SAFE_RASTER_OUTPUT_VALUE if raster_output else _SAFE_OUTPUT_VALUE
     return resolved
@@ -323,8 +349,9 @@ def run_allowlisted_processing_algorithm(alg_id, params, new_layer_name=None):
     # GRASS exports its results to files, so a vector destination cannot be 'memory:'; it gets a temporary file like a raster does and
     # the path it returns is loaded as a vector layer below.
     is_grass = alg_id in GRASS_ALGORITHM_IDS
+    file_vectors = is_grass or alg_id in FILE_VECTOR_ALGORITHM_IDS     # these return the path of a vector file they wrote
     definition = _algorithm_definition(alg_id)
-    destination_keys = raster_keys = layer_list_keys = None
+    destination_keys = raster_keys = layer_list_keys = file_keys = None
     if definition is not None:
         wrong = unknown_parameters(params.keys(), definition[0])
         if wrong:
@@ -332,11 +359,12 @@ def run_allowlisted_processing_algorithm(alg_id, params, new_layer_name=None):
                     "rejected_before_running": True}
         destination_keys, raster_keys = definition[1], definition[2]
         layer_list_keys = definition[4] if len(definition) > 4 else None
+        file_keys = definition[6] if len(definition) > 6 else None
 
     try:
         resolved_params = _resolve_params(params, raster_output=alg_id in RASTER_OUTPUT_ALGORITHM_IDS,
                                           destination_keys=destination_keys, raster_keys=raster_keys,
-                                          layer_list_keys=layer_list_keys, temp_file_vectors=is_grass)
+                                          layer_list_keys=layer_list_keys, temp_file_vectors=file_vectors, file_keys=file_keys)
         _check_raster_lists(alg_id, resolved_params, layer_list_keys, definition[5] if definition is not None and len(definition) > 5 else None)
         output = _run_allowlisted(alg_id, resolved_params)
     except _bg.AnalysisCancelledError as e:
@@ -357,16 +385,22 @@ def run_allowlisted_processing_algorithm(alg_id, params, new_layer_name=None):
             result["selected_feature_count"] = target.selectedFeatureCount()
         return result
 
-    harvested = harvest_outputs(output, definition, path_outputs=is_grass)
+    harvested = harvest_outputs(output, definition, path_outputs=file_vectors)
+    # PLAN-005 wave E1: the plain numbers of a statistics result, and the temporary report file(s) the algorithm wrote
+    statistics = scalar_results(output, skip_keys=set(file_keys or ()) | {k for k, _ in harvested})
+    report_files = {k: v for k, v in (output.items() if isinstance(output, dict) else []) if file_keys and k in file_keys and isinstance(v, str) and v}
     layers = []
     for key, harvested_value in harvested:
         value = harvested_value
         if isinstance(value, str):                      # a raster algorithm returns the path of the file it wrote
-            value = _load_output_path(value, as_vector=is_grass and key not in (raster_keys or ()))
+            value = _load_output_path(value, as_vector=file_vectors and key not in (raster_keys or ()))
         if value is not None and hasattr(value, "setName"):
             layers.append((key, value))
     if not layers:
-        return {"success": True, "alg_id": alg_id, "message": f"'{alg_id}' ran successfully with no new layer output."}
+        return _with_report_fields({"success": True, "alg_id": alg_id, "message": f"'{alg_id}' ran successfully with no new layer output."},
+                                   statistics, report_files)
+    if alg_id in FILE_VECTOR_ALGORITHM_IDS:
+        layers = [(key, _small_result_in_memory(layer)) for key, layer in layers]
     primary_key, new_layer = layers[0]
 
     # IMPLEMENTATION_TRACKER.md §1.9, option 1 (narrow fix, 2026-09-24): a real turn calling this
@@ -398,6 +432,10 @@ def run_allowlisted_processing_algorithm(alg_id, params, new_layer_name=None):
         styled = style_algorithm_output(new_layer, alg_id)
         if styled:
             result["styled_as"] = styled
+    _with_report_fields(result, statistics, report_files)
+    if alg_id in FILE_VECTOR_ALGORITHM_IDS:
+        result["temporary"] = True
+        result["temporary_note"] = ("This result is temporary: it is not saved with the project. Ask to save it (export_layer) to keep it.")
     if hasattr(new_layer, "featureCount"):
         count = new_layer.featureCount()
         result["feature_count"] = count
@@ -436,6 +474,30 @@ def _add_extra_outputs(extra_layers, layer_name, alg_id, caller_named_it, projec
                 entry["styled_as"] = styled_extra
         extra.append(entry)
     return extra
+
+
+def _with_report_fields(result, statistics, report_files):
+    """Adds a statistics algorithm's numbers and temporary report file(s) to `result` (PLAN-005 wave E1) and returns it."""
+    if statistics:
+        result["statistics"] = statistics
+        if "layer_name" not in result:
+            result["message"] = f"'{result['alg_id']}' ran successfully; its numbers are in 'statistics'."
+    if report_files:
+        result["report_files"] = report_files
+        result["report_note"] = "The report is a temporary file; it is not part of the project and is not kept."
+    return result
+
+
+def _small_result_in_memory(layer):
+    """PLAN-005 rule R1: a vector result that came back as a temporary file is copied into a memory layer when it is small, so the project does not
+    keep pointing at a temporary file that is gone after a restart. A larger result, or one that cannot be copied, stays as the file layer."""
+    with contextlib.suppress(Exception):      # a result that cannot be copied is still a usable file layer
+        if hasattr(layer, "featureCount") and layer.featureCount() <= MEMORY_COPY_LIMIT and hasattr(layer, "materialize"):
+            from qgis.core import QgsFeatureRequest
+            copy = layer.materialize(QgsFeatureRequest())
+            if copy is not None and copy.isValid():
+                return copy
+    return layer
 
 
 def _load_output_path(path, as_vector=False):

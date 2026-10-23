@@ -122,7 +122,7 @@
  "Reclassify a raster by table": "COVERED",
  "Zonal statistics of a raster per polygon": "COVERED",
  "Sample raster values at points": "COVERED",
- "Raster to points / polygons (pixels to points, polygonize), rasterize vector": "PARTIAL",
+ "Raster to points / polygons (pixels to points, polygonize), rasterize vector": "COVERED",
  "Proximity (distance) raster, fill nodata, sieve, align rasters": "COVERED",
  "Raster histogram and band statistics": "PARTIAL",
  "Interpolation (IDW, TIN)": "COVERED",

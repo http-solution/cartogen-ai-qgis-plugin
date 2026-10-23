@@ -1,20 +1,20 @@
 id,name,wave,reason
-native:basicstatisticsforfields,Basic statistics for fields,E1-REPORT,statistics: the numbers come back in the result dictionary; the HTML file goes to a temporary file in the export folder
-native:listuniquevalues,List unique values,E1-REPORT,statistics: the numbers come back in the result dictionary; the HTML file goes to a temporary file in the export folder
-native:nearestneighbouranalysis,Nearest neighbour analysis,E1-REPORT,statistics: the numbers come back in the result dictionary; the HTML file goes to a temporary file in the export folder
-native:rasterlayerstatistics,Raster layer statistics,E1-REPORT,fills the coverage row 'Raster histogram and band statistics'
-native:rasterlayeruniquevaluesreport,Raster layer unique values report,E1-REPORT,fills the coverage row 'Raster histogram and band statistics'
-native:rastersurfacevolume,Raster surface volume,E1-REPORT,statistics: the numbers come back in the result dictionary; the HTML file goes to a temporary file in the export folder
-gdal:buffervectors,Buffer vectors,E1-GDAL-VECTOR,"GDAL vector output: a temporary GeoPackage in the export folder, loaded as a layer (same route as GRASS vector results)"
-gdal:clipvectorbyextent,Clip vector by extent,E1-GDAL-VECTOR,"GDAL vector output: a temporary GeoPackage in the export folder, loaded as a layer (same route as GRASS vector results)"
-gdal:clipvectorbypolygon,Clip vector by mask layer,E1-GDAL-VECTOR,"GDAL vector output: a temporary GeoPackage in the export folder, loaded as a layer (same route as GRASS vector results)"
-gdal:dissolve,Dissolve,E1-GDAL-VECTOR,"GDAL vector output: a temporary GeoPackage in the export folder, loaded as a layer (same route as GRASS vector results)"
-gdal:offsetcurve,Offset curve,E1-GDAL-VECTOR,"GDAL vector output: a temporary GeoPackage in the export folder, loaded as a layer (same route as GRASS vector results)"
-gdal:onesidebuffer,One side buffer,E1-GDAL-VECTOR,"GDAL vector output: a temporary GeoPackage in the export folder, loaded as a layer (same route as GRASS vector results)"
-gdal:pointsalonglines,Points along lines,E1-GDAL-VECTOR,"GDAL vector output: a temporary GeoPackage in the export folder, loaded as a layer (same route as GRASS vector results)"
-gdal:contour,Contour,E1-GDAL-VECTOR,"a dedicated tool generate_contours exists; allowing the algorithm adds options (interval, attribute name) without a second route to the same result"
-gdal:contour_polygon,Contour Polygons,E1-GDAL-VECTOR,"GDAL vector output: a temporary GeoPackage in the export folder, loaded as a layer (same route as GRASS vector results)"
-gdal:polygonize,Polygonize (raster to vector),E1-GDAL-VECTOR,fills the coverage row 'Raster to points / polygons'
+native:basicstatisticsforfields,Basic statistics for fields,E1-REPORT,statistics: the numbers come back in the result dictionary; the HTML file goes to a temporary file in the export folder; built in wave E1 (2026-10-23)
+native:listuniquevalues,List unique values,E1-REPORT,statistics: the numbers come back in the result dictionary; the HTML file goes to a temporary file in the export folder; built in wave E1 (2026-10-23)
+native:nearestneighbouranalysis,Nearest neighbour analysis,E1-REPORT,statistics: the numbers come back in the result dictionary; the HTML file goes to a temporary file in the export folder; built in wave E1 (2026-10-23)
+native:rasterlayerstatistics,Raster layer statistics,E1-REPORT,fills the coverage row 'Raster histogram and band statistics'; built in wave E1 (2026-10-23)
+native:rasterlayeruniquevaluesreport,Raster layer unique values report,E1-REPORT,fills the coverage row 'Raster histogram and band statistics'; built in wave E1 (2026-10-23)
+native:rastersurfacevolume,Raster surface volume,E1-REPORT,statistics: the numbers come back in the result dictionary; the HTML file goes to a temporary file in the export folder; built in wave E1 (2026-10-23)
+gdal:contour_polygon,Contour Polygons,E1-GDAL-VECTOR,"GDAL vector output: a temporary GeoPackage in the export folder, loaded as a layer (same route as GRASS vector results); built in wave E1 (2026-10-23)"
+gdal:polygonize,Polygonize (raster to vector),E1-GDAL-VECTOR,fills the coverage row 'Raster to points / polygons'; built in wave E1 (2026-10-23)
+gdal:buffervectors,Buffer vectors,COVERED-ELSEWHERE,not added: already available as native:buffer; a second route to the same result only adds ambiguity and tokens (owner agreed 2026-10-23)
+gdal:clipvectorbyextent,Clip vector by extent,COVERED-ELSEWHERE,not added: already available as native:extractbyextent; a second route to the same result only adds ambiguity and tokens (owner agreed 2026-10-23)
+gdal:clipvectorbypolygon,Clip vector by mask layer,COVERED-ELSEWHERE,not added: already available as native:clip; a second route to the same result only adds ambiguity and tokens (owner agreed 2026-10-23)
+gdal:dissolve,Dissolve,COVERED-ELSEWHERE,not added: already available as native:dissolve; a second route to the same result only adds ambiguity and tokens (owner agreed 2026-10-23)
+gdal:offsetcurve,Offset curve,COVERED-ELSEWHERE,not added: already available as native:offsetline; a second route to the same result only adds ambiguity and tokens (owner agreed 2026-10-23)
+gdal:onesidebuffer,One side buffer,COVERED-ELSEWHERE,not added: already available as native:singlesidedbuffer; a second route to the same result only adds ambiguity and tokens (owner agreed 2026-10-23)
+gdal:pointsalonglines,Points along lines,COVERED-ELSEWHERE,not added: already available as native:pointsalonglines; a second route to the same result only adds ambiguity and tokens (owner agreed 2026-10-23)
+gdal:contour,Contour,COVERED-ELSEWHERE,not added: already available as the generate_contours tool; a second route to the same result only adds ambiguity and tokens (owner agreed 2026-10-23)
 gdal:gdalinfo,Raster information,E2-INFO,"text report of a file: temporary text file, bounded read of our own temporary file"
 gdal:ogrinfo,Vector information,E2-INFO,"text report of a file: temporary text file, bounded read of our own temporary file"
 gdal:ogrinfojson,Vector information (JSON),E2-INFO,"text report of a file: temporary text file, bounded read of our own temporary file"

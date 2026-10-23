@@ -563,7 +563,31 @@ MESH_FAMILY = {
 }
 MESH_ALGORITHM_IDS = frozenset(MESH_FAMILY)
 ALLOWED_ALGORITHM_IDS = frozenset(set(ALLOWED_ALGORITHM_IDS) | set(MESH_FAMILY))
-FAMILY_NAMES = {**GEOMETRY_FAMILY, **TABLE_FAMILY, **ANALYSIS_FAMILY, **EXPRESSION_FAMILY, **RASTER_FAMILY, **MIXED_FAMILY, **GRASS_FAMILY, **MESH_FAMILY}
+# PLAN-005 wave E1 (docs/plans/PLAN-005-file-writing-algorithms.md; the owner confirmed safety rules R1 to R6 on 2026-10-23). These algorithms write
+# files, so the generic tool gives every file destination a temporary file the plugin owns and never a path the model chose:
+#   * REPORT_FAMILY: statistics reports. The numbers come back in the result dictionary (shown as `statistics`), the HTML report is a temporary
+#     file whose path is reported, table outputs become project layers as for any other algorithm.
+#   * FILE_VECTOR_FAMILY: GDAL vector results, written to a temporary file, opened, and copied to a memory layer when small (reported as temporary).
+# Left out ON PURPOSE: the seven GDAL vector twins of algorithms already approved (buffervectors, clipvectorbyextent, clipvectorbypolygon,
+# dissolve, offsetcurve, onesidebuffer, pointsalonglines have native:buffer, extractbyextent, clip, dissolve, offsetline, singlesidedbuffer,
+# pointsalonglines) and gdal:contour (the generate_contours tool): a second route to the same result only adds ambiguity and tokens.
+# As for every family, an id stays only while tests/test_processing_file_output_family_live.py runs it successfully.
+REPORT_FAMILY = {
+    "native:basicstatisticsforfields": "Basic statistics for fields",
+    "native:listuniquevalues": "List unique values",
+    "native:nearestneighbouranalysis": "Nearest neighbour analysis",
+    "native:rasterlayerstatistics": "Raster layer statistics",
+    "native:rasterlayeruniquevaluesreport": "Raster layer unique values report",
+    "native:rastersurfacevolume": "Raster surface volume",
+}
+FILE_VECTOR_FAMILY = {
+    "gdal:polygonize": "Polygonize (raster to vector)",
+    "gdal:contour_polygon": "Contour polygons",
+}
+REPORT_ALGORITHM_IDS = frozenset(REPORT_FAMILY)
+FILE_VECTOR_ALGORITHM_IDS = frozenset(FILE_VECTOR_FAMILY)
+ALLOWED_ALGORITHM_IDS = frozenset(set(ALLOWED_ALGORITHM_IDS) | set(REPORT_FAMILY) | set(FILE_VECTOR_FAMILY))
+FAMILY_NAMES = {**GEOMETRY_FAMILY, **TABLE_FAMILY, **ANALYSIS_FAMILY, **EXPRESSION_FAMILY, **RASTER_FAMILY, **MIXED_FAMILY, **GRASS_FAMILY, **MESH_FAMILY, **REPORT_FAMILY, **FILE_VECTOR_FAMILY}
 
 # Algorithms whose OUTPUT is a RASTER FILE, not a vector sink. "memory:" is not a valid raster destination, and a raster
 # result comes back as a file path, not a layer: before 2026-10-01 these ran and the tool reported "no new layer output".

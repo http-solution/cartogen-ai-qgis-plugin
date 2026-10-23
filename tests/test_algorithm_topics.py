@@ -47,6 +47,15 @@ ROWS = [
     ("cluster the points into groups by distance", {"native:dbscanclustering", "grass:v.cluster"}),
     ("random points inside the districts", {"native:randompointsinpolygons", "grass:v.random"}),
     ("terrain ruggedness index", {"gdal:triterrainruggednessindex", "native:ruggednessindex"}),
+    # PLAN-005 wave E1 (statistics reports and the two GDAL vector tools)
+    ("what are the minimum, maximum and mean elevation of the dem", {"native:rasterlayerstatistics"}),
+    ("give me the average, minimum and maximum population in the towns layer", {"native:basicstatisticsforfields"}),
+    ("list the different land cover classes in the districts layer and how many of each", {"native:listuniquevalues"}),
+    ("are the health facilities clustered or evenly spread out", {"native:nearestneighbouranalysis"}),
+    ("how much area does each class cover in the land cover raster", {"native:rasterlayeruniquevaluesreport"}),
+    ("what volume of earth is above 100 metres in the dem", {"native:rastersurfacevolume"}),
+    ("turn the classified raster into editable polygons", {"gdal:polygonize"}),
+    ("make filled elevation bands from the dem every 50 metres", {"gdal:contour_polygon"}),
 ]
 
 

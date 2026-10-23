@@ -81,6 +81,10 @@ MESH_REJECTED = {
     "native:meshcontours": "hung: no result after 90 s on a 9-node, 8-triangle test mesh with default parameters (first live run, QGIS 4.2.2, 2026-10-16)",
 }
 
+# PLAN-005 wave E1 candidates (statistics reports, GDAL vector tools) that did not run in a real QGIS session, with the error CI reported. Not on
+# the allow-list; the offline test fails if one is listed in both places. Empty means every candidate ran.
+FILE_OUTPUT_REJECTED: dict[str, str] = {}
+
 GRASS_REJECTED = {
     "grass:i.evapo.mh": "first live run (CI, QGIS 4.2.2, 2026-10-16): 'Unable to execute algorithm' with the probe's default inputs (GRASS gave no detail); likely needs purpose-built inputs; cause not investigated",
     "grass:i.landsat.acca": "first live run (CI, QGIS 4.2.2, 2026-10-16): 'Unable to execute algorithm' with the probe's default inputs (GRASS gave no detail); likely needs purpose-built inputs; cause not investigated",
