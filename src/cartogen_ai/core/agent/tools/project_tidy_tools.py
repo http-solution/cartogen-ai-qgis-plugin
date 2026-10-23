@@ -111,11 +111,11 @@ def _entries(project):
     {
         "type": "object",
         "properties": {
-            "apply": {"type": "boolean", "description": "false (default): report only. true: hide duplicate copies, restyle population rasters and save scratch layers."},
+            "apply": {"type": "boolean", "description": "false (default): report only. true: ask the user to confirm, then hide duplicate copies, restyle population rasters and save scratch layers."},
         },
     },
 )
-def tidy_project_layers(apply=False):
+def tidy_project_layers(apply=False, confirmed=False):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
     try:
@@ -143,6 +143,23 @@ def tidy_project_layers(apply=False):
             report["message"] = ("Nothing was changed. Call again with apply=true to hide the extra duplicate copies, "
                                  "restyle the population rasters and save the scratch layers.")
             return report
+
+        if not confirmed:
+            # rc48 hand test OI-120 (2026-10-24): the model reported and then applied in the same turn, so the user never got to look at the
+            # report. Applying hides layers, restyles rasters and writes files, so it needs the same confirm card as other data changes;
+            # `confirmed` is stripped from the model's own arguments, only the user's Apply button sets it.
+            planned = ([f"hide {len(d['extra_ids'])} duplicate copy(ies) of '{d['keep']}'" for d in duplicates]
+                       + [f"restyle '{e['name']}' with the population ramp" for e in ramps]
+                       + [f"save scratch layer '{e['name']}' into the results GeoPackage" for e in scratch])
+            return {
+                "status": "PREVIEW_REQUIRED", "requires_confirmation": True, "is_destructive": True,
+                "tool_name": "tidy_project_layers",
+                "arguments": {"apply": True, "confirmed": True},
+                "code_snippet": "# tidy_project_layers would: " + "; ".join(planned),
+                "rationale": "Project Tidy Preview: " + "; ".join(planned) + ". Nothing is deleted; duplicates are hidden.",
+                "message": "Confirmation required before tidying the project: " + "; ".join(planned) + ".",
+                "planned_changes": planned,
+            }
 
         changes = []
         for d in duplicates:

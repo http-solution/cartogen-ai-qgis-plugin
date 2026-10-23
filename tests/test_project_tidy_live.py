@@ -59,7 +59,10 @@ class TestTidyProjectLayers(unittest.TestCase):
         self.assertFalse(report["applied"])
         self.assertEqual(report["duplicate_layers"], [{"name": "Origin", "copies": 2}])
         self.assertTrue(project.layerTreeRoot().findLayer(b.id()).isVisible())      # report-only changed nothing
-        done = self._tool(apply=True)
+        asked = self._tool(apply=True)                                               # rc48 OI-120: applying asks first
+        self.assertEqual(asked["status"], "PREVIEW_REQUIRED")
+        self.assertTrue(project.layerTreeRoot().findLayer(b.id()).isVisible())      # the preview changed nothing
+        done = self._tool(apply=True, confirmed=True)
         self.assertTrue(done["applied"])
         self.assertEqual(len(project.mapLayersByName("Origin")), 3)                 # nothing deleted
         hidden = [x for x in (a, b) if not project.layerTreeRoot().findLayer(x.id()).isVisible()]
@@ -70,7 +73,7 @@ class TestTidyProjectLayers(unittest.TestCase):
         QgsProject.instance().addMapLayer(_points("Origin Point", ["POINT(44 15.9)"]))
         report = self._tool()
         self.assertEqual(report["scratch_layers"], [{"name": "Origin Point", "features": 1}])
-        done = self._tool(apply=True)
+        done = self._tool(apply=True, confirmed=True)
         self.assertIn("not_saved", done)
         self.assertIn("saved", done["not_saved"][0])
 
@@ -92,7 +95,7 @@ class TestTidyProjectLayers(unittest.TestCase):
         QgsProject.instance().addMapLayer(raster)
         self.assertNotEqual(raster.renderer().type(), "singlebandpseudocolor")
         self.assertEqual(self._tool()["population_rasters_without_ramp"], ["yem_ppp_2020"])
-        self._tool(apply=True)
+        self._tool(apply=True, confirmed=True)
         self.assertEqual(raster.renderer().type(), "singlebandpseudocolor")
         self.assertEqual(self._tool()["population_rasters_without_ramp"], [])
 

@@ -732,7 +732,9 @@ def print_map(output_path=None):
             painter = QPainter(writer)
             try:
                 settings = QgsMapSettings(canvas.mapSettings())
-                paint_rect = writer.layout().paintRectPixels(300)
+                # rc48 hand test A22 (2026-10-24): "QPdfWriter object has no attribute layout" -- QPagedPaintDevice has pageLayout(), not
+                # layout(), so every PDF map export raised here after the file was created, leaving a blank PDF and an error reply.
+                paint_rect = writer.pageLayout().paintRectPixels(300)
                 settings.setOutputSize(paint_rect.size())
                 settings.setOutputDpi(300)
 
