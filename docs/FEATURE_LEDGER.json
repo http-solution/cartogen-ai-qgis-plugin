@@ -405,6 +405,24 @@
       "tests/test_export_spreadsheet_live.py::TestExportLayersToSpreadsheetLive::test_an_existing_file_asks_before_it_is_replaced"
     ],
     "hand_verified": "not hand-tested; the live test runs in CI only (first run). Rows go in the next test bundle"
+  },
+  {
+    "id": "rc48-batch1-fixes",
+    "feature": "print_map writes a real PDF (QPdfWriter.pageLayout), and tidy_project_layers(apply=true) returns a confirm card before it hides, restyles or saves anything",
+    "issues": [
+      120
+    ],
+    "since": "rc49 (unreleased)",
+    "sources": [
+      "src/cartogen_ai/core/agent/tools/export_tools.py",
+      "src/cartogen_ai/core/agent/tools/project_tidy_tools.py",
+      "docs/plans/PLAN-008-rc48-hand-test-findings.md"
+    ],
+    "guards": [
+      "tests/test_print_map_live.py::TestPrintMapPdf::test_a_pdf_is_written_and_is_a_pdf",
+      "tests/test_project_tidy_live.py::TestTidyProjectLayers::test_identical_scratch_layers_are_duplicates_and_apply_hides_not_deletes"
+    ],
+    "hand_verified": "not hand-tested; found by the rc48 hand test (rows A22, OI-120), fix is CI live only"
   }
  ]
 }

@@ -37,7 +37,7 @@ EXTRA_ROWS = (
     ("E1 raster stats", "what are the minimum, maximum and mean elevation of the dem",
      "The generic Processing tool runs native:rasterlayerstatistics and the reply gives minimum, maximum and mean numbers that look right for the dem; no file path is asked for."),
     ("E1 field stats", "give me the basic statistics of the pop field of towns",
-     "native:basicstatisticsforfields; the reply says minimum 5, maximum 700, mean about 190.6 (8 towns); no file path is asked for."),
+     "native:basicstatisticsforfields; the reply gives count, minimum, maximum and mean that match the towns layer as it is now (8 towns on fresh fixtures: minimum 5, maximum 700, mean about 190.6); no file path is asked for."),
     ("E1 polygonize", "turn the dem_classes raster into editable polygons",
      "gdal:polygonize; a polygon layer appears in the project, is marked temporary with an offer to save it; the polygon values are 1, 2 and 3."),
     ("E2c pdf", "send me the map as a pdf",
@@ -47,9 +47,9 @@ EXTRA_ROWS = (
     ("E2c geopackage", "save the roads layer to a geopackage",
      "export_layer with format gpkg; the file is in the project export folder and holds 3 road features."),
     ("E2c dxf", "export the roads and towns to dxf",
-     "export_layers_to_dxf; the DXF opens (in QGIS or a CAD program) and shows the lines and points; the reply says it carries geometry and layer names only. Send the same request again: the second run must ask before replacing the file."),
+     "export_layers_to_dxf; the DXF opens (in QGIS or a CAD program) and shows the lines and points; the reply says it carries geometry and layer names only. (Sending the same request again over the unchanged file does not ask: that is a re-run by design. To see the replace card, change or replace the file outside QGIS first.)"),
     ("E2c excel", "export the towns and districts to excel, one sheet each",
-     "export_layers_to_spreadsheet; the .xlsx opens in Excel or LibreOffice with two sheets (towns 8 rows, districts 4 rows) and the right columns."),
+     "export_layers_to_spreadsheet; the .xlsx opens in Excel or LibreOffice with two sheets whose row counts match the layers as they are now (fresh fixtures: towns 8, districts 4) and the right columns."),
 )
 # Added to the fixture script: a small integer raster for the polygonize row (the dem is continuous, so its polygons would be one per pixel).
 FIXTURE_EXTRA = """
