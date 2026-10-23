@@ -385,6 +385,26 @@
       "tests/test_export_dxf_live.py::TestExportLayersToDxfLive::test_an_existing_file_asks_before_it_is_replaced"
     ],
     "hand_verified": "not hand-tested; the live DXF test runs in CI only (first run). Rows go in the next test bundle"
+  },
+  {
+    "id": "export-spreadsheet",
+    "feature": "export_layers_to_spreadsheet writes layers or tables to one Excel (.xlsx) or .ods file, one sheet per layer, inside the project export folder with the overwrite card and sensitivity warning; plain Excel requests reach it and CSV requests still reach export_to_csv",
+    "issues": [],
+    "since": "rc48 (unreleased)",
+    "sources": [
+      "src/cartogen_ai/core/agent/tools/export_tools.py",
+      "src/cartogen_ai/core/services/tool_router.py",
+      "docs/plans/PLAN-006-wave-e2-info-plots-exports.md"
+    ],
+    "guards": [
+      "tests/test_tool_router_basics.py::TestPlainRequestsAreOfferedTheirTools::test_golden_requests",
+      "tests/test_export_dxf.py::TestExportLayersToSpreadsheet::test_it_is_registered_and_classified_as_a_file_write",
+      "tests/test_export_dxf.py::TestExportLayersToSpreadsheet::test_the_model_cannot_pass_confirmed",
+      "tests/test_export_dxf.py::TestExportLayersToSpreadsheet::test_empty_and_too_many_layers_are_refused",
+      "tests/test_export_spreadsheet_live.py::TestExportLayersToSpreadsheetLive::test_a_real_xlsx_is_written_and_reads_back",
+      "tests/test_export_spreadsheet_live.py::TestExportLayersToSpreadsheetLive::test_an_existing_file_asks_before_it_is_replaced"
+    ],
+    "hand_verified": "not hand-tested; the live test runs in CI only (first run). Rows go in the next test bundle"
   }
  ]
 }

@@ -117,6 +117,7 @@ TOOL_OPERATION_TYPES = {
     "export_layer": PUBLISH,
     "export_to_csv": PUBLISH,
     "export_layers_to_dxf": PUBLISH,
+    "export_layers_to_spreadsheet": PUBLISH,
     "print_map": PUBLISH,
     "generate_report": PUBLISH,
     # Returns a markdown string only -- no file write, no project mutation.

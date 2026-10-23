@@ -1,6 +1,6 @@
 # Tool Reference
 
-Auto-generated from the live tool registry (295 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
+Auto-generated from the live tool registry (296 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
 
 Flags: **network-only** tools bypass the main-thread QGIS dispatcher entirely (pure HTTP, safe from any background thread); **two-phase** tools split a network fetch (background thread) from the QGIS-touching part (main thread); **task-management** tools are excluded from auto-advance in the Task Manager.
 
@@ -153,6 +153,15 @@ Export a layer to a file: a vector layer to ESRI Shapefile, GeoJSON, GPKG or KML
 ### `export_layers_to_dxf`
 
 Export one or more vector layers to a single DXF file for CAD software (AutoCAD and similar). A DXF holds geometry and layer names, not attribute tables or QGIS styling: say so if the user expects either. output_path is optional -- omit it to save under the project's data/20_processed folder (or the QGIS profile folder if the project is not saved yet); a relative path is anchored to the project folder and the reply's output_path is the real location. At most 20 layers per file. Replacing an existing file asks the user first.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_names` | array[string] | yes |  |
+| `output_path` | string | no |  |
+
+### `export_layers_to_spreadsheet`
+
+Export one or more vector layers or tables to a single spreadsheet (Excel .xlsx, or .ods) with one sheet per layer, attributes only (no styling). Use it when the user asks for an Excel or spreadsheet file; export_to_csv is for CSV. output_path is optional -- omit it to save under the project's data/20_processed folder (or the QGIS profile folder if the project is not saved yet); a relative path is anchored to the project folder and the reply's output_path is the real location. At most 20 layers per file. Replacing an existing file asks the user first.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
