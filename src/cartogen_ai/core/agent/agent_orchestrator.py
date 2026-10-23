@@ -743,6 +743,7 @@ class CartogenAi:
             log_event("egress_override_confirmed", tag="Agent", tool=name, layer_count=len(egress["layers"]))
 
         try:
+            layers_before = self._loaded_layer_ids()
             res = func(**filtered_args)
             if egress is not None and egress["action"] == "warn" and isinstance(res, dict):
                 res["egress_warning"] = egress["warning"]
@@ -761,7 +762,7 @@ class CartogenAi:
                     learning.record_tool_usage(self.memory_manager, name)
                     learning.maybe_infer_preferences(self.memory_manager)
                     self._last_tool_call = (name, args)
-                    self._tag_created_layers(name, args, res)
+                    self._tag_created_layers(name, args, res, layers_before)
                     if name not in TASK_MANAGEMENT_TOOLS:
                         self.task_manager.auto_advance_if_unambiguous(f"{name} succeeded", tool_name=name)
             # One exit for every dispatch path: a tool that returns nothing is reported as a failure here, so the inline and the
@@ -1547,9 +1548,25 @@ class CartogenAi:
             )
         return f"{final_text}\n\n{note}"
 
-    def _tag_created_layers(self, name, args, res):
+    @staticmethod
+    def _loaded_layer_ids():
+        """Ids of the layers loaded right now, or None when QGIS is not available. Taken just before a tool runs, so the lineage tagger
+        can tell the layers a call READ from the layer it just CREATED."""
+        try:
+            from qgis.core import QgsProject
+            return frozenset(QgsProject.instance().mapLayers().keys())
+        except Exception:
+            return None
+
+    def _tag_created_layers(self, name, args, res, layers_before=None):
         """Records which layers a successful call read and tags every layer its result says it created (GitHub #150): sources are
-        found by value, including list and nested arguments and SQL, and every created layer is tagged, not only `layer_name`."""
+        found by value, including list and nested arguments and SQL, and every created layer is tagged, not only `layer_name`.
+
+        `layers_before` (ids loaded before the call) keeps the output's own name out of the sources. rc48 hand test OI-150 (2026-10-24), then
+        a CI reproduction: when the caller names the output (`new_layer_name="merged_test"`), that name is already a loaded layer by the time
+        this runs, so it was counted as one of the call's INPUTS; the rule that a result echoing its input must not be tagged as derived from
+        itself then skipped it, and a merge of a SENSITIVE layer came out with no lineage and read as open to the cloud gate. Without
+        `layers_before` (two-phase tools) the old behaviour is kept."""
         from .lineage import created_layer_names, derive_sources, source_layer_ids, tag_layer_lineage
         try:
             from qgis.core import QgsProject
@@ -1557,9 +1574,11 @@ class CartogenAi:
             return
         try:
             project = QgsProject.instance()
-            known = [lyr.name() for lyr in project.mapLayers().values()]
-            sources = derive_sources(name, args, known)
-            source_ids = source_layer_ids(sources, project.mapLayers().values())
+            all_layers = list(project.mapLayers().values())
+            read_layers = [lyr for lyr in all_layers if layers_before is None or lyr.id() in layers_before]
+            known = [lyr.name() for lyr in all_layers]
+            sources = derive_sources(name, args, [lyr.name() for lyr in read_layers])
+            source_ids = source_layer_ids(sources, read_layers)
             for created in created_layer_names(res, sources, known):
                 for layer in project.mapLayersByName(created)[:1]:
                     tag_layer_lineage(layer, name, args, sources, source_ids)
