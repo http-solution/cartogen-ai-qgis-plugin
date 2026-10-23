@@ -340,6 +340,30 @@
     "tests/test_plan005_dispositions.py::TestPlan005Dispositions::test_wave_counts_match_the_plan"
    ],
    "hand_verified": "offline only by design"
+  },
+  {
+   "id": "file-output-wave-e1",
+   "feature": "Statistics reports and two GDAL vector tools run through the generic Processing tool with temporary outputs only: numbers returned, report file temporary, small vector results copied to memory, raw arguments refused, twins of approved algorithms not added",
+   "issues": [],
+   "since": "rc48 (unreleased)",
+   "sources": [
+    "src/cartogen_ai/core/agent/tools/_processing_allowlist.py",
+    "src/cartogen_ai/core/agent/tools/processing_allowlist_tools.py",
+    "src/cartogen_ai/core/agent/algorithm_topics.json",
+    "docs/plans/PLAN-005-file-writing-algorithms.md"
+   ],
+   "guards": [
+    "tests/test_processing_file_outputs.py::TestFamilies::test_the_eight_are_approved_and_named",
+    "tests/test_processing_file_outputs.py::TestFamilies::test_the_twins_of_approved_algorithms_were_not_added",
+    "tests/test_processing_file_outputs.py::TestFamilies::test_raw_argument_parameters_stay_refused_for_the_new_gdal_ids",
+    "tests/test_processing_file_outputs.py::TestFileDestinations::test_a_report_file_destination_becomes_a_temporary_file_and_a_sink_stays_in_memory",
+    "tests/test_processing_file_outputs.py::TestStatisticsReachTheModelBounded::test_numbers_and_short_text_pass_layers_paths_and_collections_do_not",
+    "tests/test_processing_file_outputs.py::TestSensitiveLayersStayGated::test_a_statistics_call_naming_a_protected_layer_is_blocked",
+    "tests/test_processing_file_output_family_live.py::TestFileOutputFamily::test_basic_statistics_for_fields_returns_the_numbers",
+    "tests/test_processing_file_output_family_live.py::TestFileOutputFamily::test_polygonize_gives_a_small_memory_layer_flagged_temporary",
+    "tests/test_algorithm_topics.py::TopicIndexTests::test_plain_requests_find_their_algorithm_in_the_first_five"
+   ],
+   "hand_verified": "not hand-tested; CI live test only (first run). Rows for it go in the next test bundle"
   }
  ]
 }

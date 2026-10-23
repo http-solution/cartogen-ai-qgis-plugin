@@ -317,3 +317,16 @@ NOTES.update({
     "gdal:griddatametrics": "raster count of points in each cell density grid of settlements",
     "gdal:gridinversedistancenearestneighbor": "estimate surface from points closest nearest neighbours weighting",
 })
+
+
+# PLAN-005 wave E1: the statistics reports and the two GDAL vector tools, in the words a person uses for what they give.
+NOTES.update({
+    "native:basicstatisticsforfields": "minimum maximum mean average standard deviation count sum of a field statistics summary of a numeric column",
+    "native:listuniquevalues": "list the different distinct unique values categories of a field how many of each",
+    "native:nearestneighbouranalysis": "are points clustered dispersed evenly spread out or random nearest neighbour index spatial pattern of points facilities settlements",
+    "native:rasterlayerstatistics": "minimum maximum mean standard deviation of raster cells statistics of the raster values summary of the dem",
+    "native:rasterlayeruniquevaluesreport": "count of cells per class value area of each class in a raster land cover report of unique values",
+    "native:rastersurfacevolume": "volume above or below a level of a surface raster cut and fill volume of a dem",
+    "gdal:polygonize": "convert raster cells to polygons merge neighbouring cells with the same value classified raster to editable polygons vectorize",
+    "gdal:contour_polygon": "filled contour bands polygons between elevation levels elevation zones polygons from a dem",
+})

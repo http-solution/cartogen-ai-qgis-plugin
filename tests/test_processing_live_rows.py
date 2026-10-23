@@ -32,6 +32,11 @@ class TestProcessingLiveRows(unittest.TestCase):
         self.assertEqual(sorted(set(MESH_REJECTED) & set(ALLOWED_ALGORITHM_IDS)), [])
         self.assertEqual([k for k, v in MESH_REJECTED.items() if len(v) < 10], [])
 
+    def test_rejected_file_output_algorithms_are_not_allow_listed_and_say_why(self):
+        from tests._processing_live_rows import FILE_OUTPUT_REJECTED
+        self.assertEqual(sorted(set(FILE_OUTPUT_REJECTED) & set(ALLOWED_ALGORITHM_IDS)), [])
+        self.assertEqual([k for k, v in FILE_OUTPUT_REJECTED.items() if len(v) < 10], [])
+
     def test_every_not_yet_entry_states_a_reason(self):
         self.assertEqual([k for k, v in NOT_YET.items() if len(v) < 10], [])
 

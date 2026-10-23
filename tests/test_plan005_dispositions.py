@@ -6,7 +6,7 @@ from collections import Counter
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-WAVES = {"E1-REPORT": 6, "E1-GDAL-VECTOR": 10, "E2-INFO": 4, "E2-PLOT": 9, "E2-EXPORT": 17, "E3-NOT-PLANNED": 14}
+WAVES = {"E1-REPORT": 6, "E1-GDAL-VECTOR": 2, "COVERED-ELSEWHERE": 8, "E2-INFO": 4, "E2-PLOT": 9, "E2-EXPORT": 17, "E3-NOT-PLANNED": 14}
 
 
 def _rows(path):

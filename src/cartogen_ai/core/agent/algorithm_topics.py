@@ -1,6 +1,6 @@
 """Topic index for the approved Processing algorithms: find an algorithm from what a person WANTS, not from its name.
 
-Why this exists. The approved list has 427 algorithms and most have names nobody types ("r.fillnulls", "Cell stack percentile",
+Why this exists. The approved list has 435 algorithms and most have names nobody types ("r.fillnulls", "Cell stack percentile",
 "v.net.bridge"). Before rc46 the only ways to reach one were a curated alias phrase per algorithm in the tool router and
 `find_processing_algorithm`, which required every word of its query to appear in the algorithm's id or display name. A request such as
 "fill the gaps in my elevation raster" therefore found nothing, and the rc45 smoke run could only run algorithms whose test prompt
@@ -194,7 +194,7 @@ _TASKS_LOADED: list[bool] = []
 def algorithms_for_task(task_id):
     """Approved Processing algorithm ids a register task can use (task_algorithms.json, curated by hand). [] when none or unreadable.
 
-    The register's tool lists never named a Processing algorithm, so a matched task steered the model to the listed tools and away from the 427
+    The register's tool lists never named a Processing algorithm, so a matched task steered the model to the listed tools and away from the 435
     approved algorithms (rc46 review of the humanitarian tasks): flood mapping never suggested a flood fill, drainage mapping no watershed,
     hotspot mapping no kernel density. Those pairs are curated in the data file; tests/test_algorithm_topics.py checks every id."""
     if not _TASKS_LOADED:
