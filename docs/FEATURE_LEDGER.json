@@ -306,6 +306,25 @@
     "tests/test_plans.py::TestPlans::test_the_status_log_has_a_dated_line"
    ],
    "hand_verified": "offline only by design"
+  },
+  {
+   "id": "qgis-coverage-evidence",
+   "feature": "The QGIS coverage list names only allow-listed algorithms, never overstates hand-testing, and its summary file equals the generated one; coverage can only go up",
+   "issues": [],
+   "since": "rc47",
+   "sources": [
+    "tools/qgis_coverage_actions.py",
+    "tools/build_qgis_coverage.py",
+    "docs/qgis_coverage/SUMMARY.md",
+    "docs/qgis_coverage/baseline.json"
+   ],
+   "guards": [
+    "tests/test_qgis_coverage_evidence.py::TestCoverageEvidence::test_summary_file_is_what_the_builder_generates",
+    "tests/test_qgis_coverage_evidence.py::TestCoverageEvidence::test_a_row_is_only_called_hand_tested_for_algorithms_that_were",
+    "tests/test_qgis_coverage_evidence.py::TestCoverageEvidence::test_algorithm_rows_use_the_generic_processing_tool_and_are_offered_it",
+    "tests/test_qgis_coverage_ratchet.py::TestCoverageRatchet::test_no_action_got_worse"
+   ],
+   "hand_verified": "offline only by design; the 21 hand-tested algorithms are the rc46 Part 5 priority list"
   }
  ]
 }

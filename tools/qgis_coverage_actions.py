@@ -12,6 +12,16 @@ tool router whether the tool is offered for the phrase."""
 P = "run_allowlisted_processing_algorithm"
 S = "execute_pyqgis_script"
 
+# A note may carry "ALGS: id id ..." naming the approved Processing algorithms behind a row whose tool is P. The builder refuses an id that is not
+# on the allow-list, so a row can never claim an algorithm the plugin cannot run.
+# Algorithms that passed a hand test in desktop QGIS 4.2.3 (rc46 Part 5 priority list, 21 of 21 Pass, 2026-10-17/18; docs/STATUS_DONE_VS_TESTED_2026-10-16.md).
+# Only these may be described as hand-tested; every other id is CI-checked at most.
+HAND_TESTED_ALGORITHMS = frozenset({
+    "native:densifygeometries", "native:smoothgeometry", "native:polygonstolines", "native:extractvertices", "native:deleteduplicategeometries",
+    "native:retainfields", "native:randomextract", "native:extractbyexpression", "native:checkgeometryoverlap", "gdal:slope", "gdal:roughness",
+    "gdal:proximity", "gdal:fillnodata", "gdal:warpreproject", "gdal:sieve", "native:fuzzifyrastergaussianmembership", "gdal:viewshed",
+    "native:rescaleraster", "native:pixelstopoints", "native:heatmapkerneldensityestimation", "native:randompointsinextent"})
+
 ROWS = [
 # ---- A. Data sources and layer types ---------------------------------------------------------------------------------------------------
 ("A data sources", "Open a vector file (Shapefile, GeoJSON, GeoPackage, KML, GPX)", "managing_data_source/opening_data.rst 'Loading a layer from a file'", "add the shapefile roads.shp to the map", ["add_layer_from_path"], 1, "rc42: sublayer= picks one table of a multi-layer file and the reply lists the others"),
@@ -137,19 +147,19 @@ ROWS = [
 ("G raster", "Contours from a DEM", "processing gdal:contour", "generate contour lines from the dem", ["generate_contours"], 2, ""),
 ("G raster", "Clip a raster by a mask", "processing gdal:cliprasterbymasklayer", "clip the raster by the boundary layer", ["raster_clip"], 1, ""),
 ("G raster", "Mosaic / merge rasters", "processing gdal:merge", "mosaic the raster tiles", ["mosaic_rasters"], 1, ""),
-("G raster", "Reproject / warp a raster", "processing gdal:warpreproject", "reproject the raster to utm", None, 1, "reproject_layer is vector only"),
-("G raster", "Resample, change resolution, translate / convert format", "processing gdal:translate / gdal:warpreproject", "resample the raster to 30 m", None, 2, ""),
+("G raster", "Reproject / warp a raster", "processing gdal:warpreproject", "reproject the raster to utm", [P], 1, "ALGS: gdal:warpreproject; hand-tested rc46 (reprojected to EPSG:3857). The result is a temporary raster."),
+("G raster", "Resample, change resolution, translate / convert format", "processing gdal:translate / gdal:warpreproject", "resample the raster to 30 m", [P], 2, "PARTIAL: ALGS: gdal:translate gdal:warpreproject gdal:rearrange_bands; CI only. Results are temporary rasters, not a chosen file format or path."),
 ("G raster", "Raster calculator (map algebra)", "working_with_raster/raster_analysis.rst", "raster calculator A minus B", ["raster_calculator"], 1, "gdal:rastercalculator stays off (its FORMULA is evaluated as Python, audit #137) and a script cannot run Processing. BUT the 4.2.2 registry has native:rastercalc / native:virtualrastercalc, which use QGIS's own raster-calculator grammar (QgsRasterCalculator, not Python eval): the safe route, needs an expression check and a live test"),
 ("G raster", "Reclassify a raster by table", "processing native:reclassifybytable", "reclassify the raster into three classes", [P], 2, ""),
 ("G raster", "Zonal statistics of a raster per polygon", "processing native:zonalstatisticsfb", "zonal statistics of the raster for each district", ["zonal_statistics"], 1, ""),
 ("G raster", "Sample raster values at points", "processing native:rastersampling", "sample the raster values at the points", [P], 2, ""),
-("G raster", "Raster to points / polygons (pixels to points, polygonize), rasterize vector", "processing native:pixelstopoints, gdal:polygonize, gdal:rasterize", "polygonize the raster", None, 2, "GDAL file-output algorithms need code changes in _resolve_params/harvest_outputs"),
-("G raster", "Proximity (distance) raster, fill nodata, sieve, align rasters", "processing gdal:proximity, gdal:fillnodata, gdal:sieve", "make a distance to roads raster", None, 2, ""),
-("G raster", "Raster histogram and band statistics", "raster_properties 'Histogram Properties'", "show the histogram of the dem", None, 2, "histogram_equalization changes an image, it does not report"),
+("G raster", "Raster to points / polygons (pixels to points, polygonize), rasterize vector", "processing native:pixelstopoints, gdal:polygonize, gdal:rasterize", "polygonize the raster", [P], 2, "PARTIAL: ALGS: native:pixelstopoints native:pixelstopolygons gdal:rasterize; native:pixelstopoints hand-tested rc46 (6,400 points). gdal:polygonize is not on the allow-list."),
+("G raster", "Proximity (distance) raster, fill nodata, sieve, align rasters", "processing gdal:proximity, gdal:fillnodata, gdal:sieve", "make a distance to roads raster", [P], 2, "ALGS: gdal:proximity gdal:fillnodata gdal:sieve native:alignsingleraster; the first three hand-tested rc46."),
+("G raster", "Raster histogram and band statistics", "raster_properties 'Histogram Properties'", "show the histogram of the dem", [P], 2, "PARTIAL: ALGS: native:rasterlayerproperties native:rasterlayerzonalstats; CI only. No histogram or band-statistics report (native:rasterlayerstatistics is not on the allow-list)."),
 ("G raster", "Interpolation (IDW, TIN)", "processing_algs/qgis/interpolation.rst", "interpolate a surface from the points", ["interpolate_surface"], 2, "Kriging and other interpolators are not offered"),
 ("G raster", "Vegetation and water indices, change detection", "plugin feature", "calculate ndvi", ["calculate_ndvi", "calculate_ndwi", "calculate_ndre", "calculate_raster_change_detection"], 1, ""),
 ("G raster", "Image classification (unsupervised, supervised), pan-sharpening", "plugin feature", "classify the image into 5 classes", ["unsupervised_classification", "supervised_classification", "pan_sharpening"], 2, "PARTIAL: supervised classification needs the SAGA provider, which QGIS 4.2.2 does not ship (#162)"),
-("G raster", "Viewshed, watershed, flow accumulation, terrain ruggedness", "processing (plugin or GRASS/SAGA, not core in 4.2)", "viewshed analysis", None, 3, "no core algorithm in 4.2; a tool would need a plugin or own code"),
+("G raster", "Viewshed, watershed, flow accumulation, terrain ruggedness", "processing (plugin or GRASS/SAGA, not core in 4.2)", "viewshed analysis", [P], 3, "PARTIAL: ALGS: gdal:viewshed gdal:roughness grass:r.watershed grass:r.flow; gdal:viewshed and gdal:roughness hand-tested rc46. GRASS algorithms need the GRASS provider; gdal:tri and gdal:tpi are not on the allow-list."),
 ("G raster", "Build pyramids / overviews, raster attribute tables, identify a cell value", "raster_properties.rst", "build pyramids for the raster", None, 3, ""),
 ("G raster", "Download a DEM / population raster / satellite scenes", "plugin feature", "download the dem for the area", ["fetch_dem", "fetch_worldpop_population", "search_stac_satellite_imagery"], 1, ""),
 # ---- H. Vector geoprocessing ------------------------------------------------------------------------------------------------------------------
@@ -159,18 +169,18 @@ ROWS = [
 ("H vector analysis", "Merge vector layers", "processing native:mergevectorlayers", "merge the two road layers", ["merge_layers"], 1, ""),
 ("H vector analysis", "Convex hull, centroids, Voronoi, Delaunay", "processing_algs/qgis/vectorgeometry.rst", "get the centroids of the polygons", ["convex_hull", "centroid", "voronoi_polygons", "delaunay_triangulation"], 2, ""),
 ("H vector analysis", "Multipart to singleparts", "processing native:multiparttosingleparts", "convert multipart to single parts", ["convert_to_singlepart"], 2, ""),
-("H vector analysis", "Extract vertices / densify / polygons to lines / lines to polygons / bounding geometry / boundary", "processing_algs/qgis/vectorgeometry.rst", "extract the vertices of the roads", None, 2, "no tool and not on the allow-list; script fallback only"),
-("H vector analysis", "Random points / regular points / create grid", "processing_algs/qgis/vectorcreation.rst", "random points inside the polygon", [P], 2, "PARTIAL: create grid is allow-listed; random and regular points are not"),
+("H vector analysis", "Extract vertices / densify / polygons to lines / lines to polygons / bounding geometry / boundary", "processing_algs/qgis/vectorgeometry.rst", "extract the vertices of the roads", [P], 2, "ALGS: native:extractvertices native:densifygeometries native:polygonstolines qgis:linestopolygons native:boundingboxes native:boundary; the first three hand-tested rc46."),
+("H vector analysis", "Random points / regular points / create grid", "processing_algs/qgis/vectorcreation.rst", "random points inside the polygon", [P], 2, "ALGS: native:randompointsinextent native:randompointsinpolygons qgis:regularpoints native:creategrid; native:randompointsinextent hand-tested rc46."),
 ("H vector analysis", "Count points in polygon", "processing native:countpointsinpolygon", "count points in each polygon", [P], 1, ""),
 ("H vector analysis", "Nearest neighbour / distance matrix / join by nearest", "processing native:joinbynearest", "nearest neighbour of each point", ["find_nearest_features", P], 1, ""),
 ("H vector analysis", "Clustering (k-means, DBSCAN)", "processing native:kmeansclustering / dbscanclustering", "k-means clustering of the points", [P], 3, ""),
 ("H vector analysis", "Hotspot / density analysis", "plugin feature", "hotspot analysis of the incidents", ["hotspot_analysis"], 2, ""),
-("H vector analysis", "Delete duplicate geometries / split by attribute / extract by attribute / extract by expression / refactor fields", "processing_algs/qgis/vectorgeneral.rst, vectorselection.rst", "delete duplicate geometries", None, 2, "expression-taking algorithms are left off the allow-list on purpose"),
-("H vector analysis", "Spatial index, snap geometries, topological coverage, line / polygon tools (smooth, subdivide, split with lines, offset, clean)", "processing_algs/qgis/vectorgeometry.rst (88 algorithms)", "smooth the lines", None, 3, ""),
+("H vector analysis", "Delete duplicate geometries / split by attribute / extract by attribute / extract by expression / refactor fields", "processing_algs/qgis/vectorgeneral.rst, vectorselection.rst", "delete duplicate geometries", [P], 2, "PARTIAL: ALGS: native:deleteduplicategeometries native:extractbyattribute native:extractbyexpression; deleteduplicategeometries and extractbyexpression hand-tested rc46. Split by attribute and refactor fields are not on the allow-list."),
+("H vector analysis", "Spatial index, snap geometries, topological coverage, line / polygon tools (smooth, subdivide, split with lines, offset, clean)", "processing_algs/qgis/vectorgeometry.rst (88 algorithms)", "smooth the lines", [P], 3, "PARTIAL: ALGS: native:snapgeometries native:smoothgeometry native:subdivide native:splitwithlines native:offsetline native:fixgeometries native:simplifygeometries; native:smoothgeometry hand-tested rc46. Spatial index and topological coverage are not covered."),
 ("H vector analysis", "Network analysis: service area, shortest path, travel-time matrix, routes", "cookbook/network_analysis.rst", "calculate a 1500 m service area", ["calculate_service_area", "travel_time_matrix", "optimize_delivery_route", "classify_facilities_by_access"], 1, ""),
 ("H vector analysis", "Hub siting, location allocation, MCDA, weighted overlay", "plugin feature", "rank the three candidate hubs", ["optimal_hub_siting", "location_allocation", "calculate_mcda_ranking", "weighted_overlay_analysis"], 2, ""),
 # ---- I. Processing framework ------------------------------------------------------------------------------------------------------------------
-("I processing framework", "Run any one Processing algorithm by id", "cookbook/intro.rst 'Processing Plugins'", "run native:buffer on the layer", [P], 1, "PARTIAL: 42 algorithms of the 772 in the 4.2.2 registry are allowed"),
+("I processing framework", "Run any one Processing algorithm by id", "cookbook/intro.rst 'Processing Plugins'", "run native:buffer on the layer", [P], 1, "PARTIAL: 427 of the 772 algorithms in the 4.2.3 reference are allowed (229 native, 154 GRASS, 28 GDAL, 16 QGIS); the others are listed with the reason in docs/qgis_coverage/processing_matrix.csv"),
 ("I processing framework", "Run several steps in one request", "plugin feature", "buffer then clip then dissolve", ["run_steps"], 1, ""),
 ("I processing framework", "Search the toolbox for an algorithm by name", "processing toolbox", "which tool splits a layer by attribute", ["find_tools"], 2, "PARTIAL: finds this plugin's tools, not the QGIS toolbox"),
 ("I processing framework", "Run a Processing model (graphical modeler) / batch process / run a Processing script", "processing/modeler.rst, batch.rst", "run my model on these layers", None, 2, ""),
