@@ -113,7 +113,8 @@ class TestExportGate(TestExportLayoutReport):
         result = create_print_layout("Gate check", output_path=self._out())
         self.assertEqual(result.get("status"), "PREVIEW_REQUIRED", result)
         self.assertFalse(os.path.exists(self._out()))
-        self.assertEqual(QgsProject.instance().layoutManager().printLayouts(), [], "a layout was built before the user confirmed")
+        names = [layout.name() for layout in QgsProject.instance().layoutManager().printLayouts()]
+        self.assertEqual(names, ["phase_a"], "a layout was built before the user confirmed")      # phase_a is this class's own setUp layout
 
 
 @unittest.skipUnless(LIVE, "requires real QGIS")
