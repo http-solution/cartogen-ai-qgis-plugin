@@ -500,6 +500,26 @@
       "tests/test_population_ramp_render_live.py::TestPopulationRampRenders::test_the_plain_dem_next_to_it_is_left_alone"
     ],
     "hand_verified": "not hand-tested; CI renders the layer and checks the pixels. The grey result of the rc48 run (OI-128) is explained by routing (PLAN-008 item 5), not by this tool"
+  },
+  {
+    "id": "algorithm-beats-task-directive",
+    "feature": "A plain request that one approved Processing algorithm answers (sort, rename a field, extract by expression, mask) gets no task-library directive, so the model is not steered to a mapping task's WorldPop and styling plan",
+    "issues": [
+      380
+    ],
+    "since": "rc49 (unreleased)",
+    "sources": [
+      "src/cartogen_ai/core/agent/algorithm_topics.py",
+      "src/cartogen_ai/core/agent/task_matcher.py",
+      "docs/plans/PLAN-008-rc48-hand-test-findings.md"
+    ],
+    "guards": [
+      "tests/test_task_algorithm_precedence.py::AlgorithmBeatsTask::test_the_requests_the_rc48_run_hijacked_get_no_task_directive",
+      "tests/test_task_algorithm_precedence.py::AlgorithmBeatsTask::test_plain_prompts_that_still_match_a_task_stay_a_small_minority",
+      "tests/test_task_algorithm_precedence.py::AlgorithmBeatsTask::test_the_task_librarys_own_wording_keeps_its_task",
+      "tests/test_task_algorithm_precedence.py::AlgorithmBeatsTask::test_a_task_that_lists_the_algorithm_keeps_its_directive"
+    ],
+    "hand_verified": "not hand-tested; measured offline: confident task matches over the 385 plain prompts fell from 34 to 7, over the 792 register titles from 587 to 582. Needs the rc49 hand test (rows B28, B32, B41 and OI-128)"
   }
  ]
 }

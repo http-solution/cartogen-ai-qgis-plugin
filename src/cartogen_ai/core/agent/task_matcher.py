@@ -290,6 +290,13 @@ def classify(query):
         if computation_request(query, best.get("tools")):
             return {"matches": ms, "best": best, "score": top,
                     "ambiguous": True, "reason": "below confidence floor"}
+    # rc48 hand test (#380): a strong algorithm match the task does not carry means the task directive would steer the model away from it
+    # ("Sort the districts by population" matched "Map population distribution"). Same verdict as a below-floor match: no directive.
+    with contextlib.suppress(Exception):
+        from .algorithm_topics import algorithm_outranks_task
+        if algorithm_outranks_task(query, best.get("id")):
+            return {"matches": ms, "best": best, "score": top,
+                    "ambiguous": True, "reason": "below confidence floor"}
     # rc45 smoke run, check I4: "make a chart of population by district" matched "Map population distribution" (WorldPop fetch, zonal
     # statistics, styling) and the model was sent after a map nobody asked for. A request that names a chart is answered by the chart tools.
     if _ASKS_FOR_CHART.search((query or "").lower()) and not any("chart" in t or "dashboard" in t for t in best.get("tools") or ()):

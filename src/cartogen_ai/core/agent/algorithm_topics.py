@@ -186,6 +186,27 @@ def computation_request(query, task_tools=()):
     return bool(top and top[1] >= STRONG_SCORE)
 
 
+# Requests that lead with a mapping or assessment verb are the task library's own wording ("Map project locations", "Track project progress");
+# a generic word of theirs ("project", "coverage") often scores an unrelated algorithm, so they keep the task.
+_MAPPING_LEAD = re.compile(r"\s*(map|produce|track|measure|assess|analy[sz]e|determine|validate|compare|identify)\b", re.IGNORECASE)
+# Above STRONG_SCORE on purpose: measured over the 792 register titles, 8 took the task away from 97 of them, 10 from 26, and 10 with the
+# leading-verb exemption from fewer; over the 385 plain prompts the confident task matches fell from 34 to a handful.
+OUTRANKS_SCORE = 10.0
+
+
+def algorithm_outranks_task(query, task_id):
+    """True when a request's best-fitting approved algorithm is a strong match that the matched task does not list among its own algorithms.
+    rc48 hand test (#380): 34 of the 385 plain prompts were matched to a mapping task at the confident score ("Sort the districts by population"
+    -> "Map population distribution", "Show only the towns with a population above 100" -> the same) and the injected plan sent the model to a
+    WorldPop fetch instead of the one algorithm that does the job (native:orderbyexpression, native:extractbyexpression). When an algorithm
+    fits that well and the task does not carry it, the task is the wrong answer; the message goes as typed and the router offers the algorithm
+    tools. A task that lists its algorithm (task_algorithms.json) keeps its directive. Pure."""
+    if _MAPPING_LEAD.match(query or ""):
+        return False
+    top = best_for(query)
+    return bool(top and top[1] >= OUTRANKS_SCORE and top[0] not in set(algorithms_for_task(task_id)))
+
+
 _TASK_PATH = os.path.join(os.path.dirname(__file__), "task_algorithms.json")
 _TASK_ALGORITHMS: dict = {}
 _TASKS_LOADED: list[bool] = []
