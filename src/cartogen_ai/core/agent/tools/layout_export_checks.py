@@ -13,6 +13,7 @@ import time
 
 from ...models.sensitivity import get_layer_sensitivity
 from ._sensitivity_notes import protected_layer_notes
+from .map_profiles import sign_off_missing
 
 try:
     from qgis.core import QgsLayoutItemMap, QgsProject
@@ -68,9 +69,12 @@ def protected_in(layers):
     return out
 
 
-def publication_problems(missing, protected):
-    """The reasons a layout is not ready to publish: missing mandatory elements and protected layers it draws. [] means ready. Pure."""
+def publication_problems(missing, protected, sign_off_missing=False):
+    """The reasons a layout is not ready to publish: missing mandatory elements, protected layers it draws and (when its profile requires it)
+    a missing reviewer sign-off. [] means ready. Pure."""
     problems = []
+    if sign_off_missing:
+        problems.append("reviewer sign-off missing (the profile requires a named, dated review with status Reviewed or Approved)")
     if missing:
         problems.append("missing " + ", ".join(missing))
     problems.extend(f"draws '{p['layer']}', tagged {p['level']}" + (f" ({p['reason']})" if p.get("reason") else "") for p in protected)
@@ -175,7 +179,9 @@ def gate_export(layout, tool_name, arguments, purpose, override_reason, confirme
     ids = [i.id() for i in layout.items() if hasattr(i, "id") and i.id()]
     protected = protected_in(layers_drawn(layout))
     publishing = str(purpose or "").lower() == "publication"
-    problems = publication_problems(missing_elements(ids, profile_of(layout).get("required_elements")), protected) if publishing else []
+    profile = profile_of(layout)
+    problems = (publication_problems(missing_elements(ids, profile.get("required_elements")), protected, sign_off_missing(profile))
+                if publishing else [])
     if problems and not (override_reason or "").strip():
         return {"error": "Not ready to publish: " + "; ".join(problems) + ". Fix these, or ask the user whether to export anyway and why, "
                          "then call again with their reason as override_reason. The file was not written.",

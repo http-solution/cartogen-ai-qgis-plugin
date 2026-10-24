@@ -342,10 +342,18 @@ def sources_line(entries, budget=SOURCES_CHAR_BUDGET):
     return prefix + "; ".join(kept) + (f" +{left} more" if left else "")
 
 
-def footer_block(base, levels, sources, disclaimer, credit_text=""):
-    """The footer's full text: classification and AI note, then the sources line, the credits line (PLAN-014), then the disclaimer; empty parts are
-    left out. Pure."""
-    return "\n".join(part for part in (footer_text(base, levels), sources, credit_text, disclaimer) if part)
+def footer_block(base, levels, sources, disclaimer, credit_text="", extra_lines=()):
+    """The footer's full text: classification and AI note, then the sources line, the credits line (PLAN-014), the profile's own lines and
+    sign-off (phase 3b), then the disclaimer; empty parts are left out. Pure."""
+    return "\n".join(part for part in (footer_text(base, levels), sources, credit_text, *extra_lines, disclaimer) if part)
+
+
+def profile_footer_lines(branding):
+    """The footer lines a profile adds: its footer_lines, then the sign-off line. Pure."""
+    from .map_profiles import sign_off_line
+    lines = list((branding or {}).get("footer_lines") or [])
+    sign_off = sign_off_line((branding or {}).get("sign_off"))
+    return lines + ([sign_off] if sign_off else [])
 
 
 FOOTER_LINE_FACTOR = 1.25      # line pitch / font size for the small footer text; a body panel uses the more generous 1.35
@@ -580,7 +588,7 @@ def _apply_layout_style(layout, layout_mm, project, today, template, sources, br
             ("map frame", lambda: _style_map_frame(layout, layout_mm)),
             ("info row", lambda: _style_info(layout, today)),
             ("body panel", lambda: _style_body(layout, layout_mm)),
-            ("footer", lambda: footer_warnings.extend(_style_footer(layout, layout_mm, levels, source_entries, credit_text))),
+            ("footer", lambda: footer_warnings.extend(_style_footer(layout, layout_mm, levels, source_entries, credit_text, profile_footer_lines(branding)))),
             ("legend", lambda: _style_legend(layout, layout_mm, ids, by_id, template, chosen)),
             ("legend fonts", lambda: _style_legend_fonts(layout)),
             ("scale bar", lambda: _style_scalebar(layout))):
@@ -674,7 +682,7 @@ def _clearance_above(layout, label):
     return top - max(bottoms) - FOOTER_CLEARANCE_MM if bottoms else top - FOOTER_CLEARANCE_MM
 
 
-def _style_footer(layout, layout_mm, levels, source_entries=(), credit_text=""):
+def _style_footer(layout, layout_mm, levels, source_entries=(), credit_text="", extra_lines=()):
     """Sets the footer text (classification, AI note, sources, disclaimer) and grows the box to fit. Returns warnings."""
     label = layout.itemById("FOOTER")
     base = label.text()
@@ -684,7 +692,7 @@ def _style_footer(layout, layout_mm, levels, source_entries=(), credit_text=""):
     page_height = layout.pageCollection().page(0).pageSize().height()
     warnings = []
     for budget in (SOURCES_CHAR_BUDGET, 60):
-        text = footer_block(base, levels, sources_line(source_entries, budget), disclaimer, credit_text)
+        text = footer_block(base, levels, sources_line(source_entries, budget), disclaimer, credit_text, extra_lines)
         label.setText(text)
         needed = footer_height_mm(text, label.rect().width(), TYPE_SCALE["footer"])
         new_y, new_h, fits = plan_footer_growth(needed, label.rect().height(), label.y(), page_height, _clearance_above(layout, label))
