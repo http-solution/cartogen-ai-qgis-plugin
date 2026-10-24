@@ -682,6 +682,28 @@ def _clearance_above(layout, label):
     return top - max(bottoms) - FOOTER_CLEARANCE_MM if bottoms else top - FOOTER_CLEARANCE_MM
 
 
+MAP_RECLAIM_SHARE = 0.25   # the main map never gives up more than this share of its height to a longer footer
+
+
+def _reclaim_from_map(layout, layout_mm, label, deficit_mm):
+    """Shortens MAP_MAIN from the bottom by `deficit_mm` (at most MAP_RECLAIM_SHARE of it) so the footer can grow upward. False, and nothing
+    changed, when there is no map directly above the footer or an inset map would then stick out below it."""
+    if deficit_mm <= 0:
+        return False
+    main = layout.itemById("MAP_MAIN")
+    if main is None:
+        return False
+    if label.y() - (main.y() + main.rect().height()) > 2.0:      # the map is not what limits the footer; shrinking it would gain nothing
+        return False
+    amount = min(deficit_mm + 0.2, main.rect().height() * MAP_RECLAIM_SHARE)
+    new_bottom = main.y() + main.rect().height() - amount
+    inset = layout.itemById("INSET_MAP")
+    if inset is not None and inset.y() + inset.rect().height() > new_bottom:
+        return False
+    main.attemptResize(QgsLayoutSize(main.rect().width(), main.rect().height() - amount, layout_mm))
+    return True
+
+
 def _style_footer(layout, layout_mm, levels, source_entries=(), credit_text="", extra_lines=()):
     """Sets the footer text (classification, AI note, sources, disclaimer) and grows the box to fit. Returns warnings."""
     label = layout.itemById("FOOTER")
@@ -699,7 +721,12 @@ def _style_footer(layout, layout_mm, levels, source_entries=(), credit_text="", 
         if fits:
             break
     else:
-        warnings.append("footer: the sources and disclaimer text may not fit in the space available; shorten the disclaimer in Settings")
+        # PLAN-014 3b CI: a profile's footer lines plus sign-off make 6 to 8 lines, more than the strip under the map holds (A3: needs 31 mm, box 18).
+        # The profile asked for those lines, so the map gives up the missing height from its bottom edge before anything is warned about.
+        if extra_lines and _reclaim_from_map(layout, layout_mm, label, needed - new_h):
+            new_y, new_h, fits = plan_footer_growth(needed, label.rect().height(), label.y(), page_height, _clearance_above(layout, label))
+        if not fits:
+            warnings.append("footer: the sources and disclaimer text may not fit in the space available; shorten the disclaimer in Settings")
     if new_h != label.rect().height():
         label.attemptMove(QgsLayoutPoint(label.x(), new_y, layout_mm))
         label.attemptResize(QgsLayoutSize(label.rect().width(), new_h, layout_mm))

@@ -59,7 +59,8 @@ class TestSignOffOnLayouts(unittest.TestCase):
         self.assertIn("Contact: info@example.org", lines)
         self.assertIn("Prepared by A. Analyst | Reviewed by B. Reviewer on 2026-10-20 | Status: Reviewed", lines)
         self.assertLess(lines.index("Contact: info@example.org"), len(lines) - 1)                # the disclaimer is still last
-        print(f"PLAN014 3b style_warnings={res.get('style_warnings')}")
+        self.assertFalse(any("footer" in w for w in res.get("style_warnings", [])), res.get("style_warnings"))   # the map gives up height instead
+        self.assertGreater(layout.itemById("MAP_MAIN").rect().height(), 60)                                      # and keeps most of it
 
     def test_with_no_reviewer_the_footer_says_draft_not_reviewed(self):
         res = self._make({"sign_off": {"prepared_by": "A. Analyst"}})
@@ -71,6 +72,7 @@ class TestSignOffOnLayouts(unittest.TestCase):
         res = self._make({"footer_lines": ["Line one", "Line two", "Line three"], "sign_off": FULL}, page_size="A3")
         layout = QgsProject.instance().layoutManager().layoutByName(res["layout_name"])
         self.assertEqual(layout_geometry_problems(layout), [])
+        self.assertFalse(any("footer" in w for w in res.get("style_warnings", [])), res.get("style_warnings"))
 
     def test_required_sign_off_blocks_publication_until_the_profile_has_a_review(self):
         res = self._make({"require_sign_off": True, "sign_off": {"prepared_by": "A. Analyst"}})
