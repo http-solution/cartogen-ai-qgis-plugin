@@ -65,6 +65,7 @@ class TestCreditsOnFooter(_Base):
         print(f"PLAN014 credit entries: {credit_entries([layer_credit_info(e) for e in visible_layer_entries()])}")
         print(f"PLAN014 footer: {text!r}")
         self.assertIn("Credits: Basemap: OpenStreetMap contributors (ODbL)", text)
+        self.assertFalse(res.get("style_warnings"), f"a landscape footer with a credits line must fit: {res.get('style_warnings')}")
         self.assertNotIn(" more", text, "QGIS's own long rights text for the OSM layer was listed again next to the vetted credit")
 
     def test_no_basemap_no_credits_line(self):

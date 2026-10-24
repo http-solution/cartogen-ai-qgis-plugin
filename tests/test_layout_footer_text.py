@@ -2,6 +2,7 @@
 import unittest
 
 from cartogen_ai.core.agent.tools.layout_style import (
+    footer_height_mm,
     DEFAULT_DISCLAIMER, NOT_RECORDED, disclaimer_text, footer_block, plan_footer_growth, source_entry, sources_line,
 )
 
@@ -72,6 +73,20 @@ class TestGrowth(unittest.TestCase):
         self.assertFalse(fits)
         self.assertEqual(h, 8 + 3 + 2)
         self.assertEqual(y, 196)
+
+
+class TestFooterHeight(unittest.TestCase):
+    def test_a_three_line_footer_fits_the_landscape_space_that_a_four_line_one_just_fits(self):
+        # A4 landscape: the footer box is 8 mm, 3 mm of page margin below it and 0.5 mm of gap above it = 11.5 mm available
+        three = "AI note\nSources: a (b)\nBoundaries, names and designations shown do not imply official endorsement or acceptance."
+        self.assertLessEqual(footer_height_mm(three, 275, 7.0), 11.5)
+        self.assertLessEqual(footer_height_mm(three + "\nCredits: Basemap: OpenStreetMap contributors (ODbL)", 275, 7.0), 14.0)
+
+    def test_a_long_line_wraps_into_more_lines(self):
+        self.assertGreater(footer_height_mm("x" * 600, 275, 7.0), footer_height_mm("x" * 60, 275, 7.0))
+
+    def test_empty_text_still_gets_a_line(self):
+        self.assertGreater(footer_height_mm("", 275, 7.0), 1.0)
 
 
 if __name__ == "__main__":
