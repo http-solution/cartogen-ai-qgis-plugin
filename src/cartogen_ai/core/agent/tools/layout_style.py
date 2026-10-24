@@ -12,8 +12,9 @@ What this applies, per item id (TITLE, LEGEND, SCALEBAR, MAP_INFO, BODY_TEXT, FO
   extent actually shows;
 - the preparation date in the info row, and a classification prefix on the footer when any visible layer is tagged
   RESTRICTED or SENSITIVE.
-Positions and sizes are NOT touched: the geometry carries a documented history of overlap bugs (BUG-2026-09-11-1) that was
-live-verified, so this module only changes how items look. Every item is styled independently and best-effort: a failure
+Positions and sizes are NOT touched, with one exception: the FOOTER grows (into the bottom margin first, then upward into free
+space) when the sources and disclaimer lines need more room (PLAN-011 phase C). The rest of the geometry carries a documented
+history of overlap bugs (BUG-2026-09-11-1) that was live-verified, so this module otherwise only changes how items look. Every item is styled independently and best-effort: a failure
 is reported as a warning and the layout is still produced.
 """
 import contextlib
@@ -23,7 +24,7 @@ from .routing_style import ACCESS_STYLES
 
 try:
     from qgis.core import (
-        Qgis, QgsLayoutMeasurement, QgsLayoutSize, QgsProject, QgsTextFormat, QgsUnitTypes,
+        Qgis, QgsLayoutMeasurement, QgsLayoutPoint, QgsLayoutSize, QgsProject, QgsTextFormat, QgsUnitTypes,
     )
     from qgis.PyQt.QtCore import Qt
     from qgis.PyQt.QtGui import QColor, QFont
@@ -254,6 +255,68 @@ def footer_text(base, levels):
     return classification_prefix(levels) + base
 
 
+# PLAN-011 phase C (owner decision 2026-10-24): a neutral default; the organisation's own wording (for example the standard UN boundary text)
+# is supplied through Settings, not written here.
+DEFAULT_DISCLAIMER = ("Boundaries, names and designations shown do not imply official endorsement or acceptance. "
+                      "Check data sensitivity before sharing.")
+SOURCES_CHAR_BUDGET = 150
+NOT_RECORDED = "source not recorded"
+
+
+def disclaimer_text(enabled=True, custom=""):
+    """The disclaimer line for the footer: '' when switched off, the organisation's wording when set, else the neutral default. Pure."""
+    if not enabled:
+        return ""
+    return (str(custom or "").strip()) or DEFAULT_DISCLAIMER
+
+
+def source_entry(name, publisher="", date="", identifier=""):
+    """One layer's source text. Only what the layer's own metadata says is used; with none of it the entry says 'source not recorded'. Pure."""
+    detail = "; ".join(str(x).strip() for x in (publisher, date) if x and str(x).strip())
+    if not detail and identifier and str(identifier).strip():
+        detail = f"file {identifier}"
+    return f"{name} ({detail or NOT_RECORDED})"
+
+
+def sources_line(entries, budget=SOURCES_CHAR_BUDGET):
+    """'Sources: a (...); b (...)' within `budget` characters; layers that do not fit are counted ('+2 more'), never dropped silently. Pure."""
+    entries = [e for e in entries if e]
+    if not entries:
+        return ""
+    prefix = "Sources: "
+    full = prefix + "; ".join(entries)
+    if len(full) <= budget:
+        return full
+    limit = budget - len(" +99 more")
+    kept, used = [], len(prefix)
+    for entry in entries:
+        add = len(entry) + (2 if kept else 0)
+        if kept and used + add > limit:
+            break
+        kept.append(entry if used + add <= limit else entry[: max(10, limit - used - 1)] + "~")
+        used += add
+    left = len(entries) - len(kept)
+    return prefix + "; ".join(kept) + (f" +{left} more" if left else "")
+
+
+def footer_block(base, levels, sources, disclaimer):
+    """The footer's full text: classification and AI note, then the sources line, then the disclaimer; empty parts are left out. Pure."""
+    return "\n".join(part for part in (footer_text(base, levels), sources, disclaimer) if part)
+
+
+def plan_footer_growth(needed_mm, height_mm, y_mm, page_height_mm, clearance_above_mm, bottom_gap_mm=1.0):
+    """(new_y, new_height, fits) for a footer that needs `needed_mm`: grow into the page margin below first, then upward into the free space above. Pure."""
+    if needed_mm <= height_mm:
+        return y_mm, height_mm, True
+    extra = needed_mm - height_mm
+    down = max(0.0, page_height_mm - bottom_gap_mm - (y_mm + height_mm))
+    take_down = min(extra, down)
+    extra -= take_down
+    take_up = min(extra, max(0.0, clearance_above_mm))
+    extra -= take_up
+    return y_mm - take_up, height_mm + take_down + take_up, extra <= 1e-6
+
+
 def info_text(base, today=None):
     return f"{base}   |   {prepared_stamp(today)}"
 
@@ -340,7 +403,39 @@ def visible_layer_entries(project=None):
     return out
 
 
-def apply_layout_style(layout, layout_mm, project=None, today=None, template="standard"):
+def layer_source_entry(layer):
+    """source_entry() for a real layer, from its own metadata (organisation, publication date) and, failing that, its file name. Never raises."""
+    import os
+    publisher = date = identifier = ""
+    with contextlib.suppress(Exception):
+        md = layer.metadata()
+        contacts = md.contacts()
+        publisher = contacts[0].organization if contacts else ""
+        for kind in ("Published", "Revised", "Created"):
+            moment = md.dateTime(getattr(Qgis.MetadataDateType, kind))
+            if moment.isValid():
+                date = moment.toString("yyyy-MM-dd")
+                break
+    with contextlib.suppress(Exception):
+        if str(layer.providerType()).lower() not in ("memory", "wms", "xyz", "arcgismapserver"):
+            identifier = os.path.basename(str(layer.source()).split("|")[0])
+    return source_entry(layer.name(), publisher, date, identifier)
+
+
+def _footer_settings():
+    """(disclaimer_enabled, custom_text) from the QGIS settings; the neutral default when unreadable. Never raises."""
+    try:
+        from qgis.core import QgsSettings
+        from ....infrastructure.settings_keys import SETTINGS_LAYOUT_DISCLAIMER_ENABLED, SETTINGS_LAYOUT_DISCLAIMER_TEXT
+        settings = QgsSettings()
+        enabled = settings.value(SETTINGS_LAYOUT_DISCLAIMER_ENABLED, True)
+        enabled = enabled not in (False, "false", "False", 0, "0")
+        return enabled, str(settings.value(SETTINGS_LAYOUT_DISCLAIMER_TEXT, "") or "")
+    except Exception:
+        return True, ""
+
+
+def apply_layout_style(layout, layout_mm, project=None, today=None, template="standard", sources=None):
     """Styles the items create_print_layout made. Returns {'warnings': [...], 'legend_layers': [names], 'classification': str}."""
     warnings = []
     if not QGIS_AVAILABLE:
@@ -360,6 +455,9 @@ def apply_layout_style(layout, layout_mm, project=None, today=None, template="st
         warnings.append(f"sensitivity lookup failed: {exc}")
 
     chosen = {"ids": ids}      # the layers the legend really lists (legend() may drop those that lie off the map)
+    drawn = [by_id[i] for i in ids if i in by_id]
+    source_entries = [str(x) for x in sources] if sources else [layer_source_entry(layer) for layer in drawn]
+    footer_warnings = []
 
     def step(name, fn):
         try:
@@ -372,11 +470,12 @@ def apply_layout_style(layout, layout_mm, project=None, today=None, template="st
             ("map frame", lambda: _style_map_frame(layout, layout_mm)),
             ("info row", lambda: _style_info(layout, today)),
             ("body panel", lambda: _style_body(layout, layout_mm)),
-            ("footer", lambda: _style_footer(layout, levels)),
+            ("footer", lambda: footer_warnings.extend(_style_footer(layout, layout_mm, levels, source_entries))),
             ("legend", lambda: _style_legend(layout, layout_mm, ids, by_id, template, chosen)),
             ("legend fonts", lambda: _style_legend_fonts(layout)),
             ("scale bar", lambda: _style_scalebar(layout))):
         step(name, fn)
+    warnings.extend(footer_warnings)
     return {"warnings": warnings, "legend_layers": [by_id[i].name() for i in chosen["ids"]],
             "classification": classification_prefix(levels).strip(" -")}
 
@@ -422,10 +521,43 @@ def _style_body(layout, layout_mm):
             label.attemptResize(QgsLayoutSize(size.width(), needed, layout_mm))
 
 
-def _style_footer(layout, levels):
+def _clearance_above(layout, label):
+    """Free space (mm) between the footer and the nearest layout item above it that overlaps it horizontally. Never raises."""
+    top = label.y()
+    left, right = label.x(), label.x() + label.rect().width()
+    bottoms = []
+    for item in layout.items():
+        if item is label or not (hasattr(item, "id") and item.id()):
+            continue
+        item_right = item.x() + item.rect().width()
+        bottom = item.y() + item.rect().height()
+        if item.x() < right and item_right > left and bottom <= top + 1.0:
+            bottoms.append(bottom)
+    return top - max(bottoms) - 1.5 if bottoms else top - 1.5
+
+
+def _style_footer(layout, layout_mm, levels, source_entries=()):
+    """Sets the footer text (classification, AI note, sources, disclaimer) and grows the box to fit. Returns warnings."""
     label = layout.itemById("FOOTER")
-    label.setText(footer_text(label.text(), levels))
+    base = label.text()
+    enabled, custom = _footer_settings()
+    disclaimer = disclaimer_text(enabled, custom)
     label.setTextFormat(text_format(TYPE_SCALE["footer"], PALETTE["muted"], italic=True))
+    page_height = layout.pageCollection().page(0).pageSize().height()
+    warnings = []
+    for budget in (SOURCES_CHAR_BUDGET, 60):
+        text = footer_block(base, levels, sources_line(source_entries, budget), disclaimer)
+        label.setText(text)
+        needed = body_text_height_mm(text, label.rect().width(), TYPE_SCALE["footer"], margin_mm=0.5, minimum_mm=1.0)
+        new_y, new_h, fits = plan_footer_growth(needed, label.rect().height(), label.y(), page_height, _clearance_above(layout, label))
+        if fits:
+            break
+    else:
+        warnings.append("footer: the sources and disclaimer text may not fit in the space available; shorten the disclaimer in Settings")
+    if new_h != label.rect().height():
+        label.attemptMove(QgsLayoutPoint(label.x(), new_y, layout_mm))
+        label.attemptResize(QgsLayoutSize(label.rect().width(), new_h, layout_mm))
+    return warnings
 
 
 def _style_legend(layout, layout_mm, ids, by_id, template, chosen):

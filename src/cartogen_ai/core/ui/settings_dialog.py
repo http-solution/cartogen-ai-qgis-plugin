@@ -45,6 +45,8 @@ from ...infrastructure.settings_keys import (
     SETTINGS_MAX_TOOL_ITERATIONS as MAX_TOOL_ITERATIONS_KEY,
     SETTINGS_MAX_TURN_TOKENS as MAX_TURN_TOKENS_KEY,
     SETTINGS_LAYOUT_MASTHEAD_COLOR as LAYOUT_MASTHEAD_COLOR_KEY,
+    SETTINGS_LAYOUT_DISCLAIMER_ENABLED as LAYOUT_DISCLAIMER_ENABLED_KEY,
+    SETTINGS_LAYOUT_DISCLAIMER_TEXT as LAYOUT_DISCLAIMER_TEXT_KEY,
     SETTINGS_AUTO_OPEN_DOCK as AUTO_OPEN_DOCK_KEY,
     SETTINGS_LOCAL_DATA_ASK_ABOVE_MB as LOCAL_DATA_ASK_ABOVE_MB_KEY,
     provider_model_list_key,
@@ -596,6 +598,17 @@ class CartogenAiSettingsDialog(QDialog):
             "Title-bar colour on exported print layouts, as #rrggbb. Empty or invalid = the default slate. "
             "Light colours automatically get dark title text.")
         limits_form.addRow("Print layout title colour:", self.layout_masthead_edit)
+        self.layout_disclaimer_checkbox = QCheckBox("Add a boundary / data-sensitivity line to the footer of print layouts")
+        self.layout_disclaimer_checkbox.setChecked(bool(self.settings.value(LAYOUT_DISCLAIMER_ENABLED_KEY, True, type=bool)))
+        limits_form.addRow("Layout disclaimer:", self.layout_disclaimer_checkbox)
+        self.layout_disclaimer_edit = QLineEdit()
+        self.layout_disclaimer_edit.setMaxLength(300)
+        self.layout_disclaimer_edit.setPlaceholderText("empty = neutral default; enter your organisation's wording here")
+        self.layout_disclaimer_edit.setText(str(self.settings.value(LAYOUT_DISCLAIMER_TEXT_KEY, "") or ""))
+        self.layout_disclaimer_edit.setToolTip(
+            "The exact boundary and data-sensitivity wording your organisation requires on a published map. "
+            "Empty uses a neutral default. Keep it to a line or two: the footer grows to fit, but the space on the page is limited.")
+        limits_form.addRow("Disclaimer wording:", self.layout_disclaimer_edit)
         self.local_data_ask_spin = QSpinBox()
         self.local_data_ask_spin.setRange(0, 100_000)
         self.local_data_ask_spin.setSuffix(" MB")
@@ -974,6 +987,8 @@ QPushButton#settingsCancelButton {{
         self.settings.setValue(MAX_TURN_TOKENS_KEY, self.max_turn_tokens_spin.value())
         self.settings.setValue(AUTO_OPEN_DOCK_KEY, self.auto_open_dock_checkbox.isChecked())
         self.settings.setValue(LAYOUT_MASTHEAD_COLOR_KEY, self.layout_masthead_edit.text().strip())
+        self.settings.setValue(LAYOUT_DISCLAIMER_ENABLED_KEY, self.layout_disclaimer_checkbox.isChecked())
+        self.settings.setValue(LAYOUT_DISCLAIMER_TEXT_KEY, self.layout_disclaimer_edit.text().strip())
         self.settings.setValue(LOCAL_DATA_ASK_ABOVE_MB_KEY, self.local_data_ask_spin.value())
         self.settings.setValue(EGRESS_GATE_MODE_KEY, self.egress_gate_mode_combo.currentData())
         self.settings.setValue(EGRESS_GATE_STRICT_KEY, self.egress_gate_strict_checkbox.isChecked())

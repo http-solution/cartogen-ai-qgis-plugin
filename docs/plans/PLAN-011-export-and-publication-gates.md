@@ -1,6 +1,6 @@
 # PLAN-011: export and publication gates
 
-Status: in progress
+Status: done
 
 ## Goal
 Make "this map can leave the building" a checked state instead of an accident. Today (read in the code on 2026-10-24):
@@ -44,3 +44,4 @@ One pull request per phase; revert the phase. Phase B is behind the confirm card
 - 2026-10-24: plan written after reading `export_layout`, `layout_tools.py`, `models/dataset_status.py` and `models/sensitivity.py`. No code changed. Owner answered the three decisions (recorded in Scope). Phase A starts on the owner's go.
 - 2026-10-24: plan merged as #392. Phase A built (`layout_export_checks.py`; wired into `export_layout` and `create_print_layout`): exports now report protected layers drawn and missing mandatory elements as warnings. Phase B and C not started. Not hand-tested.
 - 2026-10-24: Phase A merged (#393). Phase B built: `gate_export` / `build_time_preview` in `layout_export_checks.py`; `export_layout` gains `purpose` and `override_reason`; `create_print_layout` gains a UI-only `confirmed`. What the publication check tests: the four mandatory elements plus the map and any protected layer drawn (not per-layer dataset status; a layer without a tracked status is not blocked). The sensitivity card also covers `create_print_layout`'s own export, checked before anything is built, using the layers ticked in the project. Phase C not started. Not hand-tested.
+- 2026-10-24: Phase C built. Correction to the plan: the "map prepared" date already exists (`Prepared <date>` in the info row, `layout_style.prepared_stamp`), so it was not rebuilt; the stale gap note in `HUMANITARIAN_CARTOGRAPHY_STANDARDS.md` section VIII is superseded by this entry (that file is a dated snapshot and was not edited). New: a `Sources:` line in the FOOTER (each drawn layer's own metadata organisation and publication date, else the file name, else "source not recorded"; or the caller's `sources` list), and a disclaimer line from two Settings (`layout_disclaimer_enabled`, default on; `layout_disclaimer_text`, empty = neutral default; both in the Settings dialog). The footer grows into the bottom margin first, then upward into free space; if it still cannot fit, sources are shortened and a warning is returned. Layout geometry is checked by rectangles in CI, not by looking at a render. Not hand-tested; the organisation's exact wording is still owed by the owner.
