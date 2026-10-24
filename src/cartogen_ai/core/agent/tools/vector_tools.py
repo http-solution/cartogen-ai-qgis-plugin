@@ -2276,6 +2276,30 @@ def _grid_snap(x, y, cell_size):
     return (cell_x + 0.5) * cell_size, (cell_y + 0.5) * cell_size
 
 
+def _admin_unit_centroid(geom, index, admin_features_by_id, to_admin, to_layer):
+    """The centroid (in the point layer's CRS) of the admin polygon containing `geom`, or None when no polygon matches or the CRS transform
+    fails. The match runs in the admin layer's CRS (`to_admin` moves the point there, `to_layer` brings the centroid back; both None when the
+    two layers share a CRS), because the spatial index and polygons are in that CRS (PLAN-010)."""
+    probe = QgsGeometry(geom)
+    try:
+        if to_admin is not None:
+            probe.transform(to_admin)
+    except Exception:    # QgsCsException: the point cannot be expressed in the admin CRS, so it cannot be matched
+        return None
+    for fid in index.intersects(probe.boundingBox()):
+        candidate = admin_features_by_id[fid].geometry()
+        if candidate.contains(probe) or candidate.intersects(probe):
+            centroid = candidate.centroid().asPoint()
+            point = QgsPointXY(centroid.x(), centroid.y())
+            if to_layer is None:
+                return point
+            try:
+                return to_layer.transform(point)
+            except Exception:
+                return None
+    return None
+
+
 @register_tool(
     "obfuscate_sensitive_points",
     "Displace or aggregate sensitive point locations (e.g. GBV survivors, individual IDP "
@@ -2347,9 +2371,16 @@ def obfuscate_sensitive_points(layer_name, method, radius=None, cell_size=None, 
 
     index = None
     admin_features_by_id = None
+    to_admin = to_layer = None
     if method == "admin_unit_snap":
         index = QgsSpatialIndex(admin_layer.getFeatures())
         admin_features_by_id = {f.id(): f for f in _ck.features(admin_layer, "Vector: reading features")}
+        # PLAN-010: the polygons are indexed and matched in THEIR CRS, so a point in another CRS was tested against the wrong coordinates (no
+        # match, or the wrong unit) and the centroid was written into the point layer's CRS untransformed. Match in the admin CRS, write back
+        # in the point layer's CRS.
+        if admin_layer.crs() != layer.crs():
+            to_admin = QgsCoordinateTransform(layer.crs(), admin_layer.crs(), QgsProject.instance())
+            to_layer = QgsCoordinateTransform(admin_layer.crs(), layer.crs(), QgsProject.instance())
 
     rng = random.Random(seed)  # noqa: S311  # nosec B311 (seeded sampling for reproducibility, not security)
     new_features = []
@@ -2368,17 +2399,10 @@ def obfuscate_sensitive_points(layer_name, method, radius=None, cell_size=None, 
             nx, ny = _grid_snap(pt.x(), pt.y(), cell_size)
             new_pt = QgsPointXY(nx, ny)
         else:  # admin_unit_snap
-            matched_geom = None
-            for fid in index.intersects(geom.boundingBox()):
-                candidate_geom = admin_features_by_id[fid].geometry()
-                if candidate_geom.contains(geom) or candidate_geom.intersects(geom):
-                    matched_geom = candidate_geom
-                    break
-            if matched_geom is None:
+            new_pt = _admin_unit_centroid(geom, index, admin_features_by_id, to_admin, to_layer)
+            if new_pt is None:
                 unmatched_count += 1
                 continue
-            centroid = matched_geom.centroid().asPoint()
-            new_pt = QgsPointXY(centroid.x(), centroid.y())
 
         new_feat = QgsFeature(new_layer.fields())
         new_feat.setGeometry(QgsGeometry.fromPointXY(new_pt))

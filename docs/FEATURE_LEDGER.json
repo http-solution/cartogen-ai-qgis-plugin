@@ -664,6 +664,42 @@
           "tests/test_zoom_labels_live.py::TestZoomLabels::test_a_330_district_layer_gets_labels_that_show_only_when_zoomed_in"
     ],
     "hand_verified": "not hand-tested; CI live only"
+  },
+  {
+    "id": "obfuscate-admin-snap-cross-crs",
+    "feature": "obfuscate_sensitive_points admin_unit_snap matches and snaps correctly when points and admin polygons are in different CRSs",
+    "issues": [],
+    "since": "rc49 (unreleased)",
+    "sources": ["src/cartogen_ai/core/agent/tools/vector_tools.py", "docs/plans/PLAN-010-audit-correctness-fixes.md"],
+    "guards": ["tests/test_plan010_live.py::TestObfuscateAdminSnapAcrossCrs::test_points_in_4326_snap_to_the_centroid_of_a_polygon_in_utm"],
+    "hand_verified": "not hand-tested; CI live only"
+  },
+  {
+    "id": "coverage-report-missing-target",
+    "feature": "generate_sector_coverage_report never charts a group with no usable target as 0% coverage",
+    "issues": [],
+    "since": "rc49 (unreleased)",
+    "sources": ["src/cartogen_ai/core/agent/tools/reporting_tools.py", "docs/plans/PLAN-010-audit-correctness-fixes.md"],
+    "guards": ["tests/test_plan010_correctness.py::TestCoverageChartSkipsMissingTargets::test_groups_without_a_target_are_not_plotted_as_zero"],
+    "hand_verified": "not hand-tested; offline unit tests only"
+  },
+  {
+    "id": "qa-classification-unknown-on-error",
+    "feature": "The QA checklist reports the classification check as unknown (not clean) when the layer's features cannot be read",
+    "issues": [],
+    "since": "rc49 (unreleased)",
+    "sources": ["src/cartogen_ai/core/agent/tools/qa_checklist_tools.py", "docs/plans/PLAN-010-audit-correctness-fixes.md"],
+    "guards": ["tests/test_plan010_correctness.py::TestQaUnreadableLayerIsNotClean::test_feature_read_failure_reports_unknown"],
+    "hand_verified": "not hand-tested; offline unit tests only"
+  },
+  {
+    "id": "result-replace-add-before-remove",
+    "feature": "A result layer replacement adds the new layer before removing the old one, and a failed save into the results GeoPackage is reported",
+    "issues": [],
+    "since": "rc49 (unreleased)",
+    "sources": ["src/cartogen_ai/core/agent/tools/logistics_tools.py", "docs/plans/PLAN-010-audit-correctness-fixes.md"],
+    "guards": ["tests/test_plan010_live.py::TestReplaceKeepsOldResultWhenAddFails::test_add_failure_leaves_the_previous_result", "tests/test_plan010_correctness.py::TestPersistWarning::test_a_failed_write_is_reported"],
+    "hand_verified": "not hand-tested; CI live only for the replacement order"
   }
  ]
 }
