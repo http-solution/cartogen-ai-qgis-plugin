@@ -42,6 +42,16 @@ class TestCreditEntries(unittest.TestCase):
     def test_hidden_layers_and_plain_data_layers_add_nothing(self):
         self.assertEqual(credit_entries([self._layer(provider="wms", source=OSM, visible=False), self._layer()]), [])
 
+    def test_a_known_basemaps_own_long_rights_text_does_not_repeat_the_credit(self):
+        rights = ["OpenStreetMap: Base map and data from OpenStreetMap and OpenStreetMap Foundation (CC-BY-SA)."]
+        self.assertEqual(credit_entries([self._layer(name="OpenStreetMap", provider="wms", source=OSM, rights=rights)]),
+                         ["Basemap: OpenStreetMap contributors (ODbL)"])
+
+    def test_an_unknown_web_layer_with_rights_text_uses_it_instead_of_not_recorded(self):
+        entries = credit_entries([self._layer(name="tiles", provider="wms", source="type=xyz&url=https://example.org/t/{z}/{x}/{y}.png",
+                                              rights=["(c) Example Org"])])
+        self.assertEqual(entries, ["Basemap tiles: (c) Example Org"])
+
     def test_a_layers_own_rights_text_is_used(self):
         self.assertEqual(credit_entries([self._layer(name="roads", rights=["CC BY 4.0 OCHA"])]), ["roads: CC BY 4.0 OCHA"])
 

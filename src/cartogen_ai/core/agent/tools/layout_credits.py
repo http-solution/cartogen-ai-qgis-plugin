@@ -35,26 +35,35 @@ def basemap_credit(source, basemaps=None):
 
 
 def credit_entries(layers):
-    """['Basemap: OpenStreetMap contributors (ODbL)', ...] for the visible web layers, plus each visible layer's own rights text.
+    """['Basemap: OpenStreetMap contributors (ODbL)', ...] for the visible layers, each credit once, in order of first appearance.
 
-    layers: iterable of dicts {name, provider, source, rights (list of str), visible}. Order of first appearance, each credit once. Pure."""
+    layers: iterable of dicts {name, provider, source, rights (list of str), visible}. A web basemap the vetted table knows gets that credit and
+    nothing else (CI on QGIS 4.2.2 showed QGIS fills in its own long rights text for an OpenStreetMap layer, which only repeated it); an unknown web
+    layer uses its own rights text if it has one, else says 'credit not recorded'; any other layer's rights text is listed as it is. Pure."""
     seen, out = set(), []
+
+    def add(text):
+        if text and text not in seen:
+            seen.add(text)
+            out.append(text)
+
     for layer in layers:
         if not layer.get("visible"):
             continue
-        provider = str(layer.get("provider") or "").lower()
-        if provider in WEB_PROVIDERS:
+        name = layer.get("name")
+        rights = [str(r).strip() for r in (layer.get("rights") or []) if str(r).strip()]
+        if str(layer.get("provider") or "").lower() in WEB_PROVIDERS:
             credit, known = basemap_credit(layer.get("source"))
-            text = f"Basemap: {credit}" if known else f"Basemap {layer.get('name')}: {NOT_RECORDED}" + (f" ({credit})" if credit else "")
-            if text not in seen:
-                seen.add(text)
-                out.append(text)
-        for raw in layer.get("rights") or []:
-            right = str(raw).strip()
-            text = f"{layer.get('name')}: {right}"
-            if right and text not in seen:
-                seen.add(text)
-                out.append(text)
+            if known:
+                add(f"Basemap: {credit}")
+            elif rights:
+                for right in rights:
+                    add(f"Basemap {name}: {right}")
+            else:
+                add(f"Basemap {name}: {NOT_RECORDED}" + (f" ({credit})" if credit else ""))
+        else:
+            for right in rights:
+                add(f"{name}: {right}")
     return out
 
 
