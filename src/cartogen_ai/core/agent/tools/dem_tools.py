@@ -14,7 +14,7 @@ import math
 import os
 
 from .registry import register_tool
-from ._paths import resolve_output_path
+from ._paths import resolve_output_path, temp_location_note
 
 try:
     from qgis.core import QgsCoordinateReferenceSystem, QgsCoordinateTransform, QgsProject, QgsRasterLayer
@@ -203,6 +203,9 @@ def fetch_dem(layer_name=None, west=None, south=None, east=None, north=None, lat
               "vertical_datum": "EGM2008 orthometric", "model_type": "DSM (surface, not bare earth)",
               "attribution": ATTRIBUTION, "liability_notice": LIABILITY_NOTICE, "endorsement_note": ENDORSEMENT_NOTE,
               "caveats": CAVEATS}
+    where = temp_location_note(path)
+    if where:
+        result["storage_note"] = where
     if missing:
         result["tiles_absent"] = missing
         result["warning"] = "Some tiles are not published (usually open sea); those parts of the area have no elevation."

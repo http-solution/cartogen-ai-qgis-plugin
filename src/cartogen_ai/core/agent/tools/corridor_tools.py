@@ -8,6 +8,7 @@ metadata, and a styled result."""
 import os
 
 from . import _chunked as _ck
+from ._paths import temp_location_note
 from .registry import register_tool
 from ._qgis_enum_compat import resolve_qgis_enum  # noqa: F401  (kept for sibling modules' symmetry)
 from ._layer_checks import require_valid_layer
@@ -223,6 +224,10 @@ def generate_contours(raster_layer, interval=10.0, band=1, output_name=None):
                       if hasattr(dem.crs().mapUnits(), "name") else str(dem.crs().mapUnits())},
               "note": ("The interval is the vertical spacing of the lines. Their horizontal detail is limited by the DEM's pixel size "
                        "and source; do not describe the contours as accurate to the interval.")}
+    result["path"] = path
+    where = temp_location_note(path)
+    if where:
+        result["storage_note"] = where
     if layer.featureCount() > MAX_CONTOURS_WARN:
         result["warning"] = f"{layer.featureCount():,} contour lines: consider a larger interval or a smaller area."
     return result

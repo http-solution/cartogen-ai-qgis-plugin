@@ -40,3 +40,34 @@ def resolve_output_path(path, project_home=None, fallback_dir=None):
     home = _project_home() if project_home is None else project_home
     base = home or (fallback_dir if fallback_dir is not None else _profile_export_dir())
     return os.path.normpath(os.path.join(base, text))
+
+
+def temp_location_note(path, temp_dir=None):
+    """A sentence for the tool result when `path` is inside the system temporary folder, else ''. Pure (PLAN-012 item 3).
+
+    The DEM, contour and temporal-frame tools write to a fresh temporary folder when no path is given, and nothing removes it. It is left in
+    place on purpose (a loaded layer or a saved project may point into it), so the user is told where the files are instead of finding out later."""
+    import tempfile
+    root = os.path.normcase(os.path.realpath(temp_dir or tempfile.gettempdir()))
+    target = os.path.normcase(os.path.realpath(str(path)))
+    if not path or not (target == root or target.startswith(root + os.sep)):
+        return ""
+    return (f"Saved in the system temporary folder ({os.path.dirname(os.path.realpath(str(path)))}), which the operating system or a cleanup "
+            "tool may empty. Export the layer or copy the files if you want to keep them.")
+
+
+def safe_file_stem(name, fallback="layer"):
+    """`name` reduced to one safe file-name stem: no path separators or dots-only names, no leading dots. Pure (PLAN-012 item 2)."""
+    stem = "".join(c if c.isalnum() or c in "_- " else "_" for c in str(name or "")).strip().strip("._ ")
+    return stem or fallback
+
+
+def unique_path(directory, stem, extension, exists=None):
+    """`directory/stem.ext`, or `stem_2.ext`, `stem_3.ext`... so an earlier file is never overwritten. `exists` is injectable for tests."""
+    check = exists or os.path.exists
+    candidate = os.path.join(directory, f"{stem}{extension}")
+    counter = 2
+    while check(candidate):
+        candidate = os.path.join(directory, f"{stem}_{counter}{extension}")
+        counter += 1
+    return candidate
