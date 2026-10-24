@@ -17,7 +17,7 @@ try:
         QgsLayoutItemScaleBar, QgsLayoutItemLabel, QgsLayoutItemPicture,
         QgsLayoutPoint, QgsLayoutSize, QgsUnitTypes, QgsLayoutExporter,
         QgsApplication, QgsCoordinateTransform, QgsLayoutItemMapGrid,
-        QgsLayoutItemMapOverview, QgsRectangle
+        QgsLayoutItemMapOverview, QgsRectangle, QgsVectorLayer
     )
     from qgis.utils import iface
     try:
@@ -107,6 +107,48 @@ def _extent_to_canvas_crs(canvas, extent, source_crs):
         return transform.transformBoundingBox(extent)
     except Exception:
         return None
+
+
+def pick_layout_extent(canvas, full, vectors, share=0.5, margin=0.05):
+    """(xmin, ymin, xmax, ymax) for the layout's main map, or None to keep the canvas view. Each argument is a bounds tuple or None. Pure.
+
+    GitHub #129, rc48 OI-129 (2026-10-24): after "Zoom Full" the canvas shows the whole project, so a layout that follows it was framed on the
+    DEM (1:20,904) and the road network, which is what the map is about, appeared only in the inset. The layout still follows what the user is
+    looking at; it only steps in when the canvas is showing EVERYTHING (it contains the project's full extent) and the visible vector layers
+    fill less than `share` of it, then it frames those layers with a small margin. A zoomed-in or panned canvas is left alone."""
+    if not canvas or not full or not vectors:
+        return None
+
+    def area(b):
+        return max(b[2] - b[0], 0.0) * max(b[3] - b[1], 0.0)
+
+    tolerance = 1e-9 + 0.001 * max(canvas[2] - canvas[0], canvas[3] - canvas[1])
+    shows_everything = (canvas[0] <= full[0] + tolerance and canvas[1] <= full[1] + tolerance
+                        and canvas[2] >= full[2] - tolerance and canvas[3] >= full[3] - tolerance)
+    if not shows_everything or area(canvas) <= 0 or area(vectors) <= 0 or area(vectors) >= share * area(canvas):
+        return None
+    pad_x, pad_y = (vectors[2] - vectors[0]) * margin, (vectors[3] - vectors[1]) * margin
+    return vectors[0] - pad_x, vectors[1] - pad_y, vectors[2] + pad_x, vectors[3] + pad_y
+
+
+def _visible_vector_bounds(canvas):
+    """Union of the extents of the checked vector layers with features, in the canvas CRS, as a bounds tuple (None when there is none)."""
+    boxes = []
+    root = QgsProject.instance().layerTreeRoot()
+    for layer in root.checkedLayers():
+        if not isinstance(layer, QgsVectorLayer) or not layer.isSpatial() or layer.featureCount() == 0:
+            continue
+        box = _extent_to_canvas_crs(canvas, layer.extent(), layer.crs())
+        if box is not None and not box.isNull():
+            boxes.append((box.xMinimum(), box.yMinimum(), box.xMaximum(), box.yMaximum()))
+    if not boxes:
+        return None
+    return min(b[0] for b in boxes), min(b[1] for b in boxes), max(b[2] for b in boxes), max(b[3] for b in boxes)
+
+
+def _full_project_bounds(canvas):
+    box = canvas.fullExtent()
+    return None if box.isNull() else (box.xMinimum(), box.yMinimum(), box.xMaximum(), box.yMaximum())
 
 
 def padded_extent_bounds(xmin, ymin, xmax, ymax, geographic):
@@ -544,6 +586,13 @@ def create_print_layout(title: str, page_orientation: str = "Landscape", output_
                     map_extent = QgsRectangle(*_padded)
             canvas.setExtent(map_extent)
             canvas.refresh()
+        if map_extent is None and canvas:
+            with contextlib.suppress(Exception):    # a layout must still be made if the extent cannot be judged
+                c = canvas.extent()
+                picked = pick_layout_extent((c.xMinimum(), c.yMinimum(), c.xMaximum(), c.yMaximum()), _full_project_bounds(canvas),
+                                            _visible_vector_bounds(canvas))
+                if picked:
+                    map_extent = QgsRectangle(*picked)
         map_item = QgsLayoutItemMap(layout)
         # A freshly constructed QgsLayoutItemMap has a zero-size rect, and
         # setExtent() on a zero-size item produces a degenerate scale --
