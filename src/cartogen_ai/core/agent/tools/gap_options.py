@@ -29,6 +29,28 @@ def check_box(x_mm, y_mm, width_mm, height_mm):
     return box, None
 
 
+def free_box(taken, page_width_mm, page_height_mm, width_mm, height_mm, margin_mm=10.0, gap_mm=5.0, step_mm=5.0):
+    """(x_mm, y_mm) of the first spot, scanning left to right then top to bottom, where a width x height box fits on the page inside the margin
+    without touching any of `taken` ((x, y, w, h) rectangles, kept `gap_mm` apart), or None when the page has no such spot. Pure.
+
+    rc48 hand test A12 (2026-10-24): three charts added without a position all went to the default (10, 10) and sat on top of one another.
+    A caller that gives no position now gets a free one."""
+    x_max = page_width_mm - margin_mm - width_mm
+    y_max = page_height_mm - margin_mm - height_mm
+    if x_max < margin_mm or y_max < margin_mm:
+        return None
+    y = margin_mm
+    while y <= y_max + 1e-9:
+        x = margin_mm
+        while x <= x_max + 1e-9:
+            if not any(x < tx + tw + gap_mm and tx < x + width_mm + gap_mm and y < ty + th + gap_mm and ty < y + height_mm + gap_mm
+                       for tx, ty, tw, th in taken):
+                return (x, y)
+            x += step_mm
+        y += step_mm
+    return None
+
+
 def check_chart(layout_name, chart_type, x_field, y_field, item_id=None):
     """Options for a chart layout item: type (bar, line, pie) and the two plain field names. A field name, not an expression."""
     kind = str(chart_type or "bar").strip().lower()

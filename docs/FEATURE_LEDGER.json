@@ -463,6 +463,26 @@
     "hand_verified": "not hand-tested; found by the rc48 hand test (OI-148), fix is CI live only"
   },
   {
+    "id": "layout-items-free-placement",
+    "feature": "A layout chart or elevation profile added without a position is placed on a free spot of the page, not on top of the items already there",
+    "issues": [
+      379
+    ],
+    "since": "rc49 (unreleased)",
+    "sources": [
+      "src/cartogen_ai/core/agent/tools/layout_chart_profile_tools.py",
+      "src/cartogen_ai/core/agent/tools/gap_options.py",
+      "docs/plans/PLAN-008-rc48-hand-test-findings.md"
+    ],
+    "guards": [
+      "tests/test_layout_free_box.py::TestFreeBox::test_three_charts_never_overlap",
+      "tests/test_layout_free_box.py::TestFreeBox::test_the_second_chart_goes_beside_the_first_when_it_fits",
+      "tests/test_layout_free_box.py::TestFreeBox::test_when_the_row_is_full_it_starts_the_next_row",
+      "tests/test_layout_items_render_live.py::TestLayoutItemsRender::test_items_added_without_a_position_do_not_overlap"
+    ],
+    "hand_verified": "not hand-tested; found by the rc48 hand test (A12, A6). Empty bar/line charts and the profile without a curve (categorical X axis, plot ranges set from the data) are guarded by tests/test_layout_items_render_live.py::test_the_rendered_items_are_not_empty, CI-rendered only"
+  },
+  {
     "id": "population-ramp-renders",
     "feature": "apply_raster_stretch on a population-named raster (yem_ppp_2020) leaves a coloured pseudocolor ramp that actually renders in colour, and does not touch a plain DEM loaded beside it",
     "issues": [
