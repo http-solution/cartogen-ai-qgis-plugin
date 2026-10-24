@@ -2276,6 +2276,11 @@ def _grid_snap(x, y, cell_size):
     return (cell_x + 0.5) * cell_size, (cell_y + 0.5) * cell_size
 
 
+def _geometry_points(geom):
+    """The points of a Point or MultiPoint geometry as [QgsPointXY], one per part. A point feature has one."""
+    return list(geom.asMultiPoint()) if geom.isMultipart() else [geom.asPoint()]
+
+
 def _admin_unit_centroid(geom, index, admin_features_by_id, to_admin, to_layer):
     """The centroid (in the point layer's CRS) of the admin polygon containing `geom`, or None when no polygon matches or the CRS transform
     fails. The match runs in the admin layer's CRS (`to_admin` moves the point there, `to_layer` brings the centroid back; both None when the
@@ -2316,7 +2321,8 @@ def _admin_unit_centroid(geom, index, admin_features_by_id, to_admin, to_layer):
     "individual-point identity rather than just displacing it; cell_size is also in the layer's "
     "own CRS units), or 'admin_unit_snap' (moves each point to the centroid of the admin-boundary "
     "polygon it falls within, from a separate polygon layer). The method and its parameter are "
-    "always included in the output so they're disclosable in any report alongside the map.",
+    "always included in the output so they're disclosable in any report alongside the map. A MultiPoint feature is "
+    "obfuscated part by part and written as one output point per part, with the same attributes.",
     {
         "type": "object",
         "properties": {
@@ -2390,24 +2396,25 @@ def obfuscate_sensitive_points(layer_name, method, radius=None, cell_size=None, 
         geom = feat.geometry()
         if geom is None or geom.isEmpty():
             continue
-        pt = geom.asPoint()
+        # PLAN-012 item 1: a MultiPoint feature has several points; asPoint() raises on it (QGIS 4.2 live CI: "MultiPoint geometry cannot be
+        # converted to a point"). Each part is obfuscated on its own and written as its own feature with the same attributes.
+        for pt in _geometry_points(geom):
+            if method == "jitter":
+                dx, dy = _uniform_disk_offset(radius, rng)
+                new_pt = QgsPointXY(pt.x() + dx, pt.y() + dy)
+            elif method == "grid_snap":
+                nx, ny = _grid_snap(pt.x(), pt.y(), cell_size)
+                new_pt = QgsPointXY(nx, ny)
+            else:  # admin_unit_snap
+                new_pt = _admin_unit_centroid(QgsGeometry.fromPointXY(pt), index, admin_features_by_id, to_admin, to_layer)
+                if new_pt is None:
+                    unmatched_count += 1
+                    continue
 
-        if method == "jitter":
-            dx, dy = _uniform_disk_offset(radius, rng)
-            new_pt = QgsPointXY(pt.x() + dx, pt.y() + dy)
-        elif method == "grid_snap":
-            nx, ny = _grid_snap(pt.x(), pt.y(), cell_size)
-            new_pt = QgsPointXY(nx, ny)
-        else:  # admin_unit_snap
-            new_pt = _admin_unit_centroid(geom, index, admin_features_by_id, to_admin, to_layer)
-            if new_pt is None:
-                unmatched_count += 1
-                continue
-
-        new_feat = QgsFeature(new_layer.fields())
-        new_feat.setGeometry(QgsGeometry.fromPointXY(new_pt))
-        new_feat.setAttributes(feat.attributes())
-        new_features.append(new_feat)
+            new_feat = QgsFeature(new_layer.fields())
+            new_feat.setGeometry(QgsGeometry.fromPointXY(new_pt))
+            new_feat.setAttributes(feat.attributes())
+            new_features.append(new_feat)
 
     provider.addFeatures(new_features)
     new_layer.updateExtents()

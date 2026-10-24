@@ -727,6 +727,33 @@
     "sources": ["src/cartogen_ai/core/agent/tools/layout_style.py", "src/cartogen_ai/core/agent/tools/layout_tools.py", "src/cartogen_ai/core/ui/settings_dialog.py", "src/cartogen_ai/infrastructure/settings_keys.py", "docs/plans/PLAN-011-export-and-publication-gates.md"],
     "guards": ["tests/test_layout_footer_text.py::TestSources::test_nothing_recorded_says_so_instead_of_guessing", "tests/test_layout_footer_text.py::TestDisclaimer::test_the_organisations_wording_wins", "tests/test_layout_footer_text.py::TestGrowth::test_then_upward_into_free_space", "tests/test_layout_export_checks_live.py::TestFooterSourcesAndDisclaimer::test_default_footer_names_the_layer_source_and_carries_the_neutral_disclaimer", "tests/test_layout_export_checks_live.py::TestFooterSourcesAndDisclaimer::test_the_grown_footer_stays_on_the_page_and_clear_of_the_other_items"],
     "hand_verified": "not hand-tested; offline unit tests plus CI live (geometry checked by rectangles, not by looking at a render)"
+  },
+  {
+    "id": "obfuscate-multipoint",
+    "feature": "obfuscate_sensitive_points accepts MultiPoint layers and writes one obfuscated point per part with the same attributes",
+    "issues": [],
+    "since": "rc49 (unreleased)",
+    "sources": ["src/cartogen_ai/core/agent/tools/vector_tools.py", "docs/plans/PLAN-012-reliability-group.md"],
+    "guards": ["tests/test_plan012_live.py::TestObfuscateMultiPoint::test_jitter_keeps_every_part_near_where_it_was", "tests/test_plan012_live.py::TestObfuscateMultiPoint::test_attributes_follow_each_part", "tests/test_plan012_live.py::TestObfuscateMultiPoint::test_admin_snap_handles_every_part"],
+    "hand_verified": "not hand-tested; CI live only (the defect itself was reproduced on QGIS 4.2.2 in CI before the fix)"
+  },
+  {
+    "id": "geojson-auto-name-safe",
+    "feature": "export_geojson_path='auto' in generate_mapping_task_grid writes a sanitised, unique file inside the temp folder",
+    "issues": [],
+    "since": "rc49 (unreleased)",
+    "sources": ["src/cartogen_ai/core/agent/tools/task_grid_tools.py", "src/cartogen_ai/core/agent/tools/_paths.py", "docs/plans/PLAN-012-reliability-group.md"],
+    "guards": ["tests/test_plan012_paths.py::TestSafeFileStem::test_the_result_always_stays_inside_the_directory", "tests/test_plan012_paths.py::TestUniquePath::test_an_existing_file_is_never_overwritten"],
+    "hand_verified": "not hand-tested; offline unit tests only"
+  },
+  {
+    "id": "temp-folder-location-note",
+    "feature": "The DEM, contour and temporal-frame tools say when their files are in the system temporary folder (nothing is deleted)",
+    "issues": [],
+    "since": "rc49 (unreleased)",
+    "sources": ["src/cartogen_ai/core/agent/tools/_paths.py", "src/cartogen_ai/core/agent/tools/dem_tools.py", "src/cartogen_ai/core/agent/tools/corridor_tools.py", "src/cartogen_ai/core/agent/tools/export_tools.py", "docs/plans/PLAN-012-reliability-group.md"],
+    "guards": ["tests/test_plan012_paths.py::TestTempLocationNote::test_a_file_in_the_temp_folder_gets_the_note", "tests/test_plan012_paths.py::TestTempLocationNote::test_a_sibling_folder_with_the_same_prefix_is_not_inside"],
+    "hand_verified": "not hand-tested; the note helper is unit tested, the three tools' results are not exercised in CI"
   }
  ]
 }

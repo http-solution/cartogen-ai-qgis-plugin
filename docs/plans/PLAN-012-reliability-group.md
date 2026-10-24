@@ -1,6 +1,6 @@
 # PLAN-012: reliability group from the architecture audit
 
-Status: planned
+Status: done
 
 ## Goal
 Act on the reliability findings of the external audit, but only on those the code supports. Each claim was checked against the source on 2026-10-24 (nothing run: there is no QGIS in this sandbox, so anything about runtime behaviour is marked as needing CI).
@@ -35,3 +35,4 @@ One pull request per item; revert it.
 ## Status log
 - 2026-10-24: plan written after reading `_background_processing.py`, `vector_tools.py`, `task_grid_tools.py`, `processing/provider.py` and the temp-folder users. No code changed. 
 - 2026-10-24: owner decisions: item 1, one output point per part (same attributes), and only if the live test confirms the defect; item 3, leave the folders and say where they are in each tool's result (no deletion, no startup sweep). Item 3's acceptance test therefore becomes: each of the three tools names the folder it wrote to. Build starts on the owner's go.
+- 2026-10-24: built (draft PR #397). Item 1 was reproduced in CI before any fix: on QGIS 4.2.2 `asPoint()` on a MultiPoint raises `TypeError: MultiPoint geometry cannot be converted to a point`. This CORRECTS the plan's guess of a silent (0, 0): the tool crashed rather than writing wrong locations, so the severity was lower than stated. Fixed: one output point per part, same attributes (`_geometry_points`). Item 2 fixed (`safe_file_stem`, `unique_path`). Item 3 done as decided (`temp_location_note`; the contour tool now also returns its `path`; nothing is deleted). Not hand-tested. The two evidence-first items (feature-request optimisation, geometry-validity policy) remain open.

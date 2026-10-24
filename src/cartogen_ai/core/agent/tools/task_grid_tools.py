@@ -14,10 +14,10 @@ written without a local QGIS).
 """
 import json
 import math
-import os
 import tempfile
 
 from . import _chunked as _ck
+from ._paths import safe_file_stem, unique_path
 from .registry import register_tool
 from ._layer_checks import require_valid_layer
 
@@ -288,7 +288,9 @@ def generate_mapping_task_grid(aoi_layer, cell_size_m=2000, priority_points_laye
     if export_geojson_path:
         path = export_geojson_path
         if path == "auto":
-            path = os.path.join(tempfile.gettempdir(), f"{output_layer_name}.geojson")
+            # PLAN-012 item 2: the layer name is model-supplied; it used to go into the path as it was, so "../x" wrote outside the temp
+            # folder and a repeat run overwrote the first file.
+            path = unique_path(tempfile.gettempdir(), safe_file_stem(output_layer_name, "mapping_tasks"), ".geojson")
         try:
             with open(path, "w", encoding="utf-8") as fh:
                 fh.write(to_geojson(geojson))

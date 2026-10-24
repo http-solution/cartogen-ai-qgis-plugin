@@ -9,7 +9,7 @@ import tempfile
 import datetime
 from . import _chunked as _ck
 from .registry import register_tool
-from ._paths import resolve_output_path
+from ._paths import resolve_output_path, temp_location_note
 from ._qgis_enum_compat import resolve_qgis_enum
 from ...models import sensitivity as _sens
 from .analysis_tools import _parse_date
@@ -2650,6 +2650,7 @@ def export_temporal_animation_frames(layer_name, start_field, end_field=None, ca
                 "them yourself, e.g.: ffmpeg -framerate 4 -i frame_%04d.png -pix_fmt yuv420p "
                 "animation.mp4 (run from output_dir)."
             ),
+            **({"storage_note": temp_location_note(out_dir)} if temp_location_note(out_dir) else {}),
         }
     finally:
         layer.setSubsetString(original_subset)
