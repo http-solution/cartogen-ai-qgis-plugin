@@ -53,10 +53,10 @@ class TestFooterMeasured(unittest.TestCase):
         return export_layout(res["layout_name"], os.path.join(self.tmp.name, "out.png"), purpose="publication", **kw)
 
     def test_wide_glyphs_need_more_height_than_the_character_estimate_says(self):
-        """The A22 finding: the estimate assumes half-em glyphs; 'W' is nearly a full em wide in any font."""
+        """The A22 finding: the estimate assumes half-em glyphs; 'W' is nearly a full em wide in any font. (CI run 1: a single 400-character token measured one line, since a word cannot wrap.)"""
         from qgis.PyQt.QtGui import QFont
         from cartogen_ai.core.agent.tools.layout_style import FOOTER_PAD_MM, footer_height_mm, measured_text_height_mm
-        text = "W" * 400
+        text = " ".join(["WWWWWWWW"] * 60)      # words, not one long token: a single token cannot wrap at all
         measured = measured_text_height_mm(text, 100.0, QFont(), 7.0) + FOOTER_PAD_MM
         self.assertGreater(measured, footer_height_mm(text, 100.0, 7.0))
 
