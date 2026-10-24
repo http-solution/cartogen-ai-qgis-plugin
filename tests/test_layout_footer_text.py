@@ -65,13 +65,13 @@ class TestGrowth(unittest.TestCase):
         self.assertEqual(plan_footer_growth(12, 8, 190, 210, 5), (190, 12, True))
 
     def test_then_upward_into_free_space(self):
-        # footer 198..206 of 210: 3 mm below; needs 6 more -> 3 down, 3 up
-        self.assertEqual(plan_footer_growth(14, 8, 198, 210, 10), (195, 14, True))
+        # footer 198..206 of 210: 3.5 mm below (0.5 mm gap kept); needs 6 more -> 3.5 down, 2.5 up
+        self.assertEqual(plan_footer_growth(14, 8, 198, 210, 10), (195.5, 14, True))
 
     def test_reports_when_it_cannot_fit(self):
         y, h, fits = plan_footer_growth(30, 8, 198, 210, 2)
         self.assertFalse(fits)
-        self.assertEqual(h, 8 + 3 + 2)
+        self.assertEqual(h, 8 + 3.5 + 2)
         self.assertEqual(y, 196)
 
 

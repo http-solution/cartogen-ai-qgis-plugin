@@ -306,11 +306,12 @@ def footer_block(base, levels, sources, disclaimer, credit_text=""):
 
 
 FOOTER_LINE_FACTOR = 1.25      # line pitch / font size for the small footer text; a body panel uses the more generous 1.35
+FOOTER_PAD_MM = 0.6            # box padding added to the wrapped lines; 1.0 left a four-line landscape footer (note, sources, credits, disclaimer) 0.4 mm short
 FOOTER_CLEARANCE_MM = 0.5      # gap kept between the grown footer and the item above it
 
 
 def footer_height_mm(text, width_mm, font_pt):
-    """Height the footer text needs, in mm: wrapped lines times the line pitch, plus 1 mm. Pure.
+    """Height the footer text needs, in mm: wrapped lines times the line pitch, plus FOOTER_PAD_MM. Pure.
 
     CI on QGIS 4.2.2 (PLAN-014 phase 2b run): the shared body-panel estimate, which is generous on purpose, said a three-line footer needed 12 mm
     where about 10 fit, so EVERY landscape layout returned 'footer text may not fit'. The footer is small fixed text, so it gets its own,
@@ -319,10 +320,10 @@ def footer_height_mm(text, width_mm, font_pt):
     usable = max(1.0, float(width_mm) - 2 * 2.0)
     per_line = max(1, int(usable / (font_pt * 0.3528 * 0.5)))
     lines = sum(max(1, math.ceil(len(line) / per_line)) for line in str(text or "").split("\n"))
-    return lines * font_pt * 0.3528 * FOOTER_LINE_FACTOR + 1.0
+    return lines * font_pt * 0.3528 * FOOTER_LINE_FACTOR + FOOTER_PAD_MM
 
 
-def plan_footer_growth(needed_mm, height_mm, y_mm, page_height_mm, clearance_above_mm, bottom_gap_mm=1.0):
+def plan_footer_growth(needed_mm, height_mm, y_mm, page_height_mm, clearance_above_mm, bottom_gap_mm=0.5):
     """(new_y, new_height, fits) for a footer that needs `needed_mm`: grow into the page margin below first, then upward into the free space above. Pure."""
     if needed_mm <= height_mm:
         return y_mm, height_mm, True
