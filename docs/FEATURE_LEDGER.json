@@ -480,7 +480,7 @@
       "tests/test_layout_free_box.py::TestFreeBox::test_when_the_row_is_full_it_starts_the_next_row",
       "tests/test_layout_items_render_live.py::TestLayoutItemsRender::test_items_added_without_a_position_do_not_overlap"
     ],
-    "hand_verified": "not hand-tested; found by the rc48 hand test (A12, A6). The empty-chart and no-curve findings are measured by tests/test_layout_items_render_live.py::test_the_rendered_items_are_not_empty, not yet a guard"
+    "hand_verified": "not hand-tested; found by the rc48 hand test (A12, A6). Empty bar/line charts and the profile without a curve (categorical X axis, plot ranges set from the data) are guarded by tests/test_layout_items_render_live.py::test_the_rendered_items_are_not_empty, CI-rendered only"
   },
   {
     "id": "population-ramp-renders",
