@@ -500,7 +500,7 @@ def _early_export_checks(title, output_path, requested_output, confirmed, argume
     dpi, dpi_problem = export_dpi(preset, arguments.get("dpi"), 300)
     problem = problem or dpi_problem or validate_page_size(page_size)[1]
     request = {"output_path": output_path, "dpi": dpi, "page_size": page_size, "page_orientation": orientation, "profile": profile,
-               "preset": preset}
+               "profile_name": arguments.get("profile") if profile else None, "preset": preset}
     if problem:
         return request, {"error": problem}
     if not confirmed:
@@ -510,11 +510,14 @@ def _early_export_checks(title, output_path, requested_output, confirmed, argume
     return request, None
 
 
-def _remember_profile(layout, profile):
-    """Stores the profile on the layout so later exports and checks use its file name pattern, export preset and required elements."""
+def _remember_profile(layout, profile, name=None):
+    """Stores the profile (and its name, PLAN-016) on the layout so later exports and checks use its file name pattern, export preset and
+    required elements. The stored copy keeps the sign-off that was printed in the footer; the name lets an export re-read the file."""
     if profile:
         import json
         layout.setCustomProperty("cartogen_ai/profile_json", json.dumps(profile))
+        if name:
+            layout.setCustomProperty("cartogen_ai/profile_name", str(name))
 
 
 @register_tool(
@@ -799,7 +802,7 @@ def create_print_layout(title: str, page_orientation: str | None = None, output_
         # PLAN-014 phase 2: a page larger than A4 is the finished A4 layout scaled (layout_page_scale.py); A4 is untouched.
         from .layout_page_scale import scale_layout, validate_page_size
         page_warnings = scale_layout(layout, page_size, page_orientation, LAYOUT_MM)
-        _remember_profile(layout, request["profile"])
+        _remember_profile(layout, request["profile"], request.get("profile_name"))
         style_report = {**style_report, "warnings": [*style_report.get("warnings", []), *page_warnings]}
 
         res_msg = {"success": True, "layout_name": layout_name, "orientation": page_orientation, "template": template,

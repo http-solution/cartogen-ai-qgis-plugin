@@ -36,6 +36,7 @@ MANDATORY_LAYOUT_ELEMENTS = {
 ELEMENT_LABELS = {**MANDATORY_LAYOUT_ELEMENTS, "MAP_INFO": "map information line", "FOOTER": "footer", "BODY_TEXT": "summary text",
                   "INSET_MAP": "locator map"}
 PROFILE_PROPERTY = "cartogen_ai/profile_json"
+PROFILE_NAME_PROPERTY = "cartogen_ai/profile_name"
 
 
 def missing_elements(ids_present, required=None):
@@ -55,6 +56,35 @@ def profile_of(layout):
         return data if isinstance(data, dict) else {}
     except Exception:
         return {}
+
+
+def merge_current_profile(stored, loaded):
+    """The profile an export is judged by: the CURRENT file's requirements (required_elements, require_sign_off, export preset, file name pattern,
+    COD flag) with the sign-off the layout was BUILT with. The sign-off line is printed in the footer when the layout is made, so whether the
+    map shows a review is a fact about the layout, not about the file today; a review added to the file later needs the layout rebuilt. Pure."""
+    merged = dict(loaded)
+    merged.pop("sign_off", None)
+    if (stored or {}).get("sign_off"):
+        merged["sign_off"] = stored["sign_off"]
+    return merged
+
+
+def current_profile(layout):
+    """(profile, note): the profile to judge `layout` by at export time (PLAN-016 item 1). A layout built with a named profile re-reads that file
+    now, so a requirement added after the layout was made (A29 in the rc50 hand run: require_sign_off) applies. If the file is gone or no
+    longer valid, the copy stored on the layout is used and `note` says why. A layout without a profile name keeps its stored copy. Never raises."""
+    stored = profile_of(layout)
+    try:
+        name = layout.customProperty(PROFILE_NAME_PROPERTY)
+    except Exception:
+        name = None
+    if not name:
+        return stored, None
+    from .map_profiles import load_profile
+    loaded, problem = load_profile(name)
+    if loaded is None:
+        return stored, f"profile '{name}' could not be re-read ({problem}); the copy stored on the layout was used"
+    return merge_current_profile(stored, loaded), None
 
 
 def protected_in(layers):
@@ -220,7 +250,7 @@ def gate_export(layout, tool_name, arguments, purpose, override_reason, confirme
     ids = [i.id() for i in layout.items() if hasattr(i, "id") and i.id()]
     protected = protected_in(layers_drawn(layout))
     publishing = str(purpose or "").lower() == "publication"
-    profile = profile_of(layout)
+    profile, _ = current_profile(layout)
     problems = (publication_problems(missing_elements(ids, profile.get("required_elements")), protected, sign_off_missing(profile))
                 if publishing else [])
     if problems and not (override_reason or "").strip():
@@ -268,7 +298,7 @@ def layout_export_report(layout, extra_layers=()):
     try:
         ids = [i.id() for i in layout.items() if hasattr(i, "id") and i.id()]
         from .layout_geometry_checks import layout_geometry_problems
-        profile = profile_of(layout)
+        profile, _ = current_profile(layout)
         drawn = _with_extra(layers_drawn(layout), extra_layers)
         return export_report(drawn, ids, layout_geometry_problems(layout), profile.get("required_elements"),
                              pcode_results(drawn) if profile.get("cod_boundaries") else ())

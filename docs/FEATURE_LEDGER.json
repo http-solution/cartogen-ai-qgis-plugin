@@ -848,6 +848,15 @@
     "sources": ["src/cartogen_ai/core/agent/tools/map_profiles.py", "src/cartogen_ai/core/agent/tools/layout_style.py", "src/cartogen_ai/core/agent/tools/layout_export_checks.py", "docs/MAP_PROFILES.md", "docs/plans/PLAN-014-ocha-template-and-branding.md"],
     "guards": ["tests/test_plan014_cod.py::TestCodFields::test_the_flag_without_wording_is_refused_because_the_plugin_supplies_none", "tests/test_plan014_cod.py::TestCodFields::test_wording_without_the_flag_is_refused_rather_than_silently_ignored", "tests/test_plan014_cod.py::TestPcodeNotes::test_the_export_report_carries_them_and_stays_empty_without", "tests/test_plan014_cod_live.py::TestCodOnLayouts::test_the_cod_credit_leads_the_credits_line", "tests/test_plan014_cod_live.py::TestCodOnLayouts::test_duplicate_pcodes_are_reported_on_export_when_the_flag_is_on"],
     "hand_verified": "not hand-tested; offline unit tests plus CI live (written without a QGIS install)"
+  },
+  {
+    "id": "layout-profile-reread-016",
+    "feature": "An export re-reads the layout's profile file by name: requirements added to the file after the layout was built (require_sign_off, required_elements) apply, a review is judged by the sign-off printed on the layout, and a missing or invalid file falls back to the stored copy with a profile_note",
+    "issues": [],
+    "since": "rc51 (unreleased)",
+    "sources": ["src/cartogen_ai/core/agent/tools/layout_export_checks.py", "src/cartogen_ai/core/agent/tools/layout_tools.py", "src/cartogen_ai/core/agent/tools/layout_item_tools.py", "src/cartogen_ai/core/agent/tools/qa_checklist_tools.py", "docs/MAP_PROFILES.md", "docs/plans/PLAN-016-rc50-hand-test-findings.md"],
+    "guards": ["tests/test_plan016_profile_reread.py::TestCurrentProfile::test_a_requirement_added_after_the_layout_was_built_applies", "tests/test_plan016_profile_reread.py::TestCurrentProfile::test_a_review_added_to_the_file_does_not_pass_a_layout_whose_footer_says_draft", "tests/test_plan016_profile_reread.py::TestCurrentProfile::test_a_deleted_or_broken_file_falls_back_to_the_stored_copy_with_a_note", "tests/test_plan016_item1_live.py::TestProfileReread::test_a_requirement_added_after_the_layout_was_built_blocks_publication", "tests/test_plan016_item1_live.py::TestProfileReread::test_a_deleted_profile_file_falls_back_to_the_stored_copy_and_says_so"],
+    "hand_verified": "not hand-tested; offline unit tests plus CI live (written without a QGIS install)"
   }
  ]
 }
