@@ -4,6 +4,7 @@ Everything a layout request names is checked here before QGIS is touched, so a b
 as it was: item kinds, positions and sizes in millimetres, page sizes, picture and template paths, export formats. Two things are refused
 on purpose and the reason is stated in the message: web (HTML) frames, which would run web content inside QGIS, and pictures given as a
 URL, which would fetch from the network with no check."""
+import datetime
 import os
 import re
 
@@ -147,6 +148,38 @@ def _table(opts, out):
             return "fields must be a non-empty list of field names."
         out["fields"] = fields
     return None
+
+
+# PLAN-014 phase 1: the model used to pick a number (72, 96, 150, 200, 300 all appeared in hand-test traces). Three named purposes instead.
+EXPORT_PRESETS = {"draft": 96, "web": 150, "print": 300}
+
+
+def export_dpi(preset, dpi, default):
+    """(dpi, None) from an explicit dpi (wins), else the preset's, else `default`; (None, message) for an unknown preset. Pure."""
+    if dpi is not None:
+        return dpi, None
+    if preset in (None, ""):
+        return default, None
+    key = str(preset).strip().lower()
+    if key not in EXPORT_PRESETS:
+        return None, f"'{preset}' is not an export preset. Choose one of: " + ", ".join(f"{k} ({v} dpi)" for k, v in EXPORT_PRESETS.items()) + "."
+    return EXPORT_PRESETS[key], None
+
+
+def export_file_name(title, extension, today=None):
+    """'<title>_<YYYY-MM-DD>.<ext>' with the title reduced to a safe file stem. Pure."""
+    from ._paths import safe_file_stem
+    day = (today or datetime.date.today()).isoformat()
+    return f"{safe_file_stem(title, 'map')}_{day}.{str(extension or 'pdf').lstrip('.').lower()}"
+
+
+def resolve_export_target(output_path, title, output_format="pdf", today=None):
+    """`output_path` unchanged, unless it names a folder (an existing directory, or ends with a separator): then the folder plus the default file
+    name for `title`. Pure apart from the directory test."""
+    text = str(output_path or "")
+    if text and (text.endswith(("/", "\\")) or os.path.isdir(os.path.expanduser(text))):
+        return os.path.join(os.path.expanduser(text), export_file_name(title, output_format, today))
+    return output_path
 
 
 def validate_export_path(path):

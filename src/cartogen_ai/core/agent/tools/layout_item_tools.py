@@ -474,16 +474,24 @@ def load_layout_template(template_path, new_layout_name):
     "purpose='publication' is for a file that will be shared outside the team: it is refused while the layout lacks a mandatory element or draws a protected layer, "
     "unless the user gives a reason (ask them; pass it as override_reason) and confirms.",
     {"type": "object", "properties": {"layout_name": {"type": "string"}, "output_path": {"type": "string"}, "dpi": {"type": "integer"},
+                                      "preset": {"type": "string", "description": "export purpose instead of a dpi number: 'draft' (96), 'web' (150) or 'print' (300). An explicit dpi wins."},
+                                      "output_format": {"type": "string", "description": "only when output_path is a FOLDER: pdf (default), png, jpg, tif or svg; the file is then named <layout>_<date>.<format>"},
                                       "world_file": {"type": "boolean", "description": "image exports: also write a world file (.pgw, .jgw, .tfw) so GIS software can place the picture"},
                                       "geopdf": {"type": "boolean", "description": "pdf exports: write a georeferenced PDF (needs the GDAL PDF driver)"},
                                       "purpose": {"type": "string", "description": "'publication' only when the user says the file will be shared outside the team; omit for drafts"},
                                       "override_reason": {"type": "string", "description": "with purpose='publication': the USER's stated reason for exporting despite problems. Never invent one; ask."}},
      "required": ["layout_name", "output_path"]},
 )
-def export_layout(layout_name, output_path, dpi=150, world_file=False, geopdf=False, purpose=None, override_reason=None, confirmed=False):
+def export_layout(layout_name, output_path, dpi=None, world_file=False, geopdf=False, purpose=None, override_reason=None, confirmed=False,
+                  preset=None, output_format="pdf"):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
+    from .layout_options import export_dpi, resolve_export_target
+    output_path = resolve_export_target(output_path, layout_name, output_format)
     kind, problem = validate_export_path(output_path)
+    if problem:
+        return {"error": problem}
+    dpi, problem = export_dpi(preset, dpi, 150)
     if problem:
         return {"error": problem}
     if not (isinstance(dpi, int) and not isinstance(dpi, bool) and 30 <= dpi <= 1200):
@@ -532,7 +540,7 @@ def export_layout(layout_name, output_path, dpi=150, world_file=False, geopdf=Fa
     if code != QgsLayoutExporter.ExportResult.Success:
         return {"error": f"Export to '{path}' failed (QgsLayoutExporter result code {code})."}
     remember_written(path)
-    out = {"success": True, "layout_name": layout_name, "output_path": path, "format": os.path.splitext(path)[1].lower().lstrip(".")}
+    out = {"success": True, "layout_name": layout_name, "output_path": path, "format": os.path.splitext(path)[1].lower().lstrip("."), "dpi": dpi}
     if world_file:
         stem, ext = os.path.splitext(path)
         sidecar = next((stem + e for e in (ext[:2] + ext[-1] + "w", ".wld") if os.path.isfile(stem + e)), None)

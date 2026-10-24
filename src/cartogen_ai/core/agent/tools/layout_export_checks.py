@@ -94,7 +94,7 @@ def write_publication_record(output_path, layout_name, problems, reason):
     return path
 
 
-def export_report(layers_drawn, ids_present):
+def export_report(layers_drawn, ids_present, layout_problems=()):
     """The fields an export result should carry: {} when there is nothing to say. Pure apart from reading each layer's sensitivity tag."""
     notes = protected_layer_notes(layers_drawn, "it is drawn on this exported map -- confirm the file is meant to be shared before distributing it.")
     missing = missing_elements(ids_present)
@@ -104,6 +104,10 @@ def export_report(layers_drawn, ids_present):
     if missing:
         notes.append("This layout is missing: " + ", ".join(missing) + ". The file was written as it is.")
         report["missing_elements"] = missing
+    if layout_problems:
+        # PLAN-014 phase 1: geometry problems found from the item rectangles (layout_geometry_checks). Warnings only, like the rest.
+        notes.append("Layout check: " + "; ".join(layout_problems) + ". The file was written as it is.")
+        report["layout_problems"] = list(layout_problems)
     if notes:
         report["export_warnings"] = notes
     return report
@@ -197,7 +201,8 @@ def layout_export_report(layout, extra_layers=()):
     cannot be built is left out, the export result stays as it was."""
     try:
         ids = [i.id() for i in layout.items() if hasattr(i, "id") and i.id()]
-        return export_report(_with_extra(layers_drawn(layout), extra_layers), ids)
+        from .layout_geometry_checks import layout_geometry_problems
+        return export_report(_with_extra(layers_drawn(layout), extra_layers), ids, layout_geometry_problems(layout))
     except Exception:
         return {}
 
