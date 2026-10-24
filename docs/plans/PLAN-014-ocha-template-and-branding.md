@@ -1,6 +1,6 @@
 # PLAN-014: OCHA-style map products: credits, no-data, render checks, page sizes, profiles and branding
 
-Status: planned
+Status: in progress
 
 ## Goal
 Take the second half of the external audit (the OCHA / cartographic compliance list) and turn only what the code supports into phased work. Each item was checked against the source on 2026-10-24; nothing was run (no QGIS in this sandbox), so every statement about rendering is marked as needing a CI render.
