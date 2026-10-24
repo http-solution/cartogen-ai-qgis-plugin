@@ -811,6 +811,15 @@
     "sources": ["src/cartogen_ai/core/agent/tools/layout_page_scale.py", "src/cartogen_ai/core/agent/tools/layout_tools.py", "docs/plans/PLAN-014-ocha-template-and-branding.md"],
     "guards": ["tests/test_plan014_pagesize.py::TestPageSizeRules::test_a4_is_exactly_one_and_the_others_double_per_step", "tests/test_plan014_pagesize.py::TestPageSizeRules::test_the_factor_never_lets_an_a4_item_stick_out_of_the_bigger_page", "tests/test_plan014_pagesize_live.py::TestPageSizes::test_a4_by_name_is_identical_to_the_default", "tests/test_plan014_pagesize_live.py::TestPageSizes::test_each_size_and_orientation_scales_cleanly", "tests/test_plan014_pagesize_live.py::TestPageSizes::test_an_unsupported_size_is_refused_and_nothing_is_built"],
     "hand_verified": "not hand-tested; CI live only (rectangles and a rendered image size, nobody has looked at an A1 page)"
+  },
+  {
+    "id": "map-profiles",
+    "feature": "create_print_layout(profile=...) reads a validated JSON profile (page size, orientation, export preset, file name pattern, required elements) from the project or QGIS profile folder; unknown fields and bad values are refused by name; explicit arguments beat the profile; exports and checks of that layout use its pattern, preset and required elements",
+    "issues": [],
+    "since": "rc50 (unreleased)",
+    "sources": ["src/cartogen_ai/core/agent/tools/map_profiles.py", "src/cartogen_ai/core/agent/tools/layout_tools.py", "src/cartogen_ai/core/agent/tools/layout_item_tools.py", "src/cartogen_ai/core/agent/tools/layout_export_checks.py", "src/cartogen_ai/core/agent/tools/qa_checklist_tools.py", "docs/MAP_PROFILES.md", "docs/examples/map_profile_example.json", "docs/plans/PLAN-014-ocha-template-and-branding.md"],
+    "guards": ["tests/test_plan014_profiles.py::TestValidate::test_unknown_fields_are_refused_by_name", "tests/test_plan014_profiles.py::TestValidate::test_the_example_carries_no_organisations_name_or_mark", "tests/test_plan014_profiles.py::TestLookup::test_names_with_paths_are_refused", "tests/test_plan014_profiles.py::TestPatternAndRequirements::test_required_elements_come_from_the_profile_else_the_five_defaults", "tests/test_plan014_profiles_live.py::TestProfilesOnLayouts::test_the_profile_sets_page_size_and_orientation", "tests/test_plan014_profiles_live.py::TestProfilesOnLayouts::test_an_explicit_argument_beats_the_profile", "tests/test_plan014_profiles_live.py::TestProfilesOnLayouts::test_export_uses_the_stored_preset_and_file_name_pattern_and_checks_the_required_elements"],
+    "hand_verified": "not hand-tested; offline unit tests plus CI live (written without a QGIS install)"
   }
  ]
 }

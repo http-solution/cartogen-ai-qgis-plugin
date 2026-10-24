@@ -166,19 +166,21 @@ def export_dpi(preset, dpi, default):
     return EXPORT_PRESETS[key], None
 
 
-def export_file_name(title, extension, today=None):
-    """'<title>_<YYYY-MM-DD>.<ext>' with the title reduced to a safe file stem. Pure."""
+def export_file_name(title, extension, today=None, pattern=None, layout=None):
+    """'<title>_<YYYY-MM-DD>.<ext>', or the profile's `pattern` ({title}, {date}, {layout}), reduced to a safe file stem. Pure."""
     from ._paths import safe_file_stem
     day = (today or datetime.date.today()).isoformat()
-    return f"{safe_file_stem(title, 'map')}_{day}.{str(extension or 'pdf').lstrip('.').lower()}"
+    template = pattern or "{title}_{date}"
+    stem = safe_file_stem(template.format(title=safe_file_stem(title, "map"), date=day, layout=safe_file_stem(layout or title, "map")), "map")
+    return f"{stem}.{str(extension or 'pdf').lstrip('.').lower()}"
 
 
-def resolve_export_target(output_path, title, output_format="pdf", today=None):
+def resolve_export_target(output_path, title, output_format="pdf", today=None, pattern=None, layout=None):
     """`output_path` unchanged, unless it names a folder (an existing directory, or ends with a separator): then the folder plus the default file
-    name for `title`. Pure apart from the directory test."""
+    name for `title` (or the profile's pattern). Pure apart from the directory test."""
     text = str(output_path or "")
     if text and (text.endswith(("/", "\\")) or os.path.isdir(os.path.expanduser(text))):
-        return os.path.join(os.path.expanduser(text), export_file_name(title, output_format, today))
+        return os.path.join(os.path.expanduser(text), export_file_name(title, output_format, today, pattern, layout))
     return output_path
 
 
