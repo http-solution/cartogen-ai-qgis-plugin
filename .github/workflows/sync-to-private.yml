@@ -25,7 +25,7 @@ permissions:
 
 jobs:
   mirror:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # Remove this guard once PRIVATE_REPO is real and
     # secrets.PRIVATE_REPO_DEPLOY_KEY is configured in this repo's settings.
     if: false

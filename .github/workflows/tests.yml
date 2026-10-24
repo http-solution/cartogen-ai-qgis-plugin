@@ -18,7 +18,7 @@ jobs:
     # scans the pushed commit range for common secret patterns (API keys, tokens,
     # private keys, etc.) and fails the build if any are found. No license/account
     # needed for this basic scan-and-fail usage.
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
         with:
@@ -39,11 +39,14 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        # Ubuntu is pinned, not 'latest': GitHub announced ubuntu-latest moves to 26.04 (CI annotation, 2026-10-24), which would change the
+        # system Python, GDAL and Qt under every job without a commit. 24.04 is what 'latest' was when the suite was last green; move it
+        # deliberately, in its own pull request, after a run on the new image.
+        os: [ubuntu-24.04, windows-latest]
         python-version: ["3.11"]
         include:
           # The declared floor (Python 3.10, following QGIS; audit F32, #168) must be exercised, not just stated.
-          - os: ubuntu-latest
+          - os: ubuntu-24.04
             python-version: "3.10"
     runs-on: ${{ matrix.os }}
     steps:
@@ -107,7 +110,7 @@ jobs:
     # Package J: measures which showcase services (Copernicus DEM tile, DuckDuckGo, GDELT, Google News) the CI runner can reach, instead of
     # leaving them "unverified". Informational: continue-on-error, and the script always exits 0 -- a rate-limited or blocked service is a
     # recorded result in the job summary, not a failed build. Needs no QGIS and installs nothing.
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     continue-on-error: true
     steps:
       - uses: actions/checkout@v4
@@ -163,7 +166,7 @@ jobs:
     # 2026-09-20; re-resolve deliberately (not by switching back to a floating
     # tag) whenever a newer QGIS build is wanted here.
     name: QGIS live tests (${{ matrix.qgis_label }})
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
