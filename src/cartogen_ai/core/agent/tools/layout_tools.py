@@ -484,20 +484,37 @@ def _prepare_template(template, body_text, zoom_to_layer, key_figures, sources):
     return template, body_text, zoom_to_layer, sitrep_args, sitrep_warning
 
 
-def _early_export_checks(title, output_path, requested_output, dpi, preset, output_format, confirmed, arguments):
-    """(output_path, dpi, early_result): a folder gets its default file name, a preset becomes a dpi, and a map that would draw protected layers
-    into a file waits for the confirm card (PLAN-011 phase B) before anything is built. early_result is None when the build may go ahead."""
+def _early_export_checks(title, output_path, requested_output, confirmed, arguments):
+    """(request, early_result). `request` holds the output path (a folder gets its default file name), the dpi (a preset becomes a number), the
+    page size and orientation and the profile (PLAN-014 phase 2b: explicit arguments beat the profile, the profile beats the defaults). early_result
+    is an error or, for a map that would draw protected layers into a file, the confirm card (PLAN-011 phase B); None when the build may go ahead."""
     from .layout_options import export_dpi, resolve_export_target
     from .layout_page_scale import validate_page_size
-    output_path = resolve_export_target(output_path, title, output_format)         # PLAN-014: a folder gets <title>_<date>.<format>
-    dpi, problem = export_dpi(preset, dpi, 300)
-    problem = problem or validate_page_size(arguments.get("page_size"))[1]
+    from .map_profiles import load_profile
+    profile, problem = ({}, None) if not arguments.get("profile") else load_profile(arguments["profile"])
+    profile = profile or {}
+    page_size = arguments.get("page_size") or profile.get("page_size") or "A4"
+    orientation = arguments.get("page_orientation") or profile.get("orientation") or "Landscape"
+    preset = arguments.get("preset") or profile.get("export_preset")
+    output_path = resolve_export_target(output_path, title, arguments.get("output_format"), pattern=profile.get("file_name_pattern"))
+    dpi, dpi_problem = export_dpi(preset, arguments.get("dpi"), 300)
+    problem = problem or dpi_problem or validate_page_size(page_size)[1]
+    request = {"output_path": output_path, "dpi": dpi, "page_size": page_size, "page_orientation": orientation, "profile": profile,
+               "preset": preset}
     if problem:
-        return output_path, dpi, {"error": problem}
+        return request, {"error": problem}
     if not confirmed:
         from .layout_export_checks import build_time_preview
-        return output_path, dpi, build_time_preview("create_print_layout", {**arguments, "output_path": requested_output, "dpi": dpi}, output_path)
-    return output_path, dpi, None
+        card = {**arguments, "output_path": requested_output, "dpi": dpi, "page_size": page_size, "page_orientation": orientation}
+        return request, build_time_preview("create_print_layout", card, output_path)
+    return request, None
+
+
+def _remember_profile(layout, profile):
+    """Stores the profile on the layout so later exports and checks use its file name pattern, export preset and required elements."""
+    if profile:
+        import json
+        layout.setCustomProperty("cartogen_ai/profile_json", json.dumps(profile))
 
 
 @register_tool(
@@ -534,6 +551,7 @@ def _early_export_checks(title, output_path, requested_output, dpi, preset, outp
             "page_orientation": {"type": "string", "description": "'Landscape' (default) or 'Portrait'."},
             "output_path": {"type": "string", "description": "Where to export -- '.pdf' for a vector PDF, '.png'/'.jpg'/'.jpeg' for a raster image. Omit to create the layout in the project without exporting."},
             "dpi": {"type": "integer", "description": "Export resolution in DPI, for both PDF and image export. Defaults to 300 (print quality)."},
+            "profile": {"type": "string", "description": "Name of a saved map profile (a JSON file the organisation keeps in the project's cartogen_profiles folder or the QGIS profile folder) that sets page size, orientation, export preset, file name pattern and required elements. Explicit arguments beat the profile."},
             "page_size": {"type": "string", "description": "Page size: 'A4' (default), 'A3', 'A2' or 'A1'. The same layout is scaled up, and the map shows the same area larger."},
             "preset": {"type": "string", "description": "Export purpose instead of a dpi number: 'draft' (96), 'web' (150) or 'print' (300). An explicit dpi wins."},
             "output_format": {"type": "string", "description": "Only when output_path is a FOLDER: 'pdf' (default), 'png' or 'jpg'. The file is then named <title>_<date>.<format>."},
@@ -547,17 +565,18 @@ def _early_export_checks(title, output_path, requested_output, dpi, preset, outp
         "required": ["title"],
     },
 )
-def create_print_layout(title: str, page_orientation: str = "Landscape", output_path: str = "", dpi: int | None = None, body_text: str = "", zoom_to_layer: str = "", include_inset_map: bool = True, template: str = "standard", key_figures=None, sources=None, confirmed: bool = False, preset: str | None = None, output_format: str = "pdf", page_size: str = "A4"):
+def create_print_layout(title: str, page_orientation: str | None = None, output_path: str = "", dpi: int | None = None, body_text: str = "", zoom_to_layer: str = "", include_inset_map: bool = True, template: str = "standard", key_figures=None, sources=None, confirmed: bool = False, preset: str | None = None, output_format: str = "pdf", page_size: str | None = None, profile: str | None = None):
     requested_output = output_path
     output_path = resolve_output_path(output_path)   # rc22 smoke N3/N8/N9: anchor relative paths to the project (see _paths.py)
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
-    output_path, dpi, early = _early_export_checks(title, output_path, requested_output, dpi, preset, output_format, confirmed, {
+    request, early = _early_export_checks(title, output_path, requested_output, confirmed, {
         "title": title, "page_orientation": page_orientation, "dpi": dpi, "body_text": body_text, "zoom_to_layer": zoom_to_layer,
         "include_inset_map": include_inset_map, "template": template, "key_figures": key_figures, "sources": sources,
-        "preset": preset, "output_format": output_format, "page_size": page_size})
+        "preset": preset, "output_format": output_format, "page_size": page_size, "profile": profile})
     if early:
         return early
+    output_path, dpi, page_size, page_orientation = request["output_path"], request["dpi"], request["page_size"], request["page_orientation"]
 
     layout_manager = pending_layout = None
     committed = False
@@ -779,6 +798,7 @@ def create_print_layout(title: str, page_orientation: str = "Landscape", output_
         # PLAN-014 phase 2: a page larger than A4 is the finished A4 layout scaled (layout_page_scale.py); A4 is untouched.
         from .layout_page_scale import scale_layout, validate_page_size
         page_warnings = scale_layout(layout, page_size, page_orientation, LAYOUT_MM)
+        _remember_profile(layout, request["profile"])
         style_report = {**style_report, "warnings": [*style_report.get("warnings", []), *page_warnings]}
 
         res_msg = {"success": True, "layout_name": layout_name, "orientation": page_orientation, "template": template,
