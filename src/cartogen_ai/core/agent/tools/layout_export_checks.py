@@ -182,10 +182,30 @@ def checked_project_layers():
         return []
 
 
-def layout_export_report(layout):
-    """export_report() for a real layout. Never raises: a note that cannot be built is left out, the export result stays as it was."""
+def _with_extra(layers, extra):
+    """`layers` plus `extra`, each layer once (by id)."""
+    seen, out = set(), []
+    for layer in [*layers, *extra]:
+        if layer is not None and layer.id() not in seen:
+            seen.add(layer.id())
+            out.append(layer)
+    return out
+
+
+def layout_export_report(layout, extra_layers=()):
+    """export_report() for a real layout (plus any `extra_layers` the export also uses, such as an atlas coverage layer). Never raises: a note that
+    cannot be built is left out, the export result stays as it was."""
     try:
         ids = [i.id() for i in layout.items() if hasattr(i, "id") and i.id()]
-        return export_report(layers_drawn(layout), ids)
+        return export_report(_with_extra(layers_drawn(layout), extra_layers), ids)
     except Exception:
         return {}
+
+
+def atlas_gate(layout, coverage_layer, arguments, confirmed):
+    """None when an atlas export may go ahead, else the confirm card. An atlas writes one file per coverage feature, so the coverage layer counts
+    as drawn as well as the layers on the map (PLAN-011 phase D: export_layout_atlas was the one layout export without the phase B gate)."""
+    if confirmed:
+        return None
+    protected = protected_in(_with_extra(layers_drawn(layout), [coverage_layer]))
+    return protected_preview("export_layout_atlas", arguments, protected) if protected else None

@@ -36,3 +36,10 @@ PLAN-009 (2026-10-24, the rc48 evidence folders read; all CI only, none hand-tes
 - #84: the dashboard file says it needs internet. #127: large admin layers get labels when zoomed in. #129: after Zoom Full the layout frames the vector layers. #95: the code default is OFF; the Memory dialog's ON line names the setting that turns it off (the 'ON' came from the tester's saved profile).
 - Not touched (no new evidence or owner decision needed): #93, #97, #130, #138, #169, #223, #224, #233, #305, #362, #72.
 
+PLAN-010 to PLAN-012 (2026-10-24, from the external architecture and cartography audit; all merged with CI incl. live QGIS 4.2.2, none hand-tested; no GitHub issue numbers, tracked in docs/plans/):
+- PLAN-010 (#390): `obfuscate_sensitive_points` admin snap across CRSs; coverage report no longer charts a missing target as 0%; QA checklist says "unknown" when a layer cannot be read; a result layer is added before the old one is removed; a failed save into the results GeoPackage is reported.
+- PLAN-011 (#393 to #395, and phase D): layout exports report protected layers drawn and missing mandatory elements; a protected layer in an export, including an atlas export, waits for the confirm card; `purpose="publication"` needs a stated reason, recorded beside the file; the footer carries a sources line and a disclaimer from Settings. Still owed by the owner: the organisation's exact disclaimer wording.
+- PLAN-012 (#397): `obfuscate_sensitive_points` handles MultiPoint layers (it crashed on them, reproduced in CI); the GeoJSON name for `export_geojson_path="auto"` is sanitised and unique; the DEM, contour and temporal-frame tools say when files are in the system temporary folder. Two items wait for evidence: feature-request optimisation and a geometry-validity policy.
+- Not covered by the export gate: a layout exported from the QGIS menu or by a script the user writes.
+
+
