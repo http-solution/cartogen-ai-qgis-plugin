@@ -262,7 +262,8 @@ def _geometry_limits(alg_id):
     also accepts any geometry or a table is left out."""
     limits = {}
     with contextlib.suppress(Exception):
-        algorithm = QgsApplication.processingRegistry().algorithmById(alg_id)
+        # createAlgorithmById, not algorithmById: a Python algorithm's registry entry has no parameters until an instance is initialised (CI, rc48 B3)
+        algorithm = QgsApplication.processingRegistry().createAlgorithmById(alg_id)
         for p in algorithm.parameterDefinitions():
             if p.isDestination() or str(p.type()) != "source":
                 continue
