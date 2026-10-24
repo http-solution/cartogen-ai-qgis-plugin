@@ -60,6 +60,9 @@ class TestCreditsOnFooter(_Base):
         self.assertTrue(res.get("success"), res)
         layout = QgsProject.instance().layoutManager().layoutByName(res["layout_name"])
         text = layout.itemById("FOOTER").text()
+        from cartogen_ai.core.agent.tools.layout_credits import credit_entries
+        from cartogen_ai.core.agent.tools.layout_style import layer_credit_info, visible_layer_entries
+        print(f"PLAN014 credit entries: {credit_entries([layer_credit_info(e) for e in visible_layer_entries()])}")
         print(f"PLAN014 footer: {text!r}")
         self.assertIn("Credits: Basemap: OpenStreetMap contributors (ODbL)", text)
 
@@ -105,7 +108,7 @@ class TestGeometryProblemsOnExport(_Base):
         print(f"PLAN014 problems: {res.get('layout_problems')}")
         self.assertTrue(res.get("success"), res)
         text = " | ".join(res.get("layout_problems", []))
-        self.assertIn("OVER_A overlaps", text)
+        self.assertRegex(text, r"(MAP_MAIN overlaps OVER_A|OVER_A overlaps MAP_MAIN)")
         self.assertIn("OFF_PAGE extends", text)
         self.assertIn("OVERFLOW text needs", text)
         self.assertEqual(res["dpi"], 96)

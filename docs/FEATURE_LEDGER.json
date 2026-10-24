@@ -766,6 +766,42 @@
     "sources": ["src/cartogen_ai/core/agent/tools/layout_export_checks.py", "src/cartogen_ai/core/agent/tools/layout_tools.py", "docs/plans/PLAN-011-export-and-publication-gates.md"],
     "guards": ["tests/test_layout_export_checks.py::TestAtlasGate::test_a_protected_coverage_layer_gives_a_card_naming_it", "tests/test_export_confirm_flow_live.py::TestExportConfirmFlow::test_card_then_apply_writes_the_file", "tests/test_export_confirm_flow_live.py::TestExportConfirmFlow::test_a_confirmed_flag_in_the_models_own_arguments_is_stripped", "tests/test_export_confirm_flow_live.py::TestExportConfirmFlow::test_atlas_with_a_protected_coverage_layer_waits_then_writes_one_file_per_feature"],
     "hand_verified": "not hand-tested; CI live only (written without a QGIS install)"
+  },
+  {
+    "id": "layout-credits-line",
+    "feature": "The footer of a print layout carries a Credits line: the vetted attribution of each visible web basemap, a layer's own rights text, or 'credit not recorded' (never a guessed credit)",
+    "issues": [],
+    "since": "rc50 (unreleased)",
+    "sources": ["src/cartogen_ai/core/agent/tools/layout_credits.py", "src/cartogen_ai/core/agent/tools/layout_style.py", "docs/plans/PLAN-014-ocha-template-and-branding.md"],
+    "guards": ["tests/test_plan014_phase1.py::TestBasemapCredit::test_known_basemaps_use_the_vetted_attribution", "tests/test_plan014_phase1.py::TestCreditEntries::test_an_unknown_web_layer_says_credit_not_recorded", "tests/test_plan014_live.py::TestCreditsOnFooter::test_a_visible_openstreetmap_basemap_is_credited"],
+    "hand_verified": "not hand-tested; offline unit tests plus CI live"
+  },
+  {
+    "id": "layout-geometry-problems",
+    "feature": "Layout exports report overlapping items, items past the page edge and text taller than its box as layout_problems (warnings only)",
+    "issues": [],
+    "since": "rc50 (unreleased)",
+    "sources": ["src/cartogen_ai/core/agent/tools/layout_geometry_checks.py", "src/cartogen_ai/core/agent/tools/layout_export_checks.py", "docs/plans/PLAN-014-ocha-template-and-branding.md"],
+    "guards": ["tests/test_plan014_phase1.py::TestGeometryRules::test_the_locator_map_inside_the_main_map_is_allowed_but_other_overlaps_are_not", "tests/test_plan014_live.py::TestGeometryProblemsOnExport::test_overlap_off_page_and_overflow_are_all_reported", "tests/test_plan014_live.py::TestGeometryProblemsOnExport::test_a_layout_from_create_print_layout_reports_no_geometry_problem"],
+    "hand_verified": "not hand-tested; CI live only (a layout from create_print_layout reports no problem in both orientations)"
+  },
+  {
+    "id": "export-presets-and-names",
+    "feature": "export_layout and create_print_layout take preset draft/web/print instead of a dpi number, and a folder as output_path gets <title>_<date>.<format>",
+    "issues": [],
+    "since": "rc50 (unreleased)",
+    "sources": ["src/cartogen_ai/core/agent/tools/layout_options.py", "src/cartogen_ai/core/agent/tools/layout_item_tools.py", "src/cartogen_ai/core/agent/tools/layout_tools.py", "docs/plans/PLAN-014-ocha-template-and-branding.md"],
+    "guards": ["tests/test_plan014_phase1.py::TestPresetsAndNames::test_presets_map_to_dpi_and_an_explicit_dpi_wins", "tests/test_plan014_phase1.py::TestPresetsAndNames::test_a_folder_gets_the_default_name_and_a_file_path_is_left_alone", "tests/test_plan014_live.py::TestPresetsAndNames::test_a_folder_output_is_named_by_title_and_date_and_a_preset_sets_the_dpi"],
+    "hand_verified": "not hand-tested; offline unit tests plus CI live"
+  },
+  {
+    "id": "graduated-no-data-class",
+    "feature": "apply_graduated_style draws features with no value grey and lists them as 'No data' in the legend (reproduced in CI first: they were not drawn at all)",
+    "issues": [],
+    "since": "rc50 (unreleased)",
+    "sources": ["src/cartogen_ai/core/agent/tools/styling_tools.py", "docs/plans/PLAN-014-ocha-template-and-branding.md"],
+    "guards": ["tests/test_plan014_live.py::TestGraduatedNullIsPainted::test_a_feature_with_no_value_is_still_drawn_and_listed_as_no_data", "tests/test_plan014_phase1.py::TestNoData::test_numbers_are_data_and_everything_else_is_not"],
+    "hand_verified": "not hand-tested; CI live only"
   }
  ]
 }

@@ -507,6 +507,40 @@ def apply_categorized_style(layer_name, field, opacity=None, palette=None):
         return {"error": f"apply_categorized_style failed: {e}"}
 
 
+NO_DATA_COLOUR = "#bdbdbd"
+
+
+def count_no_data(values):
+    """How many of `values` are not a number (NULL, empty, text): the features a graduated style would leave undrawn. Pure."""
+    return sum(1 for v in values if isinstance(v, bool) or not isinstance(v, (int, float)))
+
+
+def _with_no_data_rule(layer, renderer, field):
+    """A rule-based copy of a graduated renderer plus a grey 'No data' rule for features with no value in `field`.
+
+    PLAN-014 phase 1, reproduced in CI on QGIS 4.2.2 before this fix: a graduated renderer has no class for NULL, so a feature with no value was
+    not drawn at all (control feature 48 pixels, NULL feature 0) and the legend did not say so; a district with missing data looked like a
+    district with nothing there. Only used when the layer actually has such features, so every other graduated layer keeps its renderer."""
+    converted = QgsRuleBasedRenderer.convertFromRenderer(renderer, layer)
+    if converted is None:
+        return renderer
+    symbol = QgsSymbol.defaultSymbol(layer.geometryType())
+    symbol.setColor(QColor(NO_DATA_COLOUR))
+    converted.rootRule().appendChild(QgsRuleBasedRenderer.Rule(symbol, 0, 0, f"{QgsExpression.quotedColumnRef(field)} IS NULL", "No data"))
+    return converted
+
+
+def _mark_no_data(layer, renderer, field):
+    """(renderer, result fields): the renderer with a 'No data' rule when some features have no value in `field`, else unchanged and {}."""
+    no_data = count_no_data(feat[field] for feat in _ck.features(layer, "Styling: counting features with no value"))
+    if not no_data:
+        return renderer, {}
+    return _with_no_data_rule(layer, renderer, field), {
+        "no_data_features": no_data,
+        "no_data_note": (f"{no_data} feature(s) have no value in '{field}'; they are drawn grey and listed as 'No data' in the legend "
+                         "instead of being left off the map.")}
+
+
 @register_tool(
     "apply_graduated_style",
     "Apply smart graduated choropleth style analyzing field distribution for optimal breaks. Pass "
@@ -661,6 +695,7 @@ def apply_graduated_style(layer_name, field, mode="auto", opacity=None, cluster=
         if renderer is None:
             return {"error": "Failed to create graduated renderer"}
 
+        renderer, no_data_info = _mark_no_data(layer, renderer, field)
         layer.setRenderer(renderer)
         resolved_opacity = _apply_opacity(
             layer, opacity if opacity is not None else _default_opacity_for_geometry(layer.geometryType())
@@ -675,6 +710,7 @@ def apply_graduated_style(layer_name, field, mode="auto", opacity=None, cluster=
             "color_ramp": ramp_label,
             "opacity_percent": resolved_opacity,
         }
+        result.update(no_data_info)
         if breaks is not None:
             result["breaks"] = sorted(breaks)
         if cluster_warning:

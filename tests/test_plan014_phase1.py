@@ -105,5 +105,12 @@ class TestPresetsAndNames(unittest.TestCase):
         self.assertTrue(resolve_export_target("exports/", "T", "png", datetime.date(2026, 1, 2)).endswith("T_2026-01-02.png"))
 
 
+class TestNoData(unittest.TestCase):
+    def test_numbers_are_data_and_everything_else_is_not(self):
+        from cartogen_ai.core.agent.tools.styling_tools import count_no_data
+        self.assertEqual(count_no_data([1, 2.5, 0, None, "", "n/a", True]), 4)
+        self.assertEqual(count_no_data([]), 0)
+
+
 if __name__ == "__main__":
     unittest.main()
