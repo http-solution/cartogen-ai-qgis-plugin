@@ -116,5 +116,79 @@ class TestExportGate(TestExportLayoutReport):
         self.assertIsNone(QgsProject.instance().layoutManager().layoutByName("Gate check"))
 
 
+@unittest.skipUnless(LIVE, "requires real QGIS")
+class TestFooterSourcesAndDisclaimer(unittest.TestCase):
+    """PLAN-011 phase C on a real layout built by create_print_layout."""
+
+    def setUp(self):
+        from qgis.core import QgsSettings
+        from tests.test_network_units_live import _boot
+        why = _boot()
+        if why:
+            self.skipTest(why)
+        project = QgsProject.instance()
+        project.clear()
+        self.addCleanup(project.clear)
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        layer = QgsVectorLayer("Point?crs=EPSG:4326&field=id:integer", "clinics", "memory")
+        feature = QgsFeature(layer.fields())
+        feature.setGeometry(QgsGeometry.fromWkt("POINT(44 15)"))
+        feature.setAttributes([1])
+        layer.dataProvider().addFeatures([feature])
+        layer.updateExtents()
+        project.addMapLayer(layer)
+        settings = QgsSettings()
+        from cartogen_ai.infrastructure.settings_keys import SETTINGS_LAYOUT_DISCLAIMER_ENABLED, SETTINGS_LAYOUT_DISCLAIMER_TEXT
+        for key in (SETTINGS_LAYOUT_DISCLAIMER_ENABLED, SETTINGS_LAYOUT_DISCLAIMER_TEXT):
+            self.addCleanup(settings.remove, key)
+            settings.remove(key)
+        self.settings, self.enabled_key, self.text_key = settings, SETTINGS_LAYOUT_DISCLAIMER_ENABLED, SETTINGS_LAYOUT_DISCLAIMER_TEXT
+
+    def _layout(self, orientation="Landscape", **kw):
+        from cartogen_ai.core.agent.tools.layout_tools import create_print_layout
+        res = create_print_layout("Footer check", page_orientation=orientation, confirmed=True, **kw)
+        self.assertTrue(res.get("success"), res)
+        return res, QgsProject.instance().layoutManager().layoutByName("Footer check")
+
+    def test_default_footer_names_the_layer_source_and_carries_the_neutral_disclaimer(self):
+        from cartogen_ai.core.agent.tools.layout_style import DEFAULT_DISCLAIMER, NOT_RECORDED
+        _, layout = self._layout()
+        text = layout.itemById("FOOTER").text()
+        self.assertIn("AI-generated", text)
+        self.assertIn(f"Sources: clinics ({NOT_RECORDED})", text)
+        self.assertIn(DEFAULT_DISCLAIMER, text)
+
+    def test_the_organisations_wording_replaces_the_default_and_off_removes_it(self):
+        self.settings.setValue(self.text_key, "Our boundary wording.")
+        _, layout = self._layout()
+        self.assertIn("Our boundary wording.", layout.itemById("FOOTER").text())
+        self.settings.setValue(self.enabled_key, False)
+        _, layout = self._layout()
+        self.assertNotIn("Our boundary wording.", layout.itemById("FOOTER").text())
+        self.assertIn("Sources:", layout.itemById("FOOTER").text())
+
+    def test_explicit_sources_replace_the_derived_ones(self):
+        _, layout = self._layout(sources=["OCHA COD-AB 2024"])
+        text = layout.itemById("FOOTER").text()
+        self.assertIn("Sources: OCHA COD-AB 2024", text)
+        self.assertNotIn("clinics (", text)
+
+    def test_the_grown_footer_stays_on_the_page_and_clear_of_the_other_items(self):
+        for orientation in ("Landscape", "Portrait"):
+            with self.subTest(orientation=orientation):
+                _, layout = self._layout(orientation, body_text="Finding one\nFinding two\nFinding three")
+                footer = layout.itemById("FOOTER")
+                page = layout.pageCollection().page(0).pageSize()
+                self.assertGreaterEqual(footer.y(), 0)
+                self.assertLessEqual(footer.y() + footer.rect().height(), page.height() + 0.01)
+                for other in layout.items():
+                    if other is footer or not (hasattr(other, "id") and other.id()):
+                        continue
+                    apart = (other.y() + other.rect().height() <= footer.y() + 0.01 or other.y() >= footer.y() + footer.rect().height() - 0.01
+                             or other.x() + other.rect().width() <= footer.x() + 0.01 or other.x() >= footer.x() + footer.rect().width() - 0.01)
+                    self.assertTrue(apart, f"{other.id()} overlaps the footer in {orientation}")
+
+
 if __name__ == "__main__":
     unittest.main()
