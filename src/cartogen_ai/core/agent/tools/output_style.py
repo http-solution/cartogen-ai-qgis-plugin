@@ -301,6 +301,42 @@ def style_auto_labels(layer, limit=AUTO_LABEL_MAX_FEATURES):
         return None
 
 
+ZOOM_LABEL_MAX_FEATURES = 2000       # beyond this even zoomed-in labels are slow to place; the user can still ask for them
+ZOOM_LABEL_SCALE = 1_000_000         # labels appear when zoomed in to 1:1,000,000 or closer
+
+
+def style_zoom_labels(layer, limit=ZOOM_LABEL_MAX_FEATURES, scale=ZOOM_LABEL_SCALE):
+    """Name labels that show only when zoomed in, for a named layer too big to label at country scale. Returns the field used, or None.
+
+    GitHub #127, rc48 OI-127 (2026-10-24): a downloaded ADM2 layer (about 330 districts) got no labels, because style_auto_labels skips
+    anything over AUTO_LABEL_MAX_FEATURES (a label cloud hides the map). The screenshot shows a bare outline map with no names at all. Scale-
+    dependent labels give both: no cloud at country scale, names as soon as the user zooms in. Not re-run in a real QGIS session here; the live
+    test in CI is its first execution."""
+    if not QGIS_AVAILABLE or layer is None or not hasattr(layer, "featureCount") or hasattr(layer, "bandCount"):
+        return None
+    try:
+        ok, field = should_auto_label(layer.featureCount(), [f.name() for f in layer.fields()], limit)
+        if not ok or all(is_generic_label_value(f[field]) for f in layer.getFeatures()):
+            return None
+        from qgis.core import QgsProject
+        if QgsProject.instance().mapLayer(layer.id()) is None:
+            return None
+        from .vector_tools import apply_labels
+        res = apply_labels(layer.name(), target_field=field, font_size=9)
+        if not isinstance(res, dict) or res.get("error"):
+            return None
+        labeling = layer.labeling()
+        settings = labeling.settings()
+        settings.scaleVisibility = True
+        settings.minimumScale = float(scale)
+        settings.maximumScale = 0.0
+        labeling.setSettings(settings)
+        layer.triggerRepaint()
+        return field
+    except Exception:
+        return None
+
+
 def style_points_default(layer):
     """One consistent point look (blue, white halo) instead of a random default colour. Returns True when applied."""
     if not QGIS_AVAILABLE or layer is None:
