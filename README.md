@@ -20,15 +20,15 @@
   <a href="https://cartogenai.com"><img src="https://img.shields.io/badge/website-cartogenai.com-0b6efd" alt="Website"></a>
 </p>
 
-**Community edition · Version 1.17.0-rc49 (pre-release) · GNU GPL v2 · QGIS 4.2–4.99 · [cartogenai.com](https://cartogenai.com)**
+**Community edition · Version 1.17.0-rc50 (pre-release) · GNU GPL v2 · QGIS 4.2–4.99 · [cartogenai.com](https://cartogenai.com)**
 
 Cartogen AI is built for GIS analysts, humanitarian teams, researchers, and anyone who
 needs to move from a question to a reproducible spatial result without leaving QGIS.
 The agent exposes its plan, tool calls, progress, and errors instead of returning a
 black-box answer.
 
-> **Project status (2026-10-24):** active Community edition, currently at the **1.17.0-rc49 pre-release** build (the last stable build is 1.16.3; rc20 to 1.17.0-rc49 add the audit fixes, hand-test fixes and the cost and routing work made after rc19).
-> - **Tests:** 4,663 automated tests run offline, 0 failures (648 skipped there: the live-QGIS tests and those needing optional libraries). The QGIS ones run in CI (the `qgis-live-tests` job, QGIS 4.2.2) together with ruff, mypy and a release-zip check.
+> **Project status (2026-10-24):** active Community edition, currently at the **1.17.0-rc50 pre-release** build (the last stable build is 1.16.3; rc20 to 1.17.0-rc50 add the audit fixes, hand-test fixes and the cost and routing work made after rc19).
+> - **Tests:** 4,908 automated tests run offline, 0 failures (723 skipped there: the live-QGIS tests and those needing optional libraries). The QGIS ones run in CI (the `qgis-live-tests` job, QGIS 4.2.2) together with ruff, mypy and a release-zip check.
 > - **Hand testing:** rc44 to rc46 were hand-tested in desktop QGIS 4.2.3 (tool sweep: 65 of 83 rows Pass, 1 Fail, the rest Partial or Skip; 21 of 21 priority algorithms Pass); the plain-language algorithm test (385 prompts) has **not** been run. rc48 was hand-tested on 2026-10-24 (52 of 87 rows Pass, 18 Partial, 16 Fail, 1 Skip; results in [docs/HAND_TEST_RESULTS_rc48_2026-10-24.md](docs/HAND_TEST_RESULTS_rc48_2026-10-24.md)); the rc49 changes are CI-checked only until its lean hand test ([docs/LEAN_HAND_TEST_PROTOCOL.md](docs/LEAN_HAND_TEST_PROTOCOL.md)) is run.
 > - **Open issues (28):** the external architectural audit of rc12 (tracking issue #169) and the smoke-test findings (#72 and its children) are fixed in code and CI-verified except where a comment on the issue says otherwise; they stay open until a hand-verified PASS, because no issue is closed without one. Per-issue status: [docs/OPEN_ISSUES_STATUS_2026-10-23.md](docs/OPEN_ISSUES_STATUS_2026-10-23.md).
 > - **Not yet verified:** a clean-profile install and an in-place upgrade on a recent release candidate (last done on rc6), and the 28-tool default of rc47 against live model answers.
@@ -79,6 +79,20 @@ black-box answer.
   a restricted execution sandbox for model-generated PyQGIS scripts, fail-closed
   read-only SQL enforcement, an SSRF guard on fetched URLs, and a destructive-action
   confirmation gate the model cannot self-approve.
+
+## What's new in 1.17.0-rc50
+
+Built on 1.17.0-rc49. Offline tests and the QGIS 4.2.2 live checks in CI pass; **not hand-tested** in desktop QGIS unless an item says so. Full list: the `v1.17.0-rc50` block in [metadata.txt](metadata.txt) and [CHANGELOG.md](CHANGELOG.md).
+
+- Credits on print layouts: A map with an OpenStreetMap or other known basemap now carries its credit in the footer (a Credits line); a web layer whose credit is not known says 'credit not recorded' instead of getting a guessed one.
+- No data in graduated maps: A graduated style on a layer with empty values now draws those features in grey and lists 'No data' in the legend; before, they were not drawn at all.
+- Layout checks on export: An export reports text that overflows its box, items that overlap and items off the page. These are warnings; the file is still written.
+- Page sizes and export presets: create_print_layout takes page_size A4, A3, A2 or A1 (the finished A4 layout is scaled; the map keeps its extent). Exports take a preset: draft (96 dpi), web (150) or print (300), and a folder gets a file named from the title and the date.
+- Map profiles: A small JSON file in the project's cartogen_profiles folder holds what your team repeats on every map: page size, orientation, export preset, file name pattern and required elements. Name it with profile=. docs/MAP_PROFILES.md lists every field; no organisation's template or mark ships.
+- Branding and sign-off in profiles: A profile can add your logo (PNG or JPG), masthead colours, a font, up to three footer lines, a reviewer sign-off line (without a named reviewer it reads 'Draft - not reviewed') and a COD flag with your own credit wording. A profile can require the sign-off before a publication export. A footer that needs more room takes it from the bottom of the map.
+- Footer fit: Landscape layouts no longer warn that the footer may not fit.
+- Known and open: The elevation profile in a layout rendered empty once in CI and has not been explained. OI-128 and OI-150 are still open and wait for a re-run with the context.json evidence.
+- Not hand-tested: Everything above is checked by the offline suite and, for the QGIS parts, by CI on QGIS 4.2.2. None of it has been hand-tested in desktop QGIS: nobody has looked at an exported A3 or A2 map, a logo, a font or a sign-off line yet. The disclaimer wording is a neutral default until your organisation supplies its own.
 
 ## What's new in 1.17.0-rc49
 

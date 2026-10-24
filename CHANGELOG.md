@@ -7,6 +7,7 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 | Version | Date | Summary |
 |---|---|---|
+| [1.17.0-rc50](#v1-17-0-rc50) | 2026-10-24 | **Release candidate 50 for 1.17.0.** No breaking changes -- requires QGIS 4.2+. Credits, a No data class, layout checks, page sizes A3 to A1, export presets and map profiles with logo, colours, font, sign-off and COD wording. CI-checked, not hand-tested. |
 | [1.17.0-rc49](#v1-17-0-rc49) | 2026-10-24 | **Release candidate 49 for 1.17.0.** No breaking changes -- requires QGIS 4.2+. Fixes from the rc48 hand test, a confirmation step for exports that draw sensitive layers, a sources and disclaimer line on print layouts, and fixes from an external audit. CI-checked, not hand-tested. |
 | [1.17.0-rc48](#v1-17-0-rc48) | 2026-10-23 | **Release candidate 48 for 1.17.0.** No breaking changes -- requires QGIS 4.2+. Excel and CAD export, plain export requests that now reach their tools, statistics and raster-to-polygon from plain words, and everything from rc47 (which was never hand-tested, so test this build instead). CI-checked, not hand-tested. |
 | [1.17.0-rc47](#v1-17-0-rc47) | 2026-10-18 | **Release candidate 47 for 1.17.0.** No breaking changes -- requires QGIS 4.2+. Fixes from the rc46 hand-test run and a cheaper default: about a third fewer tool definitions are sent with each request, short imperative requests are no longer refused as fragments, reading a layer's metadata, raster expressions and elevation profiles along a road now reach the right tool. CI-checked, not hand-tested. |
@@ -93,6 +94,21 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 The detailed narrative entries below are unchanged -- this table is purely an additive index on
 top of them.
+
+<a id="v1-17-0-rc50"></a>
+## [1.17.0-rc50] — 2026-10-24 — Release candidate 50 for 1.17.0: No breaking changes -- requires QGIS 4.2+. Credits, a No data class, layout checks, page sizes A3 to A1, export presets and map profiles with logo, colours, font, sign-off and COD wording. CI-checked, not hand-tested.
+
+No breaking changes; QGIS 4.2+. Everything after 1.17.0-rc49:
+
+- Credits on print layouts: A map with an OpenStreetMap or other known basemap now carries its credit in the footer (a Credits line); a web layer whose credit is not known says 'credit not recorded' instead of getting a guessed one.
+- No data in graduated maps: A graduated style on a layer with empty values now draws those features in grey and lists 'No data' in the legend; before, they were not drawn at all.
+- Layout checks on export: An export reports text that overflows its box, items that overlap and items off the page. These are warnings; the file is still written.
+- Page sizes and export presets: create_print_layout takes page_size A4, A3, A2 or A1 (the finished A4 layout is scaled; the map keeps its extent). Exports take a preset: draft (96 dpi), web (150) or print (300), and a folder gets a file named from the title and the date.
+- Map profiles: A small JSON file in the project's cartogen_profiles folder holds what your team repeats on every map: page size, orientation, export preset, file name pattern and required elements. Name it with profile=. docs/MAP_PROFILES.md lists every field; no organisation's template or mark ships.
+- Branding and sign-off in profiles: A profile can add your logo (PNG or JPG), masthead colours, a font, up to three footer lines, a reviewer sign-off line (without a named reviewer it reads 'Draft - not reviewed') and a COD flag with your own credit wording. A profile can require the sign-off before a publication export. A footer that needs more room takes it from the bottom of the map.
+- Footer fit: Landscape layouts no longer warn that the footer may not fit.
+- Known and open: The elevation profile in a layout rendered empty once in CI and has not been explained. OI-128 and OI-150 are still open and wait for a re-run with the context.json evidence.
+- Not hand-tested: Everything above is checked by the offline suite and, for the QGIS parts, by CI on QGIS 4.2.2. None of it has been hand-tested in desktop QGIS: nobody has looked at an exported A3 or A2 map, a logo, a font or a sign-off line yet. The disclaimer wording is a neutral default until your organisation supplies its own.
 
 <a id="v1-17-0-rc49"></a>
 ## [1.17.0-rc49] — 2026-10-24 — Release candidate 49 for 1.17.0: No breaking changes -- requires QGIS 4.2+. Fixes from the rc48 hand test, a confirmation step for exports that draw sensitive layers, a sources and disclaimer line on print layouts, and fixes from an external audit. CI-checked, not hand-tested.

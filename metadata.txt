@@ -8,7 +8,7 @@ name=Cartogen AI
 qgisMinimumVersion=4.2
 qgisMaximumVersion=4.99
 description=Spatial AI that plans, executes, and shows its work inside QGIS.
-version=1.17.0-rc49
+version=1.17.0-rc50
 author=Alaa Alshoubaki
 email=cartogenai@gmail.com
 
@@ -25,7 +25,18 @@ license=GNU GPL v2
 hasProcessingProvider=yes
 # Declares Qt 6 support for QGIS 4 plugin managers that read this key; managers that do not know it ignore it (added by the rc28 self-audit; confirm against the directory page after the next upload).
 supportsQt6=True
-changelog=v1.17.0-rc49 (2026-10-24):
+changelog=v1.17.0-rc50 (2026-10-24):
+    No breaking changes -- requires QGIS 4.2+. Credits, a No data class, layout checks, page sizes A3 to A1, export presets and map profiles with logo, colours, font, sign-off and COD wording. CI-checked, not hand-tested.
+    - Credits on print layouts: A map with an OpenStreetMap or other known basemap now carries its credit in the footer (a Credits line); a web layer whose credit is not known says 'credit not recorded' instead of getting a guessed one.
+    - No data in graduated maps: A graduated style on a layer with empty values now draws those features in grey and lists 'No data' in the legend; before, they were not drawn at all.
+    - Layout checks on export: An export reports text that overflows its box, items that overlap and items off the page. These are warnings; the file is still written.
+    - Page sizes and export presets: create_print_layout takes page_size A4, A3, A2 or A1 (the finished A4 layout is scaled; the map keeps its extent). Exports take a preset: draft (96 dpi), web (150) or print (300), and a folder gets a file named from the title and the date.
+    - Map profiles: A small JSON file in the project's cartogen_profiles folder holds what your team repeats on every map: page size, orientation, export preset, file name pattern and required elements. Name it with profile=. docs/MAP_PROFILES.md lists every field; no organisation's template or mark ships.
+    - Branding and sign-off in profiles: A profile can add your logo (PNG or JPG), masthead colours, a font, up to three footer lines, a reviewer sign-off line (without a named reviewer it reads 'Draft - not reviewed') and a COD flag with your own credit wording. A profile can require the sign-off before a publication export. A footer that needs more room takes it from the bottom of the map.
+    - Footer fit: Landscape layouts no longer warn that the footer may not fit.
+    - Known and open: The elevation profile in a layout rendered empty once in CI and has not been explained. OI-128 and OI-150 are still open and wait for a re-run with the context.json evidence.
+    - Not hand-tested: Everything above is checked by the offline suite and, for the QGIS parts, by CI on QGIS 4.2.2. None of it has been hand-tested in desktop QGIS: nobody has looked at an exported A3 or A2 map, a logo, a font or a sign-off line yet. The disclaimer wording is a neutral default until your organisation supplies its own.
+v1.17.0-rc49 (2026-10-24):
     No breaking changes -- requires QGIS 4.2+. Fixes from the rc48 hand test, a confirmation step for exports that draw sensitive layers, a sources and disclaimer line on print layouts, and fixes from an external audit. CI-checked, not hand-tested.
     - Fixes from the rc48 hand test: Reachability within a distance now counts the road from the road to the facility (OI-148); tidy project layers asks before it changes anything and finds a layer loaded twice by different routes (OI-120); a script whose edits were not applied is reported as failed, and a blocked import says what scripts can do (145 and 146); dashboards say they need an internet connection (84); a large admin layer gets labels when you zoom in (127); after Zoom Full the layout frames the road network (129); the Memory dialog explains why project memory shows ON (95).
     - Layouts and routing: Charts and the elevation profile take a free spot on the page and draw with the right axes; a plain request such as 'sort the districts by population' goes to the algorithm instead of a mapping task; a Processing algorithm given the wrong geometry type is refused with a clear message; the sun-position algorithm gets a point inside your DEM.
