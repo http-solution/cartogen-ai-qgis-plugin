@@ -75,5 +75,11 @@ class TestDashboardHelpers(unittest.TestCase):
         self.assertIn("showing 2,500 of 139,758 &lt;features&gt;", out)
         self.assertLess(out.index("showing"), out.index("</body>"))
 
+    def test_the_internet_note_is_shown_in_the_file_itself(self):
+        # #84 (rc48): the file had no visible sign that it needs internet to draw its basemap.
+        out = et._inject_notices("<html><body>x</body></html>", [et.DASHBOARD_INTERNET_NOTE])
+        self.assertIn("needs an internet connection", out)
+        self.assertLess(out.index("internet"), out.index("</body>"))
+
     def test_no_notices_leaves_html_untouched(self):
         self.assertEqual(et._inject_notices("<body></body>", []), "<body></body>")
