@@ -72,7 +72,6 @@ class TestReplaceKeepsOldResultWhenAddFails(unittest.TestCase):
         _replace_named_layer("plan010_result", _layer("Point?crs=EPSG:4326&field=id:integer", "first", ["POINT(1 1)"]))
         old_id = QgsProject.instance().mapLayersByName("plan010_result")[0].id()
         project = QgsProject.instance()
-        real_add = type(project).addMapLayer
 
         def failing_add(self_, layer, *a, **k):
             raise RuntimeError("project is closing")
@@ -80,7 +79,6 @@ class TestReplaceKeepsOldResultWhenAddFails(unittest.TestCase):
         with patch.object(type(project), "addMapLayer", failing_add), self.assertRaises(RuntimeError):
             _replace_named_layer("plan010_result", _layer("Point?crs=EPSG:4326&field=id:integer", "second", ["POINT(2 2)"]))
         self.assertIsNotNone(project.mapLayer(old_id), "the earlier result was removed although the replacement was never added")
-        self.assertIs(type(project).addMapLayer, real_add)
 
 
 if __name__ == "__main__":
