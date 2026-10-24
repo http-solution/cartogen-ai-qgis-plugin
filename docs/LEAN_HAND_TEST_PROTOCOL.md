@@ -18,3 +18,5 @@ sends about 24k tokens of system prompt and tool schemas per model call, plus th
 Build the lean bundle with `python tools/build_lean_bundle.py --plugin-zip dist/cartogen_ai_v<version>.zip` (rows A: fix-targeted tool rows; rows B: plain-language sample). Build it around the zip the release workflow published, not a local build: the hashes differ.
 
 rc48: the bundle for 1.17.0-rc48 replaces the rc47 one (rc47 was never run). It adds 8 rows for wave E1 (statistics, polygonize) and the export routing, DXF and spreadsheet changes, and appends a `dem_classes` raster to the fixture script for the polygonize row. See PLAN-007.
+
+rc49: the bundle for 1.17.0-rc49 keeps only what is not proven. rc48's own rows were run on 2026-10-24, so its extra rows are replaced by 9 rows for the PLAN-008 to PLAN-012 changes (routing, geometry guard, coverage report, MultiPoint, contours, export confirmation card, publication reason, atlas, footer); the open-issue rows (OI-120, OI-128, OI-145/146, OI-148, OI-150 and the rest still open) come from the status table as before. The fixture script now also adds a MultiPoint layer `sens_multi`.

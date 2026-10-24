@@ -20,16 +20,16 @@
   <a href="https://cartogenai.com"><img src="https://img.shields.io/badge/website-cartogenai.com-0b6efd" alt="Website"></a>
 </p>
 
-**Community edition · Version 1.17.0-rc48 (pre-release) · GNU GPL v2 · QGIS 4.2–4.99 · [cartogenai.com](https://cartogenai.com)**
+**Community edition · Version 1.17.0-rc49 (pre-release) · GNU GPL v2 · QGIS 4.2–4.99 · [cartogenai.com](https://cartogenai.com)**
 
 Cartogen AI is built for GIS analysts, humanitarian teams, researchers, and anyone who
 needs to move from a question to a reproducible spatial result without leaving QGIS.
 The agent exposes its plan, tool calls, progress, and errors instead of returning a
 black-box answer.
 
-> **Project status (2026-10-23):** active Community edition, currently at the **1.17.0-rc48 pre-release** build (the last stable build is 1.16.3; rc20 to 1.17.0-rc48 add the audit fixes, hand-test fixes and the cost and routing work made after rc19).
+> **Project status (2026-10-24):** active Community edition, currently at the **1.17.0-rc49 pre-release** build (the last stable build is 1.16.3; rc20 to 1.17.0-rc49 add the audit fixes, hand-test fixes and the cost and routing work made after rc19).
 > - **Tests:** 4,663 automated tests run offline, 0 failures (648 skipped there: the live-QGIS tests and those needing optional libraries). The QGIS ones run in CI (the `qgis-live-tests` job, QGIS 4.2.2) together with ruff, mypy and a release-zip check.
-> - **Hand testing:** rc44 to rc46 were hand-tested in desktop QGIS 4.2.3 (tool sweep: 65 of 83 rows Pass, 1 Fail, the rest Partial or Skip; 21 of 21 priority algorithms Pass); the plain-language algorithm test (385 prompts) has **not** been run. rc47 changes are CI-checked only until its lean hand test ([docs/LEAN_HAND_TEST_PROTOCOL.md](docs/LEAN_HAND_TEST_PROTOCOL.md)) is run.
+> - **Hand testing:** rc44 to rc46 were hand-tested in desktop QGIS 4.2.3 (tool sweep: 65 of 83 rows Pass, 1 Fail, the rest Partial or Skip; 21 of 21 priority algorithms Pass); the plain-language algorithm test (385 prompts) has **not** been run. rc48 was hand-tested on 2026-10-24 (52 of 87 rows Pass, 18 Partial, 16 Fail, 1 Skip; results in [docs/HAND_TEST_RESULTS_rc48_2026-10-24.md](docs/HAND_TEST_RESULTS_rc48_2026-10-24.md)); the rc49 changes are CI-checked only until its lean hand test ([docs/LEAN_HAND_TEST_PROTOCOL.md](docs/LEAN_HAND_TEST_PROTOCOL.md)) is run.
 > - **Open issues (28):** the external architectural audit of rc12 (tracking issue #169) and the smoke-test findings (#72 and its children) are fixed in code and CI-verified except where a comment on the issue says otherwise; they stay open until a hand-verified PASS, because no issue is closed without one. Per-issue status: [docs/OPEN_ISSUES_STATUS_2026-10-23.md](docs/OPEN_ISSUES_STATUS_2026-10-23.md).
 > - **Not yet verified:** a clean-profile install and an in-place upgrade on a recent release candidate (last done on rc6), and the 28-tool default of rc47 against live model answers.
 > - Details: [the release smoke test](docs/RELEASE_SMOKE_TEST.md), [the implementation tracker](docs/IMPLEMENTATION_TRACKER.md), [done versus tested](docs/STATUS_DONE_VS_TESTED_2026-10-16.md).
@@ -79,6 +79,18 @@ black-box answer.
   a restricted execution sandbox for model-generated PyQGIS scripts, fail-closed
   read-only SQL enforcement, an SSRF guard on fetched URLs, and a destructive-action
   confirmation gate the model cannot self-approve.
+
+## What's new in 1.17.0-rc49
+
+Built on 1.17.0-rc48. Offline tests and the QGIS 4.2.2 live checks in CI pass; **not hand-tested** in desktop QGIS unless an item says so. Full list: the `v1.17.0-rc49` block in [metadata.txt](metadata.txt) and [CHANGELOG.md](CHANGELOG.md).
+
+- Fixes from the rc48 hand test: Reachability within a distance now counts the road from the road to the facility (OI-148); tidy project layers asks before it changes anything and finds a layer loaded twice by different routes (OI-120); a script whose edits were not applied is reported as failed, and a blocked import says what scripts can do (145 and 146); dashboards say they need an internet connection (84); a large admin layer gets labels when you zoom in (127); after Zoom Full the layout frames the road network (129); the Memory dialog explains why project memory shows ON (95).
+- Layouts and routing: Charts and the elevation profile take a free spot on the page and draw with the right axes; a plain request such as 'sort the districts by population' goes to the algorithm instead of a mapping task; a Processing algorithm given the wrong geometry type is refused with a clear message; the sun-position algorithm gets a point inside your DEM.
+- Exports that draw sensitive layers: A layout export (single page or atlas) whose map draws a layer tagged RESTRICTED or SENSITIVE waits for your confirmation and writes nothing until you press Apply. For a file that will be shared outside the team, ask for a publication export: it is refused while the layout lacks a title, legend, scale bar or north arrow or draws a protected layer, unless you give a reason, which is saved beside the file. Every layout export now lists protected layers and missing elements.
+- Sources and disclaimer on print layouts: The footer of a new layout carries a Sources line (each layer's own organisation and publication date, else its file name, else 'source not recorded') and a boundary and data-sensitivity line. Settings has a checkbox and a box for your organisation's own wording; without it a neutral sentence is used. The footer grows to fit.
+- Fixes from an external audit: Blurring sensitive points to an admin unit works when the points and the admin layer use different coordinate systems, and blurring works on MultiPoint layers (one output point per part; before, it stopped with an error). The sector coverage report no longer shows a missing target as zero percent. The QA checklist says 'unknown' instead of 'no concern' when it cannot read a layer. A failed save of a result layer is reported. The file name for an automatic GeoJSON export is made safe and never overwrites an earlier file. Tools say when their files are in the system temporary folder.
+- Evidence for the two findings still open: Each evidence folder now records the settings and layer state of the request (context.json), so a re-run can explain the rc48 findings OI-128 (colour ramp reported, canvas grey) and OI-150 (sensitive tag lost after a merge). Neither could be reproduced in CI, so neither is fixed.
+- Not hand-tested: Everything above is checked by the offline suite and, for the QGIS parts, by CI on QGIS 4.2.2. None of it has been hand-tested in desktop QGIS, including the confirmation card, the footer layout and the Settings boxes. The wording of the disclaimer is a neutral default until your organisation supplies its own.
 
 ## What's new in 1.17.0-rc48
 
