@@ -686,21 +686,25 @@ MAP_RECLAIM_SHARE = 0.25   # the main map never gives up more than this share of
 
 
 def _reclaim_from_map(layout, layout_mm, label, deficit_mm):
-    """Shortens MAP_MAIN from the bottom by `deficit_mm` (at most MAP_RECLAIM_SHARE of it) so the footer can grow upward. False, and nothing
-    changed, when there is no map directly above the footer or an inset map would then stick out below it."""
+    """Shortens MAP_MAIN from the bottom by `deficit_mm` (at most MAP_RECLAIM_SHARE of it) and lifts every item that sits between the map and the
+    footer (the info row, scale bar, north arrow) by the same amount, so the footer can grow upward. In landscape the footer spans the page under
+    the map, so the scale bar and info row, not the map, are what limit it (PLAN-014 3b CI run 2). False, and nothing changed, when there is no
+    main map or an inset map would then stick out below it."""
     if deficit_mm <= 0:
         return False
     main = layout.itemById("MAP_MAIN")
     if main is None:
         return False
-    if label.y() - (main.y() + main.rect().height()) > 2.0:      # the map is not what limits the footer; shrinking it would gain nothing
-        return False
     amount = min(deficit_mm + 0.2, main.rect().height() * MAP_RECLAIM_SHARE)
-    new_bottom = main.y() + main.rect().height() - amount
+    map_bottom = main.y() + main.rect().height()
     inset = layout.itemById("INSET_MAP")
-    if inset is not None and inset.y() + inset.rect().height() > new_bottom:
+    if inset is not None and inset.y() + inset.rect().height() > map_bottom - amount:
         return False
+    between = [item for item in layout.items()
+               if item is not main and item is not label and hasattr(item, "id") and item.id() and map_bottom - 0.5 <= item.y() < label.y()]
     main.attemptResize(QgsLayoutSize(main.rect().width(), main.rect().height() - amount, layout_mm))
+    for item in between:
+        item.attemptMove(QgsLayoutPoint(item.x(), item.y() - amount, layout_mm))
     return True
 
 
