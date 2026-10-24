@@ -32,7 +32,7 @@ Two limits shape the whole plan, and the owner should confirm them:
 
 **Phases (each its own pull request, stop after any):**
 1. **Credits, no-data, render checks, presets** (no template needed). A credit line for web basemaps and layers with a known licence (taken from the layer's own metadata or the provider's attribution string; "credit not recorded" otherwise, never invented); a "No data" class and legend entry for graduated styles, after a CI render shows the problem; `check_layout_render` (text overflow and item overlap, from the layout's own geometry plus one rendered image); export presets and a file-name pattern.
-2. **Page sizes and the profile mechanism.** `create_print_layout` gets a `page_size` (A4 default, A3, A2, A1, as `PAGE_SIZES` allows) by scaling its A4 geometry, with a render test per size and orientation, because the A4 geometry carries a history of overlap bugs (BUG-2026-09-11-1). A profile file (JSON, validated, loaded from the project folder or the QGIS profile folder) sets page size, orientation, required elements and DPI preset.
+2. **Page sizes and the profile mechanism.** `create_print_layout` gets a `page_size` (A4 default, A3, A2, A1 by owner decision; US Letter and Tabloid are not needed) by scaling its A4 geometry, with a render test per size and orientation, because the A4 geometry carries a history of overlap bugs (BUG-2026-09-11-1). A profile file (JSON, validated, loaded from the project folder or the QGIS profile folder) sets page size, orientation, required elements and DPI preset.
 3. **Branding and sign-off.** Profile fields for logo path, colours, font, footer lines, reviewer block and the COD flag. The logo is a picture item from a local file the organisation supplies (URLs stay refused, as in `layout_options.py`). One example profile ships with placeholder text and an empty logo box, clearly not OCHA's.
 
 ## Acceptance
@@ -49,3 +49,4 @@ One pull request per phase; revert the phase. Profiles are opt-in files, so a re
 
 ## Status log
 - 2026-10-24: plan written after reading `layout_tools.py`, `layout_options.py`, `layout_style.py`, the chart and styling tools and the standards document. No code changed. Waiting for the owner's answers on the profile approach, the page sizes needed and the order.
+- 2026-10-24: owner decisions: (1) profile file mechanism, the organisation supplies its own branding and logo, nothing OCHA or UN ships; (2) Phase 1 first; (3) page sizes A4, A3, A2 and A1. Phase 1 is built on the owner's go.
