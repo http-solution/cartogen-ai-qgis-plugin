@@ -2561,7 +2561,7 @@ Change or remove one item of a print layout by its id (list_layout_items shows t
 
 ### `export_layout`
 
-Export an existing print layout to a file: .pdf, .png, .jpg, .tif (image) or .svg (vector). dpi applies to PDF and images (default 150). Replacing an existing file needs confirmation. create_print_layout can export while it builds; this exports a layout that already exists. The result lists any RESTRICTED or SENSITIVE layer the map draws and any missing title, legend, scale bar or north arrow in export_warnings: tell the user.
+Export an existing print layout to a file: .pdf, .png, .jpg, .tif (image) or .svg (vector). dpi applies to PDF and images (default 150). Replacing an existing file needs confirmation. create_print_layout can export while it builds; this exports a layout that already exists. The result lists any RESTRICTED or SENSITIVE layer the map draws and any missing title, legend, scale bar or north arrow in export_warnings: tell the user. A map that draws a RESTRICTED or SENSITIVE layer waits for the user's confirmation before it is written. purpose='publication' is for a file that will be shared outside the team: it is refused while the layout lacks a mandatory element or draws a protected layer, unless the user gives a reason (ask them; pass it as override_reason) and confirms.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
@@ -2570,6 +2570,8 @@ Export an existing print layout to a file: .pdf, .png, .jpg, .tif (image) or .sv
 | `dpi` | integer | no |  |
 | `world_file` | boolean | no | image exports: also write a world file (.pgw, .jgw, .tfw) so GIS software can place the picture |
 | `geopdf` | boolean | no | pdf exports: write a georeferenced PDF (needs the GDAL PDF driver) |
+| `purpose` | string | no | 'publication' only when the user says the file will be shared outside the team; omit for drafts |
+| `override_reason` | string | no | with purpose='publication': the USER's stated reason for exporting despite problems. Never invent one; ask. |
 
 ### `load_layout_template`
 
