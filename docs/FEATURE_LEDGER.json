@@ -802,6 +802,15 @@
     "sources": ["src/cartogen_ai/core/agent/tools/styling_tools.py", "docs/plans/PLAN-014-ocha-template-and-branding.md"],
     "guards": ["tests/test_plan014_live.py::TestGraduatedNullIsPainted::test_a_feature_with_no_value_is_still_drawn_and_listed_as_no_data", "tests/test_plan014_phase1.py::TestNoData::test_numbers_are_data_and_everything_else_is_not"],
     "hand_verified": "not hand-tested; CI live only"
+  },
+  {
+    "id": "layout-page-sizes",
+    "feature": "create_print_layout takes page_size A4, A3, A2 or A1: the finished A4 layout is scaled by one factor (positions, sizes, text, frames, legend and scale bar spacing) and the map keeps its extent; A4 is untouched",
+    "issues": [],
+    "since": "rc50 (unreleased)",
+    "sources": ["src/cartogen_ai/core/agent/tools/layout_page_scale.py", "src/cartogen_ai/core/agent/tools/layout_tools.py", "docs/plans/PLAN-014-ocha-template-and-branding.md"],
+    "guards": ["tests/test_plan014_pagesize.py::TestPageSizeRules::test_a4_is_exactly_one_and_the_others_double_per_step", "tests/test_plan014_pagesize.py::TestPageSizeRules::test_the_factor_never_lets_an_a4_item_stick_out_of_the_bigger_page", "tests/test_plan014_pagesize_live.py::TestPageSizes::test_a4_by_name_is_identical_to_the_default", "tests/test_plan014_pagesize_live.py::TestPageSizes::test_each_size_and_orientation_scales_cleanly", "tests/test_plan014_pagesize_live.py::TestPageSizes::test_an_unsupported_size_is_refused_and_nothing_is_built"],
+    "hand_verified": "not hand-tested; CI live only (rectangles and a rendered image size, nobody has looked at an A1 page)"
   }
  ]
 }

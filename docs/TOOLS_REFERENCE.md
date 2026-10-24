@@ -542,6 +542,7 @@ Create a map print layout composition with title, legend, scalebar, north arrow,
 | `page_orientation` | string | no | 'Landscape' (default) or 'Portrait'. |
 | `output_path` | string | no | Where to export -- '.pdf' for a vector PDF, '.png'/'.jpg'/'.jpeg' for a raster image. Omit to create the layout in the project without exporting. |
 | `dpi` | integer | no | Export resolution in DPI, for both PDF and image export. Defaults to 300 (print quality). |
+| `page_size` | string | no | Page size: 'A4' (default), 'A3', 'A2' or 'A1'. The same layout is scaled up, and the map shows the same area larger. |
 | `preset` | string | no | Export purpose instead of a dpi number: 'draft' (96), 'web' (150) or 'print' (300). An explicit dpi wins. |
 | `output_format` | string | no | Only when output_path is a FOLDER: 'pdf' (default), 'png' or 'jpg'. The file is then named <title>_<date>.<format>. |
 | `body_text` | string | no | Optional summary/sitrep text shown in a panel on the layout (e.g. priority findings, data sources). |
