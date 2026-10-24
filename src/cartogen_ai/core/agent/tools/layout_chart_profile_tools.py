@@ -7,13 +7,14 @@ The 3D map layout item is NOT built: CI's QGIS has no QgsLayoutItem3DMap (docs/Q
 tests/test_layout_chart_profile_live.py builds both items on a real layout and reads them back (CI's first run is its first execution); how they
 LOOK when rendered or exported has not been checked."""
 import contextlib
+import math
 
 from .gap_options import check_box, check_chart, check_profile_line, free_box, line_ends
 from .registry import register_tool
 
 try:
-    from qgis.core import (Qgis, QgsBarChartPlot, QgsCoordinateReferenceSystem, QgsLayoutItemChart, QgsLayoutItemElevationProfile, QgsLineChartPlot,
-                           QgsLineString, QgsPieChartPlot, QgsPointXY, QgsProject, QgsVectorLayer)
+    from qgis.core import (Qgis, QgsBarChartPlot, QgsCoordinateReferenceSystem, QgsDistanceArea, QgsLayoutItemChart, QgsLayoutItemElevationProfile, QgsLineChartPlot,
+                           QgsLineString, QgsPieChartPlot, QgsPointXY, QgsProject, QgsRasterLayer, QgsVectorLayer)
     from qgis.PyQt.QtCore import QRectF
     QGIS_AVAILABLE = True
 except ImportError:
@@ -70,6 +71,50 @@ def _auto_box(layout, x_mm, y_mm, width_mm, height_mm):
     if spot is None:
         return 10, 10, "No free spot of that size was found on the page, so the item was placed at 10, 10 and may overlap another."
     return spot[0], spot[1], None
+
+
+def _nice_ceiling(value):
+    """Round a positive number up to 1, 2, 5 or 10 times a power of ten so the axis ends on a readable tick."""
+    if value <= 0:
+        return 1.0
+    magnitude = 10 ** math.floor(math.log10(value))
+    for step in (1, 2, 5, 10):
+        if value <= step * magnitude:
+            return float(step * magnitude)
+    return float(10 * magnitude)
+
+
+def _chart_value_range(layer, y_field):
+    """(low, high) of a numeric field for the chart's Y axis, from 0 up to a nice ceiling. rc48 A12 pictures: a chart's axis stays at its default
+    0..10 unless it is set, so the line chart drew only the one town worth 5 and its line ran off the top, and bars worth 50..500 were clipped."""
+    values = []
+    for f in layer.getFeatures():
+        try:
+            values.append(float(f[y_field]))
+        except (TypeError, ValueError):
+            continue
+    if not values:
+        return None
+    low, high = min(values), max(values)
+    return (-_nice_ceiling(-low) if low < 0 else 0.0), (_nice_ceiling(high) if high > 0 else 0.0)
+
+
+def _elevation_range(layers):
+    """(low, high) elevation of the raster layers to profile, padded 5 %, or None when none is a raster. rc48 A6 picture: the plot stayed at 0..10
+    on both axes, so a real curve was out of range."""
+    lows, highs = [], []
+    for layer in layers:
+        if isinstance(layer, QgsRasterLayer):
+            stats = layer.dataProvider().bandStatistics(1)
+            props = layer.elevationProperties()
+            scale, offset = props.zScale(), props.zOffset()
+            lows.append(stats.minimumValue * scale + offset)
+            highs.append(stats.maximumValue * scale + offset)
+    if not lows:
+        return None
+    low, high = min(lows), max(highs)
+    pad = (high - low) * 0.05 or 1.0
+    return low - pad, high + pad
 
 
 def _place(item, layout, box, item_id):
@@ -135,6 +180,10 @@ def add_layout_chart(layout_name, layer_name, x_field, y_field, chart_type="bar"
         # Categorical, so text categories (names) came out empty; the pie reads them as labels, which is why it alone drew.
         with contextlib.suppress(AttributeError):
             plot.xAxis().setType(Qgis.PlotAxisType.Categorical)
+        span = _chart_value_range(layer, options["y_field"])
+        if span:
+            plot.setYMinimum(span[0])
+            plot.setYMaximum(span[1])
     item.setPlot(plot)
     item.setSourceLayer(layer)
     series = _make_series(options["y_field"], f'"{options["x_field"]}"', f'"{options["y_field"]}"')
@@ -204,6 +253,18 @@ def add_layout_elevation_profile(layout_name, layer_names, start_x=None, start_y
     item.setCrs(QgsProject.instance().crs() if QgsProject.instance().crs().isValid() else QgsCoordinateReferenceSystem("EPSG:4326"))
     item.setProfileCurve(QgsLineString([QgsPointXY(*line[0]), QgsPointXY(*line[1])]))
     item.setLayers(layers)
+    with contextlib.suppress(Exception):   # a range we cannot work out leaves QGIS's own default; the layout still builds
+        area = QgsDistanceArea()
+        area.setSourceCrs(item.crs(), QgsProject.instance().transformContext())
+        area.setEllipsoid(QgsProject.instance().ellipsoid() or "WGS84")
+        metres = area.measureLine(QgsPointXY(*line[0]), QgsPointXY(*line[1]))
+        plot = item.plot()
+        plot.setXMinimum(0.0)
+        plot.setXMaximum(float(area.convertLengthMeasurement(metres, item.distanceUnit())))
+        elevation = _elevation_range(layers)
+        if elevation:
+            plot.setYMinimum(float(elevation[0]))
+            plot.setYMaximum(float(elevation[1]))
     _place(item, layout, box, item_id)
     out = {"success": True, "layout_name": layout_name, "item_id": item.id(), "layers": [layer.name() for layer in layers],
            "x_mm": box["x_mm"], "y_mm": box["y_mm"],

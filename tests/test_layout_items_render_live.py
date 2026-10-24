@@ -100,7 +100,7 @@ class TestLayoutItemsRender(unittest.TestCase):
             buf.open(QIODevice.OpenModeFlag.WriteOnly)
             crop.save(buf, "PNG")
             print(f"LAYOUTPNG {k} {bytes(data.toBase64()).decode()}")
-        empty = [k for k, (c, _n, _t) in stats.items() if c < 0.01]
+        empty = [k for k, (c, _n, t) in stats.items() if c * t < 100]   # a thin line or curve is a few hundred pixels at 5 px/mm; an empty plot is none
         self.assertEqual(empty, [], f"these items drew no colour (measured: {report})")
 
 
