@@ -81,6 +81,8 @@ class TestGeometryLimitsLive(unittest.TestCase):
     def test_the_limits_are_read_from_the_algorithm(self):
         self.assertEqual(tools._geometry_limits("qgis:linestopolygons"), {"INPUT": {"Line"}})
         self.assertEqual(tools._geometry_limits("native:buffer"), {})
+        self.assertEqual(tools._geometry_limits("grass:r.carve"), {})          # GRASS and native ids are not checked: they ran on other geometry types in CI
+        self.assertEqual(tools._geometry_limits("native:approximatemedialaxis"), {})
 
     def test_linestopolygons_on_a_polygon_layer_is_refused_before_it_runs(self):
         self._layer("Polygon", "POLYGON((0 0,1 0,1 1,0 1,0 0))", "districts")

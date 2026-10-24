@@ -503,7 +503,7 @@
   },
   {
     "id": "processing-run-guards-rc48",
-    "feature": "The generic Processing tool refuses a layer of the wrong geometry type before running (lines where polygons are given), puts r.sunmask.datetime's point of interest inside the elevation layer, and warns when a raster result holds a single value",
+    "feature": "The generic Processing tool refuses a layer of the wrong geometry type before running for the Python-implemented qgis: algorithms (polygons where lines are needed); GRASS and native ids are unchanged, puts r.sunmask.datetime's point of interest inside the elevation layer, and warns when a raster result holds a single value",
     "issues": [
       379
     ],

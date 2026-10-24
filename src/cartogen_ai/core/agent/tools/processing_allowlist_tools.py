@@ -273,6 +273,11 @@ def _geometry_limits(alg_id):
     """{parameter name: {"Point"/"Line"/"Polygon"}} for the source parameters that accept only some geometry types, else {}. A parameter that
     also accepts any geometry or a table is left out."""
     limits = {}
+    if not alg_id.startswith("qgis:"):
+        # CI run 40045990390: with every id checked, the all-algorithms probes failed for 11 GRASS and 3 native algorithms that ran fine on
+        # other geometry types (GRASS imports any vector, and these native ones convert). Only the Python-implemented qgis: algorithms were seen
+        # to die on the wrong type (rc48 B3), so only those are checked.
+        return limits
     with contextlib.suppress(Exception):
         algorithm = QgsApplication.processingRegistry().algorithmById(alg_id)
         for p in algorithm.parameterDefinitions():
