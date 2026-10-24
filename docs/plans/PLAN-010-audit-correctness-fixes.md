@@ -1,6 +1,6 @@
 # PLAN-010: correctness fixes from the external architecture and cartography audit
 
-Status: done (merged, not hand-verified)
+Status: done
 
 ## Goal
 Fix the audit findings that were checked against the code and shown to produce silently wrong output. Nothing else from the audit is in this plan.
