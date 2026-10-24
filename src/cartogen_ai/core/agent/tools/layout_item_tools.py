@@ -469,13 +469,18 @@ def load_layout_template(template_path, new_layout_name):
     "export_layout",
     "Export an existing print layout to a file: .pdf, .png, .jpg, .tif (image) or .svg (vector). dpi applies to PDF and images (default 150). "
     "Replacing an existing file needs confirmation. create_print_layout can export while it builds; this exports a layout that already exists. "
-    "The result lists any RESTRICTED or SENSITIVE layer the map draws and any missing title, legend, scale bar or north arrow in export_warnings: tell the user.",
+    "The result lists any RESTRICTED or SENSITIVE layer the map draws and any missing title, legend, scale bar or north arrow in export_warnings: tell the user. "
+    "A map that draws a RESTRICTED or SENSITIVE layer waits for the user's confirmation before it is written. "
+    "purpose='publication' is for a file that will be shared outside the team: it is refused while the layout lacks a mandatory element or draws a protected layer, "
+    "unless the user gives a reason (ask them; pass it as override_reason) and confirms.",
     {"type": "object", "properties": {"layout_name": {"type": "string"}, "output_path": {"type": "string"}, "dpi": {"type": "integer"},
                                       "world_file": {"type": "boolean", "description": "image exports: also write a world file (.pgw, .jgw, .tfw) so GIS software can place the picture"},
-                                      "geopdf": {"type": "boolean", "description": "pdf exports: write a georeferenced PDF (needs the GDAL PDF driver)"}},
+                                      "geopdf": {"type": "boolean", "description": "pdf exports: write a georeferenced PDF (needs the GDAL PDF driver)"},
+                                      "purpose": {"type": "string", "description": "'publication' only when the user says the file will be shared outside the team; omit for drafts"},
+                                      "override_reason": {"type": "string", "description": "with purpose='publication': the USER's stated reason for exporting despite problems. Never invent one; ask."}},
      "required": ["layout_name", "output_path"]},
 )
-def export_layout(layout_name, output_path, dpi=150, world_file=False, geopdf=False, confirmed=False):
+def export_layout(layout_name, output_path, dpi=150, world_file=False, geopdf=False, purpose=None, override_reason=None, confirmed=False):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
     kind, problem = validate_export_path(output_path)
@@ -492,9 +497,17 @@ def export_layout(layout_name, output_path, dpi=150, world_file=False, geopdf=Fa
         return {"error": f"Layout '{layout_name}' not found. See list_layouts."}
     path = resolve_output_path(output_path)
     from .export_tools import overwrite_preview, remember_written
+    arguments = {"layout_name": layout_name, "output_path": output_path, "dpi": dpi, "world_file": world_file, "geopdf": geopdf}
+    if purpose:
+        arguments["purpose"] = purpose
+    if override_reason:
+        arguments["override_reason"] = override_reason
+    from .layout_export_checks import gate_export
+    gated = gate_export(layout, "export_layout", arguments, purpose, override_reason, confirmed, overwrite_preview("export_layout", arguments, path) is not None)
+    if gated:
+        return gated
     if not confirmed:
-        preview = overwrite_preview("export_layout", {"layout_name": layout_name, "output_path": output_path, "dpi": dpi,
-                                                      "world_file": world_file, "geopdf": geopdf}, path)
+        preview = overwrite_preview("export_layout", arguments, path)
         if preview:
             return preview
     exporter = QgsLayoutExporter(layout)
@@ -527,5 +540,10 @@ def export_layout(layout_name, output_path, dpi=150, world_file=False, geopdf=Fa
     if geopdf:
         out["geopdf"] = True
     from .layout_export_checks import layout_export_report
-    out.update(layout_export_report(layout))     # PLAN-011 phase A: protected layers drawn, missing mandatory elements (warnings only)
+    out.update(layout_export_report(layout))     # PLAN-011 phase A: protected layers drawn, missing mandatory elements
+    if str(purpose or "").lower() == "publication" and out.get("export_warnings"):
+        from .layout_export_checks import write_publication_record
+        record = write_publication_record(path, layout_name, out.get("export_warnings", []), override_reason)
+        if record:
+            out["publication_record"] = record
     return out

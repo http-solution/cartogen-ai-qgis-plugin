@@ -528,10 +528,20 @@ def _prepare_template(template, body_text, zoom_to_layer, key_figures, sources):
         "required": ["title"],
     },
 )
-def create_print_layout(title: str, page_orientation: str = "Landscape", output_path: str = "", dpi: int = 300, body_text: str = "", zoom_to_layer: str = "", include_inset_map: bool = True, template: str = "standard", key_figures=None, sources=None):
+def create_print_layout(title: str, page_orientation: str = "Landscape", output_path: str = "", dpi: int = 300, body_text: str = "", zoom_to_layer: str = "", include_inset_map: bool = True, template: str = "standard", key_figures=None, sources=None, confirmed: bool = False):
+    requested_output = output_path
     output_path = resolve_output_path(output_path)   # rc22 smoke N3/N8/N9: anchor relative paths to the project (see _paths.py)
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
+    if not confirmed:
+        # PLAN-011 phase B: a file written from protected layers waits for the user's confirm card (checked before anything is built).
+        from .layout_export_checks import build_time_preview
+        preview = build_time_preview("create_print_layout", {
+            "title": title, "page_orientation": page_orientation, "output_path": requested_output, "dpi": dpi, "body_text": body_text,
+            "zoom_to_layer": zoom_to_layer, "include_inset_map": include_inset_map, "template": template, "key_figures": key_figures,
+            "sources": sources}, output_path)
+        if preview:
+            return preview
 
     layout_manager = pending_layout = None
     committed = False
