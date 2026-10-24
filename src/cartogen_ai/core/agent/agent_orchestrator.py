@@ -566,25 +566,11 @@ class CartogenAi:
         except ImportError:
             return None
         try:
-            from .lineage import effective_source_names, get_layer_lineage
-            from ..models import sensitivity as _sens
+            from .protection import lookups
             project = QgsProject.instance()
 
             all_layers = list(project.mapLayers().values())
-
-            def get_level(layer_name):
-                # Every layer sharing the name counts, strictest wins (#150): the first match alone could be the open twin.
-                found = project.mapLayersByName(layer_name)
-                return egress_gate.most_protective_level(
-                    _sens.get_layer_sensitivity(lyr).get("level") for lyr in found)
-
-            def get_sources(layer_name):
-                out = []
-                for lyr in project.mapLayersByName(layer_name):
-                    for entry in get_layer_lineage(lyr):
-                        if isinstance(entry, dict):
-                            out.extend(n for n in effective_source_names(entry, all_layers) if n not in out)
-                return out
+            get_level, get_sources = lookups(all_layers)      # one lineage-following lookup, shared with the export gate (PLAN-016 item 2)
 
             # A client with no readable endpoint (OpenRouter's, for one) counts as non-local --
             # the safe direction for a privacy gate.

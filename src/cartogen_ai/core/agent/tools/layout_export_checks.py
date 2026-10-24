@@ -12,7 +12,6 @@ import json
 import time
 
 from ...logger import log_event
-from ...models.sensitivity import get_layer_sensitivity
 from ._sensitivity_notes import protected_layer_notes
 from .map_profiles import sign_off_missing
 
@@ -87,16 +86,27 @@ def current_profile(layout):
     return merge_current_profile(stored, loaded), None
 
 
-def protected_in(layers):
-    """[{layer, level, reason}] for the layers tagged RESTRICTED or SENSITIVE; an unreadable tag counts as no tag (advisory, never raises)."""
+def _project_layers():
+    """Every layer loaded in the project (what lineage names are resolved against); [] without QGIS. Never raises."""
+    try:
+        return list(QgsProject.instance().mapLayers().values()) if QGIS_AVAILABLE else []
+    except Exception:
+        return []
+
+
+def protected_in(layers, all_layers=None):
+    """[{layer, level, reason, derived_from}] for the layers that are RESTRICTED or SENSITIVE, by their own tag or (PLAN-016 item 2) through
+    lineage from a tagged layer, so a merged or renamed copy is judged like its source. An unreadable tag counts as no tag (advisory, never raises)."""
+    from ..protection import effective_sensitivity
+    pool = _project_layers() if all_layers is None else list(all_layers)
     out = []
     for layer in layers or []:
         try:
-            record = get_layer_sensitivity(layer)
+            record = effective_sensitivity(layer, pool)
         except Exception:
             record = {}
         if record.get("level") in ("RESTRICTED", "SENSITIVE"):
-            out.append({"layer": layer.name(), "level": record["level"], "reason": record.get("reason")})
+            out.append({"layer": layer.name(), "level": record["level"], "reason": record.get("reason"), "derived_from": record.get("derived_from")})
     return out
 
 
@@ -108,7 +118,8 @@ def publication_problems(missing, protected, sign_off_missing=False):
         problems.append("reviewer sign-off missing (the profile requires a named, dated review with status Reviewed or Approved)")
     if missing:
         problems.append("missing " + ", ".join(missing))
-    problems.extend(f"draws '{p['layer']}', tagged {p['level']}" + (f" ({p['reason']})" if p.get("reason") else "") for p in protected)
+    problems.extend((f"draws '{p['layer']}', derived from '{p['derived_from']}' ({p['level']})" if p.get("derived_from")
+                     else f"draws '{p['layer']}', tagged {p['level']}" + (f" ({p['reason']})" if p.get("reason") else "")) for p in protected)
     return problems
 
 
@@ -117,7 +128,8 @@ def protected_preview(tool_name, arguments, protected, problems=(), reason=None,
     export, has problems. Pure. `confirmed` is set only by the user's Apply button; the model cannot set it, so it cannot skip this card."""
     parts = []
     if protected:
-        parts.append("draws protected layer(s) " + "; ".join(f"'{p['layer']}' ({p['level']})" for p in protected))
+        parts.append("draws protected layer(s) " + "; ".join(
+            f"'{p['layer']}' ({p['level']}" + (f", derived from '{p['derived_from']}'" if p.get("derived_from") else "") + ")" for p in protected))
     if problems and not protected:
         parts.append("has problems: " + "; ".join(problems))
     what = " and ".join(parts) or "has problems"

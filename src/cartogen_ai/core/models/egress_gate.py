@@ -189,26 +189,42 @@ def argument_layer_names(tool_name, arguments, known_names):
     return names, False
 
 
-def _protection_reason(name, get_level, get_sources, strict, seen, depth):
-    """Why `name` is protected, or None if it is not.
+def protection_chain(name, get_level, get_sources, strict, seen=None, depth=0):
+    """(path, level, why) for a protected `name`, else None. `path` runs from `name` down to the layer whose own tag protects it
+    (just [name] when its own tag does), `level` is that tag (None only for the strict-mode 'untagged' case) and `why` its short reason.
 
-    An explicit PUBLIC/INTERNAL tag on the layer itself wins outright -- that is how an
-    anonymized/aggregated output is declared releasable even though it was derived from a
-    protected source. Lineage only matters for a layer with no tag of its own (non-strict mode; in
-    strict mode an untagged layer is protected without needing to look at its ancestors)."""
+    An explicit PUBLIC/INTERNAL tag on the layer itself wins outright -- that is how an anonymized/aggregated output is declared
+    releasable even though it was derived from a protected source. Lineage only matters for a layer with no tag of its own (non-strict
+    mode; in strict mode an untagged layer is protected without needing to look at its ancestors). PLAN-016 item 2: the export gate uses
+    this same function (agent/protection.py), so the cloud gate and the export gate cannot disagree about what a derived layer is."""
+    seen = set() if seen is None else seen
     level = get_level(name)
     if level in OPEN_LEVELS:
         return None
     if is_protected(level, strict):
-        return "tagged " + level if level else "untagged (strict mode)"
+        return [name], level, ("tagged " + level if level else "untagged (strict mode)")
     if depth >= _MAX_LINEAGE_DEPTH or name in seen:
         return None
     seen.add(name)
     for source in get_sources(name) or []:
-        inherited = _protection_reason(source, get_level, get_sources, strict, seen, depth + 1)
-        if inherited:
-            return f"derived from '{source}' ({inherited})"
+        found = protection_chain(source, get_level, get_sources, strict, seen, depth + 1)
+        if found:
+            return [name, *found[0]], found[1], found[2]
     return None
+
+
+def reason_from_chain(path, why):
+    """'derived from 'a' (derived from 'b' (tagged SENSITIVE))' for a path [name, a, b] and the tag's `why`. Pure."""
+    reason = why
+    for i in range(len(path) - 2, -1, -1):
+        reason = f"derived from '{path[i + 1]}' ({reason})"
+    return reason
+
+
+def _protection_reason(name, get_level, get_sources, strict, seen, depth):
+    """Why `name` is protected, or None if it is not (the text the cloud gate shows)."""
+    found = protection_chain(name, get_level, get_sources, strict, seen, depth)
+    return reason_from_chain(found[0], found[2]) if found else None
 
 
 def find_protected(names, get_level, get_sources, strict):

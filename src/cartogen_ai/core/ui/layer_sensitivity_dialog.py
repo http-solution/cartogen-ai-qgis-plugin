@@ -116,7 +116,21 @@ class LayerSensitivityDialog(QDialog):
         result = _get_layer_sensitivity(name)
         level = result.get("level")
         reason = result.get("reason")
-        text = f"Current: {level}" + (f" ({reason})" if reason else "") if level else "Current: untagged"
+        derived_from = None
+        if not level:
+            # PLAN-016 item 2: an untagged layer made from a protected one is protected through lineage; say so instead of "untagged".
+            try:
+                from ..agent.protection import effective_sensitivity
+                layers = QgsProject.instance().mapLayersByName(name)
+                if len(layers) == 1:
+                    inherited = effective_sensitivity(layers[0], list(QgsProject.instance().mapLayers().values()))
+                    level, reason, derived_from = inherited.get("level"), None, inherited.get("derived_from")
+            except Exception:
+                level, derived_from = None, None
+        from ..agent.protection import sensitivity_label
+        text = sensitivity_label(level, reason, derived_from)
+        if derived_from:
+            level = None            # the combo below shows the layer's OWN tag, which it does not have
         self.current_level_label.setText(text)
         idx = self.level_combo.findText(level) if level else -1
         self.level_combo.setCurrentIndex(idx if idx >= 0 else 0)
