@@ -542,6 +542,8 @@ Create a map print layout composition with title, legend, scalebar, north arrow,
 | `page_orientation` | string | no | 'Landscape' (default) or 'Portrait'. |
 | `output_path` | string | no | Where to export -- '.pdf' for a vector PDF, '.png'/'.jpg'/'.jpeg' for a raster image. Omit to create the layout in the project without exporting. |
 | `dpi` | integer | no | Export resolution in DPI, for both PDF and image export. Defaults to 300 (print quality). |
+| `preset` | string | no | Export purpose instead of a dpi number: 'draft' (96), 'web' (150) or 'print' (300). An explicit dpi wins. |
+| `output_format` | string | no | Only when output_path is a FOLDER: 'pdf' (default), 'png' or 'jpg'. The file is then named <title>_<date>.<format>. |
 | `body_text` | string | no | Optional summary/sitrep text shown in a panel on the layout (e.g. priority findings, data sources). |
 | `zoom_to_layer` | string | no | Name of a layer to fit the map to its full extent before capturing it, e.g. the national boundary layer for a full-country sitrep map. Omit to use whatever extent the canvas currently shows. |
 | `template` | string | no | 'standard' (default), 'access_map' or 'sitrep'. 'access_map': for the result of a service-area / facility-access analysis. Fits the map to the reach layer when zoom_to_layer is omitted, lists the reach polygon, access points and cost-graded roads first in the legend, and (when body_text is empty) adds a short 'how to read this map' guide for the layers present. 'sitrep': a one-page situation report; body_text is the situation summary, key_figures and sources fill the KEY FIGURES and SOURCES sections, and a standing handling note (estimates, no exact locations of people or sensitive sites) and the preparation date are always added. |
@@ -2568,6 +2570,8 @@ Export an existing print layout to a file: .pdf, .png, .jpg, .tif (image) or .sv
 | `layout_name` | string | yes |  |
 | `output_path` | string | yes |  |
 | `dpi` | integer | no |  |
+| `preset` | string | no | export purpose instead of a dpi number: 'draft' (96), 'web' (150) or 'print' (300). An explicit dpi wins. |
+| `output_format` | string | no | only when output_path is a FOLDER: pdf (default), png, jpg, tif or svg; the file is then named <layout>_<date>.<format> |
 | `world_file` | boolean | no | image exports: also write a world file (.pgw, .jgw, .tfw) so GIS software can place the picture |
 | `geopdf` | boolean | no | pdf exports: write a georeferenced PDF (needs the GDAL PDF driver) |
 | `purpose` | string | no | 'publication' only when the user says the file will be shared outside the team; omit for drafts |

@@ -299,9 +299,10 @@ def sources_line(entries, budget=SOURCES_CHAR_BUDGET):
     return prefix + "; ".join(kept) + (f" +{left} more" if left else "")
 
 
-def footer_block(base, levels, sources, disclaimer):
-    """The footer's full text: classification and AI note, then the sources line, then the disclaimer; empty parts are left out. Pure."""
-    return "\n".join(part for part in (footer_text(base, levels), sources, disclaimer) if part)
+def footer_block(base, levels, sources, disclaimer, credit_text=""):
+    """The footer's full text: classification and AI note, then the sources line, the credits line (PLAN-014), then the disclaimer; empty parts are
+    left out. Pure."""
+    return "\n".join(part for part in (footer_text(base, levels), sources, credit_text, disclaimer) if part)
 
 
 def plan_footer_growth(needed_mm, height_mm, y_mm, page_height_mm, clearance_above_mm, bottom_gap_mm=1.0):
@@ -403,6 +404,18 @@ def visible_layer_entries(project=None):
     return out
 
 
+def layer_credit_info(entry):
+    """The dict credit_entries() reads, from a visible_layer_entries() item. Never raises."""
+    layer = entry["layer"]
+    rights = []
+    with contextlib.suppress(Exception):
+        rights = [str(r) for r in layer.metadata().rights()]
+    source = ""
+    with contextlib.suppress(Exception):
+        source = layer.source()
+    return {"name": entry["name"], "provider": entry["provider"], "source": source, "rights": rights, "visible": entry["visible"]}
+
+
 def layer_source_entry(layer):
     """source_entry() for a real layer, from its own metadata (organisation, publication date) and, failing that, its file name. Never raises."""
     import os
@@ -458,6 +471,10 @@ def apply_layout_style(layout, layout_mm, project=None, today=None, template="st
     drawn = [by_id[i] for i in ids if i in by_id]
     source_entries = [str(x) for x in sources] if sources else [layer_source_entry(layer) for layer in drawn]
     footer_warnings = []
+    credit_text = ""
+    with contextlib.suppress(Exception):
+        from .layout_credits import credit_entries, credits_line
+        credit_text = credits_line(credit_entries([layer_credit_info(e) for e in entries]))
 
     def step(name, fn):
         try:
@@ -470,7 +487,7 @@ def apply_layout_style(layout, layout_mm, project=None, today=None, template="st
             ("map frame", lambda: _style_map_frame(layout, layout_mm)),
             ("info row", lambda: _style_info(layout, today)),
             ("body panel", lambda: _style_body(layout, layout_mm)),
-            ("footer", lambda: footer_warnings.extend(_style_footer(layout, layout_mm, levels, source_entries))),
+            ("footer", lambda: footer_warnings.extend(_style_footer(layout, layout_mm, levels, source_entries, credit_text))),
             ("legend", lambda: _style_legend(layout, layout_mm, ids, by_id, template, chosen)),
             ("legend fonts", lambda: _style_legend_fonts(layout)),
             ("scale bar", lambda: _style_scalebar(layout))):
@@ -536,7 +553,7 @@ def _clearance_above(layout, label):
     return top - max(bottoms) - 1.5 if bottoms else top - 1.5
 
 
-def _style_footer(layout, layout_mm, levels, source_entries=()):
+def _style_footer(layout, layout_mm, levels, source_entries=(), credit_text=""):
     """Sets the footer text (classification, AI note, sources, disclaimer) and grows the box to fit. Returns warnings."""
     label = layout.itemById("FOOTER")
     base = label.text()
@@ -546,7 +563,7 @@ def _style_footer(layout, layout_mm, levels, source_entries=()):
     page_height = layout.pageCollection().page(0).pageSize().height()
     warnings = []
     for budget in (SOURCES_CHAR_BUDGET, 60):
-        text = footer_block(base, levels, sources_line(source_entries, budget), disclaimer)
+        text = footer_block(base, levels, sources_line(source_entries, budget), disclaimer, credit_text)
         label.setText(text)
         needed = body_text_height_mm(text, label.rect().width(), TYPE_SCALE["footer"], margin_mm=0.5, minimum_mm=1.0)
         new_y, new_h, fits = plan_footer_growth(needed, label.rect().height(), label.y(), page_height, _clearance_above(layout, label))

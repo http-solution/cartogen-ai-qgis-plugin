@@ -484,6 +484,20 @@ def _prepare_template(template, body_text, zoom_to_layer, key_figures, sources):
     return template, body_text, zoom_to_layer, sitrep_args, sitrep_warning
 
 
+def _early_export_checks(title, output_path, requested_output, dpi, preset, output_format, confirmed, arguments):
+    """(output_path, dpi, early_result): a folder gets its default file name, a preset becomes a dpi, and a map that would draw protected layers
+    into a file waits for the confirm card (PLAN-011 phase B) before anything is built. early_result is None when the build may go ahead."""
+    from .layout_options import export_dpi, resolve_export_target
+    output_path = resolve_export_target(output_path, title, output_format)         # PLAN-014: a folder gets <title>_<date>.<format>
+    dpi, problem = export_dpi(preset, dpi, 300)
+    if problem:
+        return output_path, dpi, {"error": problem}
+    if not confirmed:
+        from .layout_export_checks import build_time_preview
+        return output_path, dpi, build_time_preview("create_print_layout", {**arguments, "output_path": requested_output, "dpi": dpi}, output_path)
+    return output_path, dpi, None
+
+
 @register_tool(
     "create_print_layout",
     "Create a map print layout composition with title, legend, scalebar, north arrow, and an "
@@ -518,6 +532,8 @@ def _prepare_template(template, body_text, zoom_to_layer, key_figures, sources):
             "page_orientation": {"type": "string", "description": "'Landscape' (default) or 'Portrait'."},
             "output_path": {"type": "string", "description": "Where to export -- '.pdf' for a vector PDF, '.png'/'.jpg'/'.jpeg' for a raster image. Omit to create the layout in the project without exporting."},
             "dpi": {"type": "integer", "description": "Export resolution in DPI, for both PDF and image export. Defaults to 300 (print quality)."},
+            "preset": {"type": "string", "description": "Export purpose instead of a dpi number: 'draft' (96), 'web' (150) or 'print' (300). An explicit dpi wins."},
+            "output_format": {"type": "string", "description": "Only when output_path is a FOLDER: 'pdf' (default), 'png' or 'jpg'. The file is then named <title>_<date>.<format>."},
             "body_text": {"type": "string", "description": "Optional summary/sitrep text shown in a panel on the layout (e.g. priority findings, data sources)."},
             "zoom_to_layer": {"type": "string", "description": "Name of a layer to fit the map to its full extent before capturing it, e.g. the national boundary layer for a full-country sitrep map. Omit to use whatever extent the canvas currently shows."},
             "template": {"type": "string", "description": "'standard' (default), 'access_map' or 'sitrep'. 'access_map': for the result of a service-area / facility-access analysis. Fits the map to the reach layer when zoom_to_layer is omitted, lists the reach polygon, access points and cost-graded roads first in the legend, and (when body_text is empty) adds a short 'how to read this map' guide for the layers present. 'sitrep': a one-page situation report; body_text is the situation summary, key_figures and sources fill the KEY FIGURES and SOURCES sections, and a standing handling note (estimates, no exact locations of people or sensitive sites) and the preparation date are always added."},
@@ -528,20 +544,17 @@ def _prepare_template(template, body_text, zoom_to_layer, key_figures, sources):
         "required": ["title"],
     },
 )
-def create_print_layout(title: str, page_orientation: str = "Landscape", output_path: str = "", dpi: int = 300, body_text: str = "", zoom_to_layer: str = "", include_inset_map: bool = True, template: str = "standard", key_figures=None, sources=None, confirmed: bool = False):
+def create_print_layout(title: str, page_orientation: str = "Landscape", output_path: str = "", dpi: int | None = None, body_text: str = "", zoom_to_layer: str = "", include_inset_map: bool = True, template: str = "standard", key_figures=None, sources=None, confirmed: bool = False, preset: str | None = None, output_format: str = "pdf"):
     requested_output = output_path
     output_path = resolve_output_path(output_path)   # rc22 smoke N3/N8/N9: anchor relative paths to the project (see _paths.py)
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
-    if not confirmed:
-        # PLAN-011 phase B: a file written from protected layers waits for the user's confirm card (checked before anything is built).
-        from .layout_export_checks import build_time_preview
-        preview = build_time_preview("create_print_layout", {
-            "title": title, "page_orientation": page_orientation, "output_path": requested_output, "dpi": dpi, "body_text": body_text,
-            "zoom_to_layer": zoom_to_layer, "include_inset_map": include_inset_map, "template": template, "key_figures": key_figures,
-            "sources": sources}, output_path)
-        if preview:
-            return preview
+    output_path, dpi, early = _early_export_checks(title, output_path, requested_output, dpi, preset, output_format, confirmed, {
+        "title": title, "page_orientation": page_orientation, "dpi": dpi, "body_text": body_text, "zoom_to_layer": zoom_to_layer,
+        "include_inset_map": include_inset_map, "template": template, "key_figures": key_figures, "sources": sources,
+        "preset": preset, "output_format": output_format})
+    if early:
+        return early
 
     layout_manager = pending_layout = None
     committed = False
