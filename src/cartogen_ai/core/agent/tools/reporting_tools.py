@@ -500,15 +500,24 @@ def generate_sector_coverage_report(rows, group_by_field, reached_field, target_
         table.sort(key=lambda e: e["reached"], reverse=True)
 
     chart_title = title or f"Coverage by {group_by_field}"
+    chart_rows = table
+    no_target_groups = []
     if target_field:
-        chart_values = [e["coverage_percent"] if e["coverage_percent"] is not None else 0 for e in table]
+        # PLAN-010: a group with no usable target (missing, unparseable or zero) has NO coverage, not 0% coverage. Plotting it as 0 drew a
+        # confident empty bar for what is a data gap; it stays in the table (sorted first) and is named in the result, but is not charted.
+        chart_rows = [e for e in table if e["coverage_percent"] is not None]
+        no_target_groups = [str(e[group_by_field]) for e in table if e["coverage_percent"] is None]
+        chart_values = [e["coverage_percent"] for e in chart_rows]
         y_label = "Coverage %"
     else:
         chart_values = [e["reached"] for e in table]
         y_label = "Reached"
 
+    if not chart_rows:
+        return {"error": "No group has a usable target, so there is no coverage percentage to chart.",
+                "table": table, "no_target_groups": no_target_groups}
     chart_res = generate_chart(
-        "bar", chart_title, [str(e[group_by_field]) for e in table], chart_values,
+        "bar", chart_title, [str(e[group_by_field]) for e in chart_rows], chart_values,
         x_label=group_by_field, y_label=y_label, output_path=output_path,
     )
     if "error" in chart_res:
@@ -523,4 +532,7 @@ def generate_sector_coverage_report(rows, group_by_field, reached_field, target_
         "chart_path": chart_res["output_path"],
         "reached_skipped_rows": reached_result["skipped_rows"],
         "target_skipped_rows": target_skipped_rows,
+        "no_target_groups": no_target_groups,
+        **({"chart_note": f"{len(no_target_groups)} group(s) have no usable target and are not charted (a missing target is not 0% coverage): "
+                          + ", ".join(no_target_groups)} if no_target_groups else {}),
     }

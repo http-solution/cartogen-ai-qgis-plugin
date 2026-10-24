@@ -31,6 +31,7 @@ TRANSITIONS entry for "map_qa")."""
 
 import os
 
+from ...logger import log_event
 from . import _chunked as _ck
 from .registry import register_tool
 from ._paths import resolve_output_path
@@ -177,6 +178,7 @@ def generate_map_product_qa_checklist(layer_name, layout_name=None, output_path=
     # relying on QVariant type-name strings, which vary in exact spelling
     # across QGIS versions.
     has_numeric_field = False
+    classification_error = None
     if hasattr(layer, "getFeatures"):
         try:
             has_numeric_field = any(
@@ -184,8 +186,11 @@ def generate_map_product_qa_checklist(layer_name, layout_name=None, output_path=
                 for feat in _ck.features(layer, "Qa checklist: reading features")
                 for idx in range(feat.fields().count())
             )
-        except Exception:
-            has_numeric_field = False
+        except Exception as exc:
+            # PLAN-010: this used to set has_numeric_field=False, so a provider timeout or a dead layer was reported below as "No concern
+            # found". An unreadable layer is "could not check", not "checked and clean". Only the exception type is logged (no data values).
+            classification_error = type(exc).__name__
+            log_event("qa_classification_check_failed", error_class=classification_error)
 
     renderer = layer.renderer() if hasattr(layer, "renderer") else None
     try:
@@ -195,7 +200,12 @@ def generate_map_product_qa_checklist(layer_name, layout_name=None, output_path=
         # checklist -- e.g. QgsSingleSymbolRenderer unavailable for any
         # reason degrades to "no concern found" rather than a crash.
         is_default_shaped_renderer = False
-    if is_default_shaped_renderer and has_numeric_field:
+    if classification_error is not None:
+        categories["classification_sanity"] = {
+            "status": "unknown",
+            "note": f"Classification check could not be completed (reading the layer's features failed: {classification_error}). Not a pass.",
+        }
+    elif is_default_shaped_renderer and has_numeric_field:
         categories["classification_sanity"] = {
             "note": (
                 "This layer renders with a single symbol (QGIS's own default for an unstyled "

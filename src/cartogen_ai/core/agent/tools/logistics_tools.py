@@ -725,6 +725,22 @@ def replacement_note(name, changes):
             "the project; to keep both, ask for the new result under a different origin name or export the earlier one first.")
 
 
+_BENIGN_PERSIST_REASONS = ("not a memory layer", "the project has not been saved yet", "QGIS not available")
+
+
+def persist_warning(res):
+    """The sentence to relay when keeping a result layer in the project's results GeoPackage was attempted and failed, else ''. Pure.
+
+    Expected non-persistence (not a memory layer, project not saved yet) is not a warning: nothing was attempted or the user already knows."""
+    if not isinstance(res, dict) or res.get("persisted") or res.get("persisted") is None:
+        return ""
+    reason = str(res.get("reason") or "unknown reason")
+    if reason.startswith(_BENIGN_PERSIST_REASONS):
+        return ""
+    return (f"The result layer is in the project but could not be saved into the project's results GeoPackage ({reason}); "
+            "it will be lost when the project is closed unless it is exported.")
+
+
 def _replace_named_layer(name, new_layer, to_tree=True, params=None):
     """Adds `new_layer` under `name`, first removing every existing layer already using that
     exact name -- calculate_service_area's output names are deterministic (derived from the
@@ -742,9 +758,8 @@ def _replace_named_layer(name, new_layer, to_tree=True, params=None):
     project = QgsProject.instance()
     replaced = None
     set_aside = set_aside_user_layers(name, project)       # a layer the user made is renamed, never removed (audit A02)
-    for stale in project.mapLayersByName(name):
-        if not is_plugin_result(stale):
-            continue                    # already set aside above; only the plugin's own earlier result is ever removed
+    stale_layers = [s for s in project.mapLayersByName(name) if is_plugin_result(s)]   # anything else was set aside above
+    for stale in stale_layers:
         # #130 point 3: when the layer being replaced was built with different parameters, say so (the caller relays it); a re-run with the same
         # parameters stays silent, and a layer with no recorded parameters (made before this was added) is not reported.
         if params is not None and replaced is None:
@@ -759,7 +774,6 @@ def _replace_named_layer(name, new_layer, to_tree=True, params=None):
                 if changes:
                     replaced = {"layer": name, "changes": [{"parameter": k, "was": a, "now": b} for k, a, b in changes],
                                 "note": replacement_note(name, changes)}
-        project.removeMapLayer(stale.id())
     if params is not None:
         with contextlib.suppress(Exception):
             import json as _json
@@ -771,14 +785,32 @@ def _replace_named_layer(name, new_layer, to_tree=True, params=None):
             replaced = {"layer": name, "changes": [], "note": note}
         else:
             replaced["note"] = replaced["note"] + " " + note
+    # PLAN-010: add the replacement BEFORE removing the earlier result. The old order removed first, so an addMapLayer() that raised (project
+    # teardown, a deleted SIP wrapper) left the user with neither the old result nor the new one. If removing the old one then fails, the
+    # newly added layer is taken out again, so the project is left as it was and the error still reaches the caller.
     if to_tree:
         project.addMapLayer(new_layer)
     else:
         project.addMapLayer(new_layer, False)   # the caller puts the layer in a group itself
+    try:
+        for stale in stale_layers:
+            project.removeMapLayer(stale.id())
+    except Exception:
+        with contextlib.suppress(Exception):
+            project.removeMapLayer(new_layer.id())
+        raise
     # F06: keep the output across Save/Reopen (a no-op for an unsaved project; see results_store.py).
-    with contextlib.suppress(Exception):
+    try:
         from ..results_store import persist_layer
-        persist_layer(new_layer, tool="analysis")
+        warning = persist_warning(persist_layer(new_layer, tool="analysis"))
+    except Exception as exc:
+        warning = persist_warning({"persisted": False, "reason": f"{type(exc).__name__}"})
+    if warning:
+        # Not an analysis failure: the layer is valid for this session. Say it was NOT kept, instead of leaving the user to find out at reopen.
+        if replaced is None:
+            replaced = {"layer": name, "changes": [], "note": warning}
+        else:
+            replaced["note"] = replaced["note"] + " " + warning
     return replaced
 
 
