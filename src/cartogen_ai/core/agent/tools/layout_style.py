@@ -562,8 +562,9 @@ def _apply_layout_style(layout, layout_mm, project, today, template, sources, br
 
     levels = []
     try:
-        from ...models import sensitivity
-        levels.extend(sensitivity.get_layer_sensitivity(e["layer"]).get("level") for e in entries if e["visible"])
+        from ..protection import effective_sensitivity
+        pool = list(project.mapLayers().values())
+        levels.extend(effective_sensitivity(e["layer"], pool).get("level") for e in entries if e["visible"])    # PLAN-016: a derived layer carries its source's level
     except Exception as exc:
         warnings.append(f"sensitivity lookup failed: {exc}")
 

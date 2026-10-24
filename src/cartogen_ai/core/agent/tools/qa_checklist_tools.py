@@ -138,7 +138,15 @@ def generate_map_product_qa_checklist(layer_name, layout_name=None, output_path=
     # models/sensitivity.py) instead of a static "no classification exists"
     # reminder -- that classification has existed since point 24 shipped,
     # this checklist just never read it until now.
-    sensitivity_record = _sens.get_layer_sensitivity(layer)
+    sensitivity_record = dict(_sens.get_layer_sensitivity(layer))
+    if sensitivity_record.get("level") is None:
+        # PLAN-016 item 2: a layer made from a protected one is protected through lineage, like in the cloud gate and the export gate.
+        from ..protection import effective_sensitivity
+        try:
+            pool = list(QgsProject.instance().mapLayers().values())
+        except Exception:
+            pool = [layer]
+        sensitivity_record = effective_sensitivity(layer, pool)
     level = sensitivity_record.get("level")
     if level is None:
         categories["disclosure"] = {
@@ -155,7 +163,10 @@ def generate_map_product_qa_checklist(layer_name, layout_name=None, output_path=
             "tracked": True,
             "level": level,
             "reason": sensitivity_record.get("reason"),
-            "warning": _sens.export_warning_for(layer) or None,
+            "warning": _sens.export_warning_for(layer)
+            or (f"Derived from '{sensitivity_record['derived_from']}' ({level}): treat this layer as {level} before sharing."
+                if sensitivity_record.get("derived_from") else None),
+            "derived_from": sensitivity_record.get("derived_from"),
         }
 
     prov_res = get_provenance_record(layer_name)
