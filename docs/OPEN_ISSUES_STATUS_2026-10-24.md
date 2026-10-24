@@ -27,3 +27,12 @@ Source: the rc48 hand test (`docs/HAND_TEST_RESULTS_rc48_2026-10-24.md`, 87 rows
 Closed since 2026-10-18: #358 to #361 (rc46 hand-test defects, fixed in rc47 with regression tests; hand verification is rows A1, A4, A5, A14 of the rc47 lean bundle).
 
 PLAN-008 also merged (2026-10-24, all CI only, none hand-tested): #379 layout charts and profile now draw and are placed on free spots (PR 384); #380 task library stands down when a strong algorithm fits (PR 385); B3, B7, B15 guards (PR 386). #379 and #380 stay open until the rc49 hand test passes their rows.
+
+PLAN-009 (2026-10-24, the rc48 evidence folders read; all CI only, none hand-tested; details in docs/plans/PLAN-009-rc48-evidence-folders.md):
+- #148: fixed more completely (classify_facilities_by_access now counts the access leg). Re-run OI-148.
+- #150 and #128: faithful reproductions (real fixtures, real agent) pass on current main AND on the rc48 code, so the rc48 observations are NOT explained by the code. Both stay open; evidence folders now carry context.json (gate mode, each layer's sensitivity, lineage, renderer) for the re-run.
+- #120: tidy-apply asks first (PLAN-008); duplicate detection now normalises the data source and lists same-name near misses.
+- #145/#146: a script whose edits were not applied is now a failure that says so; a blocked import says what scripts can do.
+- #84: the dashboard file says it needs internet. #127: large admin layers get labels when zoomed in. #129: after Zoom Full the layout frames the vector layers. #95: the code default is OFF; the Memory dialog's ON line names the setting that turns it off (the 'ON' came from the tester's saved profile).
+- Not touched (no new evidence or owner decision needed): #93, #97, #130, #138, #169, #223, #224, #233, #305, #362, #72.
+

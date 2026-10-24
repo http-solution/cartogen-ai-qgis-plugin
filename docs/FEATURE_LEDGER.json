@@ -542,6 +542,128 @@
       "tests/test_task_algorithm_precedence.py::AlgorithmBeatsTask::test_a_task_that_lists_the_algorithm_keeps_its_directive"
     ],
     "hand_verified": "not hand-tested; measured offline: confident task matches over the 385 plain prompts fell from 34 to 7, over the 792 register titles from 587 to 582. Needs the rc49 hand test (rows B28, B32, B41 and OI-128)"
+  },
+  {
+    "id": "classify-counts-access-leg",
+    "feature": "classify_facilities_by_access routes each facility (distance budget, up to 200) and counts the road distance plus the off-road leg, whatever the snap distance",
+    "issues": [148],
+    "since": "rc49 (unreleased)",
+    "sources": [
+          "src/cartogen_ai/core/agent/tools/logistics_tools.py",
+          "docs/plans/PLAN-009-rc48-evidence-folders.md"
+    ],
+    "guards": [
+          "tests/test_classify_routed_total.py::TestClassifyByRoutedTotal::test_the_total_decides_not_the_road_cost_alone",
+          "tests/test_ubend_access_live.py::TestUBendLegs::test_classify_facilities_counts_the_leg_whatever_the_snap_distance"
+    ],
+    "hand_verified": "not hand-tested; CI live only (OI-148 re-run needed)"
+  },
+  {
+    "id": "evidence-context",
+    "feature": "Every evidence folder records the settings and layer state the request ran in (context.json): gate mode, provider endpoint, each layer's sensitivity, lineage and renderer",
+    "issues": [150, 128],
+    "since": "rc49 (unreleased)",
+    "sources": [
+          "src/cartogen_ai/core/agent/evidence.py",
+          "src/cartogen_ai/core/agent/agent_orchestrator.py",
+          "docs/plans/PLAN-009-rc48-evidence-folders.md"
+    ],
+    "guards": [
+          "tests/test_evidence_context.py::TestEvidenceContext::test_finish_writes_context_json_when_a_context_was_set",
+          "tests/test_evidence_repro_live.py::TestOi150RealFlow::test_the_evidence_context_records_the_gate_state_and_each_layers_sensitivity"
+    ],
+    "hand_verified": "not hand-tested; OI-150 and OI-128 are NOT explained by the code (faithful reproductions pass on main and on rc48) and need a re-run with context.json"
+  },
+  {
+    "id": "gate-and-ramp-real-flow-guards",
+    "feature": "The merge of a SENSITIVE layer is gated and stays protected through two renames, and a population ramp survives the move under the vectors, the canvas render and a save and reload, through the real agent and real gpkg fixtures",
+    "issues": [150, 128],
+    "since": "rc49 (unreleased)",
+    "sources": [
+          "src/cartogen_ai/core/agent/agent_orchestrator.py",
+          "src/cartogen_ai/core/agent/tools/output_style.py",
+          "docs/plans/PLAN-009-rc48-evidence-folders.md"
+    ],
+    "guards": [
+          "tests/test_evidence_repro_live.py::TestOi150RealFlow::test_merging_the_sensitive_layer_is_gated_then_the_output_stays_protected",
+          "tests/test_evidence_repro_live.py::TestOi128RealProject::test_the_ramp_survives_the_move_under_the_vectors_the_canvas_and_a_save"
+    ],
+    "hand_verified": "CI live only; the hand-test observations were not reproduced"
+  },
+  {
+    "id": "script-unapplied-edit-is-a-failure",
+    "feature": "A script whose changes could not be applied (an edit to a file-backed layer) returns a failure that says NOT applied; a partly applied one is flagged; a blocked import says what scripts can do instead",
+    "issues": [145, 146],
+    "since": "rc49 (unreleased)",
+    "sources": [
+          "src/cartogen_ai/core/agent/services/script_isolation.py",
+          "src/cartogen_ai/core/agent/tools/system_tools.py",
+          "docs/plans/PLAN-009-rc48-evidence-folders.md"
+    ],
+    "guards": [
+          "tests/test_script_reply.py::TestScriptReply::test_nothing_applied_and_a_problem_is_a_failure_that_says_so",
+          "tests/test_script_reply.py::TestBlockedImportHint::test_a_blocked_module_names_what_a_script_can_do_instead"
+    ],
+    "hand_verified": "not hand-tested (rc48 OI-145 re-run needed)"
+  },
+  {
+    "id": "dashboard-internet-note",
+    "feature": "The dashboard HTML file itself says it needs an internet connection",
+    "issues": [84],
+    "since": "rc49 (unreleased)",
+    "sources": [
+          "src/cartogen_ai/core/agent/tools/export_tools.py",
+          "docs/plans/PLAN-009-rc48-evidence-folders.md"
+    ],
+    "guards": [
+          "tests/test_export_csv_helpers.py::TestDashboardHelpers::test_the_internet_note_is_shown_in_the_file_itself"
+    ],
+    "hand_verified": "not hand-tested"
+  },
+  {
+    "id": "tidy-duplicate-source-normalised",
+    "feature": "tidy_project_layers matches a duplicate layer whatever way its data source was loaded, and lists same-name layers it did not match",
+    "issues": [120],
+    "since": "rc49 (unreleased)",
+    "sources": [
+          "src/cartogen_ai/core/agent/tools/project_tidy_tools.py",
+          "docs/plans/PLAN-009-rc48-evidence-folders.md"
+    ],
+    "guards": [
+          "tests/test_project_tidy_extra.py::TestDuplicatesAcrossLoadStyles::test_the_same_geopackage_layer_loaded_twice_is_found_whatever_the_load_style",
+          "tests/test_project_tidy_extra.py::TestNormalizeSource::test_slashes_drive_case_and_geometrytype_do_not_make_two_layers_different"
+    ],
+    "hand_verified": "not hand-tested; the cause of the missed duplicate in rc48 is inferred, not read from the evidence"
+  },
+  {
+    "id": "layout-frames-the-vectors-after-zoom-full",
+    "feature": "After Zoom Full the layout's main frame follows the visible vector layers when they fill under half the project; a zoomed canvas is still followed",
+    "issues": [129],
+    "since": "rc49 (unreleased)",
+    "sources": [
+          "src/cartogen_ai/core/agent/tools/layout_tools.py",
+          "docs/plans/PLAN-009-rc48-evidence-folders.md"
+    ],
+    "guards": [
+          "tests/test_layout_extent_pick.py::TestPickLayoutExtent::test_zoom_full_with_a_small_network_frames_the_network_with_a_margin",
+          "tests/test_layout_extent_pick.py::TestPickLayoutExtent::test_a_canvas_zoomed_in_by_the_user_is_followed"
+    ],
+    "hand_verified": "not hand-tested; the canvas integration is not exercised in CI (no canvas), only the pure rule"
+  },
+  {
+    "id": "admin-layer-zoom-labels",
+    "feature": "A downloaded admin layer too big for always-on labels gets names that appear when zoomed in",
+    "issues": [127],
+    "since": "rc49 (unreleased)",
+    "sources": [
+          "src/cartogen_ai/core/agent/tools/output_style.py",
+          "src/cartogen_ai/core/agent/tools/humanitarian_tools.py",
+          "docs/plans/PLAN-009-rc48-evidence-folders.md"
+    ],
+    "guards": [
+          "tests/test_zoom_labels_live.py::TestZoomLabels::test_a_330_district_layer_gets_labels_that_show_only_when_zoomed_in"
+    ],
+    "hand_verified": "not hand-tested; CI live only"
   }
  ]
 }
