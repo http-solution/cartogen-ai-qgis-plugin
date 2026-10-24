@@ -34,6 +34,15 @@ EXTRA_ROWS = (
     ("I9 chart", "Produce charts linked to maps",
      "add_layout_chart and/or the atlas tools are used on a layout. An HTML dashboard instead is a Fail."),
     ("I10 undo", "undo the last operation", "The last change is undone (one confirm card); no second stale card."),
+    # Failed or Partial in the rc48 hand test and fixed or re-specified since (PLAN-008): run again.
+    ("E2c pdf", "send me the map as a pdf",
+     "export_layout is used on Test Layout (create it first with the prerequisite request); a PDF exists at the reported path and opens."),
+    ("E2c package", "bundle the project data for sharing",
+     "package_layers_offline is used; a GeoPackage with the project layers exists at the reported path."),
+    ("E2c dxf", "export the roads and towns to dxf",
+     "export_layers_to_dxf; the DXF opens (in QGIS or a CAD program) and shows the lines and points; the reply says it carries geometry and layer names only. (Sending the same request again over the unchanged file does not ask: that is a re-run by design. To see the replace card, change or replace the file outside QGIS first.)"),
+    ("E2c excel", "export the towns and districts to excel, one sheet each",
+     "export_layers_to_spreadsheet; the .xlsx opens in Excel or LibreOffice with two sheets whose row counts match the layers as they are now (fresh fixtures: towns 8, districts 4) and the right columns."),
     # rc49 (PLAN-008 to PLAN-012): none of these has been run outside CI. Rows for the open issues OI-120, OI-128, OI-145/146, OI-148 and OI-150
     # are NOT repeated here: the open-issue part of the bundle carries them for as long as those issues are open.
     ("P8 routing", "sort the districts by population, biggest first",
@@ -76,6 +85,8 @@ QgsProject.instance().addMapLayer(_mp)
 print("sens_multi added")
 """
 PLAIN_FOUND, PLAIN_SAMPLE_SEED = 6, 47
+# Plain-language rows that Failed in the rc48 hand test and were addressed since (B7, B15, B28, B32, B41; B3 has its own row above): always included.
+FORCE_PLAIN = ("grass:r.circle", "grass:r.sunmask.datetime", "grass:v.patch", "grass:v.to.rast", "native:meshrasterize")
 SETUP_ROWS = ("OI-S1", "OI-S2")          # the open-issue rows need these layers loaded and renamed first
 UMBRELLA_ROWS = ("OI-233",)              # tracking lists, not tests
 INPUTS = DOCS / "release_smoke_assets" / "inputs"
@@ -128,7 +139,9 @@ def plain_sample():
         by_family.setdefault(row["family"], []).append(row)
     picks = [rng.choice(group) for _, group in sorted(by_family.items())]
     rng.shuffle(picks)
-    return missed, picks[:PLAIN_FOUND]
+    have = {r["algorithm_id"] for r in (*missed, *picks[:PLAIN_FOUND])}
+    forced = [r for r in rows if r["algorithm_id"] in FORCE_PLAIN and r["algorithm_id"] not in have]
+    return missed, picks[:PLAIN_FOUND] + forced
 
 
 def main():
