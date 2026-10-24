@@ -20,15 +20,15 @@
   <a href="https://cartogenai.com"><img src="https://img.shields.io/badge/website-cartogenai.com-0b6efd" alt="Website"></a>
 </p>
 
-**Community edition · Version 1.17.0-rc50 (pre-release) · GNU GPL v2 · QGIS 4.2–4.99 · [cartogenai.com](https://cartogenai.com)**
+**Community edition · Version 1.17.0-rc51 (pre-release) · GNU GPL v2 · QGIS 4.2–4.99 · [cartogenai.com](https://cartogenai.com)**
 
 Cartogen AI is built for GIS analysts, humanitarian teams, researchers, and anyone who
 needs to move from a question to a reproducible spatial result without leaving QGIS.
 The agent exposes its plan, tool calls, progress, and errors instead of returning a
 black-box answer.
 
-> **Project status (2026-10-24):** active Community edition, currently at the **1.17.0-rc50 pre-release** build (the last stable build is 1.16.3; rc20 to 1.17.0-rc50 add the audit fixes, hand-test fixes and the cost and routing work made after rc19).
-> - **Tests:** 4,908 automated tests run offline, 0 failures (723 skipped there: the live-QGIS tests and those needing optional libraries). The QGIS ones run in CI (the `qgis-live-tests` job, QGIS 4.2.2) together with ruff, mypy and a release-zip check.
+> **Project status (2026-10-24):** active Community edition, currently at the **1.17.0-rc51 pre-release** build (the last stable build is 1.16.3; rc20 to 1.17.0-rc51 add the audit fixes, hand-test fixes and the cost and routing work made after rc19).
+> - **Tests:** 4,946 automated tests run offline, 0 failures (738 skipped there: the live-QGIS tests and those needing optional libraries). The QGIS ones run in CI (the `qgis-live-tests` job, QGIS 4.2.2) together with ruff, mypy and a release-zip check.
 > - **Hand testing:** rc44 to rc46 were hand-tested in desktop QGIS 4.2.3 (tool sweep: 65 of 83 rows Pass, 1 Fail, the rest Partial or Skip; 21 of 21 priority algorithms Pass); the plain-language algorithm test (385 prompts) has **not** been run. rc48 was hand-tested on 2026-10-24 (52 of 87 rows Pass, 18 Partial, 16 Fail, 1 Skip; results in [docs/HAND_TEST_RESULTS_rc48_2026-10-24.md](docs/HAND_TEST_RESULTS_rc48_2026-10-24.md)); the rc49 changes are CI-checked only until its lean hand test ([docs/LEAN_HAND_TEST_PROTOCOL.md](docs/LEAN_HAND_TEST_PROTOCOL.md)) is run.
 > - **Open issues (28):** the external architectural audit of rc12 (tracking issue #169) and the smoke-test findings (#72 and its children) are fixed in code and CI-verified except where a comment on the issue says otherwise; they stay open until a hand-verified PASS, because no issue is closed without one. Per-issue status: [docs/OPEN_ISSUES_STATUS_2026-10-23.md](docs/OPEN_ISSUES_STATUS_2026-10-23.md).
 > - **Not yet verified:** a clean-profile install and an in-place upgrade on a recent release candidate (last done on rc6), and the 28-tool default of rc47 against live model answers.
@@ -79,6 +79,17 @@ black-box answer.
   a restricted execution sandbox for model-generated PyQGIS scripts, fail-closed
   read-only SQL enforcement, an SSRF guard on fetched URLs, and a destructive-action
   confirmation gate the model cannot self-approve.
+
+## What's new in 1.17.0-rc51
+
+Built on 1.17.0-rc50. Offline tests and the QGIS 4.2.2 live checks in CI pass; **not hand-tested** in desktop QGIS unless an item says so. Full list: the `v1.17.0-rc51` block in [metadata.txt](metadata.txt) and [CHANGELOG.md](CHANGELOG.md).
+
+- Profile changes apply to layouts you already made: An export re-reads the layout's profile file, so a requirement you add later, such as require_sign_off, now applies; before, the layout kept the copy of the profile it was built with and a publication export went ahead. What the map itself prints is fixed when it is built: a review you add to sign_off later needs the layout rebuilt. If the profile file is gone or invalid, the stored copy is used and the export says so.
+- Maps made from sensitive layers ask before they export: A layer made from a RESTRICTED or SENSITIVE layer (a merge, a rename, further steps; the source renamed too) is protected through lineage, as it already was for cloud AI requests. A map that draws it now asks for confirmation before export, a publication export lists it as a problem, the footer carries the source's classification and the QA checklist names the source. An explicit PUBLIC or INTERNAL tag on the derived layer still releases it. The Sensitivity dialog says 'protected through lineage from X' instead of 'untagged'.
+- Footer sized from the real font: The print layout footer is now sized from its text measured in the font actually used, not from a character count, and the layout check uses the same measure. On Windows fonts the old estimate called the footer shorter than it was. CI uses Linux fonts and never showed it, so this is checked on your machine only.
+- Contour lines: 'Draw contour lines of the DEM every 100' should now make a contour line layer instead of restyling the DEM: the two tool descriptions state the difference. Which tool the model picks cannot be tested offline.
+- Known and open: The elevation profile in a layout rendered empty once in CI and has not been explained. OI-128 still waits for its evidence re-run. OI-150 needs a hand pass of the new check: a cloud question about the renamed merge result.
+- Not hand-tested: Everything above is checked by the offline suite and, for the QGIS parts, by CI on QGIS 4.2.2. None of it has been hand-tested in desktop QGIS. Build differences since rc50 are these four changes only; the rc50 rows that have not been run are still in the bundle.
 
 ## What's new in 1.17.0-rc50
 
