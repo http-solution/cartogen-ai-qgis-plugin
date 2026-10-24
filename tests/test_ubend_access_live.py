@@ -62,6 +62,17 @@ class TestUBendLegs(unittest.TestCase):
         self.assertGreater(totals["Inside_the_U"], 300.0)
         self.assertLess(totals["Beside_the_arm"], 300.0)
 
+    def test_classify_facilities_counts_the_leg_whatever_the_snap_distance(self):
+        # rc48 OI-148, the actual run: classify_facilities_by_access said both facilities were within 300 m (default snap 500 m) or, with snap 50 m,
+        # both beyond. Routed totals are 370 m (Inside_the_U, beyond) and 280 m (Beside_the_arm, within); the snap distance must not change that.
+        from cartogen_ai.core.agent.tools.logistics_tools import classify_facilities_by_access
+        for snap in (50, 500, 5000):
+            result = classify_facilities_by_access("ubend_start", "smoke_ubend_facilities", "smoke_ubend_road", 300, snap_distance_m=snap)
+            self.assertTrue(result.get("success"), result)
+            self.assertEqual(result.get("method"), "routed", result)
+            self.assertEqual((result["within"], result["beyond"]), (1, 1), (snap, result))
+            self.assertEqual(result.get("beyond_examples"), ["Inside_the_U"], (snap, result))
+
 
 if __name__ == "__main__":
     unittest.main()
