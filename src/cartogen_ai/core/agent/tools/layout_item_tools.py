@@ -486,12 +486,17 @@ def export_layout(layout_name, output_path, dpi=None, world_file=False, geopdf=F
                   preset=None, output_format="pdf"):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
+    from .layout_export_checks import profile_of
     from .layout_options import export_dpi, resolve_export_target
-    output_path = resolve_export_target(output_path, layout_name, output_format)
+    layout = _layout(layout_name)
+    if layout is None:
+        return {"error": f"Layout '{layout_name}' not found. See list_layouts."}
+    profile = profile_of(layout)          # PLAN-014 phase 2b: a layout made with profile=... remembers its preset and file name pattern
+    output_path = resolve_export_target(output_path, layout_name, output_format, pattern=profile.get("file_name_pattern"))
     kind, problem = validate_export_path(output_path)
     if problem:
         return {"error": problem}
-    dpi, problem = export_dpi(preset, dpi, 150)
+    dpi, problem = export_dpi(preset or profile.get("export_preset"), dpi, 150)
     if problem:
         return {"error": problem}
     if not (isinstance(dpi, int) and not isinstance(dpi, bool) and 30 <= dpi <= 1200):
@@ -500,9 +505,6 @@ def export_layout(layout_name, output_path, dpi=None, world_file=False, geopdf=F
     problem = check_export_extras(kind, world_file, geopdf)
     if problem:
         return {"error": problem}
-    layout = _layout(layout_name)
-    if layout is None:
-        return {"error": f"Layout '{layout_name}' not found. See list_layouts."}
     path = resolve_output_path(output_path)
     from .export_tools import overwrite_preview, remember_written
     arguments = {"layout_name": layout_name, "output_path": output_path, "dpi": dpi, "world_file": world_file, "geopdf": geopdf}

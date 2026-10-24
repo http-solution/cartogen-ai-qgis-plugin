@@ -1,0 +1,16 @@
+{
+  "profile_version": 1,
+  "name": "example-situation-map",
+  "description": "Example only: A3 landscape, print resolution, dated file names, five mandatory elements.",
+  "page_size": "A3",
+  "orientation": "landscape",
+  "export_preset": "print",
+  "file_name_pattern": "{title}_{date}",
+  "required_elements": [
+    "MAP_MAIN",
+    "TITLE",
+    "LEGEND",
+    "SCALEBAR",
+    "NORTH_ARROW"
+  ]
+}

@@ -30,10 +30,29 @@ MANDATORY_LAYOUT_ELEMENTS = {
 }
 
 
-def missing_elements(ids_present):
-    """Labels of the mandatory layout elements whose ids are not in `ids_present`, in a fixed order. Pure."""
+# labels for the extra elements a profile may require (PLAN-014 phase 2b); the five above are the default requirement
+ELEMENT_LABELS = {**MANDATORY_LAYOUT_ELEMENTS, "MAP_INFO": "map information line", "FOOTER": "footer", "BODY_TEXT": "summary text",
+                  "INSET_MAP": "locator map"}
+PROFILE_PROPERTY = "cartogen_ai/profile_json"
+
+
+def missing_elements(ids_present, required=None):
+    """Labels of the required layout elements whose ids are not in `ids_present`, in the order required. `required` is a list of item ids (a
+    profile's required_elements); the default is the five mandatory ones. Pure."""
     present = set(ids_present or ())
-    return [label for item_id, label in MANDATORY_LAYOUT_ELEMENTS.items() if item_id not in present]
+    wanted = list(required) if required else list(MANDATORY_LAYOUT_ELEMENTS)
+    return [ELEMENT_LABELS.get(item_id, item_id) for item_id in wanted if item_id not in present]
+
+
+def profile_of(layout):
+    """The profile stored on a layout by create_print_layout(profile=...), or {}. Never raises."""
+    try:
+        import json
+        raw = layout.customProperty(PROFILE_PROPERTY)
+        data = json.loads(raw) if raw else {}
+        return data if isinstance(data, dict) else {}
+    except Exception:
+        return {}
 
 
 def protected_in(layers):
@@ -94,10 +113,10 @@ def write_publication_record(output_path, layout_name, problems, reason):
     return path
 
 
-def export_report(layers_drawn, ids_present, layout_problems=()):
+def export_report(layers_drawn, ids_present, layout_problems=(), required=None):
     """The fields an export result should carry: {} when there is nothing to say. Pure apart from reading each layer's sensitivity tag."""
     notes = protected_layer_notes(layers_drawn, "it is drawn on this exported map -- confirm the file is meant to be shared before distributing it.")
-    missing = missing_elements(ids_present)
+    missing = missing_elements(ids_present, required)
     report = {}
     if notes:
         report["protected_layers"] = [{"layer": p["layer"], "level": p["level"]} for p in protected_in(layers_drawn)]
@@ -156,7 +175,7 @@ def gate_export(layout, tool_name, arguments, purpose, override_reason, confirme
     ids = [i.id() for i in layout.items() if hasattr(i, "id") and i.id()]
     protected = protected_in(layers_drawn(layout))
     publishing = str(purpose or "").lower() == "publication"
-    problems = publication_problems(missing_elements(ids), protected) if publishing else []
+    problems = publication_problems(missing_elements(ids, profile_of(layout).get("required_elements")), protected) if publishing else []
     if problems and not (override_reason or "").strip():
         return {"error": "Not ready to publish: " + "; ".join(problems) + ". Fix these, or ask the user whether to export anyway and why, "
                          "then call again with their reason as override_reason. The file was not written.",
@@ -202,7 +221,7 @@ def layout_export_report(layout, extra_layers=()):
     try:
         ids = [i.id() for i in layout.items() if hasattr(i, "id") and i.id()]
         from .layout_geometry_checks import layout_geometry_problems
-        return export_report(_with_extra(layers_drawn(layout), extra_layers), ids, layout_geometry_problems(layout))
+        return export_report(_with_extra(layers_drawn(layout), extra_layers), ids, layout_geometry_problems(layout), profile_of(layout).get("required_elements"))
     except Exception:
         return {}
 

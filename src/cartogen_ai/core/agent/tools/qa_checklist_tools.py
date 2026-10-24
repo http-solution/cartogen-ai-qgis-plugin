@@ -38,7 +38,7 @@ from ._paths import resolve_output_path
 from ...models import sensitivity as _sens
 from .dataset_status_tools import get_dataset_status
 from .provenance_tools import get_provenance_record
-from .layout_export_checks import MANDATORY_LAYOUT_ELEMENTS
+from .layout_export_checks import ELEMENT_LABELS, MANDATORY_LAYOUT_ELEMENTS, missing_elements, profile_of
 from .layout_tools import list_layout_items
 
 try:
@@ -58,6 +58,15 @@ def _find_layer_by_name(name):
 
 
 _MANDATORY_LAYOUT_ELEMENTS = MANDATORY_LAYOUT_ELEMENTS   # shared with the layout export report (layout_export_checks.py)
+
+
+def _required_elements(layout_name):
+    """The required_elements of the profile stored on the layout, or None (no profile, or the layout cannot be looked up)."""
+    try:
+        from .layout_tools import _find_layout_by_name
+        return profile_of(_find_layout_by_name(layout_name)).get("required_elements")
+    except Exception:
+        return None
 
 
 @register_tool(
@@ -114,14 +123,11 @@ def generate_map_product_qa_checklist(layer_name, layout_name=None, output_path=
             categories["cartography"] = {"error": items_res.get("error")}
         else:
             ids_present = {item["id"] for item in items_res["items"]}
+            required = _required_elements(layout_name) or list(_MANDATORY_LAYOUT_ELEMENTS)      # a profile's list (PLAN-014 phase 2b), else the five
             categories["cartography"] = {
                 "layout_name": layout_name,
-                "mandatory_elements_present": [
-                    label for item_id, label in _MANDATORY_LAYOUT_ELEMENTS.items() if item_id in ids_present
-                ],
-                "mandatory_elements_missing": [
-                    label for item_id, label in _MANDATORY_LAYOUT_ELEMENTS.items() if item_id not in ids_present
-                ],
+                "mandatory_elements_present": [ELEMENT_LABELS.get(i, i) for i in required if i in ids_present],
+                "mandatory_elements_missing": missing_elements(ids_present, required),
             }
     else:
         categories["cartography"] = {
