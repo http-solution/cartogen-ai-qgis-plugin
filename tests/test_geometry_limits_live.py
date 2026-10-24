@@ -25,6 +25,15 @@ class _Layer:
         return self._name
 
 
+class TestSourceGeometry(unittest.TestCase):
+    def test_integers_and_named_enums_are_both_read(self):
+        self.assertEqual([tools._source_geometry(x) for x in (0, 1, 2)], ["Point", "Line", "Polygon"])
+        self.assertIsNone(tools._source_geometry(-1))                              # any geometry
+        self.assertIsNone(tools._source_geometry(-3))                              # table
+        self.assertEqual(tools._source_geometry(SimpleNamespace(name="VectorLine")), "Line")
+        self.assertIsNone(tools._source_geometry(SimpleNamespace(name="VectorAnyGeometry")))
+
+
 class TestGeometryViolation(unittest.TestCase):
     def setUp(self):
         stub = SimpleNamespace(geometryDisplayString=lambda kind: kind)
@@ -70,8 +79,6 @@ class TestGeometryLimitsLive(unittest.TestCase):
         return layer
 
     def test_the_limits_are_read_from_the_algorithm(self):
-        for p in QgsApplication.processingRegistry().createAlgorithmById("qgis:linestopolygons").parameterDefinitions():   # rc48 B3: diagnosis for CI
-            print("GEOMLIMIT", p.name(), repr(p.type()), [repr(t) for t in getattr(p, "dataTypes", list)()])
         self.assertEqual(tools._geometry_limits("qgis:linestopolygons"), {"INPUT": {"Line"}})
         self.assertEqual(tools._geometry_limits("native:buffer"), {})
 

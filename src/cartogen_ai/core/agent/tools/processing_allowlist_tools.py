@@ -255,6 +255,18 @@ def _check_raster_lists(alg_id, resolved_params, layer_list_keys, kinds=None):
 
 
 _GEOMETRY_WORDS = {"vectorpoint": "Point", "vectorline": "Line", "vectorpolygon": "Polygon"}
+_GEOMETRY_CODES = {0: "Point", 1: "Line", 2: "Polygon"}      # QgsProcessing::SourceType: TypeVectorPoint, TypeVectorLine, TypeVectorPolygon
+
+
+def _source_geometry(data_type):
+    """"Point", "Line" or "Polygon" for one declared source type, or None for anything else (any geometry, a table, a raster). QGIS 4.2.2 CI
+    returned plain integers from dataTypes() (1 for lines), so integers are read as well as named enums."""
+    name = getattr(data_type, "name", None)
+    if isinstance(name, str):
+        return _GEOMETRY_WORDS.get(name.lower().replace("_", ""))
+    with contextlib.suppress(TypeError, ValueError):
+        return _GEOMETRY_CODES.get(int(data_type))
+    return None
 
 
 def _geometry_limits(alg_id):
@@ -262,14 +274,13 @@ def _geometry_limits(alg_id):
     also accepts any geometry or a table is left out."""
     limits = {}
     with contextlib.suppress(Exception):
-        # createAlgorithmById, not algorithmById: a Python algorithm's registry entry has no parameters until an instance is initialised (CI, rc48 B3)
-        algorithm = QgsApplication.processingRegistry().createAlgorithmById(alg_id)
+        algorithm = QgsApplication.processingRegistry().algorithmById(alg_id)
         for p in algorithm.parameterDefinitions():
             if p.isDestination() or str(p.type()) != "source":
                 continue
-            words = [str(getattr(t, "name", t)).lower().replace("processingsourcetype.", "").replace("_", "") for t in p.dataTypes()]
-            if words and all(w in _GEOMETRY_WORDS for w in words):
-                limits[p.name()] = {_GEOMETRY_WORDS[w] for w in words}
+            kinds = [_source_geometry(t) for t in p.dataTypes()]
+            if kinds and all(kinds):
+                limits[p.name()] = set(kinds)
     return limits
 
 
