@@ -177,8 +177,9 @@ def split_lines_by_zones(line_layer, zone_layer, output_name=None):
 
 @register_tool(
     "generate_contours",
-    "Create vector contour lines from a DEM raster layer at a fixed elevation interval (in the DEM's own elevation units, normally "
-    "metres), as a new line layer with an 'ELEV' field. The interval is the vertical spacing between lines, NOT the accuracy of "
+    "Make contour lines from a DEM raster layer at a fixed elevation interval (in the DEM's own elevation units, normally "
+    "metres), as a NEW LINE LAYER with an 'ELEV' field -- the usual meaning of 'draw / make / create contour lines of the DEM, every 100'. "
+    "Use set_raster_relief instead only when the user wants the raster itself shown as contours (render / style) without a new layer. The interval is the vertical spacing between lines, NOT the accuracy of "
     "the terrain: the result reports the DEM's pixel size and source so the user can judge what the lines can show. Refuses very "
     "large rasters.",
     {"type": "object", "properties": {
