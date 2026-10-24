@@ -63,6 +63,7 @@ class EvidenceRecorder:
         self.query = query
         self.started = now or datetime.datetime.now().astimezone()
         self.calls = []
+        self.context = None          # project/settings state at the start of the request (project_context), written as context.json
         self._copied = 0
         os.makedirs(self.folder, exist_ok=True)
         self._jsonl = os.path.join(self.folder, "steps.jsonl")
@@ -106,6 +107,9 @@ class EvidenceRecorder:
             manifest["files"] = self._copy_outputs()
         except OSError as e:
             manifest["copy_error"] = str(e)
+        if self.context:
+            with contextlib.suppress(OSError, TypeError, ValueError), open(os.path.join(self.folder, "context.json"), "w", encoding="utf-8") as fh:
+                fh.write(_redact(json.dumps(self.context, indent=2, default=str, ensure_ascii=False)))
         shot = os.path.join(self.folder, "screenshot.png")
         try:
             if screenshot_fn is not None and screenshot_fn(shot) and os.path.isfile(shot):
@@ -137,6 +141,42 @@ def _is_json(text):
         return True
     except ValueError:
         return False
+
+
+def project_context(client=None):
+    """The state a request ran in, for context.json: the cloud-data-protection settings, the provider's endpoint, the memory setting, and for every
+    project layer its type, source, sensitivity, whether it carries lineage and (rasters) its renderer type. Never raises; {} outside QGIS.
+
+    Added after the rc48 hand test: two of its findings (a merge of a SENSITIVE layer that raised no card, and a ramp reported but a grey canvas) could
+    not be reproduced from the code in CI, and the evidence folders did not record the settings and layer state that would have told why."""
+    try:
+        from qgis.core import QgsProject
+    except ImportError:
+        return {}
+    context = {}
+    with contextlib.suppress(Exception):
+        from ..models import egress_gate, sensitivity
+        from .lineage import get_layer_lineage
+        from .memory import is_project_memory_persist_enabled
+        base_url = getattr(client, "base_url", None)
+        context["egress"] = {"mode": egress_gate.read_mode(), "strict": egress_gate.read_strict(),
+                             "provider_class": type(client).__name__ if client is not None else None,
+                             "endpoint_is_local": egress_gate.is_local_endpoint(base_url)}
+        context["persist_project_memory"] = bool(is_project_memory_persist_enabled())
+        layers = []
+        for layer in QgsProject.instance().mapLayers().values():
+            record = sensitivity.get_layer_sensitivity(layer)
+            layers.append({
+                "name": layer.name(), "id": layer.id(), "type": type(layer).__name__, "source": layer.source(),
+                "sensitivity": record.get("level"), "sensitivity_reason": record.get("reason"),
+                "lineage_entries": len(get_layer_lineage(layer)),
+                "renderer": layer.renderer().type() if layer.renderer() is not None else None,
+            })
+        context["layers"] = layers
+    with contextlib.suppress(Exception):
+        from .provenance import _qgis_version
+        context["qgis_version"] = _qgis_version()
+    return context
 
 
 def relative_folder(turn_label, now=None):

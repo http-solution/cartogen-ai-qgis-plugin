@@ -811,6 +811,7 @@ class CartogenAi:
             from .tools._paths import resolve_output_path
             self._evidence = evidence.EvidenceRecorder(
                 resolve_output_path(evidence.relative_folder(f"t{getattr(self, '_turn_counter', 0) + 1}")), user_query)
+            self._evidence.context = evidence.project_context(getattr(self, "client", None))
         except Exception as e:
             log_event("swallowed_exception", tag="Agent", tool="evidence_start", error_class=type(e).__name__, error=True)
 

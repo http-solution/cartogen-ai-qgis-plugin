@@ -2645,6 +2645,33 @@ def _classify_by_distance(distances_m, snap_distance_m):
     return ["within" if (d is not None and d <= snap_distance_m) else "beyond" for d in distances_m]
 
 
+def _classify_by_routed_total(feature_ids, totals, budget_m):
+    """'within' / 'beyond' per facility from its ROUTED total (road cost + the off-road leg, metres); a facility with no routed total is
+    beyond. Pure. GitHub #148, rc48 OI-148 (2026-10-24): the service-area test below ignores the access leg, so on the U-road fixture it called
+    Inside_the_U (70 m of road + a 300 m leg = 370 m) reachable within a 300 m budget."""
+    return ["within" if (totals.get(str(fid)) is not None and totals[str(fid)] <= budget_m) else "beyond" for fid in feature_ids]
+
+
+def _routed_totals(origin_layer, facility_layer, road_network_layer, speed_field, direction_field):
+    """{feature id (str): smallest road cost + access leg over all origins, metres} from travel_time_matrix, or None when the matrix could not be
+    computed (the caller then keeps the service-area approximation and says so). Only meaningful for strategy 'shortest' (distance)."""
+    with contextlib.suppress(Exception):
+        res = travel_time_matrix(origin_layer, facility_layer, road_network_layer, strategy="shortest",
+                                 speed_field=speed_field, direction_field=direction_field)
+        if not isinstance(res, dict) or not res.get("success"):
+            return None
+        legs = res.get("access_leg_m") or {}
+        best = {}
+        for row in (res.get("matrix") or {}).values():
+            for fid, cost in row.items():
+                leg = legs.get(str(fid))
+                if cost is None or leg is None:
+                    continue
+                best[str(fid)] = min(best.get(str(fid), float("inf")), float(cost) + float(leg))
+        return best
+    return None
+
+
 def _matrix_destination_count(layer):
     """Feature count for the travel_time_matrix size guard; 0 when it cannot be read, so the guard never
     blocks a call it cannot measure."""
@@ -2726,11 +2753,13 @@ def _with_access_legs(result, destinations, network, max_features=5000):
     "travel_cost, else 'beyond'. Use THIS instead of travel_time_matrix for any 'beyond/within X of the "
     "origin' question over many facilities: travel_time_matrix ties every destination into the road graph "
     "and took ~44 minutes for 3,369 facilities. Adds a copy of the facility layer with "
-    "access_class and dist_to_reach_m fields, plus the service-area layers. APPROXIMATION to state in the "
-    "answer: it ignores the access leg from the road to the facility (up to snap_distance_m) and is not a "
-    "per-facility routed cost; use travel_time_matrix (small destination sets only) when exact per-facility "
-    "costs are needed, and for a question about TOTAL travel within a budget pass a small snap_distance_m "
-    "(for example 50) so a facility far from the road is not counted as reached.",
+    "access_class and dist_to_reach_m fields, plus the service-area layers. For a DISTANCE budget "
+    "(strategy 'shortest') over up to 200 facilities each facility is routed and 'within' means road distance "
+    "PLUS the straight leg from the road to the facility is inside the budget; the result says method 'routed' "
+    "and snap_distance_m is not used. For a time budget, or more facilities, it is an APPROXIMATION to state in "
+    "the answer: it ignores the access leg from the road to the facility (up to snap_distance_m) and is not a "
+    "per-facility routed cost; pass a small snap_distance_m (for example 50) so a facility far from the road "
+    "is not counted as reached.",
     {
         "type": "object",
         "properties": {
@@ -2784,6 +2813,12 @@ def classify_facilities_by_access(origin_layer, facility_layer, road_network_lay
         distances = _nearest_distances_m(feats, facilities.crs(), reached)
         _t_dist = time.monotonic()
         classes = _classify_by_distance(distances, snap)
+        routed = None
+        if (strategy or "shortest").lower() == "shortest" and len(feats) <= MATRIX_LARGE_DESTINATIONS:
+            totals = _routed_totals(origin_layer, facility_layer, road_network_layer, speed_field, direction_field)
+            if totals is not None:
+                routed = True
+                classes = _classify_by_routed_total([f.id() for f in feats], totals, float(travel_cost))
 
         out = QgsVectorLayer(f"Point?crs={facilities.crs().authid()}", "tmp", "memory")
         require_valid_layer(out)
@@ -2834,10 +2869,14 @@ def classify_facilities_by_access(origin_layer, facility_layer, road_network_lay
             "layer_created": out_name,
             "service_area_layers": service.get("layers_created", []),
             "method_note": (
-                "Classified from one service area, not routed per facility: a facility is 'within' when it is "
-                f"within {snap:g} m of a road reached inside the travel cost. The access leg from the road to the "
-                "facility is not counted, so this can differ slightly from a routed cost near the threshold."
+                (f"Routed per facility: a facility is 'within' when the road distance from the origin PLUS the straight leg from the road to "
+                 f"the facility is at most {travel_cost:g} m (snap_distance_m is not used).")
+                if routed else
+                ("Classified from one service area, not routed per facility: a facility is 'within' when it is "
+                 f"within {snap:g} m of a road reached inside the travel cost. The access leg from the road to the "
+                 "facility is not counted, so this can differ slightly from a routed cost near the threshold.")
             ),
+            "method": "routed" if routed else "service_area",
         }
         if beyond_names:
             result["beyond_examples"] = beyond_names

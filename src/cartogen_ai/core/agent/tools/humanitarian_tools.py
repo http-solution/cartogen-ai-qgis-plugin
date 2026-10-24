@@ -704,8 +704,9 @@ def _auto_label_admin(layer):
     points > lines > polygons order, keeps the analysis visible. Best-effort cosmetics; never raises. Not re-run in a real
     QGIS session from the sandbox."""
     with contextlib.suppress(Exception):
-        from .output_style import style_auto_labels
-        style_auto_labels(layer)
+        from .output_style import style_auto_labels, style_zoom_labels
+        if not style_auto_labels(layer):
+            style_zoom_labels(layer)        # #127: a layer too big to label at country scale still gets names once zoomed in
     with contextlib.suppress(Exception):
         from qgis.core import QgsFillSymbol
         layer.renderer().setSymbol(QgsFillSymbol.createSimple({

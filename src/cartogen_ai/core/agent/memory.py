@@ -31,7 +31,8 @@ def describe_project_memory_storage(persist_enabled) -> str:
     its sidecar only when the persist setting is on."""
     if persist_enabled:
         return ("Saved with the project: ON. These notes are written to the project file and its sidecar database. "
-                "Turn this off in Settings to keep them for this session only.")
+                "The default is OFF, so this was switched on in this QGIS profile: to keep notes for this session only, untick "
+                "'Save project notes/memory in the project file and sidecar database' in Settings.")
     return ("Saved with the project: OFF. These notes exist only in this session and are gone when QGIS closes. "
             "Nothing below is written to the project file.")
 

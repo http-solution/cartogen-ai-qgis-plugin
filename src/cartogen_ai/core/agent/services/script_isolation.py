@@ -829,18 +829,33 @@ def run_isolated_script(script: str) -> dict:
                 updated_memory_layers=len(updated_memory_layers),
                 problems=len(problems),
             )
-        reply = {"success": True, "result": response.get("result")}
-        if new_layers:
-            # rc40 hand test OI-145: a script's new layer is a temporary (memory) layer and was empty after save, close and reopen,
-            # with nothing in the reply to warn of it.
-            reply["note"] = (f"New layer(s) {', '.join(repr(n) for n in new_layers)} are temporary: they are lost when the project is closed "
-                             "unless they are saved to a file (ask to tidy the project layers, or export them).")
-        if problems:
-            # Never a clean success when part of the script's work could not be brought back (#145 / #146).
-            reply["warning"] = "Part of the script's changes could not be applied to your project: " + "; ".join(problems)
-        return reply
+        return script_reply(response.get("result"), new_layers, updated_memory_layers, problems)
     finally:
         shutil.rmtree(tempdir, ignore_errors=True)
+
+
+def script_reply(script_result, new_layers, updated_memory_layers, problems):
+    """The tool reply for a script run in isolation. Pure.
+
+    GitHub #145/#146, rc48 OI-145 (2026-10-23 evidence t35): a script that edited a file-backed layer got `success: true` with the "NOT applied"
+    text only in a side field, and the model's answer showed the edit as done (a table of "Updated Value"s). When none of the script's
+    changes could be brought back, the call is a failure that says so; when only some could, the success carries a `partially_applied` flag
+    and the warning. A script that only read data has no problems and is untouched."""
+    applied = bool(new_layers or updated_memory_layers)
+    if problems and not applied:
+        return {"success": False, "applied": False, "script_result": script_result,
+                "error": "NOT applied: none of the script's changes reached your project. " + "; ".join(problems)}
+    reply = {"success": True, "result": script_result}
+    if new_layers:
+        # rc40 hand test OI-145: a script's new layer is a temporary (memory) layer and was empty after save, close and reopen,
+        # with nothing in the reply to warn of it.
+        reply["note"] = (f"New layer(s) {', '.join(repr(n) for n in new_layers)} are temporary: they are lost when the project is closed "
+                         "unless they are saved to a file (ask to tidy the project layers, or export them).")
+    if problems:
+        # Never a clean success when part of the script's work could not be brought back (#145 / #146).
+        reply["partially_applied"] = True
+        reply["warning"] = "Part of the script's changes could not be applied to your project: " + "; ".join(problems)
+    return reply
 
 
 def has_uncommitted_edits():

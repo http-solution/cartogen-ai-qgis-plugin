@@ -2301,7 +2301,7 @@ def generate_html_dashboard(layers, title=None, output_path=None, basemap=None, 
 
         out_path = output_path or _dashboard_output_path(title)
         with open(out_path, "w", encoding="utf-8") as f:
-            f.write(_inject_notices(result["html"], size_warnings))
+            f.write(_inject_notices(result["html"], [*size_warnings, DASHBOARD_INTERNET_NOTE]))
 
         response = {
             "success": True,
@@ -2360,6 +2360,11 @@ def _dashboard_output_path(title, now=None):
         return path
     except Exception:
         return _temp_html_path()
+
+
+# GitHub #84 (rc48 OI-84): the file said nothing about needing internet; only the chat reply did, so someone opening the shared file offline saw a
+# blank page and no reason. Shown in the file itself, with any cap/simplification notice.
+DASHBOARD_INTERNET_NOTE = "This map needs an internet connection to load its basemap and libraries; offline it may open blank."
 
 
 def _inject_notices(html, notices):
@@ -2496,7 +2501,7 @@ def generate_temporal_dashboard(layers, title=None, output_path=None, step_days=
 
         out_path = output_path or _dashboard_output_path(title)
         with open(out_path, "w", encoding="utf-8") as f:
-            f.write(_inject_notices(result["html"], size_warnings))
+            f.write(_inject_notices(result["html"], [*size_warnings, DASHBOARD_INTERNET_NOTE]))
 
         response = {
             "success": True,

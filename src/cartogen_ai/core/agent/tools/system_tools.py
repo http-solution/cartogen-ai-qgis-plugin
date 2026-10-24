@@ -320,6 +320,11 @@ _SAFE_BUILTINS = {
 }
 
 
+# rc48 OI-145 (evidence t33): a script that began `import os` was refused and the model had to guess what to do next. Say what scripts CAN do.
+_BLOCKED_MODULE_HINT = (" A script cannot use the filesystem, the operating system or other programs. Work with the project's layers through "
+                        "qgis.core only; to read or write a file use a dedicated tool (add_layer_from_path, export_layer) instead.")
+
+
 def _validate_script_safety(script: str):
     """Returns an error string if the script imports a blocked module, or
     references (loads OR calls -- aliasing doesn't help) a blocked builtin or
@@ -337,11 +342,11 @@ def _validate_script_safety(script: str):
             for alias in node.names:
                 root = alias.name.split(".")[0]
                 if root in _BLOCKED_MODULES:
-                    return f"Blocked import '{alias.name}' -- not allowed in execute_pyqgis_script."
+                    return f"Blocked import '{alias.name}' -- not allowed in execute_pyqgis_script.{_BLOCKED_MODULE_HINT}"
         elif isinstance(node, ast.ImportFrom):
             root = (node.module or "").split(".")[0]
             if root in _BLOCKED_MODULES:
-                return f"Blocked import '{node.module}' -- not allowed in execute_pyqgis_script."
+                return f"Blocked import '{node.module}' -- not allowed in execute_pyqgis_script.{_BLOCKED_MODULE_HINT}"
             # Check the imported NAMES too, not just the module -- an allowed
             # module (qgis.PyQt.QtCore etc, needed for QVariant/QColor/signals)
             # can still export a dangerous class like QFile/QProcess. Checked
