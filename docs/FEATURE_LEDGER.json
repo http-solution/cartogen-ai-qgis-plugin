@@ -839,6 +839,15 @@
     "sources": ["src/cartogen_ai/core/agent/tools/map_profiles.py", "src/cartogen_ai/core/agent/tools/layout_style.py", "src/cartogen_ai/core/agent/tools/layout_export_checks.py", "docs/MAP_PROFILES.md", "docs/plans/PLAN-014-ocha-template-and-branding.md"],
     "guards": ["tests/test_plan014_signoff.py::TestValidation::test_a_status_cannot_claim_a_review_nobody_is_named_for", "tests/test_plan014_signoff.py::TestLine::test_without_a_reviewer_the_status_is_always_draft_not_reviewed", "tests/test_plan014_signoff.py::TestPublicationRule::test_required_sign_off_is_missing_until_named_dated_and_reviewed", "tests/test_plan014_signoff_live.py::TestSignOffOnLayouts::test_footer_lines_and_the_sign_off_line_are_in_the_footer_before_the_disclaimer", "tests/test_plan014_signoff_live.py::TestSignOffOnLayouts::test_required_sign_off_blocks_publication_until_the_profile_has_a_review", "tests/test_plan014_signoff_live.py::TestSignOffOnLayouts::test_a_reviewed_profile_publishes_without_a_sign_off_problem"],
     "hand_verified": "not hand-tested; offline unit tests plus CI live (written without a QGIS install)"
+  },
+  {
+    "id": "layout-cod-3c",
+    "feature": "A map profile can flag COD boundaries: cod_boundaries true plus the organisation's own cod_credit wording (required with the flag, refused without it; the plugin supplies none) puts that credit first on the footer's credits line, and an export of such a layout reports duplicate admin P-codes in the layers it draws as warnings",
+    "issues": [],
+    "since": "rc50 (unreleased)",
+    "sources": ["src/cartogen_ai/core/agent/tools/map_profiles.py", "src/cartogen_ai/core/agent/tools/layout_style.py", "src/cartogen_ai/core/agent/tools/layout_export_checks.py", "docs/MAP_PROFILES.md", "docs/plans/PLAN-014-ocha-template-and-branding.md"],
+    "guards": ["tests/test_plan014_cod.py::TestCodFields::test_the_flag_without_wording_is_refused_because_the_plugin_supplies_none", "tests/test_plan014_cod.py::TestCodFields::test_wording_without_the_flag_is_refused_rather_than_silently_ignored", "tests/test_plan014_cod.py::TestPcodeNotes::test_the_export_report_carries_them_and_stays_empty_without", "tests/test_plan014_cod_live.py::TestCodOnLayouts::test_the_cod_credit_leads_the_credits_line", "tests/test_plan014_cod_live.py::TestCodOnLayouts::test_duplicate_pcodes_are_reported_on_export_when_the_flag_is_on"],
+    "hand_verified": "not hand-tested; offline unit tests plus CI live (written without a QGIS install)"
   }
  ]
 }

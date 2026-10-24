@@ -20,7 +20,8 @@ KNOWN_ELEMENTS = ("MAP_MAIN", "TITLE", "LEGEND", "SCALEBAR", "NORTH_ARROW", "MAP
 PLACEHOLDERS = ("title", "date", "layout")
 FIELDS = ("profile_version", "name", "description", "page_size", "orientation", "export_preset", "file_name_pattern", "required_elements",
           "logo_path", "logo_position", "masthead_colour", "masthead_text_colour", "font_family",
-          "footer_lines", "sign_off", "require_sign_off")
+          "footer_lines", "sign_off", "require_sign_off", "cod_boundaries", "cod_credit")
+MAX_COD_CREDIT_CHARS = 100
 SIGN_OFF_KEYS = ("prepared_by", "reviewed_by", "review_date", "status")
 SIGN_OFF_STATUSES = ("Draft", "Reviewed", "Approved")
 MAX_FOOTER_LINES = 3
@@ -164,11 +165,32 @@ def _validate_footer_fields(data, clean, problems):
         problems.extend(issues)
         if value is not None:
             clean["sign_off"] = value
+    _validate_cod(data, clean, problems)
     if "require_sign_off" in data:
         if not isinstance(data["require_sign_off"], bool):
             problems.append("require_sign_off must be true or false")
         else:
             clean["require_sign_off"] = data["require_sign_off"]
+
+
+def _validate_cod(data, clean, problems):
+    """Phase 3c: the COD flag and its credit wording. The wording is the organisation's, so it is required with the flag and refused without it
+    (a credit that silently does nothing would look like one that works). Pure."""
+    flag = data.get("cod_boundaries")
+    credit = data.get("cod_credit")
+    if "cod_boundaries" in data and not isinstance(flag, bool):
+        problems.append("cod_boundaries must be true or false")
+        return
+    if "cod_credit" in data and (not isinstance(credit, str) or not credit.strip() or len(credit) > MAX_COD_CREDIT_CHARS or "\n" in credit):
+        problems.append(f"cod_credit must be one line of text of at most {MAX_COD_CREDIT_CHARS} characters")
+        return
+    if flag and "cod_credit" not in data:
+        problems.append("cod_boundaries needs cod_credit: write the credit wording your organisation uses for COD boundaries (the plugin does not supply it)")
+    elif "cod_credit" in data and not flag:
+        problems.append("cod_credit has no effect unless cod_boundaries is true")
+    elif flag:
+        clean["cod_boundaries"] = True
+        clean["cod_credit"] = credit.strip()
 
 
 def validate_sign_off(data):

@@ -574,7 +574,8 @@ def _apply_layout_style(layout, layout_mm, project, today, template, sources, br
     credit_text = ""
     with contextlib.suppress(Exception):
         from .layout_credits import credit_entries, credits_line
-        credit_text = credits_line(credit_entries([layer_credit_info(e) for e in entries]))
+        cod = [branding["cod_credit"]] if branding.get("cod_boundaries") and branding.get("cod_credit") else []   # first, so the budget never cuts it
+        credit_text = credits_line(cod + credit_entries([layer_credit_info(e) for e in entries]))
 
     def step(name, fn):
         try:
