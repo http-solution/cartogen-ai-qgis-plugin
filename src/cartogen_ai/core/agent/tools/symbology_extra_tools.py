@@ -305,7 +305,9 @@ def set_layer_diagram(layer_name, kind=None, fields=None, size_mm=None, colors=N
     "set_raster_relief",
     "Draw a raster (for example a DEM) as a hillshade (style=hillshade; azimuth 0-360, altitude 0-90, z_factor) or as contour lines "
     "(style=contour; interval and optional index_interval, in the raster's units). band defaults to 1. This changes how the raster is "
-    "drawn, not its data; for a hillshade FILE use the hillshade analysis tool.",
+    "DISPLAYED, not its data: it creates no layer and no file, so these contour lines cannot be selected, measured, labelled or exported. "
+    "When the user wants contour lines as data ('draw / make / create contour lines of the DEM, every 100 m') use generate_contours; "
+    "use this tool for 'render / style / show the DEM as contours or hillshade'. For a hillshade FILE use the hillshade analysis tool.",
     {"type": "object", "properties": {
         "layer_name": {"type": "string"}, "style": {"type": "string", "description": "hillshade or contour"}, "azimuth": {"type": "number"},
         "altitude": {"type": "number"}, "z_factor": {"type": "number"}, "interval": {"type": "number"}, "index_interval": {"type": "number"},

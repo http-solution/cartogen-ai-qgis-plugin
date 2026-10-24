@@ -866,6 +866,15 @@
     "sources": ["src/cartogen_ai/core/agent/protection.py", "src/cartogen_ai/core/models/egress_gate.py", "src/cartogen_ai/core/agent/agent_orchestrator.py", "src/cartogen_ai/core/agent/tools/layout_export_checks.py", "src/cartogen_ai/core/agent/tools/_sensitivity_notes.py", "src/cartogen_ai/core/agent/tools/qa_checklist_tools.py", "src/cartogen_ai/core/agent/tools/layout_style.py", "src/cartogen_ai/core/ui/layer_sensitivity_dialog.py", "docs/plans/PLAN-016-rc50-hand-test-findings.md"],
     "guards": ["tests/test_plan016_lineage_protection.py::TestInheritedProtection::test_a_merged_copy_of_a_sensitive_layer_is_protected", "tests/test_plan016_lineage_protection.py::TestInheritedProtection::test_a_rename_of_the_source_does_not_hide_it", "tests/test_plan016_lineage_protection.py::TestInheritedProtection::test_an_explicit_public_tag_wins_over_a_protected_source", "tests/test_plan016_item2_live.py::TestExportFollowsLineage::test_exporting_a_map_that_draws_the_derived_layer_asks_first", "tests/test_plan016_item2_live.py::TestExportFollowsLineage::test_a_publication_export_lists_it_as_a_problem", "tests/test_plan016_item2_live.py::TestExportFollowsLineage::test_the_qa_checklist_names_the_source"],
     "hand_verified": "not hand-tested; offline unit tests plus CI live (written without a QGIS install)"
+  },
+  {
+    "id": "contours-vs-relief-routing-016",
+    "feature": "'Draw / make / create contour lines of the DEM' leads the model to generate_contours (a new contour line layer), not set_raster_relief (a display style that creates no layer): both tool descriptions state the difference and point at each other, and the router offers generate_contours for every phrasing",
+    "issues": [],
+    "since": "rc51 (unreleased)",
+    "sources": ["src/cartogen_ai/core/agent/tools/corridor_tools.py", "src/cartogen_ai/core/agent/tools/symbology_extra_tools.py", "docs/TOOLS_REFERENCE.md", "docs/plans/PLAN-016-rc50-hand-test-findings.md"],
+    "guards": ["tests/test_plan016_contours.py::TestContourRouting::test_the_contour_maker_is_offered_for_every_phrasing", "tests/test_plan016_contours.py::TestContourRouting::test_the_two_descriptions_point_at_each_other_with_the_deciding_cue"],
+    "hand_verified": "not hand-tested; the offline tests check what is offered and what the descriptions say, not which tool the model picks"
   }
  ]
 }

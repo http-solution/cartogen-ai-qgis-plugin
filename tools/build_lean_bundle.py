@@ -54,7 +54,7 @@ EXTRA_ROWS = (
     ("P12 multipoint", "blur the sens_multi points by 100 metres",
      "obfuscate_sensitive_points with jitter radius 100; a layer sens_multi_obfuscated with 3 points (one per part), each within 100 m of an original, none at the map origin; no error."),
     ("P12 contours", "draw contour lines of the dem every 100",
-     "create_contours (or gdal:contour); the reply gives the file path and, when it is in the system temporary folder, says so."),
+     "generate_contours (or gdal:contour): a NEW line layer of contours appears in the Layers panel (not just a restyled DEM); the reply gives the file path and, when it is in the system temporary folder, says so."),
     ("P11 gate", "tag the towns layer as SENSITIVE (reason: test), then export Test Layout to a pdf",
      "A confirm card names towns (SENSITIVE) and nothing is written yet; pressing Apply writes the PDF and the reply mentions the protected layer. (Create Test Layout first with the prerequisite request.)"),
     ("P11 publication", "export Test Layout as a publication pdf for sharing outside the team",

@@ -1772,7 +1772,7 @@ Tags a layer with its epistemic-status/confidence level -- OBSERVED (directly re
 
 ### `generate_contours`
 
-Create vector contour lines from a DEM raster layer at a fixed elevation interval (in the DEM's own elevation units, normally metres), as a new line layer with an 'ELEV' field. The interval is the vertical spacing between lines, NOT the accuracy of the terrain: the result reports the DEM's pixel size and source so the user can judge what the lines can show. Refuses very large rasters.
+Make contour lines from a DEM raster layer at a fixed elevation interval (in the DEM's own elevation units, normally metres), as a NEW LINE LAYER with an 'ELEV' field -- the usual meaning of 'draw / make / create contour lines of the DEM, every 100'. Use set_raster_relief instead only when the user wants the raster itself shown as contours (render / style) without a new layer. The interval is the vertical spacing between lines, NOT the accuracy of the terrain: the result reports the DEM's pixel size and source so the user can judge what the lines can show. Refuses very large rasters.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
@@ -3167,7 +3167,7 @@ Use an SVG picture or a single font character as the marker of a POINT layer. ki
 
 ### `set_raster_relief`
 
-Draw a raster (for example a DEM) as a hillshade (style=hillshade; azimuth 0-360, altitude 0-90, z_factor) or as contour lines (style=contour; interval and optional index_interval, in the raster's units). band defaults to 1. This changes how the raster is drawn, not its data; for a hillshade FILE use the hillshade analysis tool.
+Draw a raster (for example a DEM) as a hillshade (style=hillshade; azimuth 0-360, altitude 0-90, z_factor) or as contour lines (style=contour; interval and optional index_interval, in the raster's units). band defaults to 1. This changes how the raster is DISPLAYED, not its data: it creates no layer and no file, so these contour lines cannot be selected, measured, labelled or exported. When the user wants contour lines as data ('draw / make / create contour lines of the DEM, every 100 m') use generate_contours; use this tool for 'render / style / show the DEM as contours or hillshade'. For a hillshade FILE use the hillshade analysis tool.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
