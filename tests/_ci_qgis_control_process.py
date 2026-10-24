@@ -16,6 +16,7 @@ Not a unittest module -- deliberately run as a standalone script by
 import sys
 
 from qgis.core import QgsApplication
+from qgis.PyQt.QtCore import Qt
 from qgis.PyQt.QtWidgets import QMainWindow, QDockWidget, QTextEdit
 from qgis.PyQt.QtTest import QTest
 
@@ -27,7 +28,9 @@ dock = QDockWidget("control", win)
 edit = QTextEdit()
 edit.setPlainText("control process -- no plugin code involved")
 dock.setWidget(edit)
-win.addDockWidget(1, dock)
+# Qt6 (QGIS 4) takes the Qt.DockWidgetArea enum; the bare 1 raised TypeError in every CI run since the QGIS 4 images, so this control never
+# reached its exit check and the segfault waiver below could never be confirmed (found 2026-10-24 in the PLAN-016 item 5 CI log).
+win.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, dock)
 win.show()
 QTest.qWait(50)
 dock.close()
