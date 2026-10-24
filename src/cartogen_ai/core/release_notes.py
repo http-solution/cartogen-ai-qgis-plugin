@@ -8,18 +8,20 @@ metadata changelog, CHANGELOG.md, README and this module agree). Checklist: CONT
 releases listed in NEW_MARK_VERSIONS.
 """
 
-WHATS_NEW_VERSION = "1.17.0-rc49"
-NEW_MARK_VERSIONS = ("1.17.0-rc48", "1.17.0-rc49")
+WHATS_NEW_VERSION = "1.17.0-rc50"
+NEW_MARK_VERSIONS = ("1.17.0-rc49", "1.17.0-rc50")
 
 # Headline items of the current version (the full list is the metadata.txt changelog block and CHANGELOG.md).
 WHATS_NEW_ITEMS = [
-    ('Fixes from the rc48 hand test', 'Reachability within a distance now counts the road from the road to the facility (OI-148); tidy project layers asks before it changes anything and finds a layer loaded twice by different routes (OI-120); a script whose edits were not applied is reported as failed, and a blocked import says what scripts can do (145 and 146); dashboards say they need an internet connection (84); a large admin layer gets labels when you zoom in (127); after Zoom Full the layout frames the road network (129); the Memory dialog explains why project memory shows ON (95).'),
-    ('Layouts and routing', "Charts and the elevation profile take a free spot on the page and draw with the right axes; a plain request such as 'sort the districts by population' goes to the algorithm instead of a mapping task; a Processing algorithm given the wrong geometry type is refused with a clear message; the sun-position algorithm gets a point inside your DEM."),
-    ('Exports that draw sensitive layers', 'A layout export (single page or atlas) whose map draws a layer tagged RESTRICTED or SENSITIVE waits for your confirmation and writes nothing until you press Apply. For a file that will be shared outside the team, ask for a publication export: it is refused while the layout lacks a title, legend, scale bar or north arrow or draws a protected layer, unless you give a reason, which is saved beside the file. Every layout export now lists protected layers and missing elements.'),
-    ('Sources and disclaimer on print layouts', "The footer of a new layout carries a Sources line (each layer's own organisation and publication date, else its file name, else 'source not recorded') and a boundary and data-sensitivity line. Settings has a checkbox and a box for your organisation's own wording; without it a neutral sentence is used. The footer grows to fit."),
-    ('Fixes from an external audit', "Blurring sensitive points to an admin unit works when the points and the admin layer use different coordinate systems, and blurring works on MultiPoint layers (one output point per part; before, it stopped with an error). The sector coverage report no longer shows a missing target as zero percent. The QA checklist says 'unknown' instead of 'no concern' when it cannot read a layer. A failed save of a result layer is reported. The file name for an automatic GeoJSON export is made safe and never overwrites an earlier file. Tools say when their files are in the system temporary folder."),
-    ('Evidence for the two findings still open', 'Each evidence folder now records the settings and layer state of the request (context.json), so a re-run can explain the rc48 findings OI-128 (colour ramp reported, canvas grey) and OI-150 (sensitive tag lost after a merge). Neither could be reproduced in CI, so neither is fixed.'),
-    ('Not hand-tested', 'Everything above is checked by the offline suite and, for the QGIS parts, by CI on QGIS 4.2.2. None of it has been hand-tested in desktop QGIS, including the confirmation card, the footer layout and the Settings boxes. The wording of the disclaimer is a neutral default until your organisation supplies its own.')
+    ('Credits on print layouts', "A map with an OpenStreetMap or other known basemap now carries its credit in the footer (a Credits line); a web layer whose credit is not known says 'credit not recorded' instead of getting a guessed one."),
+    ('No data in graduated maps', "A graduated style on a layer with empty values now draws those features in grey and lists 'No data' in the legend; before, they were not drawn at all."),
+    ('Layout checks on export', 'An export reports text that overflows its box, items that overlap and items off the page. These are warnings; the file is still written.'),
+    ('Page sizes and export presets', 'create_print_layout takes page_size A4, A3, A2 or A1 (the finished A4 layout is scaled; the map keeps its extent). Exports take a preset: draft (96 dpi), web (150) or print (300), and a folder gets a file named from the title and the date.'),
+    ('Map profiles', "A small JSON file in the project's cartogen_profiles folder holds what your team repeats on every map: page size, orientation, export preset, file name pattern and required elements. Name it with profile=. docs/MAP_PROFILES.md lists every field; no organisation's template or mark ships."),
+    ('Branding and sign-off in profiles', "A profile can add your logo (PNG or JPG), masthead colours, a font, up to three footer lines, a reviewer sign-off line (without a named reviewer it reads 'Draft - not reviewed') and a COD flag with your own credit wording. A profile can require the sign-off before a publication export. A footer that needs more room takes it from the bottom of the map."),
+    ('Footer fit', 'Landscape layouts no longer warn that the footer may not fit.'),
+    ('Known and open', 'The elevation profile in a layout rendered empty once in CI and has not been explained. OI-128 and OI-150 are still open and wait for a re-run with the context.json evidence.'),
+    ('Not hand-tested', 'Everything above is checked by the offline suite and, for the QGIS parts, by CI on QGIS 4.2.2. None of it has been hand-tested in desktop QGIS: nobody has looked at an exported A3 or A2 map, a logo, a font or a sign-off line yet. The disclaimer wording is a neutral default until your organisation supplies its own.')
 ]
 
 HUMANITARIAN_WORKFLOWS = [('1. Rapid crisis and base mapping',

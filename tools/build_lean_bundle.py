@@ -63,6 +63,22 @@ EXTRA_ROWS = (
      "With the districts layer tagged SENSITIVE a card appears first; after Apply one PDF per district is written; untagged, no card."),
     ("P11 footer", "create a print layout called Footer Test",
      "The page footer shows the AI note, a Sources line with each visible layer (organisation and date if the layer has metadata, otherwise the file name), and a boundary and data-sensitivity sentence. Nothing overlaps at the bottom of the page. Look at the exported page, not only the reply. In Settings the 'Layout disclaimer' checkbox and 'Disclaimer wording' box exist; with your own wording typed, a NEW layout shows it."),
+    # rc50 (PLAN-014): none of these has been run outside CI. Rows P14 profile, logo and sign-off need a profile file: create a folder
+    # cartogen_profiles next to the saved project and put handtest.json in it (the text is in the first profile row).
+    ("P14 credits", "add the openstreetmap basemap, then create a print layout called Credit Test",
+     "The footer has a Credits line naming OpenStreetMap contributors (ODbL), once. No 'may not fit' warning in the reply."),
+    ("P14 no data", "style districts_gaps by population in 4 classes",
+     "Three polygons are coloured by class; the one with an empty population is GREY (not missing from the map) and the legend lists 'No data'."),
+    ("P14 page size", "create a print layout called Big Map on an A3 sheet in landscape",
+     "An A3 landscape page: nothing overlaps, no text is cut off, the map shows the same area as the A4 layout would. Look at the exported PDF, not only the layout view."),
+    ("P14 preset", "export Big Map as a png with the web preset",
+     "The reply says 150 dpi; the file in the export folder is named from the layout title and today's date."),
+    ("P14 profile", "create a print layout called Profile Test using the profile handtest",
+     "First save handtest.json in cartogen_profiles beside the project with: {\"page_size\": \"A3\", \"orientation\": \"portrait\", \"masthead_colour\": \"#2b5d8a\", \"footer_lines\": [\"Contact: test@example.org\"], \"sign_off\": {\"prepared_by\": \"Tester\"}}. Result: A3 portrait, blue title bar with readable text, a footer line 'Contact: test@example.org' and 'Prepared by Tester | Status: Draft - not reviewed'."),
+    ("P14 logo", "create a print layout called Logo Test using the profile handtest",
+     "Add \"logo_path\": \"logo.png\" to handtest.json and save any small PNG as logo.png beside it (your own logo is best). Result: the logo sits at the left end of the title bar, the title is narrower but not covered. Then rename logo.png: a warning says the logo is missing and the layout is still made."),
+    ("P14 sign-off", "export Profile Test as a publication pdf",
+     "Add \"require_sign_off\": true to handtest.json first. Result: refused, the problems include 'reviewer sign-off missing'; the assistant asks you for a reason and writes nothing. Then add a sign_off with reviewed_by, review_date and status Reviewed and ask again: it is accepted (other problems, if any, are listed separately)."),
 )
 # Added to the fixture script: a small integer raster for the polygonize row (kept from rc48) and a MultiPoint layer for the rc49 obfuscation row.
 FIXTURE_EXTRA = """
@@ -83,6 +99,16 @@ for _wkt, _id in (("MULTIPOINT((500000 1650000),(500400 1650300))", 1), ("MULTIP
 _mp.updateExtents()
 QgsProject.instance().addMapLayer(_mp)
 print("sens_multi added")
+
+# rc50: a polygon layer with one empty value for the No data row (EPSG:4326)
+_gaps = QgsVectorLayer("Polygon?crs=EPSG:4326&field=name:string&field=population:double", "districts_gaps", "memory")
+for _i, _pop in enumerate((100.0, 400.0, 900.0, None)):
+    _f = QgsFeature(_gaps.fields())
+    _f.setGeometry(QgsGeometry.fromWkt(f"POLYGON(({44 + _i} 15,{45 + _i} 15,{45 + _i} 16,{44 + _i} 16,{44 + _i} 15))"))
+    _f.setAttributes([f"gap{_i}", _pop]); _gaps.dataProvider().addFeatures([_f])
+_gaps.updateExtents()
+QgsProject.instance().addMapLayer(_gaps)
+print("districts_gaps added")
 """
 PLAIN_FOUND, PLAIN_SAMPLE_SEED = 6, 47
 # Plain-language rows that Failed in the rc48 hand test and were addressed since (B7, B15, B28, B32, B41; B3 has its own row above): always included.
