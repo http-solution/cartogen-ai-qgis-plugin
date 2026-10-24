@@ -11,6 +11,7 @@ tests/test_layout_export_checks_live.py in CI."""
 import json
 import time
 
+from ...logger import log_event
 from ...models.sensitivity import get_layer_sensitivity
 from ._sensitivity_notes import protected_layer_notes
 from .map_profiles import sign_off_missing
@@ -117,7 +118,7 @@ def write_publication_record(output_path, layout_name, problems, reason):
     return path
 
 
-def export_report(layers_drawn, ids_present, layout_problems=(), required=None):
+def export_report(layers_drawn, ids_present, layout_problems=(), required=None, pcode_checks=()):
     """The fields an export result should carry: {} when there is nothing to say. Pure apart from reading each layer's sensitivity tag."""
     notes = protected_layer_notes(layers_drawn, "it is drawn on this exported map -- confirm the file is meant to be shared before distributing it.")
     missing = missing_elements(ids_present, required)
@@ -131,9 +132,49 @@ def export_report(layers_drawn, ids_present, layout_problems=(), required=None):
         # PLAN-014 phase 1: geometry problems found from the item rectangles (layout_geometry_checks). Warnings only, like the rest.
         notes.append("Layout check: " + "; ".join(layout_problems) + ". The file was written as it is.")
         report["layout_problems"] = list(layout_problems)
+    pcode_warning_notes, pcode_findings = pcode_notes(pcode_checks)
+    if pcode_findings:
+        notes.extend(pcode_warning_notes)
+        report["pcode_findings"] = pcode_findings
     if notes:
         report["export_warnings"] = notes
     return report
+
+
+PCODE_FIELD_ALIASES = ("admin3_pcode", "adm3_pcode", "admin2_pcode", "adm2_pcode", "admin1_pcode", "adm1_pcode")
+
+
+def pcode_field_of(field_names):
+    """The first admin P-code field among `field_names` (finest level first, case-insensitive), or None. Pure."""
+    lowered = {str(n).lower(): n for n in field_names}
+    return next((lowered[a] for a in PCODE_FIELD_ALIASES if a in lowered), None)
+
+
+def pcode_notes(results):
+    """(notes, findings) from [{layer, field, duplicates}] P-code checks: one note per layer with duplicate codes. Pure."""
+    findings = [{"layer": r["layer"], "field": r["field"], "duplicates": r["duplicates"]} for r in results if r.get("duplicates")]
+    notes = [f"COD check: '{f['layer']}' has {f['duplicates']} duplicated value(s) in {f['field']}; a join on it will be wrong." for f in findings]
+    return notes, findings
+
+
+def pcode_results(layers):
+    """[{layer, field, duplicates}] for the drawn vector layers that have an admin P-code field. A layer that cannot be read is left out
+    (advisory, never raises)."""
+    from ...validators import pcode_validation
+    out = []
+    for layer in layers or []:
+        try:
+            if not hasattr(layer, "fields"):
+                continue
+            field = pcode_field_of(layer.fields().names())
+            if field is None:
+                continue
+            result = pcode_validation.check_pcode_uniqueness(layer, pcode_field=field)
+            if result.get("success"):
+                out.append({"layer": layer.name(), "field": field, "duplicates": len(result.get("duplicate_pcodes", {}))})
+        except Exception as exc:
+            log_event("pcode_check_failed", error_class=type(exc).__name__)
+    return out
 
 
 def layers_drawn(layout):
@@ -227,7 +268,10 @@ def layout_export_report(layout, extra_layers=()):
     try:
         ids = [i.id() for i in layout.items() if hasattr(i, "id") and i.id()]
         from .layout_geometry_checks import layout_geometry_problems
-        return export_report(_with_extra(layers_drawn(layout), extra_layers), ids, layout_geometry_problems(layout), profile_of(layout).get("required_elements"))
+        profile = profile_of(layout)
+        drawn = _with_extra(layers_drawn(layout), extra_layers)
+        return export_report(drawn, ids, layout_geometry_problems(layout), profile.get("required_elements"),
+                             pcode_results(drawn) if profile.get("cod_boundaries") else ())
     except Exception:
         return {}
 
