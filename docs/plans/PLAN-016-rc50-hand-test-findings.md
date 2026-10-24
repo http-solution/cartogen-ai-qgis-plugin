@@ -41,3 +41,4 @@ One pull request per item, in the order 1, 2, 4, 5 (3 is a row and plan text onl
 
 ## Status log
 - 2026-10-24: plan written from the first rc50 hand run and a read of `map_profiles.py`, `layout_export_checks.py`, `agent_orchestrator.py` (egress lineage), `lineage.py` and `layout_style.py`. No code changed. Waiting for the owner's decisions on items 1 to 3 and for the A29 retest on a freshly built layout, which would confirm the cause of A29.
+- 2026-10-24: PLAN-016 merged (#412). Owner said go on item 1 (the recommended design). Built: the layout stores its profile name; `current_profile` in layout_export_checks.py re-reads the file for requirements and keeps the printed sign-off; used by the publication gate, the export report, export_layout (preset and file name pattern) and the QA checklist; `profile_note` when the file cannot be re-read. Offline tests and live tests written; not yet run in QGIS. Status stays planned until all items are built.

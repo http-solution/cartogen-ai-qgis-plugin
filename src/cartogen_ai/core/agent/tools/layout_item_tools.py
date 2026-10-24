@@ -486,12 +486,12 @@ def export_layout(layout_name, output_path, dpi=None, world_file=False, geopdf=F
                   preset=None, output_format="pdf"):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
-    from .layout_export_checks import profile_of
+    from .layout_export_checks import current_profile
     from .layout_options import export_dpi, resolve_export_target
     layout = _layout(layout_name)
     if layout is None:
         return {"error": f"Layout '{layout_name}' not found. See list_layouts."}
-    profile = profile_of(layout)          # PLAN-014 phase 2b: a layout made with profile=... remembers its preset and file name pattern
+    profile, profile_note = current_profile(layout)          # PLAN-016: the file is re-read now; PLAN-014 phase 2b: a layout made with profile=... remembers its preset and file name pattern
     output_path = resolve_export_target(output_path, layout_name, output_format, pattern=profile.get("file_name_pattern"))
     kind, problem = validate_export_path(output_path)
     if problem:
@@ -551,6 +551,8 @@ def export_layout(layout_name, output_path, dpi=None, world_file=False, geopdf=F
         out["geopdf"] = True
     from .layout_export_checks import layout_export_report
     out.update(layout_export_report(layout))     # PLAN-011 phase A: protected layers drawn, missing mandatory elements
+    if profile_note:
+        out["profile_note"] = profile_note
     if str(purpose or "").lower() == "publication" and out.get("export_warnings"):
         from .layout_export_checks import write_publication_record
         record = write_publication_record(path, layout_name, out.get("export_warnings", []), override_reason)

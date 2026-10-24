@@ -29,3 +29,6 @@ Cartogen AI ships **no organisation's template, logo or brand colours**. You wri
 | `required_elements` | list of `MAP_MAIN`, `TITLE`, `LEGEND`, `SCALEBAR`, `NORTH_ARROW`, `MAP_INFO`, `FOOTER`, `BODY_TEXT`, `INSET_MAP` | The elements a layout must have; a missing one is reported on export and blocks a publication export unless you give a reason. |
 
 An argument you give in the request beats the profile; the profile beats the defaults. A field the plugin does not know (for example a field from a later version of the plugin) is **refused by name**, never ignored, so a file written for a later version cannot look as if it worked. The profile is remembered on the layout, so a later `export_layout` uses its file name pattern, export preset and required elements.
+
+## Changing a profile after a layout was made
+A layout remembers the profile's name. At export the file is read again, so a requirement you add later (for example `require_sign_off`, or a longer `required_elements` list) applies to layouts you already made. What the map itself says is fixed when the layout is built: a review you add to `sign_off` later does not change a footer that already reads "Draft - not reviewed", so rebuild the layout to print it. If the profile file has been deleted or no longer validates, the copy kept on the layout is used and the export result says so (`profile_note`).

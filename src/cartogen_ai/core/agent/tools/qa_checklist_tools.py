@@ -38,7 +38,7 @@ from ._paths import resolve_output_path
 from ...models import sensitivity as _sens
 from .dataset_status_tools import get_dataset_status
 from .provenance_tools import get_provenance_record
-from .layout_export_checks import ELEMENT_LABELS, MANDATORY_LAYOUT_ELEMENTS, missing_elements, profile_of
+from .layout_export_checks import ELEMENT_LABELS, MANDATORY_LAYOUT_ELEMENTS, current_profile, missing_elements
 from .layout_tools import list_layout_items
 
 try:
@@ -64,7 +64,7 @@ def _required_elements(layout_name):
     """The required_elements of the profile stored on the layout, or None (no profile, or the layout cannot be looked up)."""
     try:
         from .layout_tools import _find_layout_by_name
-        return profile_of(_find_layout_by_name(layout_name)).get("required_elements")
+        return current_profile(_find_layout_by_name(layout_name))[0].get("required_elements")
     except Exception:
         return None
 
