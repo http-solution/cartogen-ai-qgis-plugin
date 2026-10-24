@@ -830,6 +830,15 @@
     "sources": ["src/cartogen_ai/core/agent/tools/map_profiles.py", "src/cartogen_ai/core/agent/tools/layout_style.py", "src/cartogen_ai/core/agent/tools/layout_tools.py", "docs/MAP_PROFILES.md", "docs/examples/map_profile_example.json", "docs/plans/PLAN-014-ocha-template-and-branding.md"],
     "guards": ["tests/test_plan014_branding.py::TestBrandingFields::test_logo_paths_that_could_reach_outside_are_refused", "tests/test_plan014_branding.py::TestMastheadHelpers::test_logo_and_title_boxes_never_overlap_and_stay_inside", "tests/test_plan014_branding.py::TestMastheadHelpers::test_an_unreadable_text_colour_is_replaced_and_reported", "tests/test_plan014_branding_live.py::TestBrandingOnLayouts::test_the_logo_is_added_beside_the_title_and_is_drawn", "tests/test_plan014_branding_live.py::TestBrandingOnLayouts::test_the_logo_keeps_every_size_and_orientation_free_of_geometry_problems", "tests/test_plan014_branding_live.py::TestBrandingOnLayouts::test_an_installed_font_is_applied_and_a_missing_one_warns"],
     "hand_verified": "not hand-tested; offline unit tests plus CI live (written without a QGIS install)"
+  },
+  {
+    "id": "layout-signoff-3b",
+    "feature": "A map profile can add up to 3 footer lines and a reviewer sign-off line (prepared by, reviewed by and date, status); without a named reviewer the footer says 'Draft - not reviewed', a Reviewed/Approved status needs a reviewer and a date, and require_sign_off makes a missing review a publication problem (refused unless the user gives a reason and confirms)",
+    "issues": [],
+    "since": "rc50 (unreleased)",
+    "sources": ["src/cartogen_ai/core/agent/tools/map_profiles.py", "src/cartogen_ai/core/agent/tools/layout_style.py", "src/cartogen_ai/core/agent/tools/layout_export_checks.py", "docs/MAP_PROFILES.md", "docs/plans/PLAN-014-ocha-template-and-branding.md"],
+    "guards": ["tests/test_plan014_signoff.py::TestValidation::test_a_status_cannot_claim_a_review_nobody_is_named_for", "tests/test_plan014_signoff.py::TestLine::test_without_a_reviewer_the_status_is_always_draft_not_reviewed", "tests/test_plan014_signoff.py::TestPublicationRule::test_required_sign_off_is_missing_until_named_dated_and_reviewed", "tests/test_plan014_signoff_live.py::TestSignOffOnLayouts::test_footer_lines_and_the_sign_off_line_are_in_the_footer_before_the_disclaimer", "tests/test_plan014_signoff_live.py::TestSignOffOnLayouts::test_required_sign_off_blocks_publication_until_the_profile_has_a_review", "tests/test_plan014_signoff_live.py::TestSignOffOnLayouts::test_a_reviewed_profile_publishes_without_a_sign_off_problem"],
+    "hand_verified": "not hand-tested; offline unit tests plus CI live (written without a QGIS install)"
   }
  ]
 }

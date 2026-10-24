@@ -342,10 +342,18 @@ def sources_line(entries, budget=SOURCES_CHAR_BUDGET):
     return prefix + "; ".join(kept) + (f" +{left} more" if left else "")
 
 
-def footer_block(base, levels, sources, disclaimer, credit_text=""):
-    """The footer's full text: classification and AI note, then the sources line, the credits line (PLAN-014), then the disclaimer; empty parts are
-    left out. Pure."""
-    return "\n".join(part for part in (footer_text(base, levels), sources, credit_text, disclaimer) if part)
+def footer_block(base, levels, sources, disclaimer, credit_text="", extra_lines=()):
+    """The footer's full text: classification and AI note, then the sources line, the credits line (PLAN-014), the profile's own lines and
+    sign-off (phase 3b), then the disclaimer; empty parts are left out. Pure."""
+    return "\n".join(part for part in (footer_text(base, levels), sources, credit_text, *extra_lines, disclaimer) if part)
+
+
+def profile_footer_lines(branding):
+    """The footer lines a profile adds: its footer_lines, then the sign-off line. Pure."""
+    from .map_profiles import sign_off_line
+    lines = list((branding or {}).get("footer_lines") or [])
+    sign_off = sign_off_line((branding or {}).get("sign_off"))
+    return lines + ([sign_off] if sign_off else [])
 
 
 FOOTER_LINE_FACTOR = 1.25      # line pitch / font size for the small footer text; a body panel uses the more generous 1.35
@@ -580,7 +588,7 @@ def _apply_layout_style(layout, layout_mm, project, today, template, sources, br
             ("map frame", lambda: _style_map_frame(layout, layout_mm)),
             ("info row", lambda: _style_info(layout, today)),
             ("body panel", lambda: _style_body(layout, layout_mm)),
-            ("footer", lambda: footer_warnings.extend(_style_footer(layout, layout_mm, levels, source_entries, credit_text))),
+            ("footer", lambda: footer_warnings.extend(_style_footer(layout, layout_mm, levels, source_entries, credit_text, profile_footer_lines(branding)))),
             ("legend", lambda: _style_legend(layout, layout_mm, ids, by_id, template, chosen)),
             ("legend fonts", lambda: _style_legend_fonts(layout)),
             ("scale bar", lambda: _style_scalebar(layout))):
@@ -674,7 +682,33 @@ def _clearance_above(layout, label):
     return top - max(bottoms) - FOOTER_CLEARANCE_MM if bottoms else top - FOOTER_CLEARANCE_MM
 
 
-def _style_footer(layout, layout_mm, levels, source_entries=(), credit_text=""):
+MAP_RECLAIM_SHARE = 0.25   # the main map never gives up more than this share of its height to a longer footer
+
+
+def _reclaim_from_map(layout, layout_mm, label, deficit_mm):
+    """Shortens MAP_MAIN from the bottom by `deficit_mm` (at most MAP_RECLAIM_SHARE of it) and lifts every item that sits between the map and the
+    footer (the info row, scale bar, north arrow) by the same amount, so the footer can grow upward. In landscape the footer spans the page under
+    the map, so the scale bar and info row, not the map, are what limit it (PLAN-014 3b CI run 2). False, and nothing changed, when there is no
+    main map or an inset map would then stick out below it."""
+    if deficit_mm <= 0:
+        return False
+    main = layout.itemById("MAP_MAIN")
+    if main is None:
+        return False
+    amount = min(deficit_mm + 0.2, main.rect().height() * MAP_RECLAIM_SHARE)
+    map_bottom = main.y() + main.rect().height()
+    inset = layout.itemById("INSET_MAP")
+    if inset is not None and inset.y() + inset.rect().height() > map_bottom - amount:
+        return False
+    between = [item for item in layout.items()
+               if item is not main and item is not label and hasattr(item, "id") and item.id() and map_bottom - 0.5 <= item.y() < label.y()]
+    main.attemptResize(QgsLayoutSize(main.rect().width(), main.rect().height() - amount, layout_mm))
+    for item in between:
+        item.attemptMove(QgsLayoutPoint(item.x(), item.y() - amount, layout_mm))
+    return True
+
+
+def _style_footer(layout, layout_mm, levels, source_entries=(), credit_text="", extra_lines=()):
     """Sets the footer text (classification, AI note, sources, disclaimer) and grows the box to fit. Returns warnings."""
     label = layout.itemById("FOOTER")
     base = label.text()
@@ -684,14 +718,19 @@ def _style_footer(layout, layout_mm, levels, source_entries=(), credit_text=""):
     page_height = layout.pageCollection().page(0).pageSize().height()
     warnings = []
     for budget in (SOURCES_CHAR_BUDGET, 60):
-        text = footer_block(base, levels, sources_line(source_entries, budget), disclaimer, credit_text)
+        text = footer_block(base, levels, sources_line(source_entries, budget), disclaimer, credit_text, extra_lines)
         label.setText(text)
         needed = footer_height_mm(text, label.rect().width(), TYPE_SCALE["footer"])
         new_y, new_h, fits = plan_footer_growth(needed, label.rect().height(), label.y(), page_height, _clearance_above(layout, label))
         if fits:
             break
     else:
-        warnings.append("footer: the sources and disclaimer text may not fit in the space available; shorten the disclaimer in Settings")
+        # PLAN-014 3b CI: a profile's footer lines plus sign-off make 6 to 8 lines, more than the strip under the map holds (A3: needs 31 mm, box 18).
+        # The profile asked for those lines, so the map gives up the missing height from its bottom edge before anything is warned about.
+        if extra_lines and _reclaim_from_map(layout, layout_mm, label, needed - new_h):
+            new_y, new_h, fits = plan_footer_growth(needed, label.rect().height(), label.y(), page_height, _clearance_above(layout, label))
+        if not fits:
+            warnings.append("footer: the sources and disclaimer text may not fit in the space available; shorten the disclaimer in Settings")
     if new_h != label.rect().height():
         label.attemptMove(QgsLayoutPoint(label.x(), new_y, layout_mm))
         label.attemptResize(QgsLayoutSize(label.rect().width(), new_h, layout_mm))

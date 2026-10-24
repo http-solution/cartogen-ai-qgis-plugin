@@ -19,7 +19,12 @@ PROFILE_VERSION = 1
 KNOWN_ELEMENTS = ("MAP_MAIN", "TITLE", "LEGEND", "SCALEBAR", "NORTH_ARROW", "MAP_INFO", "FOOTER", "BODY_TEXT", "INSET_MAP")
 PLACEHOLDERS = ("title", "date", "layout")
 FIELDS = ("profile_version", "name", "description", "page_size", "orientation", "export_preset", "file_name_pattern", "required_elements",
-          "logo_path", "logo_position", "masthead_colour", "masthead_text_colour", "font_family")
+          "logo_path", "logo_position", "masthead_colour", "masthead_text_colour", "font_family",
+          "footer_lines", "sign_off", "require_sign_off")
+SIGN_OFF_KEYS = ("prepared_by", "reviewed_by", "review_date", "status")
+SIGN_OFF_STATUSES = ("Draft", "Reviewed", "Approved")
+MAX_FOOTER_LINES = 3
+MAX_FOOTER_LINE_CHARS = 120
 LOGO_EXTENSIONS = (".png", ".jpg", ".jpeg")   # not SVG: an SVG can reference files and URLs outside itself (owner decision 2026-10-24)
 _HEX = re.compile(r"^#[0-9a-fA-F]{6}$")
 _FONT = re.compile(r"^[A-Za-z0-9][A-Za-z0-9 _.\-]{0,63}$")
@@ -100,6 +105,7 @@ def validate_profile(data):
         else:
             clean["required_elements"] = list(dict.fromkeys(elements))
     _validate_branding(data, clean, problems)
+    _validate_footer_fields(data, clean, problems)
     return (None, problems) if problems else (clean, [])
 
 
@@ -141,6 +147,82 @@ def _validate_branding(data, clean, problems):
             problems.append("font_family must be a font name of at most 64 letters, digits, spaces, '.', '-' or '_'")
         else:
             clean["font_family"] = data["font_family"].strip()
+
+
+def _validate_footer_fields(data, clean, problems):
+    """Phase 3b fields: extra footer lines, the reviewer sign-off and the switch that makes it mandatory for publication. Pure."""
+    lines = data.get("footer_lines")
+    if "footer_lines" in data:
+        ok = (isinstance(lines, list) and 1 <= len(lines) <= MAX_FOOTER_LINES
+              and all(isinstance(x, str) and x.strip() and len(x) <= MAX_FOOTER_LINE_CHARS and "\n" not in x for x in lines))
+        if ok:
+            clean["footer_lines"] = [x.strip() for x in lines]
+        else:
+            problems.append(f"footer_lines must be 1 to {MAX_FOOTER_LINES} single-line texts of at most {MAX_FOOTER_LINE_CHARS} characters")
+    if "sign_off" in data:
+        value, issues = validate_sign_off(data["sign_off"])
+        problems.extend(issues)
+        if value is not None:
+            clean["sign_off"] = value
+    if "require_sign_off" in data:
+        if not isinstance(data["require_sign_off"], bool):
+            problems.append("require_sign_off must be true or false")
+        else:
+            clean["require_sign_off"] = data["require_sign_off"]
+
+
+def validate_sign_off(data):
+    """(clean sign-off dict, []) or (None, [problem, ...]). 'Reviewed' and 'Approved' need a reviewer name and a real date: a status
+    cannot claim a review nobody is named for. Pure."""
+    import datetime
+    if not isinstance(data, dict) or not data:
+        return None, ["sign_off must be an object with prepared_by, reviewed_by, review_date and/or status"]
+    problems = [f"sign_off: unknown key '{k}' (known: {', '.join(SIGN_OFF_KEYS)})" for k in data if k not in SIGN_OFF_KEYS]
+    clean = {}
+    for key in ("prepared_by", "reviewed_by"):
+        if key in data:
+            if not isinstance(data[key], str) or not data[key].strip() or len(data[key]) > 80 or "\n" in data[key]:
+                problems.append(f"sign_off.{key} must be a name of at most 80 characters")
+            else:
+                clean[key] = data[key].strip()
+    if "review_date" in data:
+        try:
+            clean["review_date"] = datetime.date.fromisoformat(str(data["review_date"])).isoformat()
+        except ValueError:
+            problems.append("sign_off.review_date must be a real date written YYYY-MM-DD")
+    if "status" in data:
+        match = [x for x in SIGN_OFF_STATUSES if x.lower() == str(data["status"]).strip().lower()]
+        if match:
+            clean["status"] = match[0]
+        else:
+            problems.append(f"sign_off.status must be one of {', '.join(SIGN_OFF_STATUSES)}")
+    if clean.get("status") in ("Reviewed", "Approved") and not (clean.get("reviewed_by") and clean.get("review_date")):
+        problems.append(f"sign_off.status '{clean['status']}' needs reviewed_by and review_date")
+    return (None, problems) if problems else (clean, [])
+
+
+def sign_off_line(sign_off):
+    """The footer line for a sign-off, or ''. Without a named reviewer the status always reads 'Draft - not reviewed'. Pure."""
+    if not sign_off:
+        return ""
+    parts = []
+    if sign_off.get("prepared_by"):
+        parts.append(f"Prepared by {sign_off['prepared_by']}")
+    reviewer = sign_off.get("reviewed_by")
+    if reviewer:
+        parts.append(f"Reviewed by {reviewer}" + (f" on {sign_off['review_date']}" if sign_off.get("review_date") else ""))
+        parts.append(f"Status: {sign_off.get('status') or 'Draft'}")
+    else:
+        parts.append("Status: Draft - not reviewed")
+    return " | ".join(parts)
+
+
+def sign_off_missing(profile):
+    """True when the profile makes sign-off mandatory and it does not show a named, dated review with a Reviewed/Approved status. Pure."""
+    if not (profile or {}).get("require_sign_off"):
+        return False
+    so = profile.get("sign_off") or {}
+    return not (so.get("reviewed_by") and so.get("review_date") and so.get("status") in ("Reviewed", "Approved"))
 
 
 def parse_profile_text(text):
