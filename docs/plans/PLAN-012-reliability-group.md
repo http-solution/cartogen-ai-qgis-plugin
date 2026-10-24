@@ -23,7 +23,7 @@ Act on the reliability findings of the external audit, but only on those the cod
 ## Acceptance
 1. Item 1: a live test with a MultiPoint layer fails on current main (to confirm the defect) and passes after the fix; if it passes on current main the item is withdrawn and recorded as such.
 2. Item 2: tests show `../x`, an absolute path and a name with separators all end up as a plain file inside the temp folder, and a repeat run does not overwrite the first file.
-3. Item 3: whichever option is chosen below, a test shows a folder still used by a loaded layer is never removed.
+3. Item 3 (decided: leave and say so): each of the three tools reports the folder it wrote to; nothing is deleted.
 4. Ledger entries, `ruff check .` clean, nothing called hand-verified.
 
 ## Guard tests
@@ -33,4 +33,5 @@ To be listed per item when built.
 One pull request per item; revert it.
 
 ## Status log
-- 2026-10-24: plan written after reading `_background_processing.py`, `vector_tools.py`, `task_grid_tools.py`, `processing/provider.py` and the temp-folder users. No code changed. Open decisions: multipart handling for item 1, retention policy for item 3.
+- 2026-10-24: plan written after reading `_background_processing.py`, `vector_tools.py`, `task_grid_tools.py`, `processing/provider.py` and the temp-folder users. No code changed. 
+- 2026-10-24: owner decisions: item 1, one output point per part (same attributes), and only if the live test confirms the defect; item 3, leave the folders and say where they are in each tool's result (no deletion, no startup sweep). Item 3's acceptance test therefore becomes: each of the three tools names the folder it wrote to. Build starts on the owner's go.
