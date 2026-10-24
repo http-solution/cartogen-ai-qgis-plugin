@@ -92,11 +92,11 @@ class TestProfilesOnLayouts(unittest.TestCase):
         self.assertEqual(QgsProject.instance().layoutManager().printLayouts(), [])
 
     def test_an_invalid_profile_file_is_refused_with_its_problems(self):
-        self._write("broken", {"page_size": "A5", "logo": "x.png"})
+        self._write("broken", {"page_size": "A5", "watermark": "x.png"})
         res = self._make(profile="broken")
         self.assertIn("error", res, res)
         self.assertIn("page_size must be one of", res["error"])
-        self.assertIn("'logo'", res["error"])
+        self.assertIn("'watermark'", res["error"])
         self.assertEqual(QgsProject.instance().layoutManager().printLayouts(), [])
 
     def test_a_layout_without_a_profile_is_as_before(self):

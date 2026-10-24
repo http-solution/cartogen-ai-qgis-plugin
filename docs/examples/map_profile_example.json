@@ -12,5 +12,7 @@
     "LEGEND",
     "SCALEBAR",
     "NORTH_ARROW"
-  ]
+  ],
+  "masthead_colour": "#2b5d8a",
+  "masthead_text_colour": "#ffffff"
 }

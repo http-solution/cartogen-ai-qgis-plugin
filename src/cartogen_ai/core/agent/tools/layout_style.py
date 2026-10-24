@@ -19,12 +19,13 @@ is reported as a warning and the layout is still produced.
 """
 import contextlib
 import datetime
+import os
 
 from .routing_style import ACCESS_STYLES
 
 try:
     from qgis.core import (
-        Qgis, QgsLayoutMeasurement, QgsLayoutPoint, QgsLayoutSize, QgsProject, QgsTextFormat, QgsUnitTypes,
+        Qgis, QgsLayoutItemPicture, QgsLayoutMeasurement, QgsLayoutPoint, QgsLayoutSize, QgsProject, QgsTextFormat, QgsUnitTypes,
     )
     from qgis.PyQt.QtCore import Qt
     from qgis.PyQt.QtGui import QColor, QFont
@@ -176,6 +177,48 @@ def resolve_masthead(hex_value):
     r, g, b = (int(text[i:i + 2], 16) for i in (1, 3, 5))
     luminance = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255.0
     return text.lower(), ("#1f2d3a" if luminance > 0.6 else "#ffffff")
+
+
+def _luminance(hex_value):
+    r, g, b = (int(hex_value[i:i + 2], 16) / 255.0 for i in (1, 3, 5))
+    lin = [c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4 for c in (r, g, b)]
+    return 0.2126 * lin[0] + 0.7152 * lin[1] + 0.0722 * lin[2]
+
+
+def contrast_ratio(hex_a, hex_b):
+    """WCAG contrast ratio (1 to 21) of two #rrggbb colours. Pure."""
+    la, lb = sorted((_luminance(hex_a), _luminance(hex_b)), reverse=True)
+    return (la + 0.05) / (lb + 0.05)
+
+
+MIN_MASTHEAD_CONTRAST = 3.0     # WCAG AA for large text; the title is large bold text
+
+
+def resolve_masthead_colours(bg_hex, fg_hex=None):
+    """(background, text, warning or None). The text colour a profile asks for is used only if it is readable on the background; otherwise
+    the automatic dark/light choice stands and the warning says why. Pure."""
+    bg, auto_fg = resolve_masthead(bg_hex)
+    wanted = str(fg_hex or "").strip().lower()
+    if not wanted:
+        return bg, auto_fg, None
+    if contrast_ratio(bg, wanted) >= MIN_MASTHEAD_CONTRAST:
+        return bg, wanted, None
+    return bg, auto_fg, f"masthead_text_colour {wanted} is hard to read on {bg} (contrast {contrast_ratio(bg, wanted):.1f}:1); used {auto_fg} instead"
+
+
+LOGO_PAD_MM = 1.0
+LOGO_MAX_ASPECT = 2.0       # logo box is at most this many times wider than tall
+LOGO_MAX_SHARE = 0.25       # and at most this share of the masthead width
+
+
+def masthead_split(x, y, w, h, position="left"):
+    """((lx, ly, lw, lh), (tx, ty, tw, th)): the logo box and the narrowed title box inside the masthead rectangle. They never overlap. Pure."""
+    lh = max(1.0, h - 2 * LOGO_PAD_MM)
+    lw = min(lh * LOGO_MAX_ASPECT, w * LOGO_MAX_SHARE)
+    ly = y + (h - lh) / 2
+    if str(position).lower() == "right":
+        return (x + w - lw - LOGO_PAD_MM, ly, lw, lh), (x, y, w - lw - 2 * LOGO_PAD_MM, h)
+    return (x + LOGO_PAD_MM, ly, lw, lh), (x + lw + 2 * LOGO_PAD_MM, y, w - lw - 2 * LOGO_PAD_MM, h)
 
 
 def access_rank(name):
@@ -356,9 +399,12 @@ def _points_unit():
     return unit if unit is not None else getattr(QgsUnitTypes, "RenderPoints", None)
 
 
+_ACTIVE_FONT = {"family": None}   # set by apply_layout_style for the duration of one styling run (a profile's font_family)
+
+
 def text_format(size_pt, color_hex, bold=False, italic=False):
     fmt = QgsTextFormat()
-    font = QFont()
+    font = QFont(_ACTIVE_FONT["family"]) if _ACTIVE_FONT["family"] else QFont()
     font.setBold(bool(bold))
     font.setItalic(bool(italic))
     fmt.setFont(font)
@@ -466,8 +512,36 @@ def _footer_settings():
         return True, ""
 
 
-def apply_layout_style(layout, layout_mm, project=None, today=None, template="standard", sources=None):
-    """Styles the items create_print_layout made. Returns {'warnings': [...], 'legend_layers': [names], 'classification': str}."""
+def installed_font(family):
+    """(family or None, warning or None): the requested font if this machine has it, else None and a warning (never a silent change). """
+    if not family:
+        return None, None
+    try:
+        from qgis.PyQt.QtGui import QFontDatabase
+        available = {f.lower() for f in QFontDatabase.families()}
+    except Exception:
+        return None, f"font '{family}' could not be checked; the default font is used"
+    if family.lower() in available:
+        return family, None
+    return None, f"font '{family}' is not installed on this computer; the default font is used"
+
+
+def apply_layout_style(layout, layout_mm, project=None, today=None, template="standard", sources=None, branding=None):
+    """Styles the items create_print_layout made. `branding` is a map profile (logo, masthead colours, font). Returns
+    {'warnings': [...], 'legend_layers': [names], 'classification': str}."""
+    branding = branding or {}
+    family, font_warning = installed_font(branding.get("font_family"))
+    _ACTIVE_FONT["family"] = family
+    try:
+        report = _apply_layout_style(layout, layout_mm, project, today, template, sources, branding)
+    finally:
+        _ACTIVE_FONT["family"] = None
+    if font_warning:
+        report["warnings"].append(font_warning)
+    return report
+
+
+def _apply_layout_style(layout, layout_mm, project, today, template, sources, branding):
     warnings = []
     if not QGIS_AVAILABLE:
         return {"warnings": ["QGIS not available"], "legend_layers": [], "classification": ""}
@@ -501,7 +575,8 @@ def apply_layout_style(layout, layout_mm, project=None, today=None, template="st
             warnings.append(f"{name}: {type(exc).__name__}: {exc}")
 
     for name, fn in (
-            ("title", lambda: _style_title(layout)),
+            ("title", lambda: _style_title(layout, branding, warnings)),
+            ("logo", lambda: _add_logo(layout, layout_mm, branding, warnings)),
             ("map frame", lambda: _style_map_frame(layout, layout_mm)),
             ("info row", lambda: _style_info(layout, today)),
             ("body panel", lambda: _style_body(layout, layout_mm)),
@@ -515,15 +590,43 @@ def apply_layout_style(layout, layout_mm, project=None, today=None, template="st
             "classification": classification_prefix(levels).strip(" -")}
 
 
-def _style_title(layout):
+def _style_title(layout, branding=None, warnings=None):
     label = layout.itemById("TITLE")
-    bg_hex, fg_hex = resolve_masthead(_configured_masthead())
+    branding = branding or {}
+    bg_hex, fg_hex, colour_warning = resolve_masthead_colours(branding.get("masthead_colour") or _configured_masthead(),
+                                                              branding.get("masthead_text_colour"))
+    if colour_warning and warnings is not None:
+        warnings.append(colour_warning)
     label.setTextFormat(text_format(TYPE_SCALE["title"], fg_hex, bold=True))
     label.setBackgroundEnabled(True)
     label.setBackgroundColor(QColor(bg_hex))
     label.setMarginX(3.0)
     label.setMarginY(1.0)
     label.setVAlign(Qt.AlignmentFlag.AlignVCenter)
+
+
+def _add_logo(layout, layout_mm, branding, warnings):
+    """Adds the organisation's logo (a local PNG/JPG named by the profile) to the masthead and narrows the title so they do not overlap.
+    A missing or unreadable file leaves the layout as it was and says so."""
+    path = branding.get("logo_path")
+    if not path:
+        return
+    title = layout.itemById("TITLE")
+    if title is None:
+        return
+    from qgis.PyQt.QtGui import QImage
+    if not os.path.isfile(path) or QImage(path).isNull():
+        warnings.append(f"logo: '{path}' is missing or is not a readable PNG/JPG image; the layout has no logo")
+        return
+    logo_rect, title_rect = masthead_split(title.x(), title.y(), title.rect().width(), title.rect().height(), branding.get("logo_position", "left"))
+    pic = QgsLayoutItemPicture(layout)
+    pic.setId("LOGO")
+    pic.setPicturePath(path)
+    layout.addLayoutItem(pic)
+    pic.attemptMove(QgsLayoutPoint(logo_rect[0], logo_rect[1], layout_mm))
+    pic.attemptResize(QgsLayoutSize(logo_rect[2], logo_rect[3], layout_mm))
+    title.attemptMove(QgsLayoutPoint(title_rect[0], title_rect[1], layout_mm))
+    title.attemptResize(QgsLayoutSize(title_rect[2], title_rect[3], layout_mm))
 
 
 def _style_map_frame(layout, layout_mm):
