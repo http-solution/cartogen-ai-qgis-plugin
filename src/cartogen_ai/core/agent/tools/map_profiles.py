@@ -2,8 +2,8 @@
 
 Why a file and not built-in templates: the plugin does not carry any organisation's template rules, logo or brand colours (owner decision,
 2026-10-24: the organisation supplies its own, like its disclaimer wording). A profile holds the choices a team repeats on every map: page size
-and orientation, the export purpose, the exported file name, and which layout elements its products must have. Branding fields (logo, colours,
-font, sign-off) are a later phase; until they exist an unknown field is REFUSED with its name, never silently ignored, so a file written for a
+and orientation, the export purpose, the exported file name, and which layout elements its products must have. Branding fields: logo, masthead colours and
+font (phase 3a); sign-off and the COD flag are later phases. An unknown field is REFUSED with its name, never silently ignored, so a file written for a
 later version cannot look as if it worked.
 
 Looked up in the project folder (`cartogen_profiles/<name>.json`) first, then in the QGIS profile folder (`cartogen_ai/profiles/<name>.json`).
@@ -18,7 +18,11 @@ from .layout_page_scale import PAGE_SIZE_KEYS
 PROFILE_VERSION = 1
 KNOWN_ELEMENTS = ("MAP_MAIN", "TITLE", "LEGEND", "SCALEBAR", "NORTH_ARROW", "MAP_INFO", "FOOTER", "BODY_TEXT", "INSET_MAP")
 PLACEHOLDERS = ("title", "date", "layout")
-FIELDS = ("profile_version", "name", "description", "page_size", "orientation", "export_preset", "file_name_pattern", "required_elements")
+FIELDS = ("profile_version", "name", "description", "page_size", "orientation", "export_preset", "file_name_pattern", "required_elements",
+          "logo_path", "logo_position", "masthead_colour", "masthead_text_colour", "font_family")
+LOGO_EXTENSIONS = (".png", ".jpg", ".jpeg")   # not SVG: an SVG can reference files and URLs outside itself (owner decision 2026-10-24)
+_HEX = re.compile(r"^#[0-9a-fA-F]{6}$")
+_FONT = re.compile(r"^[A-Za-z0-9][A-Za-z0-9 _.\-]{0,63}$")
 _NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_\- ]{0,63}$")
 _PATTERN_FIELD = re.compile(r"\{([^{}]*)\}")
 MAX_FILE_BYTES = 20_000
@@ -35,6 +39,8 @@ def example_profile():
         "export_preset": "print",
         "file_name_pattern": "{title}_{date}",
         "required_elements": ["MAP_MAIN", "TITLE", "LEGEND", "SCALEBAR", "NORTH_ARROW"],
+        "masthead_colour": "#2b5d8a",
+        "masthead_text_colour": "#ffffff",
     }
 
 
@@ -42,7 +48,7 @@ def validate_profile(data):
     """(clean profile dict, []) or (None, [problem, ...]) for a parsed JSON profile. Every problem is listed at once. Pure."""
     if not isinstance(data, dict):
         return None, ["the profile must be a JSON object ({ ... })"]
-    problems = [f"unknown field '{key}' (known fields: {', '.join(FIELDS)}; logo, colours and font are not available yet)"
+    problems = [f"unknown field '{key}' (known fields: {', '.join(FIELDS)})"
                 for key in data if key not in FIELDS]
     version = data.get("profile_version", PROFILE_VERSION)
     if version != PROFILE_VERSION:
@@ -93,7 +99,48 @@ def validate_profile(data):
             problems.append(f"required_elements must be a non-empty list of: {', '.join(KNOWN_ELEMENTS)}")
         else:
             clean["required_elements"] = list(dict.fromkeys(elements))
+    _validate_branding(data, clean, problems)
     return (None, problems) if problems else (clean, [])
+
+
+def logo_path_problem(path):
+    """Why `path` cannot be a logo (a URL, a network path, a parent-folder step, or not PNG/JPG), else None. Pure."""
+    text = str(path or "").strip()
+    if not text or len(text) > 260:
+        return "logo_path must be a file path of at most 260 characters"
+    if re.match(r"^[A-Za-z][A-Za-z0-9+.\-]*://", text) or text.startswith(("\\\\", "//")):
+        return "logo_path must be a local file (web addresses and network paths are refused)"
+    if ".." in re.split(r"[\\/]", text):
+        return "logo_path must not contain '..'"
+    if not text.lower().endswith(LOGO_EXTENSIONS):
+        return "logo_path must be a PNG or JPG file"
+    return None
+
+
+def _validate_branding(data, clean, problems):
+    """Phase 3a fields: logo, masthead colours, font. Each problem is added by name. Pure."""
+    if "logo_path" in data:
+        problem = logo_path_problem(data["logo_path"])
+        if problem:
+            problems.append(problem)
+        else:
+            clean["logo_path"] = str(data["logo_path"]).strip()
+    if "logo_position" in data:
+        if str(data["logo_position"]).strip().lower() not in ("left", "right"):
+            problems.append("logo_position must be 'left' or 'right'")
+        else:
+            clean["logo_position"] = str(data["logo_position"]).strip().lower()
+    for key in ("masthead_colour", "masthead_text_colour"):
+        if key in data:
+            if not isinstance(data[key], str) or not _HEX.match(data[key].strip()):
+                problems.append(f"{key} must be a hex colour like #1f2d3a")
+            else:
+                clean[key] = data[key].strip().lower()
+    if "font_family" in data:
+        if not isinstance(data["font_family"], str) or not _FONT.match(data["font_family"].strip()):
+            problems.append("font_family must be a font name of at most 64 letters, digits, spaces, '.', '-' or '_'")
+        else:
+            clean["font_family"] = data["font_family"].strip()
 
 
 def parse_profile_text(text):
@@ -152,6 +199,8 @@ def load_profile(name, dirs=None):
                 return None, f"profile '{safe}' could not be read ({exc.__class__.__name__})."
             if problems:
                 return None, f"profile '{safe}' ({path}) is not valid: " + "; ".join(problems) + "."
+            if profile.get("logo_path") and not os.path.isabs(profile["logo_path"]):
+                profile["logo_path"] = os.path.normpath(os.path.join(folder, profile["logo_path"]))   # relative to the profile's own folder
             return profile, None
     found = available_profiles(folders)
     where = " or ".join(folders) if folders else "the project folder (cartogen_profiles) or the QGIS profile folder (cartogen_ai/profiles)"

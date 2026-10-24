@@ -31,9 +31,9 @@ class TestValidate(unittest.TestCase):
         self.assertEqual(validate_profile({}), ({"profile_version": 1}, []))
 
     def test_unknown_fields_are_refused_by_name(self):
-        _, problems = validate_profile({"logo": "x.png", "colours": ["#fff"]})
+        _, problems = validate_profile({"watermark": "x.png", "colours": ["#fff"]})
         self.assertEqual(len(problems), 2)
-        self.assertTrue(any("'logo'" in p for p in problems) and any("'colours'" in p for p in problems))
+        self.assertTrue(any("'watermark'" in p for p in problems) and any("'colours'" in p for p in problems))
 
     def test_every_bad_value_is_reported_together(self):
         _, problems = validate_profile({"page_size": "A5", "orientation": "sideways", "export_preset": "poster",
@@ -79,12 +79,12 @@ class TestLookup(unittest.TestCase):
     def test_an_invalid_file_says_which_file_and_why(self):
         with tempfile.TemporaryDirectory() as folder:
             with open(os.path.join(folder, "bad.json"), "w", encoding="utf-8") as handle:
-                json.dump({"page_size": "A5", "logo": "x"}, handle)
+                json.dump({"page_size": "A5", "watermark": "x"}, handle)
             profile, message = load_profile("bad", [folder])
             self.assertIsNone(profile)
             self.assertIn("bad.json", message)
             self.assertIn("page_size must be one of", message)
-            self.assertIn("'logo'", message)
+            self.assertIn("'watermark'", message)
 
     def test_no_folders_and_no_profile_is_a_clear_message(self):
         self.assertIn("No profile named 'x'", load_profile("x", [])[1])
