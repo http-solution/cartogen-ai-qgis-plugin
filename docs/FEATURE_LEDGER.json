@@ -875,6 +875,15 @@
     "sources": ["src/cartogen_ai/core/agent/tools/corridor_tools.py", "src/cartogen_ai/core/agent/tools/symbology_extra_tools.py", "docs/TOOLS_REFERENCE.md", "docs/plans/PLAN-016-rc50-hand-test-findings.md"],
     "guards": ["tests/test_plan016_contours.py::TestContourRouting::test_the_contour_maker_is_offered_for_every_phrasing", "tests/test_plan016_contours.py::TestContourRouting::test_the_two_descriptions_point_at_each_other_with_the_deciding_cue"],
     "hand_verified": "not hand-tested; the offline tests check what is offered and what the descriptions say, not which tool the model picks"
+  },
+  {
+    "id": "footer-measured-in-real-font-016",
+    "feature": "The print layout footer is sized from its text measured in its real font (Qt font metrics, word-wrapped at the box width) instead of a half-em character estimate, and the footer growth and the layout geometry check use the same measure (the estimate stays as the fallback without QGIS)",
+    "issues": [],
+    "since": "rc51 (unreleased)",
+    "sources": ["src/cartogen_ai/core/agent/tools/layout_style.py", "src/cartogen_ai/core/agent/tools/layout_geometry_checks.py", "docs/plans/PLAN-016-rc50-hand-test-findings.md"],
+    "guards": ["tests/test_layout_footer_text.py::TestFooterHeight::test_a_three_line_footer_fits_the_landscape_space_that_a_four_line_one_just_fits", "tests/test_plan016_item5_live.py::TestFooterMeasured::test_wide_glyphs_need_more_height_than_the_character_estimate_says", "tests/test_plan016_item5_live.py::TestFooterMeasured::test_the_footer_box_holds_its_measured_text_and_the_check_agrees"],
+    "hand_verified": "not hand-tested; CI uses Linux fonts, which never showed the problem, so the owner's re-run of row A22 on Windows is the real check"
   }
  ]
 }
