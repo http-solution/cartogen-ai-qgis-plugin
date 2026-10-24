@@ -1,6 +1,6 @@
 # PLAN-010: correctness fixes from the external architecture and cartography audit
 
-Status: in progress
+Status: done (merged, not hand-verified)
 
 ## Goal
 Fix the audit findings that were checked against the code and shown to produce silently wrong output. Nothing else from the audit is in this plan.
@@ -28,3 +28,4 @@ One pull request; revert it.
 
 ## Status log
 - 2026-10-24: audit claims 1 and 2 read in the code and confirmed; the exception-handling and replacement-order cases came from the owner's corrected audit and were read in the code before fixing. Fixes and tests built; CI result to be recorded here.
+- 2026-10-24: merged as #390 (56a4999). CI incl. live QGIS 4.2.2 green; the cross-CRS snap test passed in real QGIS on its first run. The replacement-order test's first run failed on a wrong assertion in the test itself (bound-method identity), fixed in b0cd07f. Still not hand-tested.
