@@ -79,6 +79,13 @@ EXTRA_ROWS = (
      "Add \"logo_path\": \"logo.png\" to handtest.json and save any small PNG as logo.png beside it (your own logo is best). Result: the logo sits at the left end of the title bar, the title is narrower but not covered. Then rename logo.png: a warning says the logo is missing and the layout is still made."),
     ("P14 sign-off", "export Profile Test as a publication pdf",
      "Add \"require_sign_off\": true to handtest.json first. Result: refused, the problems include 'reviewer sign-off missing'; the assistant asks you for a reason and writes nothing. Then add a sign_off with reviewed_by, review_date and status Reviewed and ask again: it is accepted (other problems, if any, are listed separately)."),
+    # rc51 (PLAN-016): none of these has been run outside CI. They reuse cartogen_profiles/handtest.json from the rc50 rows.
+    ("P16 profile re-read", "create a print layout called Reread Test using the profile handtest",
+     "Do this FIRST with a handtest.json that has no require_sign_off. Then add \"require_sign_off\": true to handtest.json and ask: export Reread Test as a publication pdf. Result: refused, the problems include 'reviewer sign-off missing'; nothing is written. (rc50 wrongly went ahead because the layout kept its old copy of the profile.)"),
+    ("P16 lineage", "buffer the towns layer by 1000 metres into a layer called towns_buf, then rename it to harmless_buf",
+     "Tag towns SENSITIVE first (reason: test) and keep Cloud data protection = Block; click 'Send to cloud once' on the card (fixture data). Then untick every layer except harmless_buf, create a print layout called Lineage Test and export it to a pdf. Result: a confirm card names harmless_buf as derived from towns; nothing is written until you press Apply. The sensitivity dialog for harmless_buf says 'untagged, protected through lineage from towns (SENSITIVE)'."),
+    ("P16 footer", "create a print layout called Footer Fit using the profile handtest",
+     "Add three footer_lines and the sign_off to handtest.json first (the rc50 profile row has the text). Open the exported or printed page: the whole footer is visible and not cut off, and the reply has no footer overflow or 'may not fit' warning. (rc50 on Windows fonts reported a footer box about 2 mm too short.)"),
 )
 # Added to the fixture script: a small integer raster for the polygonize row (kept from rc48) and a MultiPoint layer for the rc49 obfuscation row.
 FIXTURE_EXTRA = """

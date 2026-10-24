@@ -8,20 +8,17 @@ metadata changelog, CHANGELOG.md, README and this module agree). Checklist: CONT
 releases listed in NEW_MARK_VERSIONS.
 """
 
-WHATS_NEW_VERSION = "1.17.0-rc50"
-NEW_MARK_VERSIONS = ("1.17.0-rc49", "1.17.0-rc50")
+WHATS_NEW_VERSION = "1.17.0-rc51"
+NEW_MARK_VERSIONS = ("1.17.0-rc50", "1.17.0-rc51")
 
 # Headline items of the current version (the full list is the metadata.txt changelog block and CHANGELOG.md).
 WHATS_NEW_ITEMS = [
-    ('Credits on print layouts', "A map with an OpenStreetMap or other known basemap now carries its credit in the footer (a Credits line); a web layer whose credit is not known says 'credit not recorded' instead of getting a guessed one."),
-    ('No data in graduated maps', "A graduated style on a layer with empty values now draws those features in grey and lists 'No data' in the legend; before, they were not drawn at all."),
-    ('Layout checks on export', 'An export reports text that overflows its box, items that overlap and items off the page. These are warnings; the file is still written.'),
-    ('Page sizes and export presets', 'create_print_layout takes page_size A4, A3, A2 or A1 (the finished A4 layout is scaled; the map keeps its extent). Exports take a preset: draft (96 dpi), web (150) or print (300), and a folder gets a file named from the title and the date.'),
-    ('Map profiles', "A small JSON file in the project's cartogen_profiles folder holds what your team repeats on every map: page size, orientation, export preset, file name pattern and required elements. Name it with profile=. docs/MAP_PROFILES.md lists every field; no organisation's template or mark ships."),
-    ('Branding and sign-off in profiles', "A profile can add your logo (PNG or JPG), masthead colours, a font, up to three footer lines, a reviewer sign-off line (without a named reviewer it reads 'Draft - not reviewed') and a COD flag with your own credit wording. A profile can require the sign-off before a publication export. A footer that needs more room takes it from the bottom of the map."),
-    ('Footer fit', 'Landscape layouts no longer warn that the footer may not fit.'),
-    ('Known and open', 'The elevation profile in a layout rendered empty once in CI and has not been explained. OI-128 and OI-150 are still open and wait for a re-run with the context.json evidence.'),
-    ('Not hand-tested', 'Everything above is checked by the offline suite and, for the QGIS parts, by CI on QGIS 4.2.2. None of it has been hand-tested in desktop QGIS: nobody has looked at an exported A3 or A2 map, a logo, a font or a sign-off line yet. The disclaimer wording is a neutral default until your organisation supplies its own.')
+    ('Profile changes apply to layouts you already made', "An export re-reads the layout's profile file, so a requirement you add later, such as require_sign_off, now applies; before, the layout kept the copy of the profile it was built with and a publication export went ahead. What the map itself prints is fixed when it is built: a review you add to sign_off later needs the layout rebuilt. If the profile file is gone or invalid, the stored copy is used and the export says so."),
+    ('Maps made from sensitive layers ask before they export', "A layer made from a RESTRICTED or SENSITIVE layer (a merge, a rename, further steps; the source renamed too) is protected through lineage, as it already was for cloud AI requests. A map that draws it now asks for confirmation before export, a publication export lists it as a problem, the footer carries the source's classification and the QA checklist names the source. An explicit PUBLIC or INTERNAL tag on the derived layer still releases it. The Sensitivity dialog says 'protected through lineage from X' instead of 'untagged'."),
+    ('Footer sized from the real font', 'The print layout footer is now sized from its text measured in the font actually used, not from a character count, and the layout check uses the same measure. On Windows fonts the old estimate called the footer shorter than it was. CI uses Linux fonts and never showed it, so this is checked on your machine only.'),
+    ('Contour lines', "'Draw contour lines of the DEM every 100' should now make a contour line layer instead of restyling the DEM: the two tool descriptions state the difference. Which tool the model picks cannot be tested offline."),
+    ('Known and open', 'The elevation profile in a layout rendered empty once in CI and has not been explained. OI-128 still waits for its evidence re-run. OI-150 needs a hand pass of the new check: a cloud question about the renamed merge result.'),
+    ('Not hand-tested', 'Everything above is checked by the offline suite and, for the QGIS parts, by CI on QGIS 4.2.2. None of it has been hand-tested in desktop QGIS. Build differences since rc50 are these four changes only; the rc50 rows that have not been run are still in the bundle.')
 ]
 
 HUMANITARIAN_WORKFLOWS = [('1. Rapid crisis and base mapping',

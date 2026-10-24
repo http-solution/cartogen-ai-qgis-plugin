@@ -7,6 +7,7 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 | Version | Date | Summary |
 |---|---|---|
+| [1.17.0-rc51](#v1-17-0-rc51) | 2026-10-25 | **Release candidate 51 for 1.17.0.** No breaking changes -- requires QGIS 4.2+. Profile changes apply to layouts already made, maps made from sensitive layers ask before they export, the footer is sized from the real font and contour lines make a layer. CI-checked, not hand-tested. |
 | [1.17.0-rc50](#v1-17-0-rc50) | 2026-10-24 | **Release candidate 50 for 1.17.0.** No breaking changes -- requires QGIS 4.2+. Credits, a No data class, layout checks, page sizes A3 to A1, export presets and map profiles with logo, colours, font, sign-off and COD wording. CI-checked, not hand-tested. |
 | [1.17.0-rc49](#v1-17-0-rc49) | 2026-10-24 | **Release candidate 49 for 1.17.0.** No breaking changes -- requires QGIS 4.2+. Fixes from the rc48 hand test, a confirmation step for exports that draw sensitive layers, a sources and disclaimer line on print layouts, and fixes from an external audit. CI-checked, not hand-tested. |
 | [1.17.0-rc48](#v1-17-0-rc48) | 2026-10-23 | **Release candidate 48 for 1.17.0.** No breaking changes -- requires QGIS 4.2+. Excel and CAD export, plain export requests that now reach their tools, statistics and raster-to-polygon from plain words, and everything from rc47 (which was never hand-tested, so test this build instead). CI-checked, not hand-tested. |
@@ -94,6 +95,18 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 The detailed narrative entries below are unchanged -- this table is purely an additive index on
 top of them.
+
+<a id="v1-17-0-rc51"></a>
+## [1.17.0-rc51] — 2026-10-25 — Release candidate 51 for 1.17.0: No breaking changes -- requires QGIS 4.2+. Profile changes apply to layouts already made, maps made from sensitive layers ask before they export, the footer is sized from the real font and contour lines make a layer. CI-checked, not hand-tested.
+
+No breaking changes; QGIS 4.2+. Everything after 1.17.0-rc50:
+
+- Profile changes apply to layouts you already made: An export re-reads the layout's profile file, so a requirement you add later, such as require_sign_off, now applies; before, the layout kept the copy of the profile it was built with and a publication export went ahead. What the map itself prints is fixed when it is built: a review you add to sign_off later needs the layout rebuilt. If the profile file is gone or invalid, the stored copy is used and the export says so.
+- Maps made from sensitive layers ask before they export: A layer made from a RESTRICTED or SENSITIVE layer (a merge, a rename, further steps; the source renamed too) is protected through lineage, as it already was for cloud AI requests. A map that draws it now asks for confirmation before export, a publication export lists it as a problem, the footer carries the source's classification and the QA checklist names the source. An explicit PUBLIC or INTERNAL tag on the derived layer still releases it. The Sensitivity dialog says 'protected through lineage from X' instead of 'untagged'.
+- Footer sized from the real font: The print layout footer is now sized from its text measured in the font actually used, not from a character count, and the layout check uses the same measure. On Windows fonts the old estimate called the footer shorter than it was. CI uses Linux fonts and never showed it, so this is checked on your machine only.
+- Contour lines: 'Draw contour lines of the DEM every 100' should now make a contour line layer instead of restyling the DEM: the two tool descriptions state the difference. Which tool the model picks cannot be tested offline.
+- Known and open: The elevation profile in a layout rendered empty once in CI and has not been explained. OI-128 still waits for its evidence re-run. OI-150 needs a hand pass of the new check: a cloud question about the renamed merge result.
+- Not hand-tested: Everything above is checked by the offline suite and, for the QGIS parts, by CI on QGIS 4.2.2. None of it has been hand-tested in desktop QGIS. Build differences since rc50 are these four changes only; the rc50 rows that have not been run are still in the bundle.
 
 <a id="v1-17-0-rc50"></a>
 ## [1.17.0-rc50] — 2026-10-24 — Release candidate 50 for 1.17.0: No breaking changes -- requires QGIS 4.2+. Credits, a No data class, layout checks, page sizes A3 to A1, export presets and map profiles with logo, colours, font, sign-off and COD wording. CI-checked, not hand-tested.
