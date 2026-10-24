@@ -754,6 +754,15 @@
     "sources": ["src/cartogen_ai/core/agent/tools/_paths.py", "src/cartogen_ai/core/agent/tools/dem_tools.py", "src/cartogen_ai/core/agent/tools/corridor_tools.py", "src/cartogen_ai/core/agent/tools/export_tools.py", "docs/plans/PLAN-012-reliability-group.md"],
     "guards": ["tests/test_plan012_paths.py::TestTempLocationNote::test_a_file_in_the_temp_folder_gets_the_note", "tests/test_plan012_paths.py::TestTempLocationNote::test_a_sibling_folder_with_the_same_prefix_is_not_inside"],
     "hand_verified": "not hand-tested; the note helper is unit tested, the three tools' results are not exercised in CI"
+  },
+  {
+    "id": "layout-atlas-gate-and-confirm-flow",
+    "feature": "export_layout_atlas waits for the confirm card when the map or coverage layer is RESTRICTED or SENSITIVE; the whole card-then-Apply path runs through the agent and a confirmed flag passed by the model is stripped",
+    "issues": [],
+    "since": "rc49 (unreleased)",
+    "sources": ["src/cartogen_ai/core/agent/tools/layout_export_checks.py", "src/cartogen_ai/core/agent/tools/layout_tools.py", "docs/plans/PLAN-011-export-and-publication-gates.md"],
+    "guards": ["tests/test_layout_export_checks.py::TestAtlasGate::test_a_protected_coverage_layer_gives_a_card_naming_it", "tests/test_export_confirm_flow_live.py::TestExportConfirmFlow::test_card_then_apply_writes_the_file", "tests/test_export_confirm_flow_live.py::TestExportConfirmFlow::test_a_confirmed_flag_in_the_models_own_arguments_is_stripped", "tests/test_export_confirm_flow_live.py::TestExportConfirmFlow::test_atlas_with_a_protected_coverage_layer_waits_then_writes_one_file_per_feature"],
+    "hand_verified": "not hand-tested; CI live only (written without a QGIS install)"
   }
  ]
 }

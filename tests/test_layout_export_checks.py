@@ -107,6 +107,40 @@ class TestGate(unittest.TestCase):
         self.assertIsNone(self._gate(["MAP_MAIN"], []))
 
 
+def _fake_layer(name, ident):
+    layer = _layer(name)
+    layer.id.return_value = ident
+    return layer
+
+
+_ATLAS_ARGS = {"layout_name": "L", "coverage_layer_name": "districts"}
+
+
+class TestAtlasGate(unittest.TestCase):
+    def test_a_protected_coverage_layer_gives_a_card_naming_it(self):
+        coverage = _fake_layer("districts", "d1")
+        with patch.object(checks, "layers_drawn", return_value=[]), \
+                patch.object(checks, "protected_in", side_effect=lambda layers: [{"layer": layer.name(), "level": "SENSITIVE", "reason": None} for layer in layers]):
+            card = checks.atlas_gate(_layout(_ALL), coverage, dict(_ATLAS_ARGS), False)
+        self.assertEqual(card["tool_name"], "export_layout_atlas")
+        self.assertTrue(card["arguments"]["confirmed"])
+        self.assertIn("districts", card["rationale"])
+
+    def test_confirmed_or_nothing_protected_goes_ahead(self):
+        coverage = _fake_layer("districts", "d1")
+        with patch.object(checks, "layers_drawn", return_value=[]), patch.object(checks, "protected_in", return_value=[]):
+            self.assertIsNone(checks.atlas_gate(_layout(_ALL), coverage, dict(_ATLAS_ARGS), False))
+        with patch.object(checks, "layers_drawn", return_value=[]), patch.object(checks, "protected_in", return_value=_SENS):
+            self.assertIsNone(checks.atlas_gate(_layout(_ALL), coverage, dict(_ATLAS_ARGS), True))
+
+    def test_the_coverage_layer_is_not_counted_twice(self):
+        both = _fake_layer("districts", "d1")
+        seen = []
+        with patch.object(checks, "layers_drawn", return_value=[both]), patch.object(checks, "protected_in", side_effect=lambda layers: seen.append(layers) or []):
+            checks.atlas_gate(_layout(_ALL), both, dict(_ATLAS_ARGS), False)
+        self.assertEqual(len(seen[0]), 1)
+
+
 class TestPublicationRecordAndBuildTimePreview(unittest.TestCase):
     def test_record_is_written_beside_the_file(self):
         import json

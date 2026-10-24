@@ -852,7 +852,7 @@ def _find_layout_by_name(name):
     "named from filename_field's value on that feature (e.g. a district-name field), sanitized for "
     "use as a filename; a non-unique or empty field value across features will silently overwrite "
     "an earlier output with the same name, so pick a field that's actually unique per feature "
-    "(a P-code, not a display name that repeats).",
+    "(a P-code, not a display name that repeats). A map or coverage layer tagged RESTRICTED or SENSITIVE makes the export wait for the user's confirmation.",
     {
         "type": "object",
         "properties": {
@@ -867,7 +867,7 @@ def _find_layout_by_name(name):
     },
 )
 def export_layout_atlas(layout_name: str, coverage_layer_name: str, output_directory: str,
-                         filename_field: str, output_format: str = "pdf", dpi: int = 300):
+                         filename_field: str, output_format: str = "pdf", dpi: int = 300, confirmed: bool = False):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
 
@@ -894,6 +894,13 @@ def export_layout_atlas(layout_name: str, coverage_layer_name: str, output_direc
     output_format = output_format.lower().lstrip(".")
     if output_format not in ("pdf", "png", "jpg", "jpeg"):
         return {"error": f"Unsupported output_format '{output_format}' -- use pdf, png, jpg, or jpeg."}
+
+    from .layout_export_checks import atlas_gate
+    gated = atlas_gate(layout, coverage_layer, {
+        "layout_name": layout_name, "coverage_layer_name": coverage_layer_name, "output_directory": output_directory,
+        "filename_field": filename_field, "output_format": output_format, "dpi": dpi}, confirmed)
+    if gated:
+        return gated
 
     try:
         os.makedirs(output_directory, exist_ok=True)
@@ -975,6 +982,8 @@ def export_layout_atlas(layout_name: str, coverage_layer_name: str, output_direc
         if overwritten:
             result["overwritten_files"] = overwritten
             result["overwritten_note"] = (f"{len(overwritten)} file(s) from an earlier export with the same name were replaced.")
+        from .layout_export_checks import layout_export_report
+        result.update(layout_export_report(layout, [coverage_layer]))     # PLAN-011 phase D: protected layers drawn, missing elements
         return result
     except Exception as e:
         return {"error": f"export_layout_atlas failed: {e}"}
