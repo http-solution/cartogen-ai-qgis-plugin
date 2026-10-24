@@ -20,9 +20,10 @@ REPO = Path(__file__).resolve().parent.parent
 DOCS = REPO / "docs"
 sys.path.insert(0, str(REPO / "src"))
 
-TARGET_TOOLS = ("set_project_crs", "assign_layer_crs", "go_to_bookmark", "get_layer_metadata", "raster_calculator", "add_layout_elevation_profile",
-                "apply_saved_symbol", "merge_features", "split_features_by_line", "delete_features", "rename_layer_group")
-CANARY_TOOLS = ("add_layout_chart", "set_layer_elevation")
+# rc49: the tools the rc48 hand test found failing or partial and PLAN-008 to PLAN-012 changed (rows come from the rc44 tool sheet when it has one).
+TARGET_TOOLS = ("print_map", "add_layout_chart", "add_layout_elevation_profile", "tidy_project_layers", "classify_facilities_by_access",
+                "generate_html_dashboard", "export_layout")
+CANARY_TOOLS = ("set_layer_elevation",)
 EXTRA_ROWS = (
     ("tidy_project_layers", "Add the vector tile layer https://basemaps.cartocdn.com/vectortiles/carto.streets/v1/{z}/{x}/{y}.mvt, then tidy the project layers (preview only, do not apply).",
      "A tidy preview is shown; no error about featureCount."),
@@ -33,25 +34,28 @@ EXTRA_ROWS = (
     ("I9 chart", "Produce charts linked to maps",
      "add_layout_chart and/or the atlas tools are used on a layout. An HTML dashboard instead is a Fail."),
     ("I10 undo", "undo the last operation", "The last change is undone (one confirm card); no second stale card."),
-    # rc48 (wave E1 of PLAN-005 and package E2c of PLAN-006): none of these has been run outside CI.
-    ("E1 raster stats", "what are the minimum, maximum and mean elevation of the dem",
-     "The generic Processing tool runs native:rasterlayerstatistics and the reply gives minimum, maximum and mean numbers that look right for the dem; no file path is asked for."),
-    ("E1 field stats", "give me the basic statistics of the pop field of towns",
-     "native:basicstatisticsforfields; the reply gives count, minimum, maximum and mean that match the towns layer as it is now (8 towns on fresh fixtures: minimum 5, maximum 700, mean about 190.6); no file path is asked for."),
-    ("E1 polygonize", "turn the dem_classes raster into editable polygons",
-     "gdal:polygonize; a polygon layer appears in the project, is marked temporary with an offer to save it; the polygon values are 1, 2 and 3."),
-    ("E2c pdf", "send me the map as a pdf",
-     "export_layout is used on Test Layout (create it first with the prerequisite request); a PDF exists at the reported path and opens."),
-    ("E2c package", "bundle the project data for sharing",
-     "package_layers_offline is used; a GeoPackage with the project layers exists at the reported path."),
-    ("E2c geopackage", "save the roads layer to a geopackage",
-     "export_layer with format gpkg; the file is in the project export folder and holds 3 road features."),
-    ("E2c dxf", "export the roads and towns to dxf",
-     "export_layers_to_dxf; the DXF opens (in QGIS or a CAD program) and shows the lines and points; the reply says it carries geometry and layer names only. (Sending the same request again over the unchanged file does not ask: that is a re-run by design. To see the replace card, change or replace the file outside QGIS first.)"),
-    ("E2c excel", "export the towns and districts to excel, one sheet each",
-     "export_layers_to_spreadsheet; the .xlsx opens in Excel or LibreOffice with two sheets whose row counts match the layers as they are now (fresh fixtures: towns 8, districts 4) and the right columns."),
+    # rc49 (PLAN-008 to PLAN-012): none of these has been run outside CI. Rows for the open issues OI-120, OI-128, OI-145/146, OI-148 and OI-150
+    # are NOT repeated here: the open-issue part of the bundle carries them for as long as those issues are open.
+    ("P8 routing", "sort the districts by population, biggest first",
+     "The assistant runs a sort/order algorithm (native:orderbyexpression or similar) on districts; it does NOT start a 'Map population distribution' mapping task."),
+    ("P8 geometry", "convert the districts lines to polygons with qgis:linestopolygons",
+     "The districts layer already holds polygons, so the assistant says that algorithm needs a line layer and stops (or picks another way) in a few calls; no raw TypeError and no 20-call loop."),
+    ("P10 coverage", "make a sector coverage report from these rows: Health reached 900 target 1000; WASH reached 150 target 0; Shelter reached 400 target 800",
+     "generate_sector_coverage_report; the table shows Health 90.0 and Shelter 50.0 percent, WASH with no coverage figure; the chart has bars for Health and Shelter only and the reply says WASH has no usable target (it is not a zero bar)."),
+    ("P12 multipoint", "blur the sens_multi points by 100 metres",
+     "obfuscate_sensitive_points with jitter radius 100; a layer sens_multi_obfuscated with 3 points (one per part), each within 100 m of an original, none at the map origin; no error."),
+    ("P12 contours", "draw contour lines of the dem every 100",
+     "create_contours (or gdal:contour); the reply gives the file path and, when it is in the system temporary folder, says so."),
+    ("P11 gate", "tag the towns layer as SENSITIVE (reason: test), then export Test Layout to a pdf",
+     "A confirm card names towns (SENSITIVE) and nothing is written yet; pressing Apply writes the PDF and the reply mentions the protected layer. (Create Test Layout first with the prerequisite request.)"),
+    ("P11 publication", "export Test Layout as a publication pdf for sharing outside the team",
+     "The assistant lists the problems (protected layer, any missing element) and ASKS YOU for a reason; it does not invent one. After you give a reason you get a card that shows it; after Apply, a file named <pdf>.publication.json beside the PDF holds your reason."),
+    ("P11 atlas", "export one pdf per district from Test Layout using the name field",
+     "With the districts layer tagged SENSITIVE a card appears first; after Apply one PDF per district is written; untagged, no card."),
+    ("P11 footer", "create a print layout called Footer Test",
+     "The page footer shows the AI note, a Sources line with each visible layer (organisation and date if the layer has metadata, otherwise the file name), and a boundary and data-sensitivity sentence. Nothing overlaps at the bottom of the page. Look at the exported page, not only the reply. In Settings the 'Layout disclaimer' checkbox and 'Disclaimer wording' box exist; with your own wording typed, a NEW layout shows it."),
 )
-# Added to the fixture script: a small integer raster for the polygonize row (the dem is continuous, so its polygons would be one per pixel).
+# Added to the fixture script: a small integer raster for the polygonize row (kept from rc48) and a MultiPoint layer for the rc49 obfuscation row.
 FIXTURE_EXTRA = """
 # rc48: classified raster for the polygonize row
 _classes_path = os.path.join(folder, "dem_classes.tif")
@@ -62,6 +66,14 @@ _y, _x = np.mgrid[0:80, 0:80]
 _ds.GetRasterBand(1).WriteArray((1 + (_x // 27)).astype("int16")); _ds.FlushCache(); _ds = None
 QgsProject.instance().addMapLayer(QgsRasterLayer(_classes_path, "dem_classes"))
 print("dem_classes added")
+
+# rc49: a MultiPoint layer for the obfuscation row (EPSG:32638, metres)
+_mp = QgsVectorLayer("MultiPoint?crs=EPSG:32638&field=id:integer", "sens_multi", "memory")
+for _wkt, _id in (("MULTIPOINT((500000 1650000),(500400 1650300))", 1), ("MULTIPOINT((501000 1651000))", 2)):
+    _f = QgsFeature(_mp.fields()); _f.setGeometry(QgsGeometry.fromWkt(_wkt)); _f.setAttributes([_id]); _mp.dataProvider().addFeatures([_f])
+_mp.updateExtents()
+QgsProject.instance().addMapLayer(_mp)
+print("sens_multi added")
 """
 PLAIN_FOUND, PLAIN_SAMPLE_SEED = 6, 47
 SETUP_ROWS = ("OI-S1", "OI-S2")          # the open-issue rows need these layers loaded and renamed first
