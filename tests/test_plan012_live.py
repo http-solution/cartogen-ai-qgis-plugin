@@ -1,8 +1,8 @@
 """PLAN-012 live check (real QGIS, run by the qgis-live-tests CI job; written without a QGIS install, so CI's first run is its first execution).
 
-Item 1: obfuscate_sensitive_points on a MultiPoint layer. Hypothesis from reading the code: `geom.asPoint()` returns an empty point for a
-MultiPoint, so every output lands near (0, 0). This file is first pushed WITHOUT the fix to show the hypothesis on a real QGIS; a pass on
-that first run would withdraw the item."""
+Item 1: obfuscate_sensitive_points on a MultiPoint layer. The first CI run, before the fix, showed the defect on QGIS 4.2.2: `geom.asPoint()` raised
+"TypeError: MultiPoint geometry cannot be converted to a point" (not the silent (0, 0) the plan guessed), so the tool crashed on such a layer.
+These tests now pin the fix: one output point per part, same attributes, nothing collapsed to (0, 0)."""
 import unittest
 
 try:
@@ -57,6 +57,18 @@ class TestObfuscateMultiPoint(unittest.TestCase):
         self.assertEqual(res["feature_count"], 3, res)
         for x, _y, _ident in points:
             self.assertGreater(x, 499000, points)
+
+    def test_admin_snap_handles_every_part(self):
+        admin = QgsVectorLayer("Polygon?crs=EPSG:32638&field=id:integer", "admin_mp", "memory")
+        f = QgsFeature(admin.fields())
+        f.setGeometry(QgsGeometry.fromWkt("POLYGON((499000 1649000,502000 1649000,502000 1652000,499000 1652000,499000 1649000))"))
+        f.setAttributes([1])
+        admin.dataProvider().addFeatures([f])
+        QgsProject.instance().addMapLayer(admin)
+        from cartogen_ai.core.agent.tools.vector_tools import obfuscate_sensitive_points
+        res = obfuscate_sensitive_points("mp_sensitive", "admin_unit_snap", admin_layer_name="admin_mp", output_layer_name="mp_admin_out")
+        self.assertTrue(res.get("success"), res)
+        self.assertEqual(res["feature_count"], 3, res)
 
     def test_attributes_follow_each_part(self):
         _res, points = self._out_points("jitter", radius=10)
