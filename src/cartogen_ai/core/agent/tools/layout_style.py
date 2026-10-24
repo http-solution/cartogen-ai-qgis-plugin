@@ -374,6 +374,35 @@ def footer_height_mm(text, width_mm, font_pt):
     return lines * font_pt * 0.3528 * FOOTER_LINE_FACTOR + FOOTER_PAD_MM
 
 
+def measured_text_height_mm(text, width_mm, font, point_size, margin_x_mm=0.0, margin_y_mm=0.0):
+    """Height in mm that `text` needs when word-wrapped into `width_mm` in the REAL font, from Qt's own font metrics. Needs QGIS (Qt).
+
+    PLAN-016 item 5 (A22 of the first rc50 hand run): the character-count estimate assumes every glyph is half an em wide, which Windows
+    desktop fonts exceed, so a footer the estimate called 16 mm needed 18 mm there while CI's Linux fonts never showed it. Measured in units of
+    0.1 pt (the pixel size is ten times the point size) so the integer pixel size of the metrics does not round the result."""
+    from qgis.PyQt.QtCore import QRectF, Qt
+    from qgis.PyQt.QtGui import QFont, QFontMetricsF
+    unit = 10.0
+    sized = QFont(font)
+    sized.setPixelSize(max(1, round(float(point_size) * unit)))
+    usable_mm = max(1.0, float(width_mm) - 2 * float(margin_x_mm))
+    box = QRectF(0.0, 0.0, usable_mm / 25.4 * 72.0 * unit, 1e7)
+    flag = Qt.TextFlag.TextWordWrap
+    rect = QFontMetricsF(sized).boundingRect(box, getattr(flag, "value", flag), str(text or ""))
+    return rect.height() / unit / 72.0 * 25.4 + 2 * float(margin_y_mm)
+
+
+def footer_needed_mm(label):
+    """The height the footer label's current text needs: measured in the label's own font when QGIS can, else the character estimate. Used by
+    the footer growth and by the layout geometry check, so the two always agree. Never raises."""
+    width = label.rect().width()
+    size = label.textFormat().size() or TYPE_SCALE["footer"]
+    try:
+        return measured_text_height_mm(label.text(), width, label.textFormat().font(), size, label.marginX(), label.marginY()) + FOOTER_PAD_MM
+    except Exception:
+        return footer_height_mm(label.text(), width, size)
+
+
 def plan_footer_growth(needed_mm, height_mm, y_mm, page_height_mm, clearance_above_mm, bottom_gap_mm=0.5):
     """(new_y, new_height, fits) for a footer that needs `needed_mm`: grow into the page margin below first, then upward into the free space above. Pure."""
     if needed_mm <= height_mm:
@@ -722,7 +751,7 @@ def _style_footer(layout, layout_mm, levels, source_entries=(), credit_text="", 
     for budget in (SOURCES_CHAR_BUDGET, 60):
         text = footer_block(base, levels, sources_line(source_entries, budget), disclaimer, credit_text, extra_lines)
         label.setText(text)
-        needed = footer_height_mm(text, label.rect().width(), TYPE_SCALE["footer"])
+        needed = footer_needed_mm(label)          # measured in the real font (PLAN-016 item 5)
         new_y, new_h, fits = plan_footer_growth(needed, label.rect().height(), label.y(), page_height, _clearance_above(layout, label))
         if fits:
             break
