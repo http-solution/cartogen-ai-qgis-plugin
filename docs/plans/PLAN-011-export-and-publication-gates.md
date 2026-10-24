@@ -26,7 +26,7 @@ Three phases, each its own pull request. Each ends in something that works on it
 
 Out: OCHA template and branding profiles, accessibility and multilingual typography, product page-size profiles, file-naming and DPI presets, locator map and graticule defaults, reviewer sign-off workflow, render-based QA. Those are the feature set in the second half of the audit and need their own plan after A to C.
 
-Decisions needed from you before Phase B and C: (1) confirm-card or hard block for a sensitive layer in an export; (2) whether `purpose="publication"` should be the default for PDF or only on request; (3) the boundary disclaimer wording and whether it is on by default.
+Owner decisions (2026-10-24): (1) a protected layer in an export asks for confirmation on the confirm card, not a hard block; (2) the publication check runs only when `purpose="publication"` is asked for, not on every PDF; (3) the boundary disclaimer comes from a setting with a neutral default, on by default; the organisation's exact wording is supplied later.
 
 ## Acceptance
 1. Phase A: exporting a layout that draws a SENSITIVE layer returns `protected_layers` and a note, and a layout with no legend returns `missing_elements`; both have a failing-without-the-fix test.
@@ -41,4 +41,4 @@ To be listed per phase. Existing ones that must keep passing: `tests/test_qa_che
 One pull request per phase; revert the phase. Phase B is behind the confirm card and the `purpose` argument, so a revert changes no stored data.
 
 ## Status log
-- 2026-10-24: plan written after reading `export_layout`, `layout_tools.py`, `models/dataset_status.py` and `models/sensitivity.py`. No code changed. Waiting on the three decisions for B and C; A can start on your go.
+- 2026-10-24: plan written after reading `export_layout`, `layout_tools.py`, `models/dataset_status.py` and `models/sensitivity.py`. No code changed. Owner answered the three decisions (recorded in Scope). Phase A starts on the owner's go.
