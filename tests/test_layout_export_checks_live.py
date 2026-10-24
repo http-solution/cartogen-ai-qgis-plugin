@@ -113,7 +113,7 @@ class TestExportGate(TestExportLayoutReport):
         result = create_print_layout("Gate check", output_path=self._out())
         self.assertEqual(result.get("status"), "PREVIEW_REQUIRED", result)
         self.assertFalse(os.path.exists(self._out()))
-        self.assertIsNone(QgsProject.instance().layoutManager().layoutByName("Gate check"))
+        self.assertEqual(QgsProject.instance().layoutManager().printLayouts(), [], "a layout was built before the user confirmed")
 
 
 @unittest.skipUnless(LIVE, "requires real QGIS")
@@ -149,7 +149,9 @@ class TestFooterSourcesAndDisclaimer(unittest.TestCase):
         from cartogen_ai.core.agent.tools.layout_tools import create_print_layout
         res = create_print_layout("Footer check", page_orientation=orientation, confirmed=True, **kw)
         self.assertTrue(res.get("success"), res)
-        return res, QgsProject.instance().layoutManager().layoutByName("Footer check")
+        layout = QgsProject.instance().layoutManager().layoutByName(res["layout_name"])
+        self.assertIsNotNone(layout, res)
+        return res, layout
 
     def test_default_footer_names_the_layer_source_and_carries_the_neutral_disclaimer(self):
         from cartogen_ai.core.agent.tools.layout_style import DEFAULT_DISCLAIMER, NOT_RECORDED
