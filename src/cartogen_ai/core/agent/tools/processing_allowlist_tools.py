@@ -24,7 +24,7 @@ from ._processing_allowlist import (ALLOWED_ALGORITHM_IDS, FILE_VECTOR_ALGORITHM
                                     RASTER_OUTPUT_ALGORITHM_IDS, parameter_violation)
 
 try:
-    from qgis.core import QgsApplication, QgsMeshLayer, QgsProcessingContext, QgsProject, QgsRasterLayer, QgsVectorLayer  # noqa: F401 -- QgsMeshLayer is looked up by name in layer_kind_violation
+    from qgis.core import QgsApplication, QgsMeshLayer, QgsProcessingContext, QgsProject, QgsRasterLayer, QgsVectorLayer, QgsWkbTypes  # noqa: F401 -- QgsMeshLayer is looked up by name in layer_kind_violation
     import processing
     QGIS_AVAILABLE = True
 except ImportError:
@@ -248,9 +248,48 @@ def _raster_list_violation(alg_id, resolved_params, layer_list_keys):
 
 def _check_raster_lists(alg_id, resolved_params, layer_list_keys, kinds=None):
     """Raises ValueError (reported as "'<alg>' failed: ...") when a layer list or a single layer is of the wrong kind; the algorithm is not run."""
-    problem = _raster_list_violation(alg_id, resolved_params, layer_list_keys) or layer_kind_violation(alg_id, resolved_params, kinds)
+    problem = (_raster_list_violation(alg_id, resolved_params, layer_list_keys) or layer_kind_violation(alg_id, resolved_params, kinds)
+               or geometry_violation(alg_id, resolved_params, _geometry_limits(alg_id)))
     if problem:
         raise ValueError(problem)
+
+
+_GEOMETRY_WORDS = {"vectorpoint": "Point", "vectorline": "Line", "vectorpolygon": "Polygon"}
+
+
+def _geometry_limits(alg_id):
+    """{parameter name: {"Point"/"Line"/"Polygon"}} for the source parameters that accept only some geometry types, else {}. A parameter that
+    also accepts any geometry or a table is left out."""
+    limits = {}
+    with contextlib.suppress(Exception):
+        algorithm = QgsApplication.processingRegistry().algorithmById(alg_id)
+        for p in algorithm.parameterDefinitions():
+            if p.isDestination() or str(p.type()) != "source":
+                continue
+            words = [str(getattr(t, "name", t)).lower().replace("processingsourcetype.", "").replace("_", "") for t in p.dataTypes()]
+            if words and all(w in _GEOMETRY_WORDS for w in words):
+                limits[p.name()] = {_GEOMETRY_WORDS[w] for w in words}
+    return limits
+
+
+def geometry_violation(alg_id, resolved_params, limits):
+    """A message when a layer parameter that takes only some geometry types was given another (a polygon layer where lines are needed), else
+    None. rc48 B3: qgis:linestopolygons run on a polygon layer died with a raw "setExteriorRing unexpected type QgsPolygon" TypeError, and the
+    model then spent 28 calls trying other algorithms; a clear refusal on the first call lets it pick the right one. Pure given the layers."""
+    if not limits:
+        return None
+    for key, allowed in sorted(limits.items()):
+        value = resolved_params.get(key)
+        if not hasattr(value, "geometryType") or not hasattr(value, "name"):
+            continue                               # a name or path is Processing's to judge
+        actual = None
+        with contextlib.suppress(Exception):
+            actual = QgsWkbTypes.geometryDisplayString(value.geometryType())
+        if actual in ("Point", "Line", "Polygon") and actual not in allowed:
+            wanted = " or ".join(sorted(a.lower() for a in allowed))
+            return (f"parameter '{key}' of '{alg_id}' needs a {wanted} layer, but '{value.name()}' is a {actual.lower()} layer. Nothing was run; "
+                    f"choose a {wanted} layer, or another algorithm for a {actual.lower()} layer.")
+    return None
 
 
 # rc45 smoke run: five native algorithms sat at "working on the road network" for 3 to 10 minutes on tiny test data before the tester pressed
@@ -301,6 +340,64 @@ def _run_allowlisted(alg_id, resolved_params):
 # The registration decorator must sit directly on run_allowlisted_processing_algorithm. PR #249 (rc24) put _run_allowlisted between
 # the two, so the registry held the helper and every model call failed with "_run_allowlisted() got an unexpected keyword argument
 # 'params'" (found in the 2026-10-13 hand test, row RC37-F4); direct calls from tests still worked, which hid it.
+def centre_point_of_interest(alg_id, params, extent):
+    """(params, note): r.sunmask.datetime's east and north (the point whose sun position is used; both required, no default) put back to the centre of
+    the elevation layer when they are missing, not numbers, or outside its extent. rc48 B15 (API trace, 2026-10-23): the model passed east=2.0,
+    north=2.0 for a DEM in metres and GRASS answered "Incorrect parameter value for east" on both runs. `extent` is (xmin, ymin, xmax, ymax) or
+    None. r.sunmask.position is left alone: its two coordinates are optional there. Pure."""
+    if alg_id != "grass:r.sunmask.datetime" or extent is None or not isinstance(params, dict):
+        return params, None
+    try:
+        east, north = float(params.get("east")), float(params.get("north"))
+        if extent[0] <= east <= extent[2] and extent[1] <= north <= extent[3]:
+            return params, None
+    except (TypeError, ValueError):
+        pass
+    fixed = dict(params)
+    fixed["east"] = str(round((extent[0] + extent[2]) / 2, 6))
+    fixed["north"] = str(round((extent[1] + extent[3]) / 2, 6))
+    return fixed, (f"east and north were missing or outside the elevation layer, so the centre of the layer ({fixed['east']}, {fixed['north']}) "
+                   f"was used as the point whose sun position is calculated.")
+
+
+_RADIUS_HINT = {"grass:r.circle": " r.circle only fills cells between min and max (metres); without max the rings are not drawn, so pass max (and min)."}
+
+
+def single_value_message(alg_id, value):
+    """The warning for a raster whose cells all hold one value. rc48 B7: grass:r.circle without `max` ran fine but wrote a one-value raster, the
+    styling tools then failed with "no data range", and the model re-ran the same algorithm until the loop guard stopped it. Saying so in the
+    algorithm's own reply sends it back to the parameters instead. Pure."""
+    return (f"The output raster holds a single value ({value:g}) in every cell, so it cannot be coloured or classified. Check the inputs and the "
+            f"required size or distance parameters before running it again with the same arguments." + _RADIUS_HINT.get(alg_id, ""))
+
+
+def _output_report(layer, alg_id):
+    """feature_count and, for an empty vector or a one-value raster, a warning. The raster check samples the band (not every cell)."""
+    if hasattr(layer, "featureCount"):
+        count = layer.featureCount()
+        out = {"feature_count": count}
+        if count == 0:
+            out["warning"] = "The output layer has 0 features -- check the inputs before treating this as a real empty result."
+        return out
+    with contextlib.suppress(Exception):
+        from qgis.core import Qgis
+        kind = Qgis.RasterBandStatistic
+        stats = layer.dataProvider().bandStatistics(1, kind.Min | kind.Max, layer.extent(), 100000)
+        if stats.minimumValue == stats.maximumValue:
+            return {"warning": single_value_message(alg_id, stats.minimumValue)}
+    return {}
+
+
+def _with_sun_point(alg_id, params):
+    """centre_point_of_interest for the elevation layer named in params; (params, None) when the layer cannot be found."""
+    with contextlib.suppress(Exception):
+        elevation = _find_layer_by_name(params.get("elevation")) if alg_id == "grass:r.sunmask.datetime" else None
+        if elevation is not None:
+            box = elevation.extent()
+            return centre_point_of_interest(alg_id, params, (box.xMinimum(), box.yMinimum(), box.xMaximum(), box.yMaximum()))
+    return params, None
+
+
 @register_tool(
     "run_allowlisted_processing_algorithm",
     "Runs one QGIS Processing algorithm from a fixed, pre-approved list -- prefer this over "
@@ -361,6 +458,7 @@ def run_allowlisted_processing_algorithm(alg_id, params, new_layer_name=None):
         layer_list_keys = definition[4] if len(definition) > 4 else None
         file_keys = definition[6] if len(definition) > 6 else None
 
+    params, parameter_note = _with_sun_point(alg_id, params)
     try:
         resolved_params = _resolve_params(params, raster_output=alg_id in RASTER_OUTPUT_ALGORITHM_IDS,
                                           destination_keys=destination_keys, raster_keys=raster_keys,
@@ -426,6 +524,8 @@ def run_allowlisted_processing_algorithm(alg_id, params, new_layer_name=None):
             layer_node.setItemVisibilityChecked(False)
 
     result = {"success": True, "alg_id": alg_id, "layer_name": layer_name, "visible": caller_named_it}
+    if parameter_note:
+        result["parameter_note"] = parameter_note
     # a result with the default look beats a failed tool call
     with contextlib.suppress(Exception):
         from .output_style import style_algorithm_output
@@ -436,11 +536,7 @@ def run_allowlisted_processing_algorithm(alg_id, params, new_layer_name=None):
     if alg_id in FILE_VECTOR_ALGORITHM_IDS:
         result["temporary"] = True
         result["temporary_note"] = ("This result is temporary: it is not saved with the project. Ask to save it (export_layer) to keep it.")
-    if hasattr(new_layer, "featureCount"):
-        count = new_layer.featureCount()
-        result["feature_count"] = count
-        if count == 0:
-            result["warning"] = "The output layer has 0 features -- check the inputs before treating this as a real empty result."
+    result.update(_output_report(new_layer, alg_id))
 
     # GitHub #163: algorithms with several outputs (for example a lines output AND a points output) return all of them, each as its
     # own layer named <layer_name>_<output key>; the first output keeps the plain name above.

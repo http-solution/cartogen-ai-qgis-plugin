@@ -500,6 +500,28 @@
       "tests/test_population_ramp_render_live.py::TestPopulationRampRenders::test_the_plain_dem_next_to_it_is_left_alone"
     ],
     "hand_verified": "not hand-tested; CI renders the layer and checks the pixels. The grey result of the rc48 run (OI-128) is explained by routing (PLAN-008 item 5), not by this tool"
+  },
+  {
+    "id": "processing-run-guards-rc48",
+    "feature": "The generic Processing tool refuses a layer of the wrong geometry type before running (lines where polygons are given), puts r.sunmask.datetime's point of interest inside the elevation layer, and warns when a raster result holds a single value",
+    "issues": [
+      379
+    ],
+    "since": "rc49 (unreleased)",
+    "sources": [
+      "src/cartogen_ai/core/agent/tools/processing_allowlist_tools.py",
+      "docs/plans/PLAN-008-rc48-hand-test-findings.md"
+    ],
+    "guards": [
+      "tests/test_geometry_limits_live.py::TestGeometryViolation::test_a_polygon_layer_where_lines_are_needed_is_refused_with_the_name_and_the_remedy",
+      "tests/test_geometry_limits_live.py::TestGeometryLimitsLive::test_linestopolygons_on_a_polygon_layer_is_refused_before_it_runs",
+      "tests/test_geometry_limits_live.py::TestGeometryLimitsLive::test_linestopolygons_on_a_closed_line_layer_still_runs",
+      "tests/test_sunmask_point_live.py::TestCentrePointOfInterest::test_a_point_outside_the_layer_is_replaced_by_its_centre_with_a_note",
+      "tests/test_sunmask_point_live.py::TestSunmaskLive::test_a_point_outside_the_dem_still_runs",
+      "tests/test_sunmask_point_live.py::TestOutputReportLive::test_a_one_value_raster_gets_the_warning_and_a_varied_one_does_not"
+    ],
+    "hand_verified": "not hand-tested; causes read from the rc48 API trace (B3: polygon layer given to a lines-only algorithm; B15: east/north outside the DEM; B7: r.circle run without max gives a one-value raster, styling then failed). CI live only, GRASS tests skip when GRASS is absent"
+
   }
  ]
 }
