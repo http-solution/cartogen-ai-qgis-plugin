@@ -305,7 +305,25 @@ def footer_block(base, levels, sources, disclaimer, credit_text=""):
     return "\n".join(part for part in (footer_text(base, levels), sources, credit_text, disclaimer) if part)
 
 
-def plan_footer_growth(needed_mm, height_mm, y_mm, page_height_mm, clearance_above_mm, bottom_gap_mm=1.0):
+FOOTER_LINE_FACTOR = 1.25      # line pitch / font size for the small footer text; a body panel uses the more generous 1.35
+FOOTER_PAD_MM = 0.6            # box padding added to the wrapped lines; 1.0 left a four-line landscape footer (note, sources, credits, disclaimer) 0.4 mm short
+FOOTER_CLEARANCE_MM = 0.5      # gap kept between the grown footer and the item above it
+
+
+def footer_height_mm(text, width_mm, font_pt):
+    """Height the footer text needs, in mm: wrapped lines times the line pitch, plus FOOTER_PAD_MM. Pure.
+
+    CI on QGIS 4.2.2 (PLAN-014 phase 2b run): the shared body-panel estimate, which is generous on purpose, said a three-line footer needed 12 mm
+    where about 10 fit, so EVERY landscape layout returned 'footer text may not fit'. The footer is small fixed text, so it gets its own,
+    tighter estimate (and the gap above it is 0.5 mm, not 1.5)."""
+    import math
+    usable = max(1.0, float(width_mm) - 2 * 2.0)
+    per_line = max(1, int(usable / (font_pt * 0.3528 * 0.5)))
+    lines = sum(max(1, math.ceil(len(line) / per_line)) for line in str(text or "").split("\n"))
+    return lines * font_pt * 0.3528 * FOOTER_LINE_FACTOR + FOOTER_PAD_MM
+
+
+def plan_footer_growth(needed_mm, height_mm, y_mm, page_height_mm, clearance_above_mm, bottom_gap_mm=0.5):
     """(new_y, new_height, fits) for a footer that needs `needed_mm`: grow into the page margin below first, then upward into the free space above. Pure."""
     if needed_mm <= height_mm:
         return y_mm, height_mm, True
@@ -550,7 +568,7 @@ def _clearance_above(layout, label):
         bottom = item.y() + item.rect().height()
         if item.x() < right and item_right > left and bottom <= top + 1.0:
             bottoms.append(bottom)
-    return top - max(bottoms) - 1.5 if bottoms else top - 1.5
+    return top - max(bottoms) - FOOTER_CLEARANCE_MM if bottoms else top - FOOTER_CLEARANCE_MM
 
 
 def _style_footer(layout, layout_mm, levels, source_entries=(), credit_text=""):
@@ -565,7 +583,7 @@ def _style_footer(layout, layout_mm, levels, source_entries=(), credit_text=""):
     for budget in (SOURCES_CHAR_BUDGET, 60):
         text = footer_block(base, levels, sources_line(source_entries, budget), disclaimer, credit_text)
         label.setText(text)
-        needed = body_text_height_mm(text, label.rect().width(), TYPE_SCALE["footer"], margin_mm=0.5, minimum_mm=1.0)
+        needed = footer_height_mm(text, label.rect().width(), TYPE_SCALE["footer"])
         new_y, new_h, fits = plan_footer_growth(needed, label.rect().height(), label.y(), page_height, _clearance_above(layout, label))
         if fits:
             break

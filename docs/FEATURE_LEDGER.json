@@ -728,7 +728,8 @@
     "guards": ["tests/test_layout_footer_text.py::TestSources::test_nothing_recorded_says_so_instead_of_guessing", "tests/test_layout_footer_text.py::TestDisclaimer::test_the_organisations_wording_wins", "tests/test_layout_footer_text.py::TestGrowth::test_then_upward_into_free_space", "tests/test_layout_export_checks_live.py::TestFooterSourcesAndDisclaimer::test_default_footer_names_the_layer_source_and_carries_the_neutral_disclaimer", "tests/test_layout_export_checks_live.py::TestFooterSourcesAndDisclaimer::test_the_grown_footer_stays_on_the_page_and_clear_of_the_other_items",
       "tests/test_plan011_metadata_dialog_live.py::TestFooterSourceMetadata::test_organisation_and_publication_date_come_from_the_layer_metadata",
       "tests/test_plan011_metadata_dialog_live.py::TestFooterSourceMetadata::test_a_file_backed_layer_without_metadata_names_its_file",
-      "tests/test_plan011_metadata_dialog_live.py::TestDisclaimerSettingsControls::test_default_is_on_with_empty_wording_and_save_writes_both"],
+      "tests/test_plan011_metadata_dialog_live.py::TestDisclaimerSettingsControls::test_default_is_on_with_empty_wording_and_save_writes_both",
+      "tests/test_layout_footer_text.py::TestFooterHeight::test_a_three_line_footer_fits_the_landscape_space_that_a_four_line_one_just_fits"],
     "hand_verified": "not hand-tested; offline unit tests plus CI live (geometry checked by rectangles, not by looking at a render)"
   },
   {
