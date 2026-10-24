@@ -2561,7 +2561,7 @@ Change or remove one item of a print layout by its id (list_layout_items shows t
 
 ### `export_layout`
 
-Export an existing print layout to a file: .pdf, .png, .jpg, .tif (image) or .svg (vector). dpi applies to PDF and images (default 150). Replacing an existing file needs confirmation. create_print_layout can export while it builds; this exports a layout that already exists.
+Export an existing print layout to a file: .pdf, .png, .jpg, .tif (image) or .svg (vector). dpi applies to PDF and images (default 150). Replacing an existing file needs confirmation. create_print_layout can export while it builds; this exports a layout that already exists. The result lists any RESTRICTED or SENSITIVE layer the map draws and any missing title, legend, scale bar or north arrow in export_warnings: tell the user.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|

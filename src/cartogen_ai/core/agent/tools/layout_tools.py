@@ -768,6 +768,8 @@ def create_print_layout(title: str, page_orientation: str = "Landscape", output_
                 return export_error
             res_msg["output_path"] = output_path
             res_msg["dpi"] = dpi
+            from .layout_export_checks import layout_export_report
+            res_msg.update(layout_export_report(layout))     # PLAN-011 phase A: protected layers drawn, missing mandatory elements
 
         commit()
         committed = True

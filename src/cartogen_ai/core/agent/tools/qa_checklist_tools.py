@@ -38,6 +38,7 @@ from ._paths import resolve_output_path
 from ...models import sensitivity as _sens
 from .dataset_status_tools import get_dataset_status
 from .provenance_tools import get_provenance_record
+from .layout_export_checks import MANDATORY_LAYOUT_ELEMENTS
 from .layout_tools import list_layout_items
 
 try:
@@ -56,13 +57,7 @@ def _find_layer_by_name(name):
     return layers[0]
 
 
-_MANDATORY_LAYOUT_ELEMENTS = {
-    "MAP_MAIN": "map",
-    "TITLE": "title",
-    "LEGEND": "legend",
-    "SCALEBAR": "scale bar",
-    "NORTH_ARROW": "north arrow",
-}
+_MANDATORY_LAYOUT_ELEMENTS = MANDATORY_LAYOUT_ELEMENTS   # shared with the layout export report (layout_export_checks.py)
 
 
 @register_tool(

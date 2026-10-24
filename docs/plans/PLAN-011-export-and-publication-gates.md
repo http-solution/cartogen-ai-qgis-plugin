@@ -1,6 +1,6 @@
 # PLAN-011: export and publication gates
 
-Status: planned
+Status: in progress
 
 ## Goal
 Make "this map can leave the building" a checked state instead of an accident. Today (read in the code on 2026-10-24):
@@ -42,3 +42,4 @@ One pull request per phase; revert the phase. Phase B is behind the confirm card
 
 ## Status log
 - 2026-10-24: plan written after reading `export_layout`, `layout_tools.py`, `models/dataset_status.py` and `models/sensitivity.py`. No code changed. Owner answered the three decisions (recorded in Scope). Phase A starts on the owner's go.
+- 2026-10-24: plan merged as #392. Phase A built (`layout_export_checks.py`; wired into `export_layout` and `create_print_layout`): exports now report protected layers drawn and missing mandatory elements as warnings. Phase B and C not started. Not hand-tested.

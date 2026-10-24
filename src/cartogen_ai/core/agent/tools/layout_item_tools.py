@@ -468,7 +468,8 @@ def load_layout_template(template_path, new_layout_name):
 @register_tool(
     "export_layout",
     "Export an existing print layout to a file: .pdf, .png, .jpg, .tif (image) or .svg (vector). dpi applies to PDF and images (default 150). "
-    "Replacing an existing file needs confirmation. create_print_layout can export while it builds; this exports a layout that already exists.",
+    "Replacing an existing file needs confirmation. create_print_layout can export while it builds; this exports a layout that already exists. "
+    "The result lists any RESTRICTED or SENSITIVE layer the map draws and any missing title, legend, scale bar or north arrow in export_warnings: tell the user.",
     {"type": "object", "properties": {"layout_name": {"type": "string"}, "output_path": {"type": "string"}, "dpi": {"type": "integer"},
                                       "world_file": {"type": "boolean", "description": "image exports: also write a world file (.pgw, .jgw, .tfw) so GIS software can place the picture"},
                                       "geopdf": {"type": "boolean", "description": "pdf exports: write a georeferenced PDF (needs the GDAL PDF driver)"}},
@@ -525,4 +526,6 @@ def export_layout(layout_name, output_path, dpi=150, world_file=False, geopdf=Fa
         out["world_file"] = sidecar or "requested, but no world file was found next to the image (the layout needs a map item)"
     if geopdf:
         out["geopdf"] = True
+    from .layout_export_checks import layout_export_report
+    out.update(layout_export_report(layout))     # PLAN-011 phase A: protected layers drawn, missing mandatory elements (warnings only)
     return out

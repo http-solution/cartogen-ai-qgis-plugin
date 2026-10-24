@@ -700,6 +700,15 @@
     "sources": ["src/cartogen_ai/core/agent/tools/logistics_tools.py", "docs/plans/PLAN-010-audit-correctness-fixes.md"],
     "guards": ["tests/test_plan010_live.py::TestReplaceKeepsOldResultWhenAddFails::test_add_failure_leaves_the_previous_result", "tests/test_plan010_correctness.py::TestPersistWarning::test_a_failed_write_is_reported"],
     "hand_verified": "not hand-tested; CI live only for the replacement order"
+  },
+  {
+    "id": "layout-export-report",
+    "feature": "Layout exports (export_layout, create_print_layout) report the RESTRICTED or SENSITIVE layers the map draws and any missing mandatory element, as warnings",
+    "issues": [],
+    "since": "rc49 (unreleased)",
+    "sources": ["src/cartogen_ai/core/agent/tools/layout_export_checks.py", "src/cartogen_ai/core/agent/tools/layout_item_tools.py", "src/cartogen_ai/core/agent/tools/layout_tools.py", "docs/plans/PLAN-011-export-and-publication-gates.md"],
+    "guards": ["tests/test_layout_export_checks.py::TestExportReport::test_a_sensitive_layer_is_named_with_its_level", "tests/test_layout_export_checks.py::TestMissingElements::test_names_what_is_absent_in_a_fixed_order", "tests/test_layout_export_checks_live.py::TestExportLayoutReport::test_a_tagged_layer_and_the_missing_elements_are_reported"],
+    "hand_verified": "not hand-tested; offline unit tests plus CI live (written without a QGIS install)"
   }
  ]
 }
