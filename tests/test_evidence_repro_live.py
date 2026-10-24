@@ -69,6 +69,17 @@ class TestOi150RealFlow(unittest.TestCase):
         print(f"EVIDENCE150 {tool} confirmed={confirmed} -> {str(result)[:260]}")
         return result
 
+    def test_the_evidence_context_records_the_gate_state_and_each_layers_sensitivity(self):
+        from cartogen_ai.core.agent import evidence
+        context = evidence.project_context(CLOUD)
+        print(f"EVIDENCE150 context egress {context.get('egress')}")
+        self.assertEqual(context["egress"]["mode"], "enforce")
+        self.assertFalse(context["egress"]["endpoint_is_local"])
+        levels = {layer["name"]: layer["sensitivity"] for layer in context["layers"]}
+        self.assertEqual(levels["smoke_points"], "SENSITIVE")
+        self.assertIsNone(levels["smoke_hubs"])
+        self.assertIn("persist_project_memory", context)
+
     def test_merging_the_sensitive_layer_is_gated_then_the_output_stays_protected(self):
         from cartogen_ai.core.agent.lineage import get_layer_lineage
         merge_args = {"layer_names_list": ["smoke_points", "smoke_hubs"]}
