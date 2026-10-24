@@ -756,7 +756,7 @@ def create_print_layout(title: str, page_orientation: str = "Landscape", output_
         style_report = {}
         try:
             from . import layout_style
-            style_report = layout_style.apply_layout_style(layout, LAYOUT_MM, template="access_map" if template == "access_map" else "standard")
+            style_report = layout_style.apply_layout_style(layout, LAYOUT_MM, template="access_map" if template == "access_map" else "standard", sources=sources)
         except Exception as style_error:
             style_report = {"warnings": [f"layout styling failed: {style_error}"]}
 
