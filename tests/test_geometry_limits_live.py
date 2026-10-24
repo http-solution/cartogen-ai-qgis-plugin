@@ -70,6 +70,8 @@ class TestGeometryLimitsLive(unittest.TestCase):
         return layer
 
     def test_the_limits_are_read_from_the_algorithm(self):
+        for p in QgsApplication.processingRegistry().algorithmById("qgis:linestopolygons").parameterDefinitions():   # rc48 B3: diagnosis for CI
+            print("GEOMLIMIT", p.name(), repr(p.type()), [repr(t) for t in getattr(p, "dataTypes", list)()])
         self.assertEqual(tools._geometry_limits("qgis:linestopolygons"), {"INPUT": {"Line"}})
         self.assertEqual(tools._geometry_limits("native:buffer"), {})
 
