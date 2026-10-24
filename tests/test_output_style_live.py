@@ -356,7 +356,9 @@ class TestPrintLayoutStyling(unittest.TestCase):
     def _layout(self, **kw):
         from cartogen_ai.core.agent.tools.layout_tools import create_print_layout
         out = os.path.join(self.tmp, "layout.png")
-        res = create_print_layout("Access to care", output_path=out, dpi=72, **kw)
+        # confirmed=True: the user's Apply button. Since PLAN-011 phase B a map that draws a protected layer waits for it (tested in
+        # test_layout_export_checks_live.py); these tests are about the layout's look, so they start from the confirmed call.
+        res = create_print_layout("Access to care", output_path=out, dpi=72, confirmed=True, **kw)
         self.assertTrue(res.get("success"), res)
         layout = QgsProject.instance().layoutManager().layoutByName(res["layout_name"])
         self.assertIsNotNone(layout)
