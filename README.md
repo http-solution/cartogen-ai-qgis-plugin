@@ -665,7 +665,7 @@ the folder directly on GitHub.
 |---|---|
 | [docs/USER_GUIDE.md](docs/USER_GUIDE.md) | Chat, Task Manager, memory, file attachments, settings, live hazard monitoring — with screenshots |
 | [docs/TOOLS_REFERENCE.md](docs/TOOLS_REFERENCE.md) | All 296 tools, auto-generated from the live registry |
-| [site/](site/) | The documentation site (architecture, security and privacy, tool reference by category, development guides), built from the documents in this repository by `site/build.py` and published to GitHub Pages by `.github/workflows/docs-site.yml`; it will be at https://http-solution.github.io/cartogen-ai-qgis-plugin/ once Pages is switched on for the repository |
+| [Wiki](https://github.com/http-solution/cartogen-ai-qgis-plugin/wiki) | The documentation (architecture, security and privacy, tool reference by category, development guides), generated from the documents in this repository by `site/build_wiki.py` and pushed to the wiki by `.github/workflows/docs-site.yml` on every merge to `main`; edits made in the browser are overwritten, so correct the source files. The HTML build in [site/](site/) is kept only as a link check; GitHub Pages is no longer deployed. |
 
 ### Security & compliance
 

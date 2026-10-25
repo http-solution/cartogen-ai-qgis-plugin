@@ -114,6 +114,7 @@ max-complexity = 25
 "docs/**" = ["T201", "N803", "N806"]  # command-line helper scripts and a prototype that print their results
 "tools/**" = ["T201"]
 "site/build.py" = ["T201"]  # command-line docs builder
+"site/build_wiki.py" = ["T201"]  # command-line wiki exporter
 "plugin_upload.py" = ["T201"]  # command-line release builder
 "src/cartogen_ai/core/logger.py" = ["T201"]  # the stdout/stderr fallback sink when QgsMessageLog is unavailable
 "tests/**" = ["N802", "A002", "A006", "T201", "ICN001", "PERF102", "S101", "S108", "S310", "S311", "S603", "S608"]

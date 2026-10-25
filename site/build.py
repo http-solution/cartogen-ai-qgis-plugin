@@ -500,16 +500,8 @@ def strip_tags(s):
     return " ".join(html.unescape(s).split())
 
 
-def build(out_dir, facts):
-    if out_dir.exists():
-        shutil.rmtree(out_dir)
-    out_dir.mkdir(parents=True)
-    (out_dir / "assets").mkdir()
-    shutil.copy2(SITE / "theme" / "style.css", out_dir / "assets" / "style.css")
-    shutil.copy2(SITE / "theme" / "site.js", out_dir / "assets" / "site.js")
-    shutil.copy2(REPO / "branding" / "cartogen-mark.svg", out_dir / "assets" / "mark.svg")
-    (out_dir / ".nojekyll").write_text("")
-
+def assemble(facts):
+    """The page model shared by the HTML site and the wiki export: (ctx, sections, pages, home). `pages` is slug -> Page (home first)."""
     ctx = {"facts": facts, "toolref": split_tool_reference()}
     _head, cats = ctx["toolref"]
     named = [c for c in cats if not re.fullmatch(r"[a-z0-9_]+", c)]
@@ -537,8 +529,12 @@ def build(out_dir, facts):
             pages[page.slug] = page
             ps.append(page)
         sections.append((title, ps))
+    return ctx, sections, pages, home
 
-    # 1. markdown source for every page
+
+def markdown_sources(pages, ctx, facts):
+    """slug -> Markdown source of every page (authored pages with facts filled in, mirrored repository documents, generated pages). Also sets
+    page.description and page.wide from authored front matter."""
     sources = {}
     for page in pages.values():
         spec = page.spec
@@ -559,6 +555,21 @@ def build(out_dir, facts):
             else:
                 text = GENERATORS[gen](ctx)
         sources[page.slug] = text
+    return sources
+
+
+def build(out_dir, facts):
+    if out_dir.exists():
+        shutil.rmtree(out_dir)
+    out_dir.mkdir(parents=True)
+    (out_dir / "assets").mkdir()
+    shutil.copy2(SITE / "theme" / "style.css", out_dir / "assets" / "style.css")
+    shutil.copy2(SITE / "theme" / "site.js", out_dir / "assets" / "site.js")
+    shutil.copy2(REPO / "branding" / "cartogen-mark.svg", out_dir / "assets" / "mark.svg")
+    (out_dir / ".nojekyll").write_text("")
+
+    ctx, sections, pages, home = assemble(facts)
+    sources = markdown_sources(pages, ctx, facts)
 
     # 2. render, 3. rewrite links, 4. write
     linker = Linker(pages, out_dir)
