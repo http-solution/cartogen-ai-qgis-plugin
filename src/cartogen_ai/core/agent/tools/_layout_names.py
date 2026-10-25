@@ -7,6 +7,14 @@ layout fits, so a loose name never picks the wrong layout. Pure; QGIS objects ar
 """
 
 
+def layout_name_for(title):
+    """The name a new layout gets: the title as the person gave it (extra spaces collapsed). It used to be "Layout_" plus the title with underscores, so
+    "create a print layout called Big Map" produced "Layout_Big_Map" (1.18.0 hand run, row A12). `lookup`/`resolve_layout` still find a layout by
+    either spelling, so older projects and requests that use the prefixed name keep working. Pure."""
+    name = " ".join(str(title or "").split())
+    return name or "Layout"
+
+
 def _key(name):
     text = "".join(ch for ch in str(name or "").lower() if ch.isalnum())
     return text[len("layout"):] if text.startswith("layout") and len(text) > len("layout") else text

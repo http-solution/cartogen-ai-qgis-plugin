@@ -69,7 +69,7 @@ def layout_geometry_problems(layout):
     if not QGIS_AVAILABLE:
         return []
     try:
-        from .layout_style import TYPE_SCALE, body_text_height_mm, footer_needed_mm
+        from .layout_style import FOOTER_FIT_SLACK_MM, TYPE_SCALE, body_text_height_mm, footer_needed_mm
         page = layout.pageCollection().page(0).pageSize()
         items, labels = {}, {}
         for item in layout.items():
@@ -81,7 +81,7 @@ def layout_geometry_problems(layout):
                 size = item.textFormat().size() if hasattr(item, "textFormat") else TYPE_SCALE["panel"]
                 # the footer box was sized by footer_needed_mm, so it is judged by the same measure; the generous body estimate called every box 1 mm short
                 if item_id == "FOOTER":
-                    needed = footer_needed_mm(item)
+                    needed = footer_needed_mm(item) - FOOTER_FIT_SLACK_MM    # the same slack the footer growth allows
                 else:
                     needed = body_text_height_mm(item.text(), item.rect().width(), size or TYPE_SCALE["panel"], margin_mm=0.5, minimum_mm=1.0)
                 labels[item_id] = (needed, item.rect().height())
