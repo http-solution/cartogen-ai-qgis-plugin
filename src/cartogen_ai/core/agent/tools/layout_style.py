@@ -359,6 +359,8 @@ def profile_footer_lines(branding):
 FOOTER_LINE_FACTOR = 1.25      # line pitch / font size for the small footer text; a body panel uses the more generous 1.35
 FOOTER_PAD_MM = 0.6            # box padding added to the wrapped lines; 1.0 left a four-line landscape footer (note, sources, credits, disclaimer) 0.4 mm short
 FOOTER_CLEARANCE_MM = 0.5      # gap kept between the grown footer and the item above it
+FOOTER_FIT_SLACK_MM = FOOTER_PAD_MM   # a shortfall no bigger than the padding is not a shortfall: the pad is breathing room, not text. The owner's
+                                      # 1.18.0 export of an A4 landscape footer showed every line while the layout still warned "may not fit" (PLAN-021 WP-B)
 
 
 def footer_height_mm(text, width_mm, font_pt):
@@ -403,8 +405,9 @@ def footer_needed_mm(label):
         return footer_height_mm(label.text(), width, size)
 
 
-def plan_footer_growth(needed_mm, height_mm, y_mm, page_height_mm, clearance_above_mm, bottom_gap_mm=0.5):
-    """(new_y, new_height, fits) for a footer that needs `needed_mm`: grow into the page margin below first, then upward into the free space above. Pure."""
+def plan_footer_growth(needed_mm, height_mm, y_mm, page_height_mm, clearance_above_mm, bottom_gap_mm=0.5, slack_mm=0.0):
+    """(new_y, new_height, fits) for a footer that needs `needed_mm`: grow into the page margin below first, then upward into the free space above.
+    `slack_mm` is a shortfall that still counts as fitting (see FOOTER_FIT_SLACK_MM). Pure."""
     if needed_mm <= height_mm:
         return y_mm, height_mm, True
     extra = needed_mm - height_mm
@@ -413,7 +416,26 @@ def plan_footer_growth(needed_mm, height_mm, y_mm, page_height_mm, clearance_abo
     extra -= take_down
     take_up = min(extra, max(0.0, clearance_above_mm))
     extra -= take_up
-    return y_mm - take_up, height_mm + take_down + take_up, extra <= 1e-6
+    return y_mm - take_up, height_mm + take_down + take_up, extra <= slack_mm + 1e-6
+
+
+# --- legend fit (PLAN-021 WP-B). The legend frame is fixed by the template (35 mm portrait, 88 mm landscape, scaled with the page) and QGIS does not
+# resize it, so a project with many layers had its entries cut in the middle in the exported page (owner's 1.18.0 run: seven layers in 49.5 mm).
+LEGEND_SCALES = (1.0, 0.85, 0.7)      # the legend's text and symbols are shrunk in these steps before any entry is dropped
+LEGEND_FIT_SLACK_MM = 0.5
+
+
+def pick_legend_scale(heights_by_scale, frame_h_mm, slack_mm=LEGEND_FIT_SLACK_MM):
+    """The first scale whose content height fits the frame, or None. `heights_by_scale`: [(scale, content_height_mm), ...] in the order tried. Pure."""
+    for scale, height in heights_by_scale:
+        if height <= frame_h_mm + slack_mm:
+            return scale
+    return None
+
+
+def legend_title_with_note(base, dropped):
+    """The legend title, with the number of layers that did not fit named in it, so a shortened legend says so. Pure."""
+    return base if dropped <= 0 else f"{base} ({dropped} more layer{'s' if dropped != 1 else ''} not shown)"
 
 
 def info_text(base, today=None):
@@ -601,6 +623,7 @@ def _apply_layout_style(layout, layout_mm, project, today, template, sources, br
     drawn = [by_id[i] for i in ids if i in by_id]
     source_entries = [str(x) for x in sources] if sources else [layer_source_entry(layer) for layer in drawn]
     footer_warnings = []
+    footer_metrics, legend_report = {}, {}
     credit_text = ""
     with contextlib.suppress(Exception):
         from .layout_credits import credit_entries, credits_line
@@ -619,14 +642,15 @@ def _apply_layout_style(layout, layout_mm, project, today, template, sources, br
             ("map frame", lambda: _style_map_frame(layout, layout_mm)),
             ("info row", lambda: _style_info(layout, today)),
             ("body panel", lambda: _style_body(layout, layout_mm)),
-            ("footer", lambda: footer_warnings.extend(_style_footer(layout, layout_mm, levels, source_entries, credit_text, profile_footer_lines(branding)))),
+            ("footer", lambda: footer_warnings.extend(_style_footer(layout, layout_mm, levels, source_entries, credit_text, profile_footer_lines(branding), footer_metrics))),
             ("legend", lambda: _style_legend(layout, layout_mm, ids, by_id, template, chosen)),
             ("legend fonts", lambda: _style_legend_fonts(layout)),
+            ("legend fit", lambda: warnings.extend(_fit_legend(layout, layout_mm, chosen, legend_report))),
             ("scale bar", lambda: _style_scalebar(layout))):
         step(name, fn)
     warnings.extend(footer_warnings)
     return {"warnings": warnings, "legend_layers": [by_id[i].name() for i in chosen["ids"]],
-            "classification": classification_prefix(levels).strip(" -")}
+            "classification": classification_prefix(levels).strip(" -"), "footer_check": footer_metrics, "legend_check": legend_report}
 
 
 def _style_title(layout, branding=None, warnings=None):
@@ -739,7 +763,7 @@ def _reclaim_from_map(layout, layout_mm, label, deficit_mm):
     return True
 
 
-def _style_footer(layout, layout_mm, levels, source_entries=(), credit_text="", extra_lines=()):
+def _style_footer(layout, layout_mm, levels, source_entries=(), credit_text="", extra_lines=(), metrics=None):
     """Sets the footer text (classification, AI note, sources, disclaimer) and grows the box to fit. Returns warnings."""
     label = layout.itemById("FOOTER")
     base = label.text()
@@ -752,7 +776,8 @@ def _style_footer(layout, layout_mm, levels, source_entries=(), credit_text="", 
         text = footer_block(base, levels, sources_line(source_entries, budget), disclaimer, credit_text, extra_lines)
         label.setText(text)
         needed = footer_needed_mm(label)          # measured in the real font (PLAN-016 item 5)
-        new_y, new_h, fits = plan_footer_growth(needed, label.rect().height(), label.y(), page_height, _clearance_above(layout, label))
+        new_y, new_h, fits = plan_footer_growth(needed, label.rect().height(), label.y(), page_height, _clearance_above(layout, label),
+                                                slack_mm=FOOTER_FIT_SLACK_MM)
         if fits:
             break
     else:
@@ -760,12 +785,17 @@ def _style_footer(layout, layout_mm, levels, source_entries=(), credit_text="", 
         # The owner's full disclaimer (about 600 characters, 2026-10-25) does the same for every layout, so the map gives up the missing height from
         # its bottom edge before anything is warned about.
         if _reclaim_from_map(layout, layout_mm, label, needed - new_h):
-            new_y, new_h, fits = plan_footer_growth(needed, label.rect().height(), label.y(), page_height, _clearance_above(layout, label))
+            new_y, new_h, fits = plan_footer_growth(needed, label.rect().height(), label.y(), page_height, _clearance_above(layout, label),
+                                                    slack_mm=FOOTER_FIT_SLACK_MM)
         if not fits:
             warnings.append("footer: the sources and disclaimer text may not fit in the space available; shorten the disclaimer in Settings")
     if new_h != label.rect().height():
         label.attemptMove(QgsLayoutPoint(label.x(), new_y, layout_mm))
         label.attemptResize(QgsLayoutSize(label.rect().width(), new_h, layout_mm))
+    if metrics is not None:
+        # recorded so a wrong "may not fit" on someone else's fonts can be read from the tool result and the evidence folder, not guessed
+        metrics.update({"needed_mm": round(needed, 2), "box_mm": round(label.rect().height(), 2),
+                        "bottom_mm": round(label.y() + label.rect().height(), 2), "page_mm": round(page_height, 2), "fits": bool(fits)})
     return warnings
 
 
@@ -797,7 +827,7 @@ def _style_legend(layout, layout_mm, ids, by_id, template, chosen):
     _panel(leg, layout_mm)
 
 
-def _style_legend_fonts(layout):
+def _style_legend_fonts(layout, scale=1.0):
     leg = layout.itemById("LEGEND")
     style_cls = _legend_style_class()
     for style_name, size, bold in (("Title", TYPE_SCALE["legend_title"], True), ("Group", TYPE_SCALE["legend_item"] + 1, True),
@@ -805,7 +835,49 @@ def _style_legend_fonts(layout):
                                    ("SymbolLabel", TYPE_SCALE["legend_item"], False)):
         member = getattr(getattr(style_cls, "Style", style_cls), style_name, None)
         if member is not None:
-            leg.rstyle(member).setTextFormat(text_format(size, PALETTE["text"], bold=bold))
+            leg.rstyle(member).setTextFormat(text_format(size * scale, PALETTE["text"], bold=bold))
+
+
+def _fit_legend(layout, layout_mm, chosen, report):
+    """Makes the legend fit the frame the template gave it: smaller text and symbols first, then fewer layers (the last ones in the tree, the
+    ones drawn underneath), with the number left out written into the title. Never leaves an entry cut in half. Fills `report` with the numbers and
+    returns warnings. The frame itself keeps its size and place."""
+    leg = layout.itemById("LEGEND")
+    if leg is None:
+        return []
+    width, frame_h = leg.rect().width(), leg.rect().height()
+    base_symbol = leg.symbolHeight()
+
+    def content_height():
+        leg.adjustBoxSize()                       # QGIS sizes the item to what the legend needs; read it, then put the frame back
+        return leg.rect().height()
+
+    tried = []
+    for scale in LEGEND_SCALES:
+        _style_legend_fonts(layout, scale)
+        leg.setSymbolHeight(base_symbol * scale)
+        tried.append((scale, content_height()))
+    picked = pick_legend_scale(tried, frame_h)
+    dropped = 0
+    if picked is None:
+        picked = LEGEND_SCALES[-1]
+        _style_legend_fonts(layout, picked)
+        leg.setSymbolHeight(base_symbol * picked)
+        root = leg.model().rootGroup()
+        while len(root.findLayers()) > 1 and content_height() > frame_h + LEGEND_FIT_SLACK_MM:
+            last = root.findLayers()[-1]
+            chosen["ids"] = [i for i in chosen.get("ids", []) if i != last.layerId()]
+            root.removeChildNode(last)
+            dropped += 1
+    else:
+        _style_legend_fonts(layout, picked)
+        leg.setSymbolHeight(base_symbol * picked)
+    final = content_height()
+    leg.attemptResize(QgsLayoutSize(width, frame_h, layout_mm))
+    if dropped:
+        leg.setTitle(legend_title_with_note("Legend", dropped))
+    report.update({"frame_mm": round(frame_h, 2), "content_mm": round(final, 2), "scale": picked, "dropped": dropped, "fits": final <= frame_h + LEGEND_FIT_SLACK_MM})
+    return [f"legend: {dropped} layer{'s' if dropped != 1 else ''} did not fit the legend frame and {'are' if dropped != 1 else 'is'} not listed (the title says so)"] if dropped else []
 
 
 def _style_scalebar(layout):
