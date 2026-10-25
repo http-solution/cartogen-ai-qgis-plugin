@@ -6,29 +6,32 @@ Status: planned
 Three findings from the owner's hand run of the 1.18.0 precise test (2026-10-25, `4_RESULTS.csv` plus the three exported PDFs): (1) the legend frame cuts its entries off at the bottom in every exported layout; (2) `create_print_layout` warns that the footer text "may not fit" on layouts whose exported PDF shows the full text; (3) the precise hand-test bundle has no "Updating an existing install" section and its OI-224 row expects version 1.16.1. After this: an exported legend is never cut mid-entry (or says plainly that it dropped entries), the footer warning appears only when the text really does not fit, and the bundle's instructions match the bundle.
 
 ## Scope
-In:
-- Finding 1: find why the legend frame clips (fixed `legend_h` in `layout_tools.py`, 35 mm portrait and 88 mm landscape, against a legend that has more entries than fit; whether `resizeToContents` is switched off by the later `attemptResize`), then make the legend either fit (shrink the symbol and text size in steps, or give the legend the free space) or keep only the entries that fit and add a one-line note naming how many were left out.
-- Finding 2: find why `_style_footer` still ends with `fits == False` on A4 landscape (candidates, all unverified: the measured height in the owner's Windows font is larger than the PDF shows; `_clearance_above` counts the scale bar or north arrow as in the way; the bottom gap of 0.5 mm leaves the last line about 3 mm from the page edge). Fix the cause, or make the warning say which of the two limits was hit.
-- Finding 3: in `tools/build_lean_bundle.py`, add the update-in-place steps to the bundle README (taken from `docs/LIVE_TEST_rc37_README.txt`, which is the text the OI-224 row names) and make the OI-224 row expect the bundle's own version, read from `metadata.txt` instead of a typed number.
-Out: the duplicate CartogenAI log tab, the A5 contour failure note and the `Layout_` name prefix (separate findings, not planned here); any change to the footer disclaimer wording; a new release (the owner decides when).
+In (one pull request, one build, no release candidate per fix):
+- Finding 1 (legend): the cause is known from the owner's own layout (below). Fix: the legend frame keeps its place but its entries are fitted to it, in steps (smaller symbols and text, then only the entries that fit with a one-line note naming how many were left out). Never an entry cut in half.
+- Finding 2 (footer warning): measure the footer with QGIS's own `QgsLayoutItemLabel.sizeForText()` (the size the renderer will use) instead of the Qt metrics estimate, keeping the estimate as the fallback; warn only when that real size does not fit. The tool result and the evidence folder also record the needed and available height in mm, so a wrong warning on the owner's machine can be diagnosed from files the plugin already writes, with no further test.
+- Finding 3 (bundle): the bundle README gets the update-in-place steps (from `docs/LIVE_TEST_rc37_README.txt`); the OI-224 row reads the version from `metadata.txt`.
+- A hand-test file with no model calls (see Acceptance 4).
+Out: the duplicate CartogenAI log tab, the A5 contour failure note and the `Layout_` name prefix (separate small plan after this one); footer disclaimer wording; a release (the owner decides when).
 
 ## Facts found before building
-- All three exports (`Footer_Fit_Rev.pdf`, `Layout_Disclaimer_Test.pdf`, `Profile_Test_Signed.pdf`) show the legend frame ending in the middle of an entry (`dem_classes ... 1`, `Bed Elevation`, `dem`). The test project holds many raster layers, so the cut may be worse than in a normal project; that has not been checked, and no exported layout of a small project has been looked at for this.
-- The same three PDFs show the footer text complete and unclipped; on A4 landscape its last line sits about 3 mm above the page edge. The warning text is `footer: the sources and disclaimer text may not fit in the space available` (`layout_style.py`, `_style_footer`), raised only when `plan_footer_growth` still reports no fit after `_reclaim_from_map`.
-- The precise bundle's README (`build_lean_bundle.py`) lists the folders and the cost note only. `docs/LIVE_TEST_rc37_README.txt` holds the "UPDATING AN EXISTING INSTALL, A) UPDATE IN PLACE" text the OI-224 row points to.
-- None of this can be reproduced here: the layout code needs a real QGIS. The CI live job (QGIS 4.2.2) can build a layout and measure it.
+- Read from the owner's returned `A15_logo.qgz` (2026-10-25), not guessed: the legend of `Layout_Footer_Fit_Rev` (A3 portrait) is 254.5 x 49.5 mm with `resizeToContents="0"` and lists seven layers (`dem_classes, mesh1, dem2, dem, roads, towns, districts`); 49.5 mm is exactly the fixed 35 mm legend of the portrait template scaled for A3. The A4 landscape `Layout_Disclaimer_Test` legend is the fixed 95 x 88 mm. So the cut-off is the fixed frame with automatic resizing off, and it appears whenever the entries need more height than the template gives. It is not caused by the test project alone.
+- Same file, finding 2: the A4 landscape footer is 275 x 17.1 mm, its bottom edge at 209.5 mm on a 210 mm page, and its top edge touches the scale bar (about 0 mm clearance). It sits in the only space left, so any excess in the estimate raises the warning even when the exported text fits (the PDF shows the full text). Whether the estimate is high on the owner's Windows font is not established; a Linux CI font will not match, which is why the plan records the numbers on the owner's machine instead of relying on CI alone.
+- The three exported PDFs show every footer line, the logo, the masthead and the sign-off complete and unclipped.
+- The precise bundle's README lists folders and the cost note only; the OI-224 row names an "UPDATING AN EXISTING INSTALL" section that is not in it and expects 1.16.1.
+- The layout code needs real QGIS; the CI live job (QGIS 4.2.2) can build and measure layouts.
 
 ## Acceptance
-1. Offline test: a pure function that decides how many legend entries fit a given height, and that the note names the number left out; plus a test that the bundle README contains the update steps and the OI-224 row names `metadata.txt`'s version. CI-only.
-2. CI live test (QGIS 4.2.2): a layout for a project with more legend entries than the frame holds has either a frame tall enough for every entry or a legend with a note, never an entry cut in half (checked by comparing the legend's measured content height with its frame height).
-3. CI live test: A4 landscape and A3 portrait layouts with the default disclaimer, three profile footer lines and the sign-off line return no footer warning, and the footer label's bottom edge is inside the page.
-4. Hand test (owner): re-export the three PDFs from the 1.18.0 hand-test project with the next build and look at the legend and footer. Not done until the owner has looked.
+1. Offline (CI): a pure function that decides how many legend entries fit a height and builds the "N more not shown" note; the bundle README contains the update steps; the OI-224 row names the version from `metadata.txt`.
+2. CI live (QGIS 4.2.2): a layout built from a project with seven layers including rasters, in A4 landscape and A3 portrait, has a legend whose content height is not larger than its frame (or which carries the note); never a cut entry. The test builds the same seven-layer shape as the owner's file.
+3. CI live: A4 landscape and A3 portrait layouts with the default disclaimer, three profile footer lines and the sign-off line return no footer warning, the footer's bottom edge is inside the page, and the recorded needed height is not larger than the box.
+4. Hand test, kept as small as possible: one PyQGIS console script in the next bundle that calls the plugin's own layout function on the owner's open project and exports the PDFs, with no model calls (so no API cost), plus the needed/available footer heights printed on screen. The owner runs it once and returns the folder. Nothing else is asked of the owner for these three findings.
 
 ## Guard tests
-To be named when written (a new class in `tests/test_layout_legend_live.py` and `tests/test_layout_footer_text.py`, and a bundle test in `tests/test_test_bundle.py`); the ledger entry is added with the first code change.
+Named when written: a new class in `tests/test_layout_legend_live.py`, one in `tests/test_layout_footer_text.py`, and a bundle test in `tests/test_test_bundle.py`; the ledger entry is added with the first code change.
 
 ## Rollback
-Revert the pull request. The legend and footer geometry are computed at layout creation only; existing layouts in saved projects are not changed.
+Revert the pull request. Geometry is computed when a layout is created; layouts already saved in projects are not changed.
 
 ## Status log
 - 2026-10-25: plan written after the owner's 1.18.0 precise hand run. No code changed. Findings 1 and 2 need a diagnostic live test first (measure the legend content height against its frame; print the footer's needed and available height) so the cause is read from CI output, not guessed.
+- 2026-10-25: plan revised the same day after the owner objected that each hand test costs time and money. The legend cause was read from the owner's returned layout file (fixed frame, automatic resizing off); the first version of this plan asked for a diagnostic CI test and a hand re-run. Now: one pull request, one build, the footer numbers recorded by the plugin itself, and a model-free script for the one remaining hand check.
