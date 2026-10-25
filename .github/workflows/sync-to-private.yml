@@ -30,7 +30,7 @@ jobs:
     # secrets.PRIVATE_REPO_DEPLOY_KEY is configured in this repo's settings.
     if: false
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
 

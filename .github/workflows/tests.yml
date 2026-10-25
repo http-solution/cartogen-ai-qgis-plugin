@@ -20,7 +20,7 @@ jobs:
     # needed for this basic scan-and-fail usage.
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
       - name: Gitleaks secret scan
@@ -50,7 +50,7 @@ jobs:
             python-version: "3.10"
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -113,7 +113,7 @@ jobs:
     runs-on: ubuntu-24.04
     continue-on-error: true
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
@@ -202,7 +202,7 @@ jobs:
       CARTOGEN_TEST_PG_USER: postgres
       CARTOGEN_TEST_PG_PASSWORD: cartogen_ci
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install test-only Python dependencies
         # CI validation, 2026-09-20: two real, distinct failures found by actually
