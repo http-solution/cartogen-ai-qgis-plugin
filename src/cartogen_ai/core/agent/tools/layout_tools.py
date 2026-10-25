@@ -9,6 +9,7 @@ import os
 from types import SimpleNamespace
 from .registry import register_tool
 from ._paths import resolve_output_path
+from ._layout_names import layout_name_for
 from ...logger import log_event
 
 try:
@@ -422,6 +423,9 @@ def _add_report_fields(res_msg, style_report, warnings):
         res_msg["legend_layers"] = style_report.get("legend_layers", [])
     if style_report.get("classification"):
         res_msg["classification"] = style_report["classification"]
+    for key in ("footer_check", "legend_check"):
+        if style_report.get(key):
+            res_msg[key] = style_report[key]
     if style_report.get("warnings"):
         res_msg["style_warnings"] = style_report["warnings"]
     for key, text in warnings.items():
@@ -596,7 +600,7 @@ def create_print_layout(title: str, page_orientation: str | None = None, output_
                 return {"error": f"Layer '{zoom_to_layer}' not found"}
 
         project = QgsProject.instance()
-        layout_name = f"Layout_{title.replace(' ', '_')}"
+        layout_name = layout_name_for(title)
 
         # Audit F28 (#164): the same-name layout used to be removed FIRST, so any later error (a bad output_path, a failed
         # export, an exception while building) lost the user's previous layout. The replacement is now built under a

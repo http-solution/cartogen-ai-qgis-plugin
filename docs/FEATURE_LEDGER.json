@@ -904,6 +904,33 @@
     "hand_verified": "2026-10-25: the workflow pushed the pages to the wiki (docs-site run 40189308450, attempt 2) and the owner looked at the rendered wiki and found it fine"
   },
   {
+    "id": "layout-legend-fits-frame",
+    "feature": "The print layout legend never has an entry cut by its frame: text and symbols shrink in steps (to 70 percent), then the layers drawn underneath are left out, the title says how many (\"Legend (3 more layers not shown)\") and the tool result carries a legend warning and the frame, content and dropped numbers (legend_check)",
+    "issues": [],
+    "since": "1.18.0 (unreleased change)",
+    "sources": ["src/cartogen_ai/core/agent/tools/layout_style.py", "src/cartogen_ai/core/agent/tools/layout_tools.py", "docs/plans/PLAN-021-all-open-issues-and-hand-run-findings.md"],
+    "guards": ["tests/test_layout_legend_fit.py::TestLegendFit::test_the_first_scale_that_fits_is_chosen", "tests/test_layout_legend_fit.py::TestLegendFit::test_nothing_fits_returns_none_so_entries_are_dropped", "tests/test_layout_legend_fit.py::TestLegendFit::test_the_title_names_how_many_layers_were_left_out", "tests/test_layout_fit_live.py::TestLayoutFitsItsFrames::test_a_legend_with_far_more_entries_than_its_frame_is_fitted_and_says_so"],
+    "hand_verified": "not verified: CI only; the cause (fixed frame, resizeToContents off, seven layers in 49.5 mm) was read from the owner's 1.18.0 layout file, the fix has not been looked at on a real export"
+  },
+  {
+    "id": "layout-footer-check-numbers",
+    "feature": "The footer check tolerates a shortfall no bigger than its own padding (0.6 mm) and the tool result carries the numbers (footer_check: needed, box, bottom edge, page height, fits), so a wrong \"may not fit\" on another computer's fonts can be read from the result and the evidence folder",
+    "issues": [],
+    "since": "1.18.0 (unreleased change)",
+    "sources": ["src/cartogen_ai/core/agent/tools/layout_style.py", "src/cartogen_ai/core/agent/tools/layout_geometry_checks.py", "src/cartogen_ai/core/agent/tools/layout_tools.py"],
+    "guards": ["tests/test_layout_legend_fit.py::TestFooterSlack::test_a_shortfall_within_the_padding_counts_as_fitting", "tests/test_layout_legend_fit.py::TestFooterSlack::test_the_same_shortfall_is_a_misfit_without_slack_and_a_real_one_still_is", "tests/test_layout_fit_live.py::TestLayoutFitsItsFrames::test_the_footer_check_reports_its_numbers_and_the_text_fits_the_page"],
+    "hand_verified": "not verified: CI only; whether the owner's Windows fonts still raise the warning is checked by the model-free layout script (PLAN-021 WP-G)"
+  },
+  {
+    "id": "layout-name-as-requested",
+    "feature": "A print layout keeps the name it was asked for (\"Big Map\" stays \"Big Map\"); the old prefixed spelling (\"Layout_Big_Map\") still finds it",
+    "issues": [],
+    "since": "1.18.0 (unreleased change)",
+    "sources": ["src/cartogen_ai/core/agent/tools/_layout_names.py", "src/cartogen_ai/core/agent/tools/layout_tools.py"],
+    "guards": ["tests/test_layout_legend_fit.py::TestLayoutName::test_the_requested_name_is_kept", "tests/test_layout_legend_fit.py::TestLayoutName::test_either_spelling_finds_the_layout", "tests/test_layout_fit_live.py::TestLayoutFitsItsFrames::test_the_layout_keeps_the_name_it_was_asked_for_and_the_old_spelling_still_finds_it"],
+    "hand_verified": "not verified: CI only"
+  },
+  {
     "id": "hand-test-layout-check-script",
     "feature": "tools/layout_check_script.py: a model-free check run once in the QGIS Python console builds its own project and measures and exports the layouts (legend against frame, footer against box and page, names, presets, profile, logo, sign-off, re-read, disclaimer, Help section), writes layout_check.json and the pages, and costs no API money; it runs in the CI live job before anyone runs it on a real machine",
     "issues": [],
