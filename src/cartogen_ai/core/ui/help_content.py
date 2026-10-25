@@ -4,7 +4,8 @@ The "What's new" and humanitarian-tool sections come from core/release_notes.py,
 (tests/test_release_docs_in_sync.py enforces it). Tool, task and section counts are read from the live registries, not typed in.
 """
 import contextlib
-from .. import release_notes
+import html
+from .. import disclaimer_text, release_notes
 from .dock_constants import PROVIDER_CHOICES, QUICK_SUGGESTION_CHIPS
 
 
@@ -57,6 +58,8 @@ def build_help_html(version=None, tool_count=None, task_count=None, section_coun
         "<li><b>{}</b>: {}</li>".format(title, ", ".join(
             f"<code>{t}</code>" + (" <i>(new)</i>" if release_notes.tool_is_new(t) else "") for t in tools))
         for title, tools in release_notes.HUMANITARIAN_WORKFLOWS)
+    terms_html = "".join(
+        f"<p><b>{html.escape(heading)}</b> {html.escape(body)}</p>" for heading, body in disclaimer_text.TERMS_PARAGRAPHS)
     version_line = f"<p style='color:gray;'>Version {version}</p>" if version else ""
     # rc22 smoke V7: the sentence about (new) marks was shown although no tool carried one (no tool was added in the last two
     # releases), so the Help promised marks that were never there. It appears only when at least one mark is shown.
@@ -131,6 +134,9 @@ def build_help_html(version=None, tool_count=None, task_count=None, section_coun
     explicit confirmation — click <b>Apply edit</b> on the card that appears in the chat, click
     <b>Confirm and Apply Edit</b> in that task's inspector (click its row in the plan strip),
     or just reply "Confirm" — the AI cannot apply them on its own.</p>
+
+    <h4>{disclaimer_text.TERMS_TITLE}</h4>
+    {terms_html}
 
     <h4>Something not working?</h4>
     <ul>

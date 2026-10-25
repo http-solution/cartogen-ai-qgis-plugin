@@ -884,6 +884,15 @@
     "sources": ["src/cartogen_ai/core/agent/tools/layout_style.py", "src/cartogen_ai/core/agent/tools/layout_geometry_checks.py", "docs/plans/PLAN-016-rc50-hand-test-findings.md"],
     "guards": ["tests/test_layout_footer_text.py::TestFooterHeight::test_a_three_line_footer_fits_the_landscape_space_that_a_four_line_one_just_fits", "tests/test_plan016_item5_live.py::TestFooterMeasured::test_wide_glyphs_need_more_height_than_the_character_estimate_says", "tests/test_plan016_item5_live.py::TestFooterMeasured::test_the_footer_box_holds_its_measured_text_and_the_check_agrees"],
     "hand_verified": "not hand-tested; CI uses Linux fonts, which never showed the problem, so the owner's re-run of row A22 on Windows is the real check"
+  },
+  {
+    "id": "disclaimer-wording-owner",
+    "feature": "The print layout footer carries the owner's 'Balanced Standard Disclaimer' (about 600 characters) unless Settings holds the organisation's own wording or the line is switched off; the owner's longer 'Comprehensive Enterprise Disclaimer' is in the in-plugin Help and docs/USER_GUIDE.md; one module (core/disclaimer_text.py) defines both so they cannot drift; a footer that does not fit takes height from the bottom of the map before any warning",
+    "issues": [],
+    "since": "rc52 (unreleased)",
+    "sources": ["src/cartogen_ai/core/disclaimer_text.py", "src/cartogen_ai/core/agent/tools/layout_style.py", "src/cartogen_ai/core/ui/help_content.py", "src/cartogen_ai/core/ui/settings_dialog.py", "docs/USER_GUIDE.md"],
+    "guards": ["tests/test_disclaimer_text.py::TestDisclaimerText::test_the_footer_default_is_the_balanced_standard_wording", "tests/test_disclaimer_text.py::TestDisclaimerText::test_the_help_carries_all_three_terms_paragraphs", "tests/test_disclaimer_text.py::TestDisclaimerText::test_the_user_guide_carries_them_and_the_footer_line_verbatim", "tests/test_layout_export_checks_live.py::TestFooterSourcesAndDisclaimer::test_default_footer_names_the_layer_source_and_carries_the_neutral_disclaimer", "tests/test_layout_export_checks_live.py::TestFooterSourcesAndDisclaimer::test_the_grown_footer_stays_on_the_page_and_clear_of_the_other_items"],
+    "hand_verified": "not hand-tested; the wording is the owner's and has not been reviewed by a lawyer; the longer footer on real page sizes needs the owner's eyes"
   }
  ]
 }
