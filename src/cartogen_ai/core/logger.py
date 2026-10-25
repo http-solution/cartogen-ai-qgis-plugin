@@ -57,12 +57,22 @@ except ImportError:
 TAG = "CartogenAI"
 
 
+def log_destination(tag, message):
+    """(Log Messages tab, text) for a message logged under `tag`. QGIS opens one Log Messages tab per tag, and the plugin logs under about
+    twenty-seven (Tools, Agent, Providers, CredentialManager, ... and one spelled CartogenAi), so the tab the hand-test README says to save,
+    CartogenAI, did not hold the model_call lines (tag Agent) the cost table is built from, and two look-alike tabs appeared (1.18.0 hand run,
+    PLAN-021 WP-C). Everything now goes to the one tab and a component name other than the tab name leads the text. Pure."""
+    return TAG, (message if str(tag).lower() == TAG.lower() else f"[{tag}] {message}")
+
+
+
 def log_info(message: str, tag: str = TAG) -> None:
     """Logs an informational message to QgsMessageLog."""
     message = _redact(message)
     if QGIS_LOG_AVAILABLE:
         with contextlib.suppress(Exception):
-            QgsMessageLog.logMessage(message, tag, Qgis.MessageLevel.Info)
+            _tab, _text = log_destination(tag, message)
+            QgsMessageLog.logMessage(_text, _tab, Qgis.MessageLevel.Info)
             return
     print(f"[{tag}] {message}", file=sys.stdout)
 
@@ -72,7 +82,8 @@ def log_warning(message: str, tag: str = TAG) -> None:
     message = _redact(message)
     if QGIS_LOG_AVAILABLE:
         with contextlib.suppress(Exception):
-            QgsMessageLog.logMessage(message, tag, Qgis.MessageLevel.Warning)
+            _tab, _text = log_destination(tag, message)
+            QgsMessageLog.logMessage(_text, _tab, Qgis.MessageLevel.Warning)
             return
     print(f"[{tag}] WARNING: {message}", file=sys.stderr)
 
@@ -82,7 +93,8 @@ def log_error(message: str, tag: str = TAG) -> None:
     message = _redact(message)
     if QGIS_LOG_AVAILABLE:
         with contextlib.suppress(Exception):
-            QgsMessageLog.logMessage(message, tag, Qgis.MessageLevel.Critical)
+            _tab, _text = log_destination(tag, message)
+            QgsMessageLog.logMessage(_text, _tab, Qgis.MessageLevel.Critical)
             return
     print(f"[{tag}] ERROR: {message}", file=sys.stderr)
 

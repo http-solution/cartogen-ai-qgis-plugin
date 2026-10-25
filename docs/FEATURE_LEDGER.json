@@ -947,6 +947,33 @@
     "sources": ["tools/build_hand_test_v2.py", "tools/check_evidence.py", "docs/HAND_TEST_V2_ROWS.json"],
     "guards": ["tests/test_hand_test_v2.py::TestSheetIsGeneratedAndNotStale::test_the_version_comes_from_metadata_not_from_the_rows", "tests/test_hand_test_v2.py::TestSheetIsGeneratedAndNotStale::test_every_row_states_where_it_starts_and_none_depends_on_another", "tests/test_hand_test_v2.py::TestSheetIsGeneratedAndNotStale::test_the_readme_carries_the_update_steps_the_update_row_points_to", "tests/test_hand_test_v2.py::TestEvidenceChecker::test_a_forbidden_tool_fails_the_row_and_the_tools_are_listed"],
     "hand_verified": "not verified: offline tests only; no v2 bundle has been run by the owner yet"
+  },
+  {
+    "id": "log-one-tab",
+    "feature": "Every plugin log message goes to the one QGIS Log Messages tab CartogenAI (a component name other than the tab leads the text as [Component]); before, about twenty-seven tags opened as many tabs, the model_call lines the cost table reads were in a tab the README did not name, and the look-alike tag CartogenAi opened a second CartogenAI-looking tab",
+    "issues": ["#224"],
+    "since": "1.18.0 (unreleased change)",
+    "sources": ["src/cartogen_ai/core/logger.py", "tools/summarize_usage_log.py"],
+    "guards": ["tests/test_log_tags.py::TestOneLogTab::test_every_tag_goes_to_the_one_tab_and_a_component_leads_the_text", "tests/test_log_tags.py::TestOneLogTab::test_the_calls_that_reach_qgis_all_use_the_one_tab", "tests/test_log_tags.py::TestOneLogTab::test_nothing_but_the_logger_talks_to_the_qgis_message_log", "tests/test_log_tags.py::TestOneLogTab::test_the_usage_summary_still_reads_a_prefixed_line"],
+    "hand_verified": "not verified: CI only (QgsMessageLog is replaced by a recorder); the owner's Log Messages panel is the check"
+  },
+  {
+    "id": "abandoned-bundles-released-live",
+    "feature": "A processing bundle abandoned after Stop is released by its task's own finish or cancel signal and is kept while the worker thread still runs (proved on real QgsTask objects, not only injected fakes)",
+    "issues": ["#223"],
+    "since": "1.18.0 (unreleased change)",
+    "sources": ["src/cartogen_ai/core/agent/tools/_background_processing.py"],
+    "guards": ["tests/test_background_release_live.py::TestAbandonedBundlesAreReleased::test_a_task_that_finishes_after_being_abandoned_releases_its_entry_by_itself", "tests/test_background_release_live.py::TestAbandonedBundlesAreReleased::test_a_task_that_is_cancelled_releases_its_entry_too", "tests/test_background_release_live.py::TestAbandonedBundlesAreReleased::test_a_running_task_keeps_its_entry_until_it_stops", "tests/test_background_processing_release.py::TestReleaseAbandoned::test_only_finished_entries_are_released"],
+    "hand_verified": "partly: the owner's 1.18.0 run pressed Stop on the 300000-point request; the panel stopped promptly and the next request worked. Memory afterwards was not measured (row V2-stop)"
+  },
+  {
+    "id": "plugin-eviction-scoped-real-modules",
+    "feature": "Loading or updating the plugin evicts only modules under its own package folder; a module another distribution adds to the cartogen_ai namespace is never selected, checked against the real sys.modules",
+    "issues": ["#224"],
+    "since": "1.18.0 (unreleased change)",
+    "sources": ["__init__.py", "_module_ownership.py"],
+    "guards": ["tests/test_plugin_reload.py::TestEvictionOnRealModules::test_a_module_from_another_distribution_is_never_selected", "tests/test_plugin_reload.py::TestEvictionOnRealModules::test_every_loaded_module_of_this_plugin_is_selected_and_only_those", "tests/test_module_ownership.py::TestOwnedModuleNames::test_only_modules_under_our_package_dir_are_owned"],
+    "hand_verified": "partly: the owner's 1.18.0 run installed over rc40, restarted, and unticked and re-ticked during a request: version 1.18.0, one Plugins menu entry, one panel, no dialog error. Toolbar button count and red log lines were not checked (row V1-update)"
   }
  ]
 }
