@@ -18,7 +18,7 @@ class TestBundleSelection(unittest.TestCase):
     def test_only_rows_of_open_issues_are_selected(self):
         builder = _builder()
         open_numbers = builder.open_issue_numbers()
-        self.assertIn(150, open_numbers)        # still open after the rc48 hand test
+        self.assertIn(380, open_numbers)        # still open after PLAN-021 (waits for hand rows); #150 closed earlier
         self.assertNotIn(75, open_numbers)      # closed with evidence at rc40
         self.assertNotIn(80, open_numbers)      # closed on a hand-verified pass, rc48
         for row in builder.open_issue_rows():
