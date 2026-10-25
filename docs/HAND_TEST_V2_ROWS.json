@@ -1,0 +1,25 @@
+{
+  "_about": "Rows of the v2 hand test (PLAN-021 WP-G). Only what needs a person, a real model or this computer's own fonts; everything CI or tools/layout_check_script.py can measure is not here. Each row starts from a stated state, never from another row. A row is added in the same pull request as the fix it checks. {version} is read from metadata.txt when the bundle is built.",
+  "rows": [
+    {
+      "id": "V1-update",
+      "issue": "#224",
+      "title": "Update in place, then untick and tick the plugin during a request",
+      "starts_from": "QGIS with the previous Cartogen AI version installed and a project open (any project)",
+      "do": "Follow 'Updating an existing install' in README_FIRST.txt to install 1_plugin/cartogen_ai_v{version}.zip over the installed one, restart QGIS twice, then send any short request (for example: how many layers are in the project?) and, while it runs, untick Cartogen AI in Plugins > Manage and Install Plugins > Installed and tick it again.",
+      "expect": "Help shows Version {version}; one toolbar button, one Plugins menu entry, one Cartogen panel; no red lines in the CartogenAI log tab; unticking during the request leaves no error and ticking again gives one button, one entry, one panel.",
+      "evidence": "Screenshot of the toolbar and Help after the update; the Log Messages CartogenAI tab saved as a text file",
+      "needs": "person"
+    },
+    {
+      "id": "V2-stop",
+      "issue": "#223",
+      "title": "Stop a long processing request; memory comes back",
+      "starts_from": "A new project with smoke_boundary and smoke_points loaded from 3_test_files/smoke_data.gpkg",
+      "do": "Note QGIS's memory in the operating system's task manager. Send: Create 300000 random points inside smoke_boundary and add to each the distance to the nearest point of smoke_points. Press Stop in the panel after a few seconds. Watch the memory for a minute. Then send: how many layers are in the project?",
+      "expect": "The panel says it stopped; no output layer is added; memory does not stay high; the next request works.",
+      "evidence": "The memory figure before, at the peak and a minute after Stop (write the three numbers in the notes)",
+      "needs": "person and the operating system's task manager"
+    }
+  ]
+}
