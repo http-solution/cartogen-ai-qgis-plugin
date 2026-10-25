@@ -192,19 +192,33 @@ _MAPPING_LEAD = re.compile(r"\s*(map|produce|track|measure|assess|analy[sz]e|det
 # Above STRONG_SCORE on purpose: measured over the 792 register titles, 8 took the task away from 97 of them, 10 from 26, and 10 with the
 # leading-verb exemption from fewer; over the 385 plain prompts the confident task matches fell from 34 to a handful.
 OUTRANKS_SCORE = 10.0
+LOW_TASK_SCORE = 0.5       # a task matched at or below this is a weak match: a decent (not only a strong) algorithm fit then outranks it
+LOW_OUTRANKS_SCORE = 5.0   # PLAN-021 WP-D: the 1.18.0 replay of the 385 plain prompts still sent 5 of them to a wrong task at 0.38 to 0.5
 
 
-def algorithm_outranks_task(query, task_id):
+def algorithm_outranks_task(query, task_id, task_score=None, task_text=""):
     """True when a request's best-fitting approved algorithm is a strong match that the matched task does not list among its own algorithms.
     rc48 hand test (#380): 34 of the 385 plain prompts were matched to a mapping task at the confident score ("Sort the districts by population"
     -> "Map population distribution", "Show only the towns with a population above 100" -> the same) and the injected plan sent the model to a
     WorldPop fetch instead of the one algorithm that does the job (native:orderbyexpression, native:extractbyexpression). When an algorithm
     fits that well and the task does not carry it, the task is the wrong answer; the message goes as typed and the router offers the algorithm
-    tools. A task that lists its algorithm (task_algorithms.json) keeps its directive. Pure."""
+    tools. A task that lists its algorithm (task_algorithms.json) keeps its directive. Pure.
+
+    `task_score` and `task_text`: how well the task matched and what it is called. For a MAPPING task ("Map ...": a task that can only show
+    data) matched at or below LOW_TASK_SCORE, the bar for the algorithm drops from OUTRANKS_SCORE to LOW_OUTRANKS_SCORE. Only mapping tasks:
+    a dashboard or duplicate-resolution task that matches a short request well must keep its directive (the golden rows in
+    tests/test_task_matcher_named_tools.py and tests/test_prompt_refiner.py). ("Convert the districts to a raster with the population in each cell" still matched "Map population distribution" at 0.38,
+    "Trace the lines along which water would run downhill over the dem" matched "Map water sources", "Remove the elevation and measure values"
+    matched "Map damaged roads"), because a weak task match is the least reliable thing in the request."""
     if _MAPPING_LEAD.match(query or ""):
         return False
     top = best_for(query)
-    return bool(top and top[1] >= OUTRANKS_SCORE and top[0] not in set(algorithms_for_task(task_id)))
+    if not top or top[0] in set(algorithms_for_task(task_id)):
+        return False
+    if top[1] >= OUTRANKS_SCORE:
+        return True
+    is_mapping_task = str(task_text or "").lower().startswith("map ")
+    return is_mapping_task and task_score is not None and task_score <= LOW_TASK_SCORE and top[1] >= LOW_OUTRANKS_SCORE
 
 
 _TASK_PATH = os.path.join(os.path.dirname(__file__), "task_algorithms.json")

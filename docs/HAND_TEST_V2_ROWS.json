@@ -22,6 +22,7 @@
       "needs": "person and the operating system's task manager"
     },
     {
+<<<<<<< HEAD
       "id": "V9-undo-field",
       "issue": "#425",
       "title": "Undo of add_field: an empty new column goes, a filled one stays",
@@ -34,6 +35,103 @@
       "expected_tools": [
         "add_field",
         "undo_last_operation"
+=======
+      "id": "V3-contour",
+      "issue": "#380",
+      "title": "Contour lines of a loaded DEM do not start a download",
+      "starts_from": "A new project with 3_test_files/smoke_dem.tif added as a raster layer (Layer > Add Layer > Add Raster Layer) and renamed to dem",
+      "do": "Send: draw contour lines of the dem every 100",
+      "expect": "A new line layer of contours appears (the reply names it and the file). The assistant does NOT call fetch_dem or run_steps (the evidence folder shows the tools). The reply says where the file is, and says so when it is in the temporary folder.",
+      "evidence": "The evidence folder of the request; a screenshot of the Layers panel",
+      "needs": "person and a real model",
+      "prompt": "draw contour lines of the dem every 100",
+      "forbidden_tools": [
+        "fetch_dem",
+        "run_steps"
+      ]
+    },
+    {
+      "id": "V4-animate",
+      "issue": "#362",
+      "title": "'animate the layer over time' runs the animation tool, not a how-to",
+      "starts_from": "A new project with 3_test_files/smoke_events.csv added through Layer > Add Layer > Add Delimited Text Layer (X field lon, Y field lat, geometry point, CRS EPSG:4326)",
+      "do": "Send: make the layer smoke_events temporal using the date field. Then, in the same chat, send: animate the layer over time",
+      "expect": "The second request calls export_temporal_animation_frames and reports the frames it wrote; it does not answer with instructions for doing it by hand.",
+      "evidence": "The evidence folder of the request",
+      "needs": "person and a real model",
+      "prompt": "animate the layer over time",
+      "expected_tools": [
+        "export_temporal_animation_frames"
+      ]
+    },
+    {
+      "id": "V5-profile",
+      "issue": "#362",
+      "title": "Elevation profile in a layout is added, not looked up again and again",
+      "starts_from": "A new project with 3_test_files/smoke_dem.tif renamed to dem and smoke_roads from 3_test_files/smoke_network.gpkg; first send: create a print layout of the map called Test Layout",
+      "do": "Send: Turn on elevation for the dem, then draw an elevation profile along the road in Test Layout",
+      "expect": "The dem has elevation turned on and the layout holds an elevation profile item along the road. list_layout_items is called at most twice and fetch_dem is not called.",
+      "evidence": "The evidence folder of the request; a screenshot of the layout",
+      "needs": "person and a real model",
+      "prompt": "draw an elevation profile along the road",
+      "expected_tools": [
+        "add_layout_elevation_profile"
+      ],
+      "forbidden_tools": [
+        "fetch_dem"
+      ],
+      "max_calls": {
+        "list_layout_items": 2
+      }
+    },
+    {
+      "id": "V6-charts",
+      "issue": "#362",
+      "title": "Charts linked to maps become layout charts, not an HTML dashboard",
+      "starts_from": "A new project with smoke_admin from 3_test_files/smoke_data.gpkg; first send: create a print layout of the map called Test Layout",
+      "do": "Send: Produce charts linked to maps in Test Layout",
+      "expect": "A chart item is added to the layout (add_layout_chart); no HTML dashboard is written.",
+      "evidence": "The evidence folder of the request; a screenshot of the layout",
+      "needs": "person and a real model",
+      "prompt": "Produce charts linked to maps",
+      "expected_tools": [
+        "add_layout_chart"
+      ],
+      "forbidden_tools": [
+        "generate_html_dashboard"
+      ]
+    },
+    {
+      "id": "V7-merge",
+      "issue": "#380",
+      "title": "'Combine two layers into one' is a merge, not an imagery plan",
+      "starts_from": "A new project with smoke_points and smoke_hubs from 3_test_files/smoke_data.gpkg",
+      "do": "Send: Combine the layers smoke_points and smoke_hubs into one layer.",
+      "expect": "A merge runs and a merged layer is added. No satellite imagery search or feature extraction is started.",
+      "evidence": "The evidence folder of the request",
+      "needs": "person and a real model",
+      "prompt": "Combine the layers smoke_points and smoke_hubs into one layer",
+      "expected_tools": [
+        "merge_layers"
+      ],
+      "forbidden_tools": [
+        "search_stac_satellite_imagery",
+        "extract_features_from_imagery"
+      ]
+    },
+    {
+      "id": "V8-raster",
+      "issue": "#380",
+      "title": "'Convert to a raster with the population in each cell' is not a WorldPop plan",
+      "starts_from": "A new project with smoke_admin from 3_test_files/smoke_data.gpkg",
+      "do": "Send: Convert smoke_admin to a raster with the population in each cell.",
+      "expect": "A rasterise algorithm runs on smoke_admin using its population field; fetch_worldpop_population is not called.",
+      "evidence": "The evidence folder of the request",
+      "needs": "person and a real model",
+      "prompt": "Convert smoke_admin to a raster with the population in each cell",
+      "forbidden_tools": [
+        "fetch_worldpop_population"
+>>>>>>> origin/main
       ]
     }
   ]

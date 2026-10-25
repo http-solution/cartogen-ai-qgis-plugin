@@ -294,7 +294,7 @@ def classify(query):
     # ("Sort the districts by population" matched "Map population distribution"). Same verdict as a below-floor match: no directive.
     with contextlib.suppress(Exception):
         from .algorithm_topics import algorithm_outranks_task
-        if algorithm_outranks_task(query, best.get("id")):
+        if algorithm_outranks_task(query, best.get("id"), top, best.get("text", "")):
             return {"matches": ms, "best": best, "score": top,
                     "ambiguous": True, "reason": "below confidence floor"}
     # rc45 smoke run, check I4: "make a chart of population by district" matched "Map population distribution" (WorldPop fetch, zonal

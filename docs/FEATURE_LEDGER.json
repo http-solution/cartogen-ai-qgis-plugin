@@ -949,6 +949,60 @@
     "hand_verified": "not verified: offline tests only; no v2 bundle has been run by the owner yet"
   },
   {
+    "id": "log-one-tab",
+    "feature": "Every plugin log message goes to the one QGIS Log Messages tab CartogenAI (a component name other than the tab leads the text as [Component]); before, about twenty-seven tags opened as many tabs, the model_call lines the cost table reads were in a tab the README did not name, and the look-alike tag CartogenAi opened a second CartogenAI-looking tab",
+    "issues": ["#224"],
+    "since": "1.18.0 (unreleased change)",
+    "sources": ["src/cartogen_ai/core/logger.py", "tools/summarize_usage_log.py"],
+    "guards": ["tests/test_log_tags.py::TestOneLogTab::test_every_tag_goes_to_the_one_tab_and_a_component_leads_the_text", "tests/test_log_tags.py::TestOneLogTab::test_the_calls_that_reach_qgis_all_use_the_one_tab", "tests/test_log_tags.py::TestOneLogTab::test_nothing_but_the_logger_talks_to_the_qgis_message_log", "tests/test_log_tags.py::TestOneLogTab::test_the_usage_summary_still_reads_a_prefixed_line"],
+    "hand_verified": "not verified: CI only (QgsMessageLog is replaced by a recorder); the owner's Log Messages panel is the check"
+  },
+  {
+    "id": "abandoned-bundles-released-live",
+    "feature": "A processing bundle abandoned after Stop is released by its task's own finish or cancel signal and is kept while the worker thread still runs (proved on real QgsTask objects, not only injected fakes)",
+    "issues": ["#223"],
+    "since": "1.18.0 (unreleased change)",
+    "sources": ["src/cartogen_ai/core/agent/tools/_background_processing.py"],
+    "guards": ["tests/test_background_release_live.py::TestAbandonedBundlesAreReleased::test_a_task_that_finishes_after_being_abandoned_releases_its_entry_by_itself", "tests/test_background_release_live.py::TestAbandonedBundlesAreReleased::test_a_task_that_is_cancelled_releases_its_entry_too", "tests/test_background_release_live.py::TestAbandonedBundlesAreReleased::test_a_running_task_keeps_its_entry_until_it_stops", "tests/test_background_processing_release.py::TestReleaseAbandoned::test_only_finished_entries_are_released"],
+    "hand_verified": "partly: the owner's 1.18.0 run pressed Stop on the 300000-point request; the panel stopped promptly and the next request worked. Memory afterwards was not measured (row V2-stop)"
+  },
+  {
+    "id": "plugin-eviction-scoped-real-modules",
+    "feature": "Loading or updating the plugin evicts only modules under its own package folder; a module another distribution adds to the cartogen_ai namespace is never selected, checked against the real sys.modules",
+    "issues": ["#224"],
+    "since": "1.18.0 (unreleased change)",
+    "sources": ["__init__.py", "_module_ownership.py"],
+    "guards": ["tests/test_plugin_reload.py::TestEvictionOnRealModules::test_a_module_from_another_distribution_is_never_selected", "tests/test_plugin_reload.py::TestEvictionOnRealModules::test_every_loaded_module_of_this_plugin_is_selected_and_only_those", "tests/test_module_ownership.py::TestOwnedModuleNames::test_only_modules_under_our_package_dir_are_owned"],
+    "hand_verified": "partly: the owner's 1.18.0 run installed over rc40, restarted, and unticked and re-ticked during a request: version 1.18.0, one Plugins menu entry, one panel, no dialog error. Toolbar button count and red log lines were not checked (row V1-update)"
+  },
+  {
+    "id": "plain-requests-not-sent-to-a-wrong-task",
+    "feature": "A plain operation request is not answered with an unrelated mapping task plan: a mapping task matched at or below 0.5 is dropped when a decent Processing algorithm fits (replay of the 385 plain prompts: 34 before the first fix, 7 after it, 2 now, both of which are right: a duplicates task and a clean-up task)",
+    "issues": ["#380"],
+    "since": "1.18.0 (unreleased change)",
+    "sources": ["src/cartogen_ai/core/agent/algorithm_topics.py", "src/cartogen_ai/core/agent/task_matcher.py"],
+    "guards": ["tests/test_wp_d_routing.py::TestPlainRequestsAreNotSentToAWrongTask::test_no_plain_prompt_is_answered_by_a_wrong_mapping_task", "tests/test_wp_d_routing.py::TestPlainRequestsAreNotSentToAWrongTask::test_the_two_requests_a_task_really_describes_keep_their_task", "tests/test_wp_d_routing.py::TestPlainRequestsAreNotSentToAWrongTask::test_a_mapping_request_still_gets_its_mapping_task", "tests/test_task_matcher_named_tools.py::TestWeakTiesAreNotTrusted::test_a_short_request_the_task_describes_still_matches"],
+    "hand_verified": "partly: the owner's 1.18.0 row 'sort the districts by population' passed (no mapping task). The other prompts are CI replay only; rows V7-merge and V8-raster are the hand checks"
+  },
+  {
+    "id": "loaded-dem-is-not-a-fetch",
+    "feature": "A request that names a DEM already in the project (\"draw contour lines of the dem every 100\") is no longer a two-step workflow: the elevation_download capability needs a download verb, a named source or a DEM for a place, so fetch_dem and run_steps are not pushed, and the contour and fetch tool descriptions say which to use",
+    "issues": ["#380"],
+    "since": "1.18.0 (unreleased change)",
+    "sources": ["src/cartogen_ai/core/agent/capabilities.py", "src/cartogen_ai/core/agent/tools/corridor_tools.py", "src/cartogen_ai/core/agent/tools/dem_tools.py"],
+    "guards": ["tests/test_wp_d_routing.py::TestALoadedDemIsNotAFetch::test_a_bare_dem_is_not_a_download_request", "tests/test_wp_d_routing.py::TestALoadedDemIsNotAFetch::test_the_router_offers_the_contour_tool_and_no_workflow_runner", "tests/test_wp_d_routing.py::TestALoadedDemIsNotAFetch::test_a_real_download_request_is_still_one", "tests/test_capabilities.py::TestTable::test_steps_without_a_dedicated_tool_are_reported"],
+    "hand_verified": "not verified: CI only. Cause read from the owner's 1.18.0 chat export (fetch_dem failed on the 40-million-cell limit, then the loaded layer was used). Row V3-contour is the hand check"
+  },
+  {
+    "id": "repeated-listing-says-why",
+    "feature": "When a read-only listing tool (list_layout_items, list_layouts) is called again with the same arguments, the loop guard's stop message says its answer does not change and names the tool that does the next step",
+    "issues": ["#362"],
+    "since": "1.18.0 (unreleased change)",
+    "sources": ["src/cartogen_ai/core/agent/loop_guard.py"],
+    "guards": ["tests/test_wp_d_routing.py::TestRepeatedListingSaysWhy::test_a_repeated_layout_listing_names_the_next_step", "tests/test_wp_d_routing.py::TestRepeatedListingSaysWhy::test_another_tool_gets_the_plain_sentence"],
+    "hand_verified": "not verified: CI only. Whether the model now adds the profile instead of looping is a model behaviour; row V5-profile is the hand check"
+  },
+  {
     "id": "undo-add-field",
     "feature": "undo_last_operation reverses add_field: the new field is removed again while it is empty; once it holds values undo refuses, says so, and changes nothing (deleting a filled column stays a deliberate delete_field step that asks)",
     "issues": ["#425"],

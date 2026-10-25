@@ -181,7 +181,8 @@ def split_lines_by_zones(line_layer, zone_layer, output_name=None):
     "metres), as a NEW LINE LAYER with an 'ELEV' field -- the usual meaning of 'draw / make / create contour lines of the DEM, every 100'. "
     "Use set_raster_relief instead only when the user wants the raster itself shown as contours (render / style) without a new layer. The interval is the vertical spacing between lines, NOT the accuracy of "
     "the terrain: the result reports the DEM's pixel size and source so the user can judge what the lines can show. Refuses very "
-    "large rasters.",
+    "large rasters. When the request names a DEM that is already in the project (\"the dem\", \"smoke_dem\"), call this directly with that "
+    "layer: do not fetch a new DEM and do not plan a fetch first.",
     {"type": "object", "properties": {
         "raster_layer": {"type": "string", "description": "Name of the DEM raster layer."},
         "interval": {"type": "number", "description": "Elevation step between contour lines, default 10."},
