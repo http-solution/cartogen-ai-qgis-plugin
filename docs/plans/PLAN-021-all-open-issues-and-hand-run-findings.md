@@ -1,49 +1,75 @@
-# PLAN-021: every open issue and every finding from the 1.18.0 hand run: fix it or close it
+# PLAN-021: every open issue and every finding from the 1.18.0 hand run, and a cheaper hand test
 
 Status: planned
 
 ## Goal
-The owner's instruction (2026-10-25): stop spending hand-test time and money; for every open issue and every finding, either plan the fix or close it. After this plan each one has a decision, a fix approach, and a CI test that proves it, and the owner is asked for one model-free check at the end, not one hand run per fix. Covers issues #72, #97, #120, #130, #148, #169, #223, #224, #362, #379, #380, #425 and the hand-run findings not already in PLAN-020.
+The owner's instruction (2026-10-25): stop spending time and money on hand tests that cannot give a clean answer; for every open issue and every finding either fix it or close it, in one complete plan with nothing left "partly" planned. After this plan is done: no issue from the list below is open without a stated owner decision; every fix is proven in CI on every push; and the owner's remaining hand check is one model-free script plus about ten independent rows, instead of 29 dependent ones. Supersedes PLAN-020, whose three items are work package B here (PLAN-020 stays as the record of how the legend and footer causes were found).
 
 ## Scope
-Decisions (a "close" needs the stated evidence; the owner has authorised fix-or-close, so a close with evidence is not held for another hand run):
+Everything open on 2026-10-25: issues #72, #97, #120, #130, #148, #169 (the last three closed today on hand-verified passes and are listed for the record), #223, #224, #362, #379, #380, #425; and every finding of the 1.18.0 precise hand run (`4_RESULTS.csv`, the three PDFs, the returned layout files). Out: new features, a release or version choice (the owner decides when and which; the bundle reads the version from `metadata.txt`), and the credentialed integrations and JIAF items that are already tracked as owner tasks.
 
-| # | Decision | Evidence or fix | Proof |
-|---|---|---|---|
-| 148 | Close now | Hand-verified Pass (1.18.0 row OI-148): `Beside_the_arm` within at 279.9 m, `Inside_the_U` beyond at 369.8 m | the hand run |
-| 130 | Close now | Hand-verified Pass (1.18.0 row OI-130): the fragment asked what to do, a bare "yes" in a new project ran nothing | the hand run |
-| 169 | Close now | Umbrella: every one of its 32 children (#137 to #168) is closed once #148 is | the issue list |
-| 120 | Fix gaps, then close | Labels and the black raster are verified (OI-128 pass, rc50). Not yet shown: scratch origin layers are saved or called temporary. Fix: the origin and result layers a tool creates are saved with the project or the reply says they are temporary | CI live test: run a point tool, save, reopen, layer present or reply says temporary |
-| 97 | Close after one CI test | Export with 20 exchanges verified (40 messages, timestamps). Missing: the same after save and reopen | CI live test: 20 turns, save, reopen, export, 40 messages |
-| 72 | Close after #97 | Umbrella of F01 to F25; its children are all closed except #97 | the issue list |
-| 223 | Fix | `_background_processing.py`: release a bundle on layer removal, project close and a task that never delivers; Stop already verified | CI live test: start a task, remove the layer and close the project, the bundle store is empty |
-| 224 | Fix | Root `__init__.py`: evict only this plugin's own modules, and only on reload; the in-place update and untick/re-tick already ran clean by hand | CI live test: import the plugin, simulate a reload, other plugins' modules are untouched, ours are fresh |
-| 362 | Fix the three | I4 "animate the layer over time" routes to `export_temporal_animation_frames`; I6 elevation profile stops looping on `list_layout_items`; I9 "charts linked to maps" builds a layout chart, not an HTML dashboard | replay tests of the three prompts against the router and loop guard, plus the existing live layout render |
-| 379 | Fix | Placement is fixed (CI). Open: the elevation-profile render is intermittently empty in CI. Add a render check with pixel assertions, find the cause from CI output, fix or make the tool report an empty profile instead of drawing axes only | CI live test that renders three charts and a profile and asserts non-blank, repeated until stable |
-| 380 | Fix | Do not inject a task plan when the algorithm index strongly matches an operation-shaped request; measure the 385-prompt replay before and after (34 today); no golden routing row may be lost. "Sort the districts by population" already passes by hand | replay test with a target of 0 operation-shaped prompts matched, golden tables unchanged |
-| 425 | Plan and build | Undo of `add_field`: remove the field only while it holds no values and no edits were committed after it; otherwise say so and offer to delete the column with a confirmation | CI live test: add a field, undo, field gone; add, fill, undo, refuses with a clear reply |
+## Facts found before planning (read from the code and the returned files on 2026-10-25)
+- #223 and #224 are already fixed in code: `_background_processing.release_finished_abandoned` frees an abandoned bundle when its task completes or terminates (tests: `tests/test_background_processing_release.py`), and the root `__init__.py` evicts only this plugin's modules (`_module_ownership.owned_module_names`, tests: `tests/test_module_ownership.py`). The issue texts are from 2026-10-07 and are stale. What is missing is a live-QGIS proof and the owner's hand evidence, and the 1.18.0 run supplied the hand evidence: Stop returns promptly and the next request works (OI-223); installing over rc40, then untick and re-tick during a request, gave version 1.18.0, one panel, one Plugins menu entry and no error (OI-224). Not observed: toolbar button count, red log lines, memory after Stop.
+- #380: PLAN-008 item 5 already changed the routing; the issue's figure of 34 of 385 prompts is the figure before that. The current number has not been re-measured in this plan.
+- #97: the 1.18.0 run exported all 20 exchanges (40 messages, timestamps, retention note). Not yet shown: the same export after saving and reopening the project; the Memory-dialog delete.
+- #120: the black raster is verified (OI-128, rc50). Labels and the tidy report are CI-fixed. Not shown by any run: scratch origin layers are saved or reported as temporary.
+- #379: placement is CI-fixed; the elevation-profile image is intermittently empty in CI and the cause is unexplained.
+- Legend (from the returned `A15_logo.qgz`): the legend frame is fixed (49.5 x 254.5 mm on A3 portrait, 95 x 88 mm on A4 landscape) with `resizeToContents="0"` and seven layers, so entries are cut. Footer: the A4 landscape footer box is 17.1 mm tall, touches the scale bar above it and ends 0.5 mm above the page edge; the exported text is complete, so the "may not fit" warning is an estimate that ran high or hit the zero clearance. Exports of the footer, logo, masthead and sign-off were complete and unclipped.
+- Of 29 rows in the hand run, 9 passed, 17 were Partial because the visual check was not done, 3 were blank. Causes: rows depend on each other (A14 to A19 edit one `handtest.json`; A6 tags `towns` and changes A7 and A8), several expectations are stale (OI-224 expects 1.16.1 and a README section that does not exist; OI-223 names a Task Manager panel this build lacks; OI-148 expects one sentence; A12 expects the layout name unchanged), and nothing reads the evidence folders the plugin already writes.
 
-Hand-run findings, all fixed in the same build:
-- Legend cut off, footer "may not fit" warning, bundle README and OI-224 row: PLAN-020, unchanged.
-- Layout name: "create a print layout called Big Map" produced `Layout_Big_Map`. Fix: use the requested name exactly; the `Layout_` prefix stays only when no name was given. Check `_layout_names.py` so "draw into Test Layout" still finds it.
-- Duplicate CartogenAI tab in Log Messages: cause not known (the extra tab appeared after installing rc40 and then 1.18.0 over it; the plugin logs with tags `CartogenAI`, `Providers`, `CredentialManager`, `ChatTabWidget`). Fix: a CI test that lists every tag the plugin logs under, and one tag only; if the tab is an artefact of the old install, say so in the update steps.
-- A5 note "fetch_dem and run_steps failed" while contours were made: read the evidence folder's `steps.jsonl` of that request (it is in the returned bundle), find why those two tools were called, fix the routing or the description so a plain "draw contour lines" call uses the contour tool only.
-- A3: the sector coverage chart was never opened. Covered by the CI render check: the chart image has bars for Health and Shelter only.
-- A7 and A8 in the sheet depend on A6's SENSITIVE tag; the sheet states the order. Not a product change.
-- A18 lineage by buffer then rename: add a CI live test (the merge-then-rename case is hand-verified); the owner's click is not needed.
-Out: new features beyond the above; a release (the owner decides when and which version).
+## Work packages (each is one pull request that reverts alone; order is the build order)
+
+### WP-A: close-outs and the tracker (docs and GitHub only)
+- Done today with comments: #148, #130 (hand-verified passes), #169 (children closed).
+- #72: close when #97 is closed.
+- #97 closes when WP-F's reopen test passes in CI; #120 closes when WP-F's scratch-layer test passes in CI (owner decision 2026-10-25: fix or close).
+- #223 and #224 close with a comment citing the code, the offline tests, WP-C's live tests and the 1.18.0 hand evidence above, once WP-C is merged green.
+- Update `docs/OPEN_ISSUES_STATUS_2026-10-25.md` (new dated status doc, the old one kept), `docs/IMPLEMENTATION_TRACKER.md` section 1.23, and `docs/FEATURE_LEDGER.json` for each feature below.
+
+### WP-B: layouts (PLAN-020 items plus names)
+- Legend: fit the entries to the fixed frame in steps (smaller symbols and text, then only the entries that fit plus a one-line note "N more not shown"). Never a cut entry. Pure function for the fit; QGIS half in `layout_style.py` `_style_legend`.
+- Footer: size from `QgsLayoutItemLabel.sizeForText()` (what the renderer uses), the current Qt-metrics estimate kept as fallback; warn only when that real size does not fit; put the needed and available mm in the tool result and the evidence folder. Give the footer a minimum clearance above it (the scale bar sits at 0 mm today).
+- Layout name: use the requested name exactly ("Big Map" stays "Big Map"); the `Layout_` prefix only when no name was given (`layout_tools.py` around line 599, `_layout_names.py`); a request that names an existing layout in either spelling still finds it.
+- Tests: pure tests for the fit and the name rule; CI live tests building A4 landscape and A3 portrait layouts from a seven-layer project with rasters (the shape of the owner's file): legend content height not larger than its frame or carries the note, footer inside the page, no false warning, name as requested. The live test also renders the layout to an image and checks it is not blank.
+
+### WP-C: lifecycle and logging (#223, #224, duplicate log tab)
+- Live tests only (the code exists): run a processing task through the task runner, press Stop, assert the abandoned list is empty after the task terminates and the next run works; import the plugin, simulate a reload and an in-place update, assert modules not ours are untouched and ours are fresh. If either test fails, fix the code in this package.
+- Log tab: a test that lists every tag the plugin logs under; the duplicate "CartogenAI" tab is not explained by the code (four tags exist: `CartogenAI`, `Providers`, `CredentialManager`, `ChatTabWidget`). Decide from the test: if two tags differ only in spelling, merge them; if the tab comes from the old install being loaded once, add one line to the update steps. Not guessed.
+
+### WP-D: routing, prompts and the contour call (#380, #362, A5)
+- #380: re-measure the 385-prompt replay now; the target is zero operation-shaped prompts answered by an unrelated task plan, with no golden routing row lost. Fix remaining matches by requiring the algorithm index to lose before a task plan is injected (`core/agent/task_matcher.py`).
+- #362: I4 "animate the layer over time" routes to `export_temporal_animation_frames`; I6 elevation profile adds the profile and does not loop on `list_layout_items` (loop guard names the repeat and the next tool); I9 "charts linked to maps" builds a layout chart, not an HTML dashboard (tool description and router hint). Each pinned by a replay test over the recorded trace shape.
+- A5: read the returned evidence folder of the contour request (`steps.jsonl`), find why `fetch_dem` and `run_steps` were called, and change the routing or the tool descriptions so "draw contour lines of the dem every 100" calls the contour tool only; replay test for the prompt.
+
+### WP-E: undo of add_field (#425)
+- Undo removes the added field only while it holds no values and nothing was committed after it; otherwise the reply says why and offers deleting the column with a confirmation. Where: the existing undo tool and transaction snapshot. Tests: live test adding a field then undoing (gone); adding, filling, undoing (refused with a clear reply, data kept).
+
+### WP-F: persistence checks (#97, #120)
+- CI live: 20 turns, save, close, reopen, export: 40 messages with timestamps; Memory-dialog delete empties it. CI live: a point tool's origin and result layers are saved with the project or the reply says they are temporary; reopen finds them.
+- A18: CI live test of buffer then rename with a SENSITIVE source: the export gate names the renamed layer as derived and the sensitivity dialog says protected through lineage.
+- A3: CI render of the sector coverage chart: bars for Health and Shelter only.
+
+### WP-G: the cheaper hand test (replaces the 29-row sheet)
+1. `tools/layout_check_script.py` (new): run once in the QGIS Python console on a project it builds itself from the bundled data. It creates every layout the old rows A9 to A20 describe (footer, credits, A3, presets and file names, profile with logo, missing logo, sign-off required and given, re-read after a profile change, lineage export, disclaimer), exports PDFs and PNGs, and writes `layout_check.json` with the numbers (legend content versus frame, footer needed versus available, bottom edge versus page, warnings, names, refusals). No model calls, so no API cost, and no row depends on another.
+2. `tools/check_evidence.py` (new): reads the returned evidence folders and `4_RESULTS.csv` and prints a verdict per row from `steps.jsonl` (tools called, warnings, new layers, output files). I run it on what you return.
+3. The sheet is generated from the ledger, not typed: each row's expectation is checked against facts at build time (version from `metadata.txt`, README sections that must exist, panel names), by `tests/test_test_bundle.py`. Rows are independent: each creates or states its own starting point.
+4. Rows that still need a real model and a person (about ten, each its own chat): contour request (A5), animate (I4), elevation profile (I6), linked charts (I9), undo of `add_field`, three plain-language prompts from #380, the update-in-place and untick/re-tick check with the toolbar and log lines (OI-224), and the Stop memory check (OI-223, needs the OS task manager). Everything the old sheet asked for that CI or the script can answer is removed.
+5. The bundle README gets the update-in-place steps.
+
+### WP-H: the build and hand-over
+- One bundle build from `main` after WP-B to WP-G are merged: plugin zip plus the new test bundle, version from `metadata.txt` at that time. Whether it is a release candidate or a stable number is the owner's decision at that point.
+- Owner's part, in order: run `layout_check_script.py` once and return the folder; run the ten rows; return `4_RESULTS.csv` and the evidence folders. Nothing else.
 
 ## Acceptance
-1. Offline CI: pure logic for every item (legend fit, name rule, undo rule, router decisions, tag list).
-2. CI live (QGIS 4.2.2): each proof column above, run on every push.
-3. Ledger: one entry per fixed feature with its guard tests; `tools/ledger_guard.py` passes.
-4. Hand check, once, model-free: a console script in the next bundle that exports the three layouts (legend, footer, names) and prints the footer heights. Nothing else is asked of the owner for these items. The owner's remaining list is only what CI cannot judge: how the legend and footer look in the exported PDF on the Windows fonts.
+1. Every work package's tests exist and pass in CI (offline, and live on QGIS 4.2.2); `tools/ledger_guard.py` and `tools/local_ci.sh --offline` pass; ruff 0.17.0 clean.
+2. After the owner's returned run, `check_evidence.py` shows every row Pass or a stated decision; issues #72, #97, #120, #223, #224, #362, #379, #380, #425 are each closed with the evidence in a comment, or left open with the owner's written decision.
+3. Hand-verified only means the owner's run; CI-only items are labelled CI-only in the plan log and the ledger.
 
 ## Guard tests
-Named as each item is written; each new test goes in the ledger entry of its feature.
+Named as each package is written and listed in its ledger entry (new classes in `tests/test_layout_legend_live.py`, `tests/test_layout_footer_text.py`, `tests/test_layout_names.py`, `tests/test_background_processing_live.py`, `tests/test_plugin_reload_live.py`, `tests/test_log_tags.py`, `tests/test_task_matcher_replay.py`, `tests/test_undo_add_field.py`, `tests/test_persistence_live.py`, `tests/test_test_bundle.py`).
 
 ## Rollback
-One pull request per group (A: closures and comments, B: layouts and names, C: processing and reload, D: routing and prompts, E: undo). Each reverts alone. Layouts and projects already saved are not changed.
+One pull request per work package; each reverts alone. Layouts and projects already saved are not changed. No setting changes.
 
 ## Status log
-- 2026-10-25: plan written after the owner's instruction to plan every fix or close. Closures of #148, #130 and #169 are done with this plan (comments posted). Everything else is planned, nothing built yet.
+- 2026-10-25: first version written; superseded the same day by this one after the owner asked for a complete plan with nothing partial. Corrected one claim of the first version: #223 and #224 are already fixed in code (read today), so WP-C proves them with live tests instead of rewriting them. Closed with comments today: #148, #130, #169.
