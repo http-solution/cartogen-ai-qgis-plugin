@@ -7,6 +7,7 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 | Version | Date | Summary |
 |---|---|---|
+| [1.18.0](#v1-18-0) | 2026-10-25 | **Stable release 1.18.0.** No breaking changes -- requires QGIS 4.2+. The sum of the 1.17.0 release candidates 42 to 52 since 1.16.3: many more QGIS actions by plain request, safer exports of sensitive layers, print layouts with credits, page sizes A3 to A1, map profiles with branding and sign-off, and the disclaimer wording. Mostly CI-checked, not hand-tested (see Not hand-tested). |
 | [1.17.0-rc51](#v1-17-0-rc51) | 2026-10-25 | **Release candidate 51 for 1.17.0.** No breaking changes -- requires QGIS 4.2+. Profile changes apply to layouts already made, maps made from sensitive layers ask before they export, the footer is sized from the real font and contour lines make a layer. CI-checked, not hand-tested. |
 | [1.17.0-rc50](#v1-17-0-rc50) | 2026-10-24 | **Release candidate 50 for 1.17.0.** No breaking changes -- requires QGIS 4.2+. Credits, a No data class, layout checks, page sizes A3 to A1, export presets and map profiles with logo, colours, font, sign-off and COD wording. CI-checked, not hand-tested. |
 | [1.17.0-rc49](#v1-17-0-rc49) | 2026-10-24 | **Release candidate 49 for 1.17.0.** No breaking changes -- requires QGIS 4.2+. Fixes from the rc48 hand test, a confirmation step for exports that draw sensitive layers, a sources and disclaimer line on print layouts, and fixes from an external audit. CI-checked, not hand-tested. |
@@ -95,6 +96,21 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 The detailed narrative entries below are unchanged -- this table is purely an additive index on
 top of them.
+
+<a id="v1-18-0"></a>
+## [1.18.0] — 2026-10-25 — Stable release 1.18.0: No breaking changes -- requires QGIS 4.2+. The sum of the 1.17.0 release candidates 42 to 52 since 1.16.3: many more QGIS actions by plain request, safer exports of sensitive layers, print layouts with credits, page sizes A3 to A1, map profiles with branding and sign-off, and the disclaimer wording. Mostly CI-checked, not hand-tested (see Not hand-tested).
+
+No breaking changes; QGIS 4.2+. Everything after 1.16.3 (the 1.17.0 release candidates 42 to 52):
+
+- What this release is: 1.18.0 is the sum of the 1.17.0 release candidates 42 to 52 since the last stable build, 1.16.3. Unlike earlier stable builds it is not an rc that passed its own hand test: rc44 to rc46 and rc48 were hand-tested in desktop QGIS (in part), rc50 for 20 of its 87 rows, and everything else is checked by the offline suite and by CI on QGIS 4.2.2 only.
+- Many more QGIS actions by plain request: About 296 tools and about 435 approved Processing algorithms: editing, data sources, symbology and labels, print-layout charts, atlas and elevation profile, point cloud, vector tile and 3D tiles layers, raster calculator, layer groups, project CRS, bookmarks and selections, a watershed tool, sourced web research, Excel and CAD export, statistics and raster to polygons. Describe the job without naming the algorithm and the assistant finds it.
+- Cheaper and steadier requests: About a third fewer tool definitions are sent with each request, requests are no longer answered by an unrelated task plan, undo reaches back a few messages, long runs are bounded, and four calls to QGIS methods that do not exist were fixed and a test now blocks any new one.
+- Sensitive layers and exports: An export or atlas whose map draws a RESTRICTED or SENSITIVE layer, including a layer made from one by merge or rename, waits for your confirmation. A publication export is refused until the layout has a title, legend, scale bar and north arrow, has no protected layer without a stated reason, and, when the profile requires it, a named and dated review.
+- Print layouts: Footer with sources, credits, the profile's own lines and a reviewer sign-off line; a No data class for graduated maps; page sizes A4, A3, A2 and A1; export presets (draft 96, web 150, print 300 dpi) and file names from the title and the date; layout checks for overflow, overlap and items off the page; the footer is sized from the font actually used.
+- Map profiles: A small JSON file holds what your team repeats on every map: page size, orientation, preset, file name pattern, required elements, your logo (PNG or JPG), masthead colours, font, footer lines, sign-off, and a COD flag with your own credit wording. Changes to the file apply to layouts you already made. No organisation's template or mark ships.
+- Disclaimer: The footer of every print layout carries the full disclaimer wording supplied by the owner (replaceable in Settings), and the Help and user guide have a Disclaimer and terms of use section. The wording is the owner's own and has not been reviewed by a lawyer.
+- Known and open: The elevation profile in a layout rendered empty once in CI and has not been explained. Open issues are listed in docs/OPEN_ISSUES_STATUS_2026-10-25.md; none is closed without a hand-verified pass or an owner decision. A clean-profile install and an in-place upgrade have not been run on this line since rc6.
+- Not hand-tested: The longer footer, page sizes A3 to A1, profiles with logo and sign-off, the lineage check on exports, and the contour routing have not been looked at by a person in desktop QGIS. A hand-test file for exactly these points is delivered with this build.
 
 <a id="v1-17-0-rc51"></a>
 ## [1.17.0-rc51] — 2026-10-25 — Release candidate 51 for 1.17.0: No breaking changes -- requires QGIS 4.2+. Profile changes apply to layouts already made, maps made from sensitive layers ask before they export, the footer is sized from the real font and contour lines make a layer. CI-checked, not hand-tested.

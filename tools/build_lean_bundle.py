@@ -86,6 +86,9 @@ EXTRA_ROWS = (
      "Tag towns SENSITIVE first (reason: test) and keep Cloud data protection = Block; click 'Send to cloud once' on the card (fixture data). Then untick every layer except harmless_buf, create a print layout called Lineage Test and export it to a pdf. Result: a confirm card names harmless_buf as derived from towns; nothing is written until you press Apply. The sensitivity dialog for harmless_buf says 'untagged, protected through lineage from towns (SENSITIVE)'."),
     ("P16 footer", "create a print layout called Footer Fit using the profile handtest",
      "Add three footer_lines and the sign_off to handtest.json first (the rc50 profile row has the text). Open the exported or printed page: the whole footer is visible and not cut off, and the reply has no footer overflow or 'may not fit' warning. (rc50 on Windows fonts reported a footer box about 2 mm too short.)"),
+    # rc52: the owner's disclaimer wording. Not run outside CI.
+    ("P17 disclaimer", "create a print layout called Disclaimer Test",
+     "The footer carries the full disclaimer ('Boundaries, names, and designations shown on this map are for informational and illustrative purposes only ...' to '... prior to internal use or external distribution.'). Export it to PDF and look at the page: the whole footer is visible and not cut off, nothing overlaps it, and the map is a little shorter than before but still shows its scale bar and north arrow. Then open the plugin Help tab: a section 'Disclaimer and terms of use' with three numbered paragraphs. Settings > Layout disclaimer: type your own sentence and build another layout; the footer uses yours."),
 )
 # Added to the fixture script: a small integer raster for the polygonize row (kept from rc48) and a MultiPoint layer for the rc49 obfuscation row.
 FIXTURE_EXTRA = """
@@ -177,6 +180,9 @@ def plain_sample():
     return missed, picks[:PLAIN_FOUND] + forced
 
 
+PRECISE = "--precise" in sys.argv
+
+
 def main():
     if "--plugin-zip" not in sys.argv:
         raise SystemExit("usage: build_lean_bundle.py --plugin-zip FILE.zip")
@@ -187,12 +193,17 @@ def main():
     if f"_v{v}.zip" not in plugin_zip.name:
         raise SystemExit(f"{plugin_zip.name} is not the {v} build")
     tools = {row["tool"].split(" ")[0]: row for row in read_csv("HAND_TEST_rc44_tools.csv")}
-    tool_rows = [(t, tools[t]["prompt"], tools[t]["expected"]) for t in (*TARGET_TOOLS, *CANARY_TOOLS) if t in tools] + list(EXTRA_ROWS)
-    missed, found = plain_sample()
-    plain_rows = [(r["algorithm_id"], r["plain_prompt"], r["expected"]) for r in (*missed, *found)]
+    if PRECISE:
+        # Only what no person has seen yet: the rc49 to current release rows (labels P8 to P17), no rc44 tool re-checks, no plain-language sample.
+        tool_rows = [row for row in EXTRA_ROWS if row[0].startswith("P")]
+        plain_rows = []
+    else:
+        tool_rows = [(t, tools[t]["prompt"], tools[t]["expected"]) for t in (*TARGET_TOOLS, *CANARY_TOOLS) if t in tools] + list(EXTRA_ROWS)
+        missed, found = plain_sample()
+        plain_rows = [(r["algorithm_id"], r["plain_prompt"], r["expected"]) for r in (*missed, *found)]
     oi_rows = open_issue_rows()
 
-    sheet = [f"# Cartogen AI {v} - hand test (open issues + this release)\n",
+    sheet = [f"# Cartogen AI {v} - " + ("precise hand test (only what no person has seen yet)" if PRECISE else "hand test (open issues + this release)") + "\n",
              ("One new chat per row (history makes every later row dearer). Screenshots only for rows that fail or look wrong. "
               "Rows already proven are not here. Scoring: Pass / Partial / Fail / Skip; note which tool the assistant chose and whether the result looks right.\n"),
              "**Order:** Part 1 first in the project made by its two set-up rows; then start a NEW project, run `3_fixtures_script.txt` in the QGIS Python console, and do Part 2.\n",
@@ -206,10 +217,11 @@ def main():
               f"## Part 2. This release ({len(tool_rows)} tool rows + {len(plain_rows)} plain-language rows)\n",
               f"### A. Changed or fix-targeted rows ({len(tool_rows)})\n", "| # | Row | Prompt | Expect |", "|---|---|---|---|"]
     sheet += [f"| A{i} | `{t}` | {p} | {e} |" for i, (t, p, e) in enumerate(tool_rows, 1)]
-    sheet += [f"\n### B. Plain-language sample ({len(plain_rows)})\n",
-              "The prompt never names the algorithm. Pass = the assistant found and ran an algorithm that does the job (write which one in the notes).\n",
-              "| # | Algorithm that fits | Prompt |", "|---|---|---|"]
-    sheet += [f"| B{i} | `{a}` | {p} |" for i, (a, p, _) in enumerate(plain_rows, 1)]
+    if plain_rows:
+        sheet += [f"\n### B. Plain-language sample ({len(plain_rows)})\n",
+                  "The prompt never names the algorithm. Pass = the assistant found and ran an algorithm that does the job (write which one in the notes).\n",
+                  "| # | Algorithm that fits | Prompt |", "|---|---|---|"]
+        sheet += [f"| B{i} | `{a}` | {p} |" for i, (a, p, _) in enumerate(plain_rows, 1)]
     sheet_text = "\n".join(sheet) + "\n"
 
     results = [("id", "row", "prompt", "result (Pass/Partial/Fail/Skip)", "tool/algorithm the assistant chose", "model calls", "notes")]
@@ -222,11 +234,11 @@ def main():
     if not fixture:
         raise SystemExit("the full sheet has no fixture script block")
     digest = hashlib.sha256(plugin_zip.read_bytes()).hexdigest()
-    top = f"cartogen_ai_test_bundle_{v}"
+    top = f"cartogen_ai_{'precise_test' if PRECISE else 'test_bundle'}_{v}"
     out = REPO / "dist" / f"{top}.zip"
     out.parent.mkdir(exist_ok=True)
     total = len(oi_rows) + len(tool_rows) + len(plain_rows)
-    readme = (f"Cartogen AI {v} - hand test bundle ({total} rows: {len(oi_rows)} open-issue, {len(tool_rows)} release, {len(plain_rows)} plain-language)\r\n"
+    readme = (f"Cartogen AI {v} - " + ("PRECISE hand test" if PRECISE else "hand test bundle") + f" ({total} rows: {len(oi_rows)} open-issue, {len(tool_rows)} release, {len(plain_rows)} plain-language)\r\n"
               "=====================================================================\r\n\r\n"
               "1_plugin/ the plugin zip (SHA-256 in checksum_sha256.txt)\r\n2_SHEET.md START HERE\r\n2_test_files/ input data for Part 1\r\n"
               "3_fixtures_script.txt PyQGIS script for the layers of Part 2\r\n4_RESULTS.csv fill result + the tool the assistant chose + notes\r\n\r\n"

@@ -43,3 +43,15 @@ class TestBundleSelection(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestPreciseMode(unittest.TestCase):
+    def test_the_precise_file_takes_only_the_p_rows_of_the_release_part(self):
+        """--precise leaves out the rc48 re-checks (E2c rows), the rc44 tool rows and the plain-language sample: only rows nobody has seen yet."""
+        builder = _builder()
+        precise = [row for row in builder.EXTRA_ROWS if row[0].startswith("P")]
+        self.assertGreaterEqual(len(precise), 20)
+        self.assertFalse([row for row in precise if row[0].startswith("E")])
+        self.assertTrue([row for row in builder.EXTRA_ROWS if row[0].startswith("E2c")], "the E2c rows exist and must stay out of the precise file")
+        self.assertIn("P17 disclaimer", [row[0] for row in precise])
+        self.assertIn("P16 lineage", [row[0] for row in precise])
