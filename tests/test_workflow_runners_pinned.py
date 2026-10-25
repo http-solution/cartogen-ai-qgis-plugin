@@ -19,14 +19,14 @@ class TestRunnersPinned(unittest.TestCase):
 
     def test_checkout_runs_on_node_24(self):
         """actions/checkout@v4 and actions/setup-python@v5 run on Node 20, which GitHub is retiring (CI annotations, 2026-10-24: 'forced to run on
-        Node.js 24'); checkout v5 and setup-python v6 are Node 24."""
+        Node.js 24'); checkout v5, setup-python v6 and gitleaks-action v3 are Node 24."""
         found = []
         for path in sorted(glob.glob(os.path.join(ROOT, ".github", "workflows", "*.yml"))):
             with open(path, encoding="utf-8") as fh:
                 for number, line in enumerate(fh, 1):
-                    if any(old in line for old in ("actions/checkout@v4", "actions/checkout@v3", "actions/setup-python@v5", "actions/setup-python@v4")):
+                    if any(old in line for old in ("actions/checkout@v4", "actions/checkout@v3", "actions/setup-python@v5", "actions/setup-python@v4", "gitleaks/gitleaks-action@v2")):
                         found.append(f"{os.path.basename(path)}:{number}")
-        self.assertEqual(found, [], "use actions/checkout@v5 and actions/setup-python@v6 or later (Node 24)")
+        self.assertEqual(found, [], "use actions/checkout@v5, actions/setup-python@v6 and gitleaks/gitleaks-action@v3 or later (Node 24)")
 
 
 if __name__ == "__main__":
