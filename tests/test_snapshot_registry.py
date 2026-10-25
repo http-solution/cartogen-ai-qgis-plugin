@@ -41,6 +41,8 @@ class TestRegistryLookups(unittest.TestCase):
             "set_raster_relief", "apply_saved_symbol", "set_layer_elevation", "set_layer_temporal",
             # rc46: the confirmed deletion of features can be put back
             "delete_features",
+            # PLAN-021 WP-E (#425): a new field can be taken away again while it is empty
+            "add_field",
         }
         self.assertEqual(set(SNAPSHOT_REGISTRY.keys()), expected)
 

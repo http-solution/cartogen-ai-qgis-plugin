@@ -56,14 +56,17 @@ def verdict_for_row(row, requests):
         return "NO EVIDENCE", "no evidence folder holds this request (was 'Save an evidence folder for each request' ticked?)"
     _request, tools, name = matches[-1]
     forbidden = [t for t in row.get("forbidden_tools", []) if t in tools]
+    too_many = [f"{t} x{tools.count(t)} (limit {n})" for t, n in (row.get("max_calls") or {}).items() if tools.count(t) > n]
     wanted = row.get("expected_tools", [])
     missing = bool(wanted) and not any(t in tools for t in wanted)
-    if forbidden or missing:
+    if forbidden or missing or too_many:
         problems = []
         if forbidden:
             problems.append("called " + ", ".join(forbidden))
         if missing:
             problems.append("never called " + " or ".join(wanted))
+        if too_many:
+            problems.append("called too often: " + ", ".join(too_many))
         return "FAIL", f"{name}: " + "; ".join(problems) + f" (tools: {', '.join(tools) or 'none'})"
     return "PASS", f"{name}: tools {', '.join(tools) or 'none'}"
 
@@ -87,7 +90,7 @@ def main(argv):
     lines.append(f"evidence folders: {len(requests)}")
     if rows_file.is_file():
         for row in json.loads(rows_file.read_text(encoding="utf-8")).get("rows", []):
-            if row.get("expected_tools") or row.get("forbidden_tools"):
+            if row.get("expected_tools") or row.get("forbidden_tools") or row.get("max_calls"):
                 verdict, note = verdict_for_row(row, requests)
                 lines.append(f"  {verdict:11} {row['id']}: {note}")
     print("\n".join(lines))

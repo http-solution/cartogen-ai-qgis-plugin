@@ -35,7 +35,13 @@ _TABLE = (
     ("fill_outline_style", r"\b(pale|light|dark|solid|no|transparent|semi-?transparent)\s+fill\b|\b(fill|outline|border|stroke)\s+(colou?r|width)\b|\b(grey|gray|black|white|red|blue|green)\s+(outline|border|stroke)\b|\bstyle\s+(it|them|the layer|these)\b",
      ("change_layer_color", "apply_categorized_style"), ()),
     ("slope", r"\b(slope|steep|terrain)\b", ("slope_analysis",), ()),
-    ("elevation_download", r"\b(srtm|opentopography|terrain tiles?|elevation source|digital elevation|dem)\b", ("fetch_dem",), ()),
+    # A bare "dem" is NOT a download request: "draw contour lines of the dem every 100" (1.18.0 hand run, row A5) names a DEM that is already
+    # loaded, but this row made it a two-step workflow (fetch, then contour), offered fetch_dem and run_steps, and the model planned a fetch that
+    # failed on the cell limit before it used the loaded layer. A download is a download verb near the DEM, a named source, or a DEM "for/of" a place.
+    ("elevation_download", (r"\b(srtm|opentopography|terrain tiles?|elevation source|digital elevation)\b"
+                            r"|\b(download|fetch|retrieve|pull|grab|obtain|get)\b.{0,40}\b(dem|elevation|terrain)\b"
+                            r"|\b(dem|elevation data|terrain data)\s+(for|of|covering|around|over)\s+(?!the\s+(layer|raster|dem|map)\b)"),
+     ("fetch_dem",), ()),
     ("population_data", r"\b(worldpop|population (raster|grid|data|exposure)|exposed population|people (living|exposed))\b",
      ("fetch_worldpop_population", "estimate_population_exposure"), ()),
     ("pcode_check", r"\bp-?codes?\b.{0,60}\b(valid\w*|check\w*|unique\w*|hierarch\w*|duplicat\w*)|\b(valid\w*|check\w*|verify\w*)\b.{0,40}\bp-?codes?\b",

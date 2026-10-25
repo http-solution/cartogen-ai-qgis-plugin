@@ -150,6 +150,57 @@ def _restore_field_write(snapshot):
         return False
 
 
+# -- add_field (MODIFY, schema) --
+#
+# #425 (left over from #138): undoing add_field used to do nothing, the layer kept the new column. The honest meaning of "undo" for a schema
+# change is: take the column away again while that loses nothing. A column that has been filled since (field_calculator, a manual edit) holds
+# somebody's data, so undo refuses, says so, and changes nothing; deleting a filled column stays a deliberate step (delete_field, which asks).
+
+def _snapshot_added_field(arguments):
+    layer = _find_layer(arguments.get("layer_name"))
+    field_name = arguments.get("field_name")
+    if layer is None or not field_name or layer.fields().indexOf(field_name) != -1:
+        return None          # add_field will refuse (unknown layer, bad name, field already there): nothing to undo
+    return {"kind": "restore_added_field", "layer_id": layer.id(), "field_name": field_name}
+
+
+def field_holds_values(layer, index):
+    """True when any feature has a real (non-NULL, non-empty-text) value in field `index`. Never raises: unknown counts as holding values."""
+    try:
+        for feature in layer.getFeatures():
+            value = feature.attribute(index)
+            if value is None or str(value) in ("NULL", ""):
+                continue
+            return True
+        return False
+    except Exception:
+        return True
+
+
+def _restore_added_field(snapshot):
+    layer = _layer_by_id(snapshot["layer_id"])
+    if layer is None:
+        return False
+    idx = layer.fields().indexOf(snapshot["field_name"])
+    if idx == -1:
+        return True          # already gone some other way
+    if field_holds_values(layer, idx):
+        snapshot["refusal"] = (f"The field '{snapshot['field_name']}' now holds values, so removing it would lose data. Nothing was changed. "
+                               "If you want it gone anyway, ask me to delete the field; that asks for your confirmation first.")
+        return False
+    try:
+        from ._edit_session import EditError, edit_command
+        with edit_command(layer, "Cartogen AI: undo add field"):
+            if not layer.deleteAttribute(idx):
+                raise EditError("the field could not be removed")
+            layer.updateFields()
+        return True
+    except Exception as e:
+        log_event("swallowed_exception", tag="Tools", tool="snapshot_restore_added_field", error_class=type(e).__name__, error=True)
+        snapshot["refusal"] = "The field could not be removed (the layer refused). Nothing was changed."
+        return False
+
+
 # -- apply_categorized_style / apply_graduated_style / apply_graduated_symbol_style
 # (MODIFY, style) --
 #
@@ -341,6 +392,7 @@ SNAPSHOT_REGISTRY = {
         _make_property_restore_fn(_subsetstring_set),
     ),
     "delete_features": (_snapshot_delete_features, _restore_delete_features),
+    "add_field": (_snapshot_added_field, _restore_added_field),
     "set_layer_filter": (
         _make_property_snapshot_fn(_subsetstring_get),
         _make_property_restore_fn(_subsetstring_set),

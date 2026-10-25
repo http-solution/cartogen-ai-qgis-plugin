@@ -55,7 +55,8 @@ def get_turn_transaction_log():
     "before); apply_categorized_style/apply_graduated_style/apply_graduated_symbol_style "
     "(restores the prior style); set_dataset_status/set_layer_sensitivity/set_layer_confidence/"
     "run_query/set_layer_filter (restores the prior value); labels, callouts, diagrams, point markers, raster relief, saved symbols, "
-    "layer elevation and layer time settings (restores the prior setting); delete_features (puts the deleted features back). It cannot undo load_project or any other in-place "
+    "layer elevation and layer time settings (restores the prior setting); delete_features (puts the deleted features back); add_field (removes the "
+    "new field again, but only while it is still empty: once it holds values undo refuses and says so). It cannot undo load_project or any other in-place "
     "edit not in that list -- a real, separate, still-open gap, not something this tool silently "
     "skips without saying so. Destructive action requiring UI confirmation.",
     {
@@ -156,7 +157,7 @@ def _undo_via_snapshot(entry, undo, confirmed):
         return {"error": f"No restore mechanism available for '{entry['name']}'."}
 
     if not restore_fn(undo):
-        return {"error": f"Failed to undo '{entry['name']}' -- the layer or field may no longer exist."}
+        return {"error": undo.get("refusal") or f"Failed to undo '{entry['name']}' -- the layer or field may no longer exist."}
 
     _BOUND["log"].mark_undone(entry["index"])
     return {
