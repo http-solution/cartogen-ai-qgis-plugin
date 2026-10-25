@@ -22,20 +22,6 @@
       "needs": "person and the operating system's task manager"
     },
     {
-<<<<<<< HEAD
-      "id": "V9-undo-field",
-      "issue": "#425",
-      "title": "Undo of add_field: an empty new column goes, a filled one stays",
-      "starts_from": "A new project with smoke_points from 3_test_files/smoke_data.gpkg",
-      "do": "Send: add a text field called notes to smoke_points. Then send: undo that. (Confirm the undo card.) Then send: add a text field called notes to smoke_points again, then: set notes to 'checked' for every feature, then: undo the last operation.",
-      "expect": "After the first undo the field notes is gone from the attribute table. After the second add and fill, undo does not remove it: the reply says the field now holds values and nothing was changed, and the values are still there.",
-      "evidence": "The evidence folders of the requests; a screenshot of the attribute table after each undo",
-      "needs": "person and a real model",
-      "prompt": "add a text field called notes to smoke_points",
-      "expected_tools": [
-        "add_field",
-        "undo_last_operation"
-=======
       "id": "V3-contour",
       "issue": "#380",
       "title": "Contour lines of a loaded DEM do not start a download",
@@ -131,7 +117,21 @@
       "prompt": "Convert smoke_admin to a raster with the population in each cell",
       "forbidden_tools": [
         "fetch_worldpop_population"
->>>>>>> origin/main
+      ]
+    },
+    {
+      "id": "V9-undo-field",
+      "issue": "#425",
+      "title": "Undo of add_field: an empty new column goes, a filled one stays",
+      "starts_from": "A new project with smoke_points from 3_test_files/smoke_data.gpkg",
+      "do": "Send: add a text field called notes to smoke_points. Then send: undo that. (Confirm the undo card.) Then send: add a text field called notes to smoke_points again, then: set notes to 'checked' for every feature, then: undo the last operation.",
+      "expect": "After the first undo the field notes is gone from the attribute table. After the second add and fill, undo does not remove it: the reply says the field now holds values and nothing was changed, and the values are still there.",
+      "evidence": "The evidence folders of the requests; a screenshot of the attribute table after each undo",
+      "needs": "person and a real model",
+      "prompt": "add a text field called notes to smoke_points",
+      "expected_tools": [
+        "add_field",
+        "undo_last_operation"
       ]
     }
   ]
