@@ -3,7 +3,7 @@
 Supersedes `OPEN_ISSUES_STATUS_2026-10-24.md` (kept as written). Policy: no issue is closed without a hand-verified PASS or an owner decision. The hand-test bundle builder reads the first column of the table below to choose which open-issue rows go into the next bundle.
 
 ## Closed on 2026-10-25 by the owner's decision (comment posted on each)
-#93, #95, #84, #127, #129, #138, #145, #146 (accepted as they are; the evidence is in each comment) and #305, #233 (closed as not planned: optional residuals, and a superseded tracking list). The one gap #138 left, undo of `add_field`, is the new issue #425.
+#93, #95, #84, #127, #129, #138, #145, #146 (accepted as they are; the evidence is in each comment) and #305, #233 (closed as not planned: optional residuals, and a superseded tracking list). #128 was closed the same day on a hand-verified pass (rc50 row OI-128, colour ramp on the population raster) once the owner confirmed. The one gap #138 left, undo of `add_field`, is the new issue #425.
 
 ## Still open
 | # | Issue | Last evidence | State | Needs |
@@ -11,7 +11,6 @@ Supersedes `OPEN_ISSUES_STATUS_2026-10-24.md` (kept as written). Policy: no issu
 | 72 | rc7 smoke findings (umbrella) | children closed one by one | umbrella | closes when the issues it lists are closed or decided |
 | 97 | exported chat history missing messages | rc48 OI-97: all 20 exchanges exported with timestamps; the export came from the live chat, not a reopened project | mostly works | one re-run after save and reopen |
 | 120 | placeholder labels, scratch layers, black raster | tidy now asks before it applies; duplicate detection now normalises the source (CI only) | fixed in CI, not hand-verified | re-run row OI-120 |
-| 128 | population raster drawn grey | rc50 hand run, row OI-128: Pass (the raster came up with a colour ramp, renderer `singlebandpseudocolor`) | hand-verified pass | owner to confirm the close |
 | 130 | fragment 'template: access_map' | rc48 inconclusive: the guard stood down because the last assistant message was a question | inconclusive | re-run in a new chat |
 | 148 | bounding-box nearest neighbour | the access leg is now counted (CI only) | fixed in CI, not hand-verified | re-run row OI-148 |
 | 150 | lineage ignores nested inputs | closed on GitHub on 2026-10-23 after the rc48 FAIL; fixed in rc49 (PLAN-008/009) and made to apply to layout exports in rc51 (PLAN-016 item 2); not hand-verified | closed, hand check owed | owner: the reworded OI-150 row (a cloud question about the renamed merge result). Reopen if it fails |
