@@ -13,7 +13,8 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
 ROWS_FILE = REPO / "docs" / "HAND_TEST_V2_ROWS.json"
-INPUTS = REPO / "docs" / "release_smoke_assets" / "inputs"
+INPUTS = REPO / "docs" / "release_smoke_assets" / "inputs"          # the pinned smoke fixtures (docs/FULL_LIVE_TEST_rc34_INPUTS.sha256), never added to
+EXTRA_INPUTS = REPO / "docs" / "hand_test_v2_inputs"                 # fixtures only the v2 rows use
 STALE = ("1.16.1", "rc40", "rc39", "Task Manager")      # words that went stale in the 1.18.0 sheet; a row naming one is probably out of date
 
 
@@ -108,8 +109,10 @@ def main():
         z.write(REPO / "tools" / "check_evidence.py", f"{top}/5_check_evidence.py")
         needed = set(re.findall(r"smoke_[A-Za-z_]+\.[a-z]+", text))
         for name in sorted(needed):
-            if (INPUTS / name).is_file():
-                z.write(INPUTS / name, f"{top}/3_test_files/{name}")
+            source = next((folder / name for folder in (INPUTS, EXTRA_INPUTS) if (folder / name).is_file()), None)
+            if source is None:
+                raise SystemExit(f"a row names {name}, which is in neither fixture folder")
+            z.write(source, f"{top}/3_test_files/{name}")
     print(f"wrote {out} ({out.stat().st_size // 1024} KB)")
 
 

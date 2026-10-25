@@ -15,6 +15,21 @@ import json
 EXEMPT_FROM_DUPLICATES = frozenset({"update_task", "create_plan", "set_task_preview", "get_layers", "get_attributes"})
 STATE_CHANGING = frozenset({"CREATE", "MODIFY", "DELETE", "PUBLISH"})
 
+# What to say when a read-only listing tool repeats: its answer does not change, so asking again is the loop (1.18.0 prior run, #362 I6: the
+# elevation profile request called list_layout_items again and again and stopped without adding the profile). Pure text, no behaviour.
+DUPLICATE_HINTS = {
+    "list_layout_items": "its answer does not change between calls; the next step is the tool that adds what was asked for "
+                         "(add_layout_elevation_profile, add_layout_chart, add_layout_item)",
+    "list_layouts": "its answer does not change between calls; pick the layout from it and go on to the next step",
+}
+
+
+def duplicate_detail(name, count):
+    """The stop detail for `name` called `count` times with the same arguments, with the hint for a listing tool. Pure."""
+    detail = f"`{name}` was called {count} times with the same arguments"
+    hint = DUPLICATE_HINTS.get(name)
+    return f"{detail}; {hint}" if hint else detail
+
 
 def canonical_arguments(arguments):
     """A stable text form of a call's arguments (a JSON string or a dict), so key order and whitespace never hide a duplicate."""
@@ -51,7 +66,7 @@ class LoopGuard:
         if name not in EXEMPT_FROM_DUPLICATES:
             self._seen[key] = self._seen.get(key, 0) + 1
             if self._seen[key] >= self.max_identical_calls and self.stop is None:
-                self.stop = {"reason": "duplicate_call", "detail": f"`{name}` was called {self._seen[key]} times with the same arguments"}
+                self.stop = {"reason": "duplicate_call", "detail": duplicate_detail(name, self._seen[key])}
         if is_error:
             self._failures += 1
             self._consecutive[name] = self._consecutive.get(name, 0) + 1

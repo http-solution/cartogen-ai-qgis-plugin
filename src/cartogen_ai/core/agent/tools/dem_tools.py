@@ -132,7 +132,8 @@ def _open_existing(urls):
     "and add it to the project. Give the area as a layer name (its extent), as a bounding box in degrees (west, south, east, north), or "
     "as a centre point (lat, lon) with radius_km. The result is a surface model (includes buildings/trees), not bare earth, about 30 m "
     "resolution; the reply records source, tiles used, retrieval date, vertical datum and the required attribution. Refuses very large "
-    "areas. Use generate_contours or slope_analysis on the result.",
+    "areas. Use generate_contours or slope_analysis on the result. ONLY for an area with no DEM in the project yet: when the request names "
+    "a DEM layer that is already loaded (\"the dem\", \"smoke_dem\"), use that layer and do not call this.",
     {"type": "object", "properties": {
         "layer_name": {"type": "string", "description": "Name of a layer whose extent defines the area."},
         "west": {"type": "number"}, "south": {"type": "number"}, "east": {"type": "number"}, "north": {"type": "number"},

@@ -1772,7 +1772,7 @@ Tags a layer with its epistemic-status/confidence level -- OBSERVED (directly re
 
 ### `generate_contours`
 
-Make contour lines from a DEM raster layer at a fixed elevation interval (in the DEM's own elevation units, normally metres), as a NEW LINE LAYER with an 'ELEV' field -- the usual meaning of 'draw / make / create contour lines of the DEM, every 100'. Use set_raster_relief instead only when the user wants the raster itself shown as contours (render / style) without a new layer. The interval is the vertical spacing between lines, NOT the accuracy of the terrain: the result reports the DEM's pixel size and source so the user can judge what the lines can show. Refuses very large rasters.
+Make contour lines from a DEM raster layer at a fixed elevation interval (in the DEM's own elevation units, normally metres), as a NEW LINE LAYER with an 'ELEV' field -- the usual meaning of 'draw / make / create contour lines of the DEM, every 100'. Use set_raster_relief instead only when the user wants the raster itself shown as contours (render / style) without a new layer. The interval is the vertical spacing between lines, NOT the accuracy of the terrain: the result reports the DEM's pixel size and source so the user can judge what the lines can show. Refuses very large rasters. When the request names a DEM that is already in the project ("the dem", "smoke_dem"), call this directly with that layer: do not fetch a new DEM and do not plan a fetch first.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
@@ -1983,7 +1983,7 @@ Start QA-gate lifecycle tracking on a layer that isn't tracked yet, tagging it w
 
 ### `fetch_dem`
 
-Download elevation (a DEM raster) for an area from the Copernicus DEM GLO-30 open dataset (about 30 m, no account or key needed) and add it to the project. Give the area as a layer name (its extent), as a bounding box in degrees (west, south, east, north), or as a centre point (lat, lon) with radius_km. The result is a surface model (includes buildings/trees), not bare earth, about 30 m resolution; the reply records source, tiles used, retrieval date, vertical datum and the required attribution. Refuses very large areas. Use generate_contours or slope_analysis on the result.
+Download elevation (a DEM raster) for an area from the Copernicus DEM GLO-30 open dataset (about 30 m, no account or key needed) and add it to the project. Give the area as a layer name (its extent), as a bounding box in degrees (west, south, east, north), or as a centre point (lat, lon) with radius_km. The result is a surface model (includes buildings/trees), not bare earth, about 30 m resolution; the reply records source, tiles used, retrieval date, vertical datum and the required attribution. Refuses very large areas. Use generate_contours or slope_analysis on the result. ONLY for an area with no DEM in the project yet: when the request names a DEM layer that is already loaded ("the dem", "smoke_dem"), use that layer and do not call this.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|

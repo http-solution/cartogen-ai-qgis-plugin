@@ -48,10 +48,16 @@ class TestSheetIsGeneratedAndNotStale(unittest.TestCase):
         update_row = next(r for r in self.builder.rows() if r["id"] == "V1-update")
         self.assertIn("Updating an existing install", update_row["do"])
 
+    def test_every_row_that_judges_tools_has_a_prompt_to_find_its_evidence_by(self):
+        for row in self.builder.rows():
+            if row.get("expected_tools") or row.get("forbidden_tools") or row.get("max_calls"):
+                self.assertTrue(row.get("prompt", "").strip(), row["id"])
+                self.assertIn(row["prompt"].lower().split()[0], row["do"].lower(), row["id"])
+
     def test_every_input_file_a_row_names_exists(self):
         text = self.builder.sheet(self.version)
         for name in set(re.findall(r"smoke_[A-Za-z_]+\.[a-z]+", text)):
-            self.assertTrue((self.builder.INPUTS / name).is_file(), name)
+            self.assertTrue((self.builder.INPUTS / name).is_file() or (self.builder.EXTRA_INPUTS / name).is_file(), name)
 
 
 class TestLayoutCheckScriptShape(unittest.TestCase):
@@ -92,6 +98,13 @@ class TestEvidenceChecker(unittest.TestCase):
         self._evidence("t1", "draw contour lines of the dem every 100", ["generate_contours"])
         row = {"prompt": "contour lines of the dem", "expected_tools": ["generate_contours", "gdal:contour"], "forbidden_tools": ["fetch_dem"]}
         self.assertEqual(self.checker.verdict_for_row(row, self.checker.evidence_requests(self.root))[0], "PASS")
+
+    def test_a_tool_called_more_often_than_its_limit_fails_the_row(self):
+        self._evidence("t1", "draw an elevation profile along the road", ["set_layer_elevation", "list_layout_items", "list_layout_items", "list_layout_items"])
+        row = {"prompt": "elevation profile", "expected_tools": ["set_layer_elevation"], "max_calls": {"list_layout_items": 2}}
+        verdict, note = self.checker.verdict_for_row(row, self.checker.evidence_requests(self.root))
+        self.assertEqual(verdict, "FAIL")
+        self.assertIn("list_layout_items x3", note)
 
     def test_a_request_with_no_evidence_is_reported_as_such(self):
         row = {"prompt": "something never asked", "expected_tools": ["x"]}
