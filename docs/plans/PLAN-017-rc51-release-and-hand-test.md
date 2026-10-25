@@ -22,3 +22,4 @@ Delete the pre-release (it does not affect `main`) or release a corrected rc52; 
 
 ## Status log
 - 2026-10-25: owner said go. Version, metadata changelog, CHANGELOG, README, Help text updated; the bundle builder gained 3 P16 rows and the OI-150 row was reworded in the open-issue sheet. The release workflow has not been run yet.
+- 2026-10-25: merged as #419 (4a24cd5), all CI green incl. live QGIS 4.2.2. Release workflow published the pre-release `cartogen-ai-v1.17.0-rc51`; zip SHA-256 e65a6987c36f60465fea7fe6c2b237aeda0c69e62ddb07dedb0d745f5d7f1d67, downloaded and checked equal to the published SHA256.txt and the asset digest. Bundle `dist/cartogen_ai_test_bundle_1.17.0-rc51.zip` built around exactly that zip: 90 rows (17 open-issue, 32 release incl. 3 new P16 rows, 41 plain-language), no .py files. Waiting for the owner's run and `4_RESULTS.csv`.
