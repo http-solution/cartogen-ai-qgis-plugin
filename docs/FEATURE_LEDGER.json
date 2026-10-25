@@ -902,6 +902,24 @@
     "sources": ["site/build_wiki.py", "site/wiki-home.md", "site/build.py", ".github/workflows/docs-site.yml", "docs/plans/PLAN-019-wiki-instead-of-pages.md"],
     "guards": ["tests/test_wiki_build.py::TestWikiBuild::test_no_broken_links_between_wiki_pages", "tests/test_wiki_build.py::TestWikiBuild::test_page_names_are_unique_and_safe_in_a_markdown_link", "tests/test_wiki_build.py::TestWikiBuild::test_code_is_left_alone_and_a_link_with_a_code_label_is_rewritten", "tests/test_wiki_build.py::TestWorkflowPublishesTheWikiNotPages::test_the_docs_workflow_syncs_the_wiki_and_no_longer_deploys_pages", "tests/test_wiki_build.py::TestWorkflowPublishesTheWikiNotPages::test_only_the_sync_job_can_write_and_it_does_not_run_on_pull_requests"],
     "hand_verified": "2026-10-25: the workflow pushed the pages to the wiki (docs-site run 40189308450, attempt 2) and the owner looked at the rendered wiki and found it fine"
+  },
+  {
+    "id": "hand-test-layout-check-script",
+    "feature": "tools/layout_check_script.py: a model-free check run once in the QGIS Python console builds its own project and measures and exports the layouts (legend against frame, footer against box and page, names, presets, profile, logo, sign-off, re-read, disclaimer, Help section), writes layout_check.json and the pages, and costs no API money; it runs in the CI live job before anyone runs it on a real machine",
+    "issues": [],
+    "since": "1.18.0 (unreleased change)",
+    "sources": ["tools/layout_check_script.py", "tests/test_layout_check_script_live.py", "docs/plans/PLAN-021-all-open-issues-and-hand-run-findings.md"],
+    "guards": ["tests/test_layout_check_script_live.py::TestLayoutCheckScript::test_every_check_runs_and_passes_and_the_files_are_written", "tests/test_hand_test_v2.py::TestLayoutCheckScriptShape::test_it_compiles_and_every_check_id_is_unique", "tests/test_hand_test_v2.py::TestLayoutCheckScriptShape::test_it_makes_no_model_call"],
+    "hand_verified": "not verified: CI only (CI's fonts); the owner's Windows fonts are exactly what the script is for"
+  },
+  {
+    "id": "hand-test-v2-bundle-and-evidence-checker",
+    "feature": "The v2 hand-test bundle is generated (tools/build_hand_test_v2.py from docs/HAND_TEST_V2_ROWS.json): independent rows that need a person, the version read from metadata.txt, the update steps in the README, stale words refused; tools/check_evidence.py reads the returned folder and prints a verdict per row from the evidence folders and the layout check",
+    "issues": [],
+    "since": "1.18.0 (unreleased change)",
+    "sources": ["tools/build_hand_test_v2.py", "tools/check_evidence.py", "docs/HAND_TEST_V2_ROWS.json"],
+    "guards": ["tests/test_hand_test_v2.py::TestSheetIsGeneratedAndNotStale::test_the_version_comes_from_metadata_not_from_the_rows", "tests/test_hand_test_v2.py::TestSheetIsGeneratedAndNotStale::test_every_row_states_where_it_starts_and_none_depends_on_another", "tests/test_hand_test_v2.py::TestSheetIsGeneratedAndNotStale::test_the_readme_carries_the_update_steps_the_update_row_points_to", "tests/test_hand_test_v2.py::TestEvidenceChecker::test_a_forbidden_tool_fails_the_row_and_the_tools_are_listed"],
+    "hand_verified": "not verified: offline tests only; no v2 bundle has been run by the owner yet"
   }
  ]
 }
