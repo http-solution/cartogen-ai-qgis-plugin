@@ -8,16 +8,20 @@ metadata changelog, CHANGELOG.md, README and this module agree). Checklist: CONT
 releases listed in NEW_MARK_VERSIONS.
 """
 
-WHATS_NEW_VERSION = "1.17.0-rc52"
-NEW_MARK_VERSIONS = ("1.17.0-rc51", "1.17.0-rc52")
+WHATS_NEW_VERSION = "1.18.0"
+NEW_MARK_VERSIONS = ("1.17.0-rc52", "1.18.0")
 
 # Headline items of the current version (the full list is the metadata.txt changelog block and CHANGELOG.md).
 WHATS_NEW_ITEMS = [
-    ('Disclaimer on print layouts', "The footer of every new print layout now carries your organisation's full disclaimer: 'Boundaries, names, and designations shown on this map are for informational and illustrative purposes only ...' (about 600 characters), replacing the short neutral sentence. Settings still has the box for your own wording and the checkbox to switch the line off."),
-    ('Disclaimer and terms of use in Help', 'The Help tab and the user guide have a new section, Disclaimer and terms of use, with the three numbered paragraphs: no endorsement or legal determination, disclaimer of warranties and limits on reliance, and user obligations and third-party rights.'),
-    ('A longer footer takes height from the map', 'Because the footer is longer, it takes the missing height from the bottom of the main map (at most a quarter of the map), and the info row, scale bar and north arrow move up with it. The map keeps its scale, so the visible area at the bottom gets a little smaller.'),
-    ('Known and open', "The disclaimer wording is the owner's own and has not been reviewed by a lawyer. The elevation profile in a layout rendered empty once in CI and has not been explained. The rc51 changes are still waiting for their hand-test results."),
-    ('Not hand-tested', 'Everything above is checked by the offline suite and, for the QGIS parts, by CI on QGIS 4.2.2. None of it has been hand-tested in desktop QGIS: nobody has looked at the longer footer on a real A4 or A3 page yet. Build differences since rc51 are these changes only.')
+    ('What this release is', '1.18.0 is the sum of the 1.17.0 release candidates 42 to 52 since the last stable build, 1.16.3. Unlike earlier stable builds it is not an rc that passed its own hand test: rc44 to rc46 and rc48 were hand-tested in desktop QGIS (in part), rc50 for 20 of its 87 rows, and everything else is checked by the offline suite and by CI on QGIS 4.2.2 only.'),
+    ('Many more QGIS actions by plain request', 'About 296 tools and about 435 approved Processing algorithms: editing, data sources, symbology and labels, print-layout charts, atlas and elevation profile, point cloud, vector tile and 3D tiles layers, raster calculator, layer groups, project CRS, bookmarks and selections, a watershed tool, sourced web research, Excel and CAD export, statistics and raster to polygons. Describe the job without naming the algorithm and the assistant finds it.'),
+    ('Cheaper and steadier requests', 'About a third fewer tool definitions are sent with each request, requests are no longer answered by an unrelated task plan, undo reaches back a few messages, long runs are bounded, and four calls to QGIS methods that do not exist were fixed and a test now blocks any new one.'),
+    ('Sensitive layers and exports', 'An export or atlas whose map draws a RESTRICTED or SENSITIVE layer, including a layer made from one by merge or rename, waits for your confirmation. A publication export is refused until the layout has a title, legend, scale bar and north arrow, has no protected layer without a stated reason, and, when the profile requires it, a named and dated review.'),
+    ('Print layouts', "Footer with sources, credits, the profile's own lines and a reviewer sign-off line; a No data class for graduated maps; page sizes A4, A3, A2 and A1; export presets (draft 96, web 150, print 300 dpi) and file names from the title and the date; layout checks for overflow, overlap and items off the page; the footer is sized from the font actually used."),
+    ('Map profiles', "A small JSON file holds what your team repeats on every map: page size, orientation, preset, file name pattern, required elements, your logo (PNG or JPG), masthead colours, font, footer lines, sign-off, and a COD flag with your own credit wording. Changes to the file apply to layouts you already made. No organisation's template or mark ships."),
+    ('Disclaimer', "The footer of every print layout carries the full disclaimer wording supplied by the owner (replaceable in Settings), and the Help and user guide have a Disclaimer and terms of use section. The wording is the owner's own and has not been reviewed by a lawyer."),
+    ('Known and open', 'The elevation profile in a layout rendered empty once in CI and has not been explained. Open issues are listed in docs/OPEN_ISSUES_STATUS_2026-10-25.md; none is closed without a hand-verified pass or an owner decision. A clean-profile install and an in-place upgrade have not been run on this line since rc6.'),
+    ('Not hand-tested', 'The longer footer, page sizes A3 to A1, profiles with logo and sign-off, the lineage check on exports, and the contour routing have not been looked at by a person in desktop QGIS. A hand-test file for exactly these points is delivered with this build.')
 ]
 
 HUMANITARIAN_WORKFLOWS = [('1. Rapid crisis and base mapping',

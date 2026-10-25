@@ -20,17 +20,17 @@
   <a href="https://cartogenai.com"><img src="https://img.shields.io/badge/website-cartogenai.com-0b6efd" alt="Website"></a>
 </p>
 
-**Community edition · Version 1.17.0-rc52 (pre-release) · GNU GPL v2 · QGIS 4.2–4.99 · [cartogenai.com](https://cartogenai.com)**
+**Community edition · Version 1.18.0 · GNU GPL v2 · QGIS 4.2–4.99 · [cartogenai.com](https://cartogenai.com)**
 
 Cartogen AI is built for GIS analysts, humanitarian teams, researchers, and anyone who
 needs to move from a question to a reproducible spatial result without leaving QGIS.
 The agent exposes its plan, tool calls, progress, and errors instead of returning a
 black-box answer.
 
-> **Project status (2026-10-24):** active Community edition, currently at the **1.17.0-rc52 pre-release** build (the last stable build is 1.16.3; rc20 to 1.17.0-rc52 add the audit fixes, hand-test fixes and the cost and routing work made after rc19).
-> - **Tests:** 4,951 automated tests run offline, 0 failures (738 skipped there: the live-QGIS tests and those needing optional libraries). The QGIS ones run in CI (the `qgis-live-tests` job, QGIS 4.2.2) together with ruff, mypy and a release-zip check.
-> - **Hand testing:** rc44 to rc46 were hand-tested in desktop QGIS 4.2.3 (tool sweep: 65 of 83 rows Pass, 1 Fail, the rest Partial or Skip; 21 of 21 priority algorithms Pass); the plain-language algorithm test (385 prompts) has **not** been run. rc48 was hand-tested on 2026-10-24 (52 of 87 rows Pass, 18 Partial, 16 Fail, 1 Skip; results in [docs/HAND_TEST_RESULTS_rc48_2026-10-24.md](docs/HAND_TEST_RESULTS_rc48_2026-10-24.md)); the rc49 changes are CI-checked only until its lean hand test ([docs/LEAN_HAND_TEST_PROTOCOL.md](docs/LEAN_HAND_TEST_PROTOCOL.md)) is run.
-> - **Open issues (28):** the external architectural audit of rc12 (tracking issue #169) and the smoke-test findings (#72 and its children) are fixed in code and CI-verified except where a comment on the issue says otherwise; they stay open until a hand-verified PASS, because no issue is closed without one. Per-issue status: [docs/OPEN_ISSUES_STATUS_2026-10-23.md](docs/OPEN_ISSUES_STATUS_2026-10-23.md).
+> **Project status (2026-10-25):** active Community edition, currently at **1.18.0**, the sum of the 1.17.0 release candidates 42 to 52 since the last stable build (1.16.3). It is NOT an rc that passed its own hand test; see the hand-testing line below.
+> - **Tests:** 4,952 automated tests run offline, 0 failures (738 skipped there: the live-QGIS tests and those needing optional libraries). The QGIS ones run in CI (the `qgis-live-tests` job, QGIS 4.2.2) together with ruff, mypy and a release-zip check.
+> - **Hand testing:** rc44 to rc46 were hand-tested in desktop QGIS 4.2.3 (tool sweep: 65 of 83 rows Pass, 1 Fail, the rest Partial or Skip; 21 of 21 priority algorithms Pass); the plain-language algorithm test (385 prompts) has **not** been run. rc48 was hand-tested on 2026-10-24 (52 of 87 rows Pass, 18 Partial, 16 Fail, 1 Skip; results in [docs/HAND_TEST_RESULTS_rc48_2026-10-24.md](docs/HAND_TEST_RESULTS_rc48_2026-10-24.md)); the changes from rc49 to 1.18.0 are CI-checked only (a partial rc50 run covered 20 of its 87 rows) until the precise hand test ([docs/LEAN_HAND_TEST_PROTOCOL.md](docs/LEAN_HAND_TEST_PROTOCOL.md)) is run.
+> - **Open issues (12):** the external architectural audit of rc12 (tracking issue #169) and the smoke-test findings (#72 and its children) are fixed in code and CI-verified except where a comment on the issue says otherwise; they stay open until a hand-verified PASS, because no issue is closed without one. Per-issue status: [docs/OPEN_ISSUES_STATUS_2026-10-25.md](docs/OPEN_ISSUES_STATUS_2026-10-25.md).
 > - **Not yet verified:** a clean-profile install and an in-place upgrade on a recent release candidate (last done on rc6), and the 28-tool default of rc47 against live model answers.
 > - Details: [the release smoke test](docs/RELEASE_SMOKE_TEST.md), [the implementation tracker](docs/IMPLEMENTATION_TRACKER.md), [done versus tested](docs/STATUS_DONE_VS_TESTED_2026-10-16.md).
 
@@ -80,15 +80,19 @@ black-box answer.
   read-only SQL enforcement, an SSRF guard on fetched URLs, and a destructive-action
   confirmation gate the model cannot self-approve.
 
-## What's new in 1.17.0-rc52
+## What's new in 1.18.0
 
-Built on 1.17.0-rc51. Offline tests and the QGIS 4.2.2 live checks in CI pass; **not hand-tested** in desktop QGIS unless an item says so. Full list: the `v1.17.0-rc52` block in [metadata.txt](metadata.txt) and [CHANGELOG.md](CHANGELOG.md).
+Built on 1.17.0-rc51. Offline tests and the QGIS 4.2.2 live checks in CI pass; **not hand-tested** in desktop QGIS unless an item says so. Full list: the `v1.18.0` block in [metadata.txt](metadata.txt) and [CHANGELOG.md](CHANGELOG.md).
 
-- Disclaimer on print layouts: The footer of every new print layout now carries your organisation's full disclaimer: 'Boundaries, names, and designations shown on this map are for informational and illustrative purposes only ...' (about 600 characters), replacing the short neutral sentence. Settings still has the box for your own wording and the checkbox to switch the line off.
-- Disclaimer and terms of use in Help: The Help tab and the user guide have a new section, Disclaimer and terms of use, with the three numbered paragraphs: no endorsement or legal determination, disclaimer of warranties and limits on reliance, and user obligations and third-party rights.
-- A longer footer takes height from the map: Because the footer is longer, it takes the missing height from the bottom of the main map (at most a quarter of the map), and the info row, scale bar and north arrow move up with it. The map keeps its scale, so the visible area at the bottom gets a little smaller.
-- Known and open: The disclaimer wording is the owner's own and has not been reviewed by a lawyer. The elevation profile in a layout rendered empty once in CI and has not been explained. The rc51 changes are still waiting for their hand-test results.
-- Not hand-tested: Everything above is checked by the offline suite and, for the QGIS parts, by CI on QGIS 4.2.2. None of it has been hand-tested in desktop QGIS: nobody has looked at the longer footer on a real A4 or A3 page yet. Build differences since rc51 are these changes only.
+- What this release is: 1.18.0 is the sum of the 1.17.0 release candidates 42 to 52 since the last stable build, 1.16.3. Unlike earlier stable builds it is not an rc that passed its own hand test: rc44 to rc46 and rc48 were hand-tested in desktop QGIS (in part), rc50 for 20 of its 87 rows, and everything else is checked by the offline suite and by CI on QGIS 4.2.2 only.
+- Many more QGIS actions by plain request: About 296 tools and about 435 approved Processing algorithms: editing, data sources, symbology and labels, print-layout charts, atlas and elevation profile, point cloud, vector tile and 3D tiles layers, raster calculator, layer groups, project CRS, bookmarks and selections, a watershed tool, sourced web research, Excel and CAD export, statistics and raster to polygons. Describe the job without naming the algorithm and the assistant finds it.
+- Cheaper and steadier requests: About a third fewer tool definitions are sent with each request, requests are no longer answered by an unrelated task plan, undo reaches back a few messages, long runs are bounded, and four calls to QGIS methods that do not exist were fixed and a test now blocks any new one.
+- Sensitive layers and exports: An export or atlas whose map draws a RESTRICTED or SENSITIVE layer, including a layer made from one by merge or rename, waits for your confirmation. A publication export is refused until the layout has a title, legend, scale bar and north arrow, has no protected layer without a stated reason, and, when the profile requires it, a named and dated review.
+- Print layouts: Footer with sources, credits, the profile's own lines and a reviewer sign-off line; a No data class for graduated maps; page sizes A4, A3, A2 and A1; export presets (draft 96, web 150, print 300 dpi) and file names from the title and the date; layout checks for overflow, overlap and items off the page; the footer is sized from the font actually used.
+- Map profiles: A small JSON file holds what your team repeats on every map: page size, orientation, preset, file name pattern, required elements, your logo (PNG or JPG), masthead colours, font, footer lines, sign-off, and a COD flag with your own credit wording. Changes to the file apply to layouts you already made. No organisation's template or mark ships.
+- Disclaimer: The footer of every print layout carries the full disclaimer wording supplied by the owner (replaceable in Settings), and the Help and user guide have a Disclaimer and terms of use section. The wording is the owner's own and has not been reviewed by a lawyer.
+- Known and open: The elevation profile in a layout rendered empty once in CI and has not been explained. Open issues are listed in docs/OPEN_ISSUES_STATUS_2026-10-25.md; none is closed without a hand-verified pass or an owner decision. A clean-profile install and an in-place upgrade have not been run on this line since rc6.
+- Not hand-tested: The longer footer, page sizes A3 to A1, profiles with logo and sign-off, the lineage check on exports, and the contour routing have not been looked at by a person in desktop QGIS. A hand-test file for exactly these points is delivered with this build.
 
 ## What's new in 1.17.0-rc51
 
