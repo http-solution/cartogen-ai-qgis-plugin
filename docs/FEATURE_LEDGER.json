@@ -1046,6 +1046,15 @@
     "sources": ["src/cartogen_ai/core/agent/tools/reporting_tools.py"],
     "guards": ["tests/test_persistence_live.py::TestCoverageChartIsDrawn::test_the_chart_file_is_a_real_picture_with_ink_on_it", "tests/test_plan010_correctness.py::TestCoverageChartSkipsMissingTargets::test_groups_without_a_target_are_not_plotted_as_zero"],
     "hand_verified": "not verified: CI only (the 1.18.0 run did not open the chart image)"
+  },
+  {
+    "id": "layout-items-say-whether-they-drew",
+    "feature": "add_layout_chart and add_layout_elevation_profile render their own item once and say in the result whether it drew data (render_check: drew, coloured pixels, minimum) and, when it drew only axes or nothing, why that may be and what to check (render_warning); the profile curve is rendered five times in CI to catch a flaky render",
+    "issues": ["#379"],
+    "since": "1.18.0 (unreleased change)",
+    "sources": ["src/cartogen_ai/core/agent/tools/layout_chart_profile_tools.py"],
+    "guards": ["tests/test_layout_item_ink.py::TestInkVerdict::test_axes_only_is_reported_as_empty_with_what_to_check", "tests/test_layout_item_ink.py::TestInkVerdict::test_the_boundary_is_the_documented_minimum", "tests/test_layout_items_render_live.py::TestLayoutItemsRender::test_every_tool_says_whether_its_item_drew_data", "tests/test_layout_items_render_live.py::TestLayoutItemsRender::test_the_profile_curve_is_there_every_time_it_is_rendered", "tests/test_layout_items_render_live.py::TestLayoutItemsRender::test_the_rendered_items_are_not_empty"],
+    "hand_verified": "not verified: CI only. Placement and the empty bar, pie, line and profile items were fixed under PLAN-008 (CI renders: bar 0.130, pie 0.382, line 0.001, profile 0.011 to 0.012 of their area coloured, two runs); the owner has not looked at them since"
   }
  ]
 }

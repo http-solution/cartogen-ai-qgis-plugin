@@ -103,6 +103,31 @@ class TestLayoutItemsRender(unittest.TestCase):
         empty = [k for k, (c, _n, t) in stats.items() if c * t < 100]   # a thin line or curve is a few hundred pixels at 5 px/mm; an empty plot is none
         self.assertEqual(empty, [], f"these items drew no colour (measured: {report})")
 
+    def test_every_tool_says_whether_its_item_drew_data(self):
+        """#379: a chart or profile that drew nothing used to be reported as added with no hint; the result now carries render_check."""
+        from cartogen_ai.core.agent.tools.layout_chart_profile_tools import add_layout_chart, add_layout_elevation_profile
+        from cartogen_ai.core.agent.tools.elevation_tools import set_layer_elevation
+        for kind in ("bar", "pie", "line"):
+            res = add_layout_chart("render", "towns", "name", "pop", chart_type=kind, item_id=f"chart_{kind}")
+            self.assertTrue(res["render_check"]["drew"], (kind, res))
+            self.assertNotIn("render_warning", res)
+        self.assertTrue(set_layer_elevation("dem", enabled=True, mode="surface", band=1).get("success"))
+        res = add_layout_elevation_profile("render", ["dem"], 0.2, 0.2, 3.8, 3.8, item_id="profile_dem", width_mm=120, height_mm=60)
+        self.assertTrue(res["render_check"]["drew"], res)
+
+    def test_the_profile_curve_is_there_every_time_it_is_rendered(self):
+        """#379 said the elevation-profile render was intermittently empty in CI. Rendering the same layout five times must give a curve each
+        time, with ink counts that agree to within a third of each other; a flaky render fails here with the five numbers."""
+        ids = self._build()
+        rect = self.layout.itemById(ids["profile"]).sceneBoundingRect()
+        counts = []
+        for _ in range(5):
+            image = QgsLayoutExporter(self.layout).renderRegionToImage(rect, QSize(int(rect.width() * PX_PER_MM), int(rect.height() * PX_PER_MM)))
+            counts.append(sum(1 for x in range(0, image.width(), 2) for y in range(0, image.height(), 2) if QColor(image.pixel(x, y)).hsvSaturation() > 60) * 4)
+        print(f"LAYOUTRENDER profile five renders: {counts}")
+        self.assertTrue(all(c >= 100 for c in counts), counts)
+        self.assertLessEqual(max(counts) - min(counts), max(counts) / 3, counts)
+
 
 if __name__ == "__main__":
     unittest.main()

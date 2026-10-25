@@ -117,6 +117,39 @@ def _elevation_range(layers):
     return low - pad, high + pad
 
 
+MIN_INK_PIXELS = 100      # the rendered test of tests/test_layout_items_render_live.py: a thin curve is a few hundred coloured pixels at 4 px/mm, an empty plot none
+RENDER_PX_PER_MM = 4
+
+
+def ink_verdict(coloured_pixels, minimum=MIN_INK_PIXELS):
+    """The part of the tool result that says whether the item drew anything. Pure. Axes and grid lines are grey, so only coloured pixels count
+    (a plot with axes and no data has none): rc48 A12 and A6 showed empty grids and a profile without its curve, with nothing in the reply saying so."""
+    drew = coloured_pixels >= minimum
+    out = {"drew": drew, "coloured_pixels": int(coloured_pixels), "minimum": minimum}
+    if not drew:
+        out["warning"] = ("The item was added but drew no data when rendered, only axes or nothing. Check that the layer has values in the fields used "
+                          "and, for a profile, that the line crosses the raster and its elevation is turned on, then look at the layout.")
+    return out
+
+
+def _render_check(layout, item):
+    """ink_verdict() for what `item` actually renders as on `layout`, or None when it cannot be rendered here. Never raises."""
+    try:
+        from qgis.core import QgsLayoutExporter
+        from qgis.PyQt.QtCore import QSize
+        rect = item.sceneBoundingRect()
+        size = QSize(max(1, int(rect.width() * RENDER_PX_PER_MM)), max(1, int(rect.height() * RENDER_PX_PER_MM)))
+        image = QgsLayoutExporter(layout).renderRegionToImage(rect, size)
+        if image.isNull():
+            return None
+        step = 2
+        coloured = sum(1 for x in range(0, image.width(), step) for y in range(0, image.height(), step)
+                       if image.pixelColor(x, y).hsvSaturation() > 60) * step * step
+        return ink_verdict(coloured)
+    except Exception:
+        return None
+
+
 def _place(item, layout, box, item_id):
     if item_id:
         item.setId(item_id)
@@ -194,7 +227,12 @@ def add_layout_chart(layout_name, layer_name, x_field, y_field, chart_type="bar"
     from ._sensitivity_notes import protected_layer_notes
     out = {"success": True, "layout_name": layout_name, "item_id": item.id(), "chart_type": options["chart_type"], "layer_name": layer.name(),
            "series": len(item.seriesList()), "x_mm": box["x_mm"], "y_mm": box["y_mm"],
-           "note": "The item is on the layout. How the chart renders or exports has not been checked by the plugin; look at the layout."}
+           "note": "The item is on the layout; render_check says whether it drew any data. Look at the layout before exporting."}
+    check = _render_check(layout, item)
+    if check:
+        out["render_check"] = {k: v for k, v in check.items() if k != "warning"}
+        if check.get("warning"):
+            out["render_warning"] = check["warning"]
     notes = protected_layer_notes([layer], "the chart shows its values and the layout's classification footer was not changed. Check the layout "
                                            "before exporting. Advisory only, nothing was blocked.")
     if notes:
@@ -268,7 +306,12 @@ def add_layout_elevation_profile(layout_name, layer_names, start_x=None, start_y
     _place(item, layout, box, item_id)
     out = {"success": True, "layout_name": layout_name, "item_id": item.id(), "layers": [layer.name() for layer in layers],
            "x_mm": box["x_mm"], "y_mm": box["y_mm"],
-           "note": "The item is on the layout. How the profile renders or exports has not been checked by the plugin; look at the layout."}
+           "note": "The item is on the layout; render_check says whether it drew a curve. Look at the layout before exporting."}
+    check = _render_check(layout, item)
+    if check:
+        out["render_check"] = {k: v for k, v in check.items() if k != "warning"}
+        if check.get("warning"):
+            out["render_warning"] = check["warning"]
     if placement_note:
         out["placement_note"] = placement_note
     return out
