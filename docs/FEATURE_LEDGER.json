@@ -1001,6 +1001,15 @@
     "sources": ["src/cartogen_ai/core/agent/loop_guard.py"],
     "guards": ["tests/test_wp_d_routing.py::TestRepeatedListingSaysWhy::test_a_repeated_layout_listing_names_the_next_step", "tests/test_wp_d_routing.py::TestRepeatedListingSaysWhy::test_another_tool_gets_the_plain_sentence"],
     "hand_verified": "not verified: CI only. Whether the model now adds the profile instead of looping is a model behaviour; row V5-profile is the hand check"
+  },
+  {
+    "id": "undo-add-field",
+    "feature": "undo_last_operation reverses add_field: the new field is removed again while it is empty; once it holds values undo refuses, says so, and changes nothing (deleting a filled column stays a deliberate delete_field step that asks)",
+    "issues": ["#425"],
+    "since": "1.18.0 (unreleased change)",
+    "sources": ["src/cartogen_ai/core/agent/tools/_snapshot_registry.py", "src/cartogen_ai/core/agent/tools/transaction_tools.py", "src/cartogen_ai/core/agent/tools/attribute_edit_tools.py"],
+    "guards": ["tests/test_undo_add_field.py::TestSnapshotAndRestore::test_an_empty_field_is_removed", "tests/test_undo_add_field.py::TestSnapshotAndRestore::test_a_filled_field_is_kept_and_the_reason_is_given", "tests/test_undo_add_field.py::TestTheUndoToolPassesTheReasonOn::test_a_refusal_reaches_the_user_instead_of_a_generic_failure", "tests/test_undo_add_field_live.py::TestUndoOfAddField::test_an_empty_new_field_is_taken_away_by_undo", "tests/test_undo_add_field_live.py::TestUndoOfAddField::test_a_field_that_was_filled_after_it_was_added_is_kept", "tests/test_snapshot_registry.py::TestRegistryLookups::test_priority_subset_tools_are_all_registered"],
+    "hand_verified": "not verified: CI only (the rc48 observation was that undo left the field in place; row V9-undo-field is the hand check)"
   }
  ]
 }
