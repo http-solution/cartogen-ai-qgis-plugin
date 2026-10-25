@@ -603,11 +603,11 @@ class CartogenAiSettingsDialog(QDialog):
         limits_form.addRow("Layout disclaimer:", self.layout_disclaimer_checkbox)
         self.layout_disclaimer_edit = QLineEdit()
         self.layout_disclaimer_edit.setMaxLength(300)
-        self.layout_disclaimer_edit.setPlaceholderText("empty = neutral default; enter your organisation's wording here")
+        self.layout_disclaimer_edit.setPlaceholderText("empty = the standard Cartogen AI disclaimer; enter your organisation's wording here")
         self.layout_disclaimer_edit.setText(str(self.settings.value(LAYOUT_DISCLAIMER_TEXT_KEY, "") or ""))
         self.layout_disclaimer_edit.setToolTip(
             "The exact boundary and data-sensitivity wording your organisation requires on a published map. "
-            "Empty uses a neutral default. Keep it to a line or two: the footer grows to fit, but the space on the page is limited.")
+            "Empty uses the standard Cartogen AI disclaimer (about four lines). Keep your own to a few lines: the footer grows to fit, taking height from the bottom of the map, but the space on the page is limited.")
         limits_form.addRow("Disclaimer wording:", self.layout_disclaimer_edit)
         self.local_data_ask_spin = QSpinBox()
         self.local_data_ask_spin.setRange(0, 100_000)

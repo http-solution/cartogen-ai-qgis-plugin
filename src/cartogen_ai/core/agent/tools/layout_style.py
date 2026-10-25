@@ -21,6 +21,7 @@ import contextlib
 import datetime
 import os
 
+from ...disclaimer_text import LAYOUT_DISCLAIMER
 from .routing_style import ACCESS_STYLES
 
 try:
@@ -300,8 +301,7 @@ def footer_text(base, levels):
 
 # PLAN-011 phase C (owner decision 2026-10-24): a neutral default; the organisation's own wording (for example the standard UN boundary text)
 # is supplied through Settings, not written here.
-DEFAULT_DISCLAIMER = ("Boundaries, names and designations shown do not imply official endorsement or acceptance. "
-                      "Check data sensitivity before sharing.")
+DEFAULT_DISCLAIMER = LAYOUT_DISCLAIMER   # the owner's wording (2026-10-25); replaces the neutral sentence
 SOURCES_CHAR_BUDGET = 150
 NOT_RECORDED = "source not recorded"
 
@@ -757,8 +757,9 @@ def _style_footer(layout, layout_mm, levels, source_entries=(), credit_text="", 
             break
     else:
         # PLAN-014 3b CI: a profile's footer lines plus sign-off make 6 to 8 lines, more than the strip under the map holds (A3: needs 31 mm, box 18).
-        # The profile asked for those lines, so the map gives up the missing height from its bottom edge before anything is warned about.
-        if extra_lines and _reclaim_from_map(layout, layout_mm, label, needed - new_h):
+        # The owner's full disclaimer (about 600 characters, 2026-10-25) does the same for every layout, so the map gives up the missing height from
+        # its bottom edge before anything is warned about.
+        if _reclaim_from_map(layout, layout_mm, label, needed - new_h):
             new_y, new_h, fits = plan_footer_growth(needed, label.rect().height(), label.y(), page_height, _clearance_above(layout, label))
         if not fits:
             warnings.append("footer: the sources and disclaimer text may not fit in the space available; shorten the disclaimer in Settings")
