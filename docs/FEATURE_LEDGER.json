@@ -1010,6 +1010,42 @@
     "sources": ["src/cartogen_ai/core/agent/tools/_snapshot_registry.py", "src/cartogen_ai/core/agent/tools/transaction_tools.py", "src/cartogen_ai/core/agent/tools/attribute_edit_tools.py"],
     "guards": ["tests/test_undo_add_field.py::TestSnapshotAndRestore::test_an_empty_field_is_removed", "tests/test_undo_add_field.py::TestSnapshotAndRestore::test_a_filled_field_is_kept_and_the_reason_is_given", "tests/test_undo_add_field.py::TestTheUndoToolPassesTheReasonOn::test_a_refusal_reaches_the_user_instead_of_a_generic_failure", "tests/test_undo_add_field_live.py::TestUndoOfAddField::test_an_empty_new_field_is_taken_away_by_undo", "tests/test_undo_add_field_live.py::TestUndoOfAddField::test_a_field_that_was_filled_after_it_was_added_is_kept", "tests/test_snapshot_registry.py::TestRegistryLookups::test_priority_subset_tools_are_all_registered"],
     "hand_verified": "not verified: CI only (the rc48 observation was that undo left the field in place; row V9-undo-field is the hand check)"
+  },
+  {
+    "id": "chat-export-after-reopen",
+    "feature": "Twenty exchanges saved in one chat survive save and reopen of the project; the data export holds all forty messages with their times and a statement of what it holds; the Memory dialog's delete empties it",
+    "issues": ["#97"],
+    "since": "1.18.0 (unreleased change)",
+    "sources": ["src/cartogen_ai/core/agent/chat_persistence.py", "src/cartogen_ai/core/agent/tools/data_export_tools.py"],
+    "guards": ["tests/test_persistence_live.py::TestTwentyExchangesSurviveReopen::test_all_forty_messages_are_in_the_export_after_save_and_reopen_and_the_delete_empties_it", "tests/test_chat_transcript_live.py::TestChatTranscriptInARealProject::test_it_survives_saving_and_reopening_the_project_file"],
+    "hand_verified": "partly: the owner's 1.18.0 run exported all 20 exchanges (40 messages, times, retention note) from the live chat; the reopened project was CI only"
+  },
+  {
+    "id": "point-layer-kept-or-said-temporary",
+    "feature": "A point layer add_point_layer creates is kept in the project's results GeoPackage when the project is saved (and is there after reopen); otherwise the result says it is temporary and why",
+    "issues": ["#120"],
+    "since": "1.18.0 (unreleased change)",
+    "sources": ["src/cartogen_ai/core/agent/tools/humanitarian_tools.py", "src/cartogen_ai/core/agent/results_store.py"],
+    "guards": ["tests/test_persistence_live.py::TestPointLayerIsKeptOrSaidTemporary::test_in_a_saved_project_the_layer_is_kept_and_is_there_after_reopen", "tests/test_persistence_live.py::TestPointLayerIsKeptOrSaidTemporary::test_in_an_unsaved_project_the_result_says_it_is_temporary", "tests/test_persistence_live.py::TestPointLayerIsKeptOrSaidTemporary::test_a_second_point_added_to_the_kept_layer_works", "tests/test_temporary_note.py::TestTemporaryNote::test_an_unsaved_project_is_named_as_the_reason"],
+    "hand_verified": "not verified: CI only (the black raster and labels parts of #120 were closed on rc50 and CI evidence earlier)"
+  },
+  {
+    "id": "buffer-then-rename-stays-protected",
+    "feature": "The lineage the agent records for the real buffer tool survives renaming both the buffer and its SENSITIVE source: the sensitivity label says protected through lineage and a layout export that draws the buffer asks first",
+    "issues": ["#150"],
+    "since": "1.18.0 (unreleased change)",
+    "sources": ["src/cartogen_ai/core/agent/lineage.py", "src/cartogen_ai/core/agent/agent_orchestrator.py", "src/cartogen_ai/core/agent/protection.py"],
+    "guards": ["tests/test_persistence_live.py::TestBufferThenRenameStaysProtected::test_the_lineage_recorded_for_the_real_buffer_tool_survives_the_rename", "tests/test_plan016_item2_live.py::TestExportFollowsLineage::test_exporting_a_map_that_draws_the_derived_layer_asks_first"],
+    "hand_verified": "partly: the owner's 1.18.0 merge-then-rename row confirmed the lineage label; the buffer-then-rename row was not run by hand"
+  },
+  {
+    "id": "coverage-chart-is-drawn",
+    "feature": "The sector coverage chart a tool writes is a real picture: bars for the groups with a target, none for a group without one, and ink on the page",
+    "issues": [],
+    "since": "1.18.0 (unreleased change)",
+    "sources": ["src/cartogen_ai/core/agent/tools/reporting_tools.py"],
+    "guards": ["tests/test_persistence_live.py::TestCoverageChartIsDrawn::test_the_chart_file_is_a_real_picture_with_ink_on_it", "tests/test_plan010_correctness.py::TestCoverageChartSkipsMissingTargets::test_groups_without_a_target_are_not_plotted_as_zero"],
+    "hand_verified": "not verified: CI only (the 1.18.0 run did not open the chart image)"
   }
  ]
 }

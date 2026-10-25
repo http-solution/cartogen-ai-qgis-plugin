@@ -2064,6 +2064,24 @@ def _wgs84_transformer(source_crs):
     return transform
 
 
+def _keep_or_say_temporary(layer, result):
+    """Keep a new point layer across Save and Reopen in the project's results GeoPackage (results_store.py), or say in the result that it is
+    temporary (#120: the origin layers were silently scratch layers). A layer that is not a memory layer any more is left alone. Never raises."""
+    try:
+        from ..results_store import is_persistable, persist_layer, temporary_note
+        if not is_persistable(layer):
+            return
+        outcome = persist_layer(layer, tool="add_point_layer")
+        note = temporary_note(outcome)
+    except Exception as exc:
+        outcome, note = {"persisted": False}, f"This layer is temporary: it could not be saved with the project ({type(exc).__name__})."
+    if outcome.get("persisted"):
+        result["saved_with_project"] = True
+    else:
+        result["temporary"] = True
+        result["temporary_note"] = note
+
+
 @register_tool(
     "add_point_layer",
     "Create a new point layer (or append to an existing one with the same name) from a LIST of real, "
@@ -2225,6 +2243,8 @@ def add_point_layer(layer_name: str, points: list, crs: str | None = None, crs_s
     layer.triggerRepaint()
 
     result = {"success": added > 0, "layer_name": layer_name, "added": added, "requested": len(points)}
+    if added > 0:
+        _keep_or_say_temporary(layer, result)
     if placed:
         # The exact WGS84 positions actually used -- report THESE, never numbers computed by hand.
         result["placed_wgs84"] = placed[:20]
