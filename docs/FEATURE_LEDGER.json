@@ -901,7 +901,7 @@
     "since": "1.18.0 (unreleased change)",
     "sources": ["site/build_wiki.py", "site/wiki-home.md", "site/build.py", ".github/workflows/docs-site.yml", "docs/plans/PLAN-019-wiki-instead-of-pages.md"],
     "guards": ["tests/test_wiki_build.py::TestWikiBuild::test_no_broken_links_between_wiki_pages", "tests/test_wiki_build.py::TestWikiBuild::test_page_names_are_unique_and_safe_in_a_markdown_link", "tests/test_wiki_build.py::TestWikiBuild::test_code_is_left_alone_and_a_link_with_a_code_label_is_rewritten", "tests/test_wiki_build.py::TestWorkflowPublishesTheWikiNotPages::test_the_docs_workflow_syncs_the_wiki_and_no_longer_deploys_pages", "tests/test_wiki_build.py::TestWorkflowPublishesTheWikiNotPages::test_only_the_sync_job_can_write_and_it_does_not_run_on_pull_requests"],
-    "hand_verified": "not verified: the push to the wiki has not run (the wiki's git repository does not exist until the owner saves a first page)"
+    "hand_verified": "2026-10-25: the workflow pushed the pages to the wiki (docs-site run 40189308450, attempt 2) and the owner looked at the rendered wiki and found it fine"
   }
  ]
 }

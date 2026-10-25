@@ -1,6 +1,6 @@
 # PLAN-019: publish the documentation to the GitHub wiki instead of GitHub Pages
 
-Status: in progress
+Status: done
 
 ## Goal
 The owner chose the wiki over GitHub Pages (2026-10-25). The documentation keeps one source (the repository) and is published to https://github.com/http-solution/cartogen-ai-qgis-plugin/wiki automatically, with no hand-maintained copy.
@@ -29,3 +29,4 @@ Revert the pull request: the old Pages workflow returns. The wiki, once pushed, 
 
 ## Status log
 - 2026-10-25: owner asked for the wiki instead of Pages and chose the two options above. Built and tested offline (53 pages, no link errors); the push to the wiki has not been run.
+- 2026-10-25: #429 merged. The first run on main warned and published nothing (no wiki repository yet). After the owner saved a first page, the re-run of docs-site (run 40189308450, attempt 2) pushed the pages with the built-in token while "Restrict editing to collaborators only" was on. The owner looked at the rendered wiki and found it fine. Still owed by the owner: Settings > Pages > Unpublish site.
