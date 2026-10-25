@@ -20,17 +20,17 @@
   <a href="https://cartogenai.com"><img src="https://img.shields.io/badge/website-cartogenai.com-0b6efd" alt="Website"></a>
 </p>
 
-**Community edition · Version 1.18.0 · GNU GPL v2 · QGIS 4.2–4.99 · [cartogenai.com](https://cartogenai.com)**
+**Community edition · Version 1.18.1 · GNU GPL v2 · QGIS 4.2–4.99 · [cartogenai.com](https://cartogenai.com)**
 
 Cartogen AI is built for GIS analysts, humanitarian teams, researchers, and anyone who
 needs to move from a question to a reproducible spatial result without leaving QGIS.
 The agent exposes its plan, tool calls, progress, and errors instead of returning a
 black-box answer.
 
-> **Project status (2026-10-25):** active Community edition, currently at **1.18.0**, the sum of the 1.17.0 release candidates 42 to 52 since the last stable build (1.16.3). It is NOT an rc that passed its own hand test; see the hand-testing line below.
-> - **Tests:** 4,952 automated tests run offline, 0 failures (738 skipped there: the live-QGIS tests and those needing optional libraries). The QGIS ones run in CI (the `qgis-live-tests` job, QGIS 4.2.2) together with ruff, mypy and a release-zip check.
-> - **Hand testing:** rc44 to rc46 were hand-tested in desktop QGIS 4.2.3 (tool sweep: 65 of 83 rows Pass, 1 Fail, the rest Partial or Skip; 21 of 21 priority algorithms Pass); the plain-language algorithm test (385 prompts) has **not** been run. rc48 was hand-tested on 2026-10-24 (52 of 87 rows Pass, 18 Partial, 16 Fail, 1 Skip; results in [docs/HAND_TEST_RESULTS_rc48_2026-10-24.md](docs/HAND_TEST_RESULTS_rc48_2026-10-24.md)); the changes from rc49 to 1.18.0 are CI-checked only (a partial rc50 run covered 20 of its 87 rows) until the precise hand test ([docs/LEAN_HAND_TEST_PROTOCOL.md](docs/LEAN_HAND_TEST_PROTOCOL.md)) is run.
-> - **Open issues (12):** the external architectural audit of rc12 (tracking issue #169) and the smoke-test findings (#72 and its children) are fixed in code and CI-verified except where a comment on the issue says otherwise; they stay open until a hand-verified PASS, because no issue is closed without one. Per-issue status: [docs/OPEN_ISSUES_STATUS_2026-10-25.md](docs/OPEN_ISSUES_STATUS_2026-10-25.md).
+> **Project status (2026-10-25):** active Community edition, currently at **1.18.1**, a patch on 1.18.0 (the sum of the 1.17.0 release candidates 42 to 52 since 1.16.3). Neither has passed a full hand test; see the hand-testing line below.
+> - **Tests:** 5,043 automated tests run offline, 0 failures (757 skipped there: the live-QGIS tests and those needing optional libraries). The QGIS ones run in CI (the `qgis-live-tests` job, QGIS 4.2.2) together with ruff, mypy and a release-zip check.
+> - **Hand testing:** rc44 to rc46 were hand-tested in desktop QGIS 4.2.3 (tool sweep: 65 of 83 rows Pass, 1 Fail, the rest Partial or Skip; 21 of 21 priority algorithms Pass); the plain-language algorithm test (385 prompts) has **not** been run. rc48 was hand-tested on 2026-10-24 (52 of 87 rows Pass, 18 Partial, 16 Fail, 1 Skip; results in [docs/HAND_TEST_RESULTS_rc48_2026-10-24.md](docs/HAND_TEST_RESULTS_rc48_2026-10-24.md)); the changes from rc49 to 1.18.0 are CI-checked only (a partial rc50 run covered 20 of its 87 rows) until the v2 hand test (a layout check script that costs no API money, plus nine rows; [docs/LEAN_HAND_TEST_PROTOCOL.md](docs/LEAN_HAND_TEST_PROTOCOL.md)) is run.
+> - **Open issues (2):** #362 and #380. Their code is merged and green in CI; they stay open for hand rows that depend on what the model answers. Everything else from the audit and smoke-test lists is closed, each with its evidence in a comment (several on CI evidence only, which the comment says). Per-issue status: [docs/OPEN_ISSUES_STATUS_2026-10-25_v2.md](docs/OPEN_ISSUES_STATUS_2026-10-25_v2.md).
 > - **Not yet verified:** a clean-profile install and an in-place upgrade on a recent release candidate (last done on rc6), and the 28-tool default of rc47 against live model answers.
 > - Details: [the release smoke test](docs/RELEASE_SMOKE_TEST.md), [the implementation tracker](docs/IMPLEMENTATION_TRACKER.md), [done versus tested](docs/STATUS_DONE_VS_TESTED_2026-10-16.md).
 
@@ -79,6 +79,20 @@ black-box answer.
   a restricted execution sandbox for model-generated PyQGIS scripts, fail-closed
   read-only SQL enforcement, an SSRF guard on fetched URLs, and a destructive-action
   confirmation gate the model cannot self-approve.
+
+## What's new in 1.18.1
+
+Built on 1.18.0. Offline tests and the QGIS 4.2.2 live checks in CI pass; **not hand-tested** in desktop QGIS unless an item says so. Full list: the `v1.18.1` block in [metadata.txt](metadata.txt) and [CHANGELOG.md](CHANGELOG.md).
+
+- Legend and footer on print layouts: The legend no longer has an entry cut in half: its text and symbols shrink in steps, then the layers drawn underneath are left out and the legend title says how many. The footer check accepts a shortfall no bigger than its own padding, which removed a 'may not fit' warning on a footer that fit, and the result now reports the footer's needed and available height so a wrong warning on your fonts can be read from the evidence folder. A layout keeps the name you ask for (Big Map stays Big Map; the old Layout_ spelling still finds it).
+- Charts and profiles say whether they drew: Adding a chart or an elevation profile to a layout now renders that item once and tells you whether it drew data or only axes, and what to check when it drew nothing. A test renders the profile five times in CI to catch a flaky render; it has not shown one.
+- One Log Messages tab: The plugin logged under about 27 tags, so QGIS opened about 27 tabs, one of them spelled CartogenAi beside CartogenAI, and the model_call lines the cost table needs were not in the tab the README tells you to save. Everything is now in the single CartogenAI tab, with the component name at the start of the line.
+- Fewer wrong plans: A plain operation request is not answered with a mapping task plan any more (a replay of 385 plain prompts: 34 wrong before the first fix, 7 after it, 2 now, both right). 'Draw contour lines of the dem every 100' no longer starts a DEM download and a workflow plan when a DEM layer is already loaded. A listing tool that repeats now stops with a message naming the next tool.
+- Undo of a new field: Undoing add_field removes the new field while it is empty; once it holds values, undo refuses, says so and changes nothing. Deleting a filled field stays a deliberate step that asks.
+- Point layers are kept or called temporary: A point layer the assistant adds is kept in the project's results GeoPackage when the project is saved, so it is there after reopen; in an unsaved project the reply says it is temporary and why. Other tools that write temporary layers (incident, hazard and event layers) are not changed.
+- A hand test that costs no API money: The hand-test bundle now has a script that you run once in the QGIS Python console: it builds its own project, makes about a dozen layouts, measures the legend, footer, names, presets, profile, logo and sign-off, and exports the pages. A checker reads what you send back. The remaining rows need a person and a model and each starts from its own stated state.
+- Known and open: Issues #362 and #380 stay open for their hand rows (animate, elevation profile, linked charts, merge, raster conversion), because they depend on what the model answers. Not changed: undo of rename_field and delete_field, and temporary layers from tools other than add_point_layer. A clean-profile install and an in-place upgrade have not been run on this line since rc6.
+- Not hand-tested: Everything above is checked by the offline suite and, for the QGIS parts, by CI on QGIS 4.2.2; none of it has been hand-tested in desktop QGIS. How the legend and footer look on your own fonts is exactly what the new layout script measures on your machine.
 
 ## What's new in 1.18.0
 

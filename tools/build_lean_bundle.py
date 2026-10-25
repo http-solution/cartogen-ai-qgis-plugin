@@ -141,7 +141,15 @@ def open_issue_numbers():
     """Issue numbers still open, read from the first column of the newest docs/OPEN_ISSUES_STATUS_*.md table."""
     latest = sorted(DOCS.glob("OPEN_ISSUES_STATUS_20*.md"))[-1]
     numbers = set()
-    for line in latest.read_text(encoding="utf-8").splitlines():
+    in_open_section = None        # a status doc that has a "## Still open" heading counts only the table under it (the newest one also lists what was closed)
+    lines = latest.read_text(encoding="utf-8").splitlines()
+    has_section = any(line.startswith("## Still open") for line in lines)
+    for line in lines:
+        if has_section:
+            if line.startswith("## "):
+                in_open_section = line.startswith("## Still open")
+            if not in_open_section:
+                continue
         cell = line.split("|")[1].strip() if line.startswith("|") and line.count("|") > 3 else ""
         if cell and re.fullmatch(r"\d+(, \d+)*|\d+/\d+", cell):
             numbers.update(int(n) for n in re.findall(r"\d+", cell))
