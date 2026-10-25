@@ -7,6 +7,7 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 | Version | Date | Summary |
 |---|---|---|
+| [1.17.0-rc52](#v1-17-0-rc52) | 2026-10-25 | **Release candidate 52 for 1.17.0.** No breaking changes -- requires QGIS 4.2+. The owner's disclaimer wording is the footer default of print layouts and a new Disclaimer and terms of use section is in the Help; the longer footer takes height from the map. CI-checked, not hand-tested. |
 | [1.17.0-rc51](#v1-17-0-rc51) | 2026-10-25 | **Release candidate 51 for 1.17.0.** No breaking changes -- requires QGIS 4.2+. Profile changes apply to layouts already made, maps made from sensitive layers ask before they export, the footer is sized from the real font and contour lines make a layer. CI-checked, not hand-tested. |
 | [1.17.0-rc50](#v1-17-0-rc50) | 2026-10-24 | **Release candidate 50 for 1.17.0.** No breaking changes -- requires QGIS 4.2+. Credits, a No data class, layout checks, page sizes A3 to A1, export presets and map profiles with logo, colours, font, sign-off and COD wording. CI-checked, not hand-tested. |
 | [1.17.0-rc49](#v1-17-0-rc49) | 2026-10-24 | **Release candidate 49 for 1.17.0.** No breaking changes -- requires QGIS 4.2+. Fixes from the rc48 hand test, a confirmation step for exports that draw sensitive layers, a sources and disclaimer line on print layouts, and fixes from an external audit. CI-checked, not hand-tested. |
@@ -95,6 +96,17 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 The detailed narrative entries below are unchanged -- this table is purely an additive index on
 top of them.
+
+<a id="v1-17-0-rc52"></a>
+## [1.17.0-rc52] — 2026-10-25 — Release candidate 52 for 1.17.0: No breaking changes -- requires QGIS 4.2+. The owner's disclaimer wording is the footer default of print layouts and a new Disclaimer and terms of use section is in the Help; the longer footer takes height from the map. CI-checked, not hand-tested.
+
+No breaking changes; QGIS 4.2+. Everything after 1.17.0-rc51:
+
+- Disclaimer on print layouts: The footer of every new print layout now carries your organisation's full disclaimer: 'Boundaries, names, and designations shown on this map are for informational and illustrative purposes only ...' (about 600 characters), replacing the short neutral sentence. Settings still has the box for your own wording and the checkbox to switch the line off.
+- Disclaimer and terms of use in Help: The Help tab and the user guide have a new section, Disclaimer and terms of use, with the three numbered paragraphs: no endorsement or legal determination, disclaimer of warranties and limits on reliance, and user obligations and third-party rights.
+- A longer footer takes height from the map: Because the footer is longer, it takes the missing height from the bottom of the main map (at most a quarter of the map), and the info row, scale bar and north arrow move up with it. The map keeps its scale, so the visible area at the bottom gets a little smaller.
+- Known and open: The disclaimer wording is the owner's own and has not been reviewed by a lawyer. The elevation profile in a layout rendered empty once in CI and has not been explained. The rc51 changes are still waiting for their hand-test results.
+- Not hand-tested: Everything above is checked by the offline suite and, for the QGIS parts, by CI on QGIS 4.2.2. None of it has been hand-tested in desktop QGIS: nobody has looked at the longer footer on a real A4 or A3 page yet. Build differences since rc51 are these changes only.
 
 <a id="v1-17-0-rc51"></a>
 ## [1.17.0-rc51] — 2026-10-25 — Release candidate 51 for 1.17.0: No breaking changes -- requires QGIS 4.2+. Profile changes apply to layouts already made, maps made from sensitive layers ask before they export, the footer is sized from the real font and contour lines make a layer. CI-checked, not hand-tested.

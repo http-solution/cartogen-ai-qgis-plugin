@@ -24,3 +24,5 @@ rc49: the bundle for 1.17.0-rc49 keeps only what is not proven. rc48's own rows 
 rc50: the bundle for 1.17.0-rc50 adds 7 rows for PLAN-014 (credits, No data, page size, export preset, profile, logo, sign-off) and a `districts_gaps` fixture layer to the rc49 bundle; the rc49 rows stay because they have not been run. The profile rows need a `cartogen_profiles/handtest.json` file next to the saved project; the first profile row gives its text. See PLAN-015.
 
 rc51: the bundle for 1.17.0-rc51 adds 3 rows for PLAN-016 (profile re-read, lineage on export, footer fit) and rewords the OI-150 row to the real check (a cloud question about the renamed layer; the rc50 expectation was the layer's own tag). The rc50 rows stay because the first desktop run covered only 20 of 87. See PLAN-017.
+
+rc52: the bundle for 1.17.0-rc52 adds 1 row (P17 disclaimer: the full footer wording on a real page, the Help section and the Settings override) to the rc51 bundle; the rc50 and rc51 rows stay because they have not been run. See PLAN-018.

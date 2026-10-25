@@ -86,6 +86,9 @@ EXTRA_ROWS = (
      "Tag towns SENSITIVE first (reason: test) and keep Cloud data protection = Block; click 'Send to cloud once' on the card (fixture data). Then untick every layer except harmless_buf, create a print layout called Lineage Test and export it to a pdf. Result: a confirm card names harmless_buf as derived from towns; nothing is written until you press Apply. The sensitivity dialog for harmless_buf says 'untagged, protected through lineage from towns (SENSITIVE)'."),
     ("P16 footer", "create a print layout called Footer Fit using the profile handtest",
      "Add three footer_lines and the sign_off to handtest.json first (the rc50 profile row has the text). Open the exported or printed page: the whole footer is visible and not cut off, and the reply has no footer overflow or 'may not fit' warning. (rc50 on Windows fonts reported a footer box about 2 mm too short.)"),
+    # rc52: the owner's disclaimer wording. Not run outside CI.
+    ("P17 disclaimer", "create a print layout called Disclaimer Test",
+     "The footer carries the full disclaimer ('Boundaries, names, and designations shown on this map are for informational and illustrative purposes only ...' to '... prior to internal use or external distribution.'). Export it to PDF and look at the page: the whole footer is visible and not cut off, nothing overlaps it, and the map is a little shorter than before but still shows its scale bar and north arrow. Then open the plugin Help tab: a section 'Disclaimer and terms of use' with three numbered paragraphs. Settings > Layout disclaimer: type your own sentence and build another layout; the footer uses yours."),
 )
 # Added to the fixture script: a small integer raster for the polygonize row (kept from rc48) and a MultiPoint layer for the rc49 obfuscation row.
 FIXTURE_EXTRA = """

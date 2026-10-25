@@ -8,17 +8,16 @@ metadata changelog, CHANGELOG.md, README and this module agree). Checklist: CONT
 releases listed in NEW_MARK_VERSIONS.
 """
 
-WHATS_NEW_VERSION = "1.17.0-rc51"
-NEW_MARK_VERSIONS = ("1.17.0-rc50", "1.17.0-rc51")
+WHATS_NEW_VERSION = "1.17.0-rc52"
+NEW_MARK_VERSIONS = ("1.17.0-rc51", "1.17.0-rc52")
 
 # Headline items of the current version (the full list is the metadata.txt changelog block and CHANGELOG.md).
 WHATS_NEW_ITEMS = [
-    ('Profile changes apply to layouts you already made', "An export re-reads the layout's profile file, so a requirement you add later, such as require_sign_off, now applies; before, the layout kept the copy of the profile it was built with and a publication export went ahead. What the map itself prints is fixed when it is built: a review you add to sign_off later needs the layout rebuilt. If the profile file is gone or invalid, the stored copy is used and the export says so."),
-    ('Maps made from sensitive layers ask before they export', "A layer made from a RESTRICTED or SENSITIVE layer (a merge, a rename, further steps; the source renamed too) is protected through lineage, as it already was for cloud AI requests. A map that draws it now asks for confirmation before export, a publication export lists it as a problem, the footer carries the source's classification and the QA checklist names the source. An explicit PUBLIC or INTERNAL tag on the derived layer still releases it. The Sensitivity dialog says 'protected through lineage from X' instead of 'untagged'."),
-    ('Footer sized from the real font', 'The print layout footer is now sized from its text measured in the font actually used, not from a character count, and the layout check uses the same measure. On Windows fonts the old estimate called the footer shorter than it was. CI uses Linux fonts and never showed it, so this is checked on your machine only.'),
-    ('Contour lines', "'Draw contour lines of the DEM every 100' should now make a contour line layer instead of restyling the DEM: the two tool descriptions state the difference. Which tool the model picks cannot be tested offline."),
-    ('Known and open', 'The elevation profile in a layout rendered empty once in CI and has not been explained. OI-128 still waits for its evidence re-run. OI-150 needs a hand pass of the new check: a cloud question about the renamed merge result.'),
-    ('Not hand-tested', 'Everything above is checked by the offline suite and, for the QGIS parts, by CI on QGIS 4.2.2. None of it has been hand-tested in desktop QGIS. Build differences since rc50 are these four changes only; the rc50 rows that have not been run are still in the bundle.')
+    ('Disclaimer on print layouts', "The footer of every new print layout now carries your organisation's full disclaimer: 'Boundaries, names, and designations shown on this map are for informational and illustrative purposes only ...' (about 600 characters), replacing the short neutral sentence. Settings still has the box for your own wording and the checkbox to switch the line off."),
+    ('Disclaimer and terms of use in Help', 'The Help tab and the user guide have a new section, Disclaimer and terms of use, with the three numbered paragraphs: no endorsement or legal determination, disclaimer of warranties and limits on reliance, and user obligations and third-party rights.'),
+    ('A longer footer takes height from the map', 'Because the footer is longer, it takes the missing height from the bottom of the main map (at most a quarter of the map), and the info row, scale bar and north arrow move up with it. The map keeps its scale, so the visible area at the bottom gets a little smaller.'),
+    ('Known and open', "The disclaimer wording is the owner's own and has not been reviewed by a lawyer. The elevation profile in a layout rendered empty once in CI and has not been explained. The rc51 changes are still waiting for their hand-test results."),
+    ('Not hand-tested', 'Everything above is checked by the offline suite and, for the QGIS parts, by CI on QGIS 4.2.2. None of it has been hand-tested in desktop QGIS: nobody has looked at the longer footer on a real A4 or A3 page yet. Build differences since rc51 are these changes only.')
 ]
 
 HUMANITARIAN_WORKFLOWS = [('1. Rapid crisis and base mapping',

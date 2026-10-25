@@ -20,15 +20,15 @@
   <a href="https://cartogenai.com"><img src="https://img.shields.io/badge/website-cartogenai.com-0b6efd" alt="Website"></a>
 </p>
 
-**Community edition · Version 1.17.0-rc51 (pre-release) · GNU GPL v2 · QGIS 4.2–4.99 · [cartogenai.com](https://cartogenai.com)**
+**Community edition · Version 1.17.0-rc52 (pre-release) · GNU GPL v2 · QGIS 4.2–4.99 · [cartogenai.com](https://cartogenai.com)**
 
 Cartogen AI is built for GIS analysts, humanitarian teams, researchers, and anyone who
 needs to move from a question to a reproducible spatial result without leaving QGIS.
 The agent exposes its plan, tool calls, progress, and errors instead of returning a
 black-box answer.
 
-> **Project status (2026-10-24):** active Community edition, currently at the **1.17.0-rc51 pre-release** build (the last stable build is 1.16.3; rc20 to 1.17.0-rc51 add the audit fixes, hand-test fixes and the cost and routing work made after rc19).
-> - **Tests:** 4,946 automated tests run offline, 0 failures (738 skipped there: the live-QGIS tests and those needing optional libraries). The QGIS ones run in CI (the `qgis-live-tests` job, QGIS 4.2.2) together with ruff, mypy and a release-zip check.
+> **Project status (2026-10-24):** active Community edition, currently at the **1.17.0-rc52 pre-release** build (the last stable build is 1.16.3; rc20 to 1.17.0-rc52 add the audit fixes, hand-test fixes and the cost and routing work made after rc19).
+> - **Tests:** 4,951 automated tests run offline, 0 failures (738 skipped there: the live-QGIS tests and those needing optional libraries). The QGIS ones run in CI (the `qgis-live-tests` job, QGIS 4.2.2) together with ruff, mypy and a release-zip check.
 > - **Hand testing:** rc44 to rc46 were hand-tested in desktop QGIS 4.2.3 (tool sweep: 65 of 83 rows Pass, 1 Fail, the rest Partial or Skip; 21 of 21 priority algorithms Pass); the plain-language algorithm test (385 prompts) has **not** been run. rc48 was hand-tested on 2026-10-24 (52 of 87 rows Pass, 18 Partial, 16 Fail, 1 Skip; results in [docs/HAND_TEST_RESULTS_rc48_2026-10-24.md](docs/HAND_TEST_RESULTS_rc48_2026-10-24.md)); the rc49 changes are CI-checked only until its lean hand test ([docs/LEAN_HAND_TEST_PROTOCOL.md](docs/LEAN_HAND_TEST_PROTOCOL.md)) is run.
 > - **Open issues (28):** the external architectural audit of rc12 (tracking issue #169) and the smoke-test findings (#72 and its children) are fixed in code and CI-verified except where a comment on the issue says otherwise; they stay open until a hand-verified PASS, because no issue is closed without one. Per-issue status: [docs/OPEN_ISSUES_STATUS_2026-10-23.md](docs/OPEN_ISSUES_STATUS_2026-10-23.md).
 > - **Not yet verified:** a clean-profile install and an in-place upgrade on a recent release candidate (last done on rc6), and the 28-tool default of rc47 against live model answers.
@@ -79,6 +79,16 @@ black-box answer.
   a restricted execution sandbox for model-generated PyQGIS scripts, fail-closed
   read-only SQL enforcement, an SSRF guard on fetched URLs, and a destructive-action
   confirmation gate the model cannot self-approve.
+
+## What's new in 1.17.0-rc52
+
+Built on 1.17.0-rc51. Offline tests and the QGIS 4.2.2 live checks in CI pass; **not hand-tested** in desktop QGIS unless an item says so. Full list: the `v1.17.0-rc52` block in [metadata.txt](metadata.txt) and [CHANGELOG.md](CHANGELOG.md).
+
+- Disclaimer on print layouts: The footer of every new print layout now carries your organisation's full disclaimer: 'Boundaries, names, and designations shown on this map are for informational and illustrative purposes only ...' (about 600 characters), replacing the short neutral sentence. Settings still has the box for your own wording and the checkbox to switch the line off.
+- Disclaimer and terms of use in Help: The Help tab and the user guide have a new section, Disclaimer and terms of use, with the three numbered paragraphs: no endorsement or legal determination, disclaimer of warranties and limits on reliance, and user obligations and third-party rights.
+- A longer footer takes height from the map: Because the footer is longer, it takes the missing height from the bottom of the main map (at most a quarter of the map), and the info row, scale bar and north arrow move up with it. The map keeps its scale, so the visible area at the bottom gets a little smaller.
+- Known and open: The disclaimer wording is the owner's own and has not been reviewed by a lawyer. The elevation profile in a layout rendered empty once in CI and has not been explained. The rc51 changes are still waiting for their hand-test results.
+- Not hand-tested: Everything above is checked by the offline suite and, for the QGIS parts, by CI on QGIS 4.2.2. None of it has been hand-tested in desktop QGIS: nobody has looked at the longer footer on a real A4 or A3 page yet. Build differences since rc51 are these changes only.
 
 ## What's new in 1.17.0-rc51
 
