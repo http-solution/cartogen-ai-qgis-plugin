@@ -1,5 +1,5 @@
 ---
-description: How this documentation site is generated from the repository, how to build it locally, and how it is deployed to GitHub Pages.
+description: How this documentation is generated from the repository, how to build it locally, and how it is published to the GitHub wiki.
 ---
 This site is **built from the repository**, so it cannot drift from the code or the living documents. There is no hand-maintained copy.
 
@@ -43,6 +43,16 @@ Relative links inside **mirrored** documents are resolved against that document'
 2. Add it to `NAV` in `site/build.py`.
 3. Run `python site/build.py --check`.
 
-## Deployment
+## Where the documentation is published
 
-`.github/workflows/docs-site.yml` builds the site on every pull request that touches the docs or the site (as a check, with link validation) and, on `main`, deploys it with the official Pages actions. For the first deployment the repository owner must set **Settings → Pages → Build and deployment → Source: GitHub Actions** once; nothing else is needed. The site then lives at `https://http-solution.github.io/cartogen-ai-qgis-plugin/`.
+The documentation is published to the **GitHub wiki**, not to GitHub Pages (owner decision, 2026-10-25). `site/build_wiki.py` turns the same page model into plain Markdown pages: `Home`, a sidebar, a footer and one file per page. `.github/workflows/docs-site.yml` rebuilds them on every merge to `main` and pushes them to the wiki repository, replacing what is there, so **edits made in the browser are overwritten**; correct the source files instead.
+
+```bash
+python site/build_wiki.py --check --out _wiki   # writes the wiki pages and fails on a link to an unknown page or a missing repository file
+```
+
+In the wiki, `@slug` becomes the page name, a repository image becomes a `raw.githubusercontent.com` link and any other repository file a github.com link. The wiki home page is `site/wiki-home.md` (plain Markdown, because the wiki strips the styling the HTML home page uses).
+
+The HTML build (`python site/build.py --check`) is still run on every pull request as a second link check, but the HTML site is no longer deployed.
+
+One-time owner steps: GitHub creates the wiki's git repository only when the first wiki page is saved in the browser (Wiki tab, Create the first page), and the old Pages site comes down with Settings > Pages > Unpublish site. Until the first page exists the sync job ends with a warning instead of failing.

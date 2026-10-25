@@ -2,7 +2,7 @@
 description: Documentation for Cartogen AI, the spatial AI agent for QGIS that plans, runs and shows its work against your open project.
 ---
 <div class="hero" markdown="1">
-<span class="pill">Pre-release {{version}}</span>
+<span class="pill">Version {{version}}</span>
 
 # Cartogen AI
 
@@ -17,7 +17,7 @@ description: Documentation for Cartogen AI, the spatial AI agent for QGIS that p
 </div>
 
 <div class="callout warn"><strong>Honest status</strong>
-This is a release candidate. The automated tests and the QGIS 4.2.2 live tests run on every change and pass, but only part of the plugin has been hand-tested by a person in desktop QGIS, and a stable 1.16.0 is not out yet. Each release says plainly what was and was not verified; see <a href="@project/status">Status and open work</a>.
+The automated tests and the QGIS 4.2.2 live tests run on every change and pass, but only part of the plugin has been hand-tested by a person in desktop QGIS. Each release says plainly what was and was not verified; see <a href="@project/status">Status and open work</a>.
 </div>
 
 ## Start here

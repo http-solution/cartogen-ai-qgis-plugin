@@ -893,6 +893,15 @@
     "sources": ["src/cartogen_ai/core/disclaimer_text.py", "src/cartogen_ai/core/agent/tools/layout_style.py", "src/cartogen_ai/core/ui/help_content.py", "src/cartogen_ai/core/ui/settings_dialog.py", "docs/USER_GUIDE.md"],
     "guards": ["tests/test_disclaimer_text.py::TestDisclaimerText::test_the_footer_default_is_the_balanced_standard_wording", "tests/test_disclaimer_text.py::TestDisclaimerText::test_the_help_carries_all_three_terms_paragraphs", "tests/test_disclaimer_text.py::TestDisclaimerText::test_the_user_guide_carries_them_and_the_footer_line_verbatim", "tests/test_layout_export_checks_live.py::TestFooterSourcesAndDisclaimer::test_default_footer_names_the_layer_source_and_carries_the_neutral_disclaimer", "tests/test_layout_export_checks_live.py::TestFooterSourcesAndDisclaimer::test_the_grown_footer_stays_on_the_page_and_clear_of_the_other_items"],
     "hand_verified": "not hand-tested; the wording is the owner's and has not been reviewed by a lawyer; the longer footer on real page sizes needs the owner's eyes"
+  },
+  {
+    "id": "docs-published-to-wiki",
+    "feature": "The documentation is generated from the repository into GitHub wiki pages (Home, sidebar, footer, one page per document, links and images rewritten) by site/build_wiki.py and pushed to the wiki by the docs-site workflow on every merge to main; GitHub Pages is no longer deployed; the HTML build stays as a second link check",
+    "issues": [],
+    "since": "1.18.0 (unreleased change)",
+    "sources": ["site/build_wiki.py", "site/wiki-home.md", "site/build.py", ".github/workflows/docs-site.yml", "docs/plans/PLAN-019-wiki-instead-of-pages.md"],
+    "guards": ["tests/test_wiki_build.py::TestWikiBuild::test_no_broken_links_between_wiki_pages", "tests/test_wiki_build.py::TestWikiBuild::test_page_names_are_unique_and_safe_in_a_markdown_link", "tests/test_wiki_build.py::TestWikiBuild::test_code_is_left_alone_and_a_link_with_a_code_label_is_rewritten", "tests/test_wiki_build.py::TestWorkflowPublishesTheWikiNotPages::test_the_docs_workflow_syncs_the_wiki_and_no_longer_deploys_pages", "tests/test_wiki_build.py::TestWorkflowPublishesTheWikiNotPages::test_only_the_sync_job_can_write_and_it_does_not_run_on_pull_requests"],
+    "hand_verified": "not verified: the push to the wiki has not run (the wiki's git repository does not exist until the owner saves a first page)"
   }
  ]
 }

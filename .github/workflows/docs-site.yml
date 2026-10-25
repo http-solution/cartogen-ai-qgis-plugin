@@ -1,8 +1,10 @@
-# Builds the documentation site (site/build.py) and deploys it to GitHub Pages.
-#   * Pull requests that touch the docs or the site: build only, with link validation, so a broken page cannot merge.
-#   * Pushes to main (and manual runs): build, then deploy.
-# One-time owner setting, which a workflow cannot make for itself: Settings > Pages > Build and deployment > Source: "GitHub Actions".
-# Until that is set the deploy step is skipped with a visible warning instead of failing the run.
+# Builds the documentation from the repository, checks every internal link, and publishes it to the GitHub WIKI.
+#   * Pull requests that touch the docs or the site: build both outputs with link validation, so a broken page cannot merge. No write access.
+#   * Pushes to main (and manual runs): the same check, then the wiki is rebuilt and pushed to <repo>.wiki.git, replacing its pages.
+# GitHub Pages is no longer deployed (owner decision, 2026-10-25: the wiki replaces it). The HTML build stays only as a link check.
+# One-time owner steps a workflow cannot do: save one first page in the wiki (Wiki tab > Create the first page) because GitHub creates the
+# wiki's git repository only then, and Settings > Pages > Unpublish site to take the old site down. Until the first page exists the sync job
+# ends with a visible warning instead of failing the run.
 name: docs-site
 
 on:
@@ -33,7 +35,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: pages-${{ github.ref }}
+  group: docs-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -49,42 +51,51 @@ jobs:
       - name: Install the one build dependency
         run: python -m pip install markdown==3.7
 
-      - name: Build the site and validate every internal link and anchor
+      - name: Build the HTML site and validate every internal link and anchor (check only, not deployed)
         run: python site/build.py --check --out _site
 
-      - name: Upload the site
-        if: github.event_name != 'pull_request'
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: _site
+      - name: Build the wiki pages and validate every link between them
+        run: python site/build_wiki.py --check --out _wiki
 
-  deploy:
+  wiki:
     if: github.event_name != 'pull_request'
     needs: build
     runs-on: ubuntu-24.04
     permissions:
-      contents: read
-      pages: write
-      id-token: write
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+      contents: write
     steps:
-      - name: Is Pages set up to deploy from Actions?
-        id: pages
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - run: python -m pip install markdown==3.7
+
+      - name: Build the wiki pages
+        run: python site/build_wiki.py --check --out _wiki
+
+      - name: Push the pages to the wiki
         env:
           GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
         run: |
-          kind=$(gh api "repos/${{ github.repository }}/pages" --jq '.build_type' 2>/dev/null || echo "none")
-          echo "build_type=$kind"
-          if [ "$kind" = "workflow" ]; then
-            echo "ready=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "ready=false" >> "$GITHUB_OUTPUT"
-            echo "::warning::GitHub Pages is not set to deploy from GitHub Actions (build_type=$kind), so nothing was deployed. Set Settings > Pages > Build and deployment > Source to GitHub Actions, then re-run this workflow."
+          set -e
+          auth="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)"
+          echo "::add-mask::$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)"
+          if ! git -c http.extraheader="$auth" clone --quiet "https://github.com/${REPO}.wiki.git" wiki 2>/tmp/wiki-clone.log; then
+            echo "::warning::The wiki repository could not be cloned, so nothing was published. GitHub creates it only when the first wiki page is saved in the browser: open the repository's Wiki tab, choose Create the first page, save it, then re-run this workflow."
+            exit 0
           fi
-
-      - name: Deploy to GitHub Pages
-        id: deployment
-        if: steps.pages.outputs.ready == 'true'
-        uses: actions/deploy-pages@v4
+          find wiki -mindepth 1 -maxdepth 1 -not -name .git -exec rm -rf {} +
+          cp _wiki/*.md wiki/
+          cd wiki
+          git add -A
+          if git diff --cached --quiet; then
+            echo "The wiki is already up to date."
+            exit 0
+          fi
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" commit --quiet -m "Sync documentation from ${SHA}"
+          git -c http.extraheader="$auth" push --quiet origin HEAD
+          echo "Wiki updated from ${SHA}."
