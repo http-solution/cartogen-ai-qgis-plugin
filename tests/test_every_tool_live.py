@@ -12,6 +12,7 @@ Skipped by name pattern, with the reason printed: tools that reach the network o
 service-reach job covers those), tools that start long background work, and tools that open dialogs. KNOWN_CRASHES is a ratchet: a tool
 listed there is a defect to fix, and the list may only shrink (test_known_crashes_are_still_crashing fails when one is fixed so the entry
 is removed). Written without a local QGIS: the first CI run is its first execution."""
+import faulthandler
 import json
 import os
 import tempfile
@@ -176,12 +177,18 @@ class TestEveryToolLive(unittest.TestCase):
                 continue
             args = _args_for(schemas.get(name, {}), mode)
             t0 = time.time()
+            # A tool that never returns would hold the whole CI job for hours (first run of the hostile passes, 2026-10-26: 90 minutes with no
+            # output). Print where we are, and have the interpreter dump every thread's stack and exit if one call takes over 120 seconds,
+            # so the log names the tool and the line it is stuck on.
+            print(f"EVERY_TOOL_CALL mode={mode} network={'stub' if network is not None else 'none'} tool={name}", flush=True)
+            faulthandler.dump_traceback_later(120, exit=True)
             try:
                 result = registry.TOOL_REGISTRY[name](**args)
             except Exception as e:
                 crashed[name] = f"{type(e).__name__}: {str(e).splitlines()[0][:160] if str(e) else ''}"
                 continue
             finally:
+                faulthandler.cancel_dump_traceback_later()
                 if time.time() - t0 > 20:
                     slow.append((name, round(time.time() - t0, 1)))
             if result is None:
