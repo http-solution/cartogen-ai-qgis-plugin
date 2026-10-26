@@ -1070,6 +1070,22 @@
           "tests/test_net.py::TestRedirectedHopFallsBackToTheQgisStack::test_an_ordinary_missing_file_is_not_retried"
       ],
       "hand_verified": "not verified: CI offline fakes only. The cause of the owner report (HDX 403 and geoBoundaries 500 for Yemen ADM1 on 2026-10-26) is the best-supported explanation, not confirmed; a row on the owner machine is needed"
+  },
+  {
+      "id": "every-tool-callable-in-qgis",
+      "feature": "Every registered tool (except the network, hosted-model and background-job ones, listed by name in the test) can be called once in real QGIS with arguments built from its schema without raising: a non-raster layer named as a band gives an error message in calculate_ndvi/ndwi/ndre, and score_route_incident_risk sets its route-overlay stroke with the Qt6 enum",
+      "issues": [],
+      "since": "1.18.2 (unreleased change)",
+      "sources": [
+          "tests/test_every_tool_live.py",
+          "src/cartogen_ai/core/agent/tools/raster_tools.py",
+          "src/cartogen_ai/core/agent/tools/logistics_tools.py"
+      ],
+      "guards": [
+          "tests/test_every_tool_live.py::TestEveryToolLive::test_no_tool_raises_or_returns_nothing_on_plausible_arguments",
+          "tests/test_every_tool_live.py::TestEveryToolInputsOffline::test_every_required_argument_gets_a_value"
+      ],
+      "hand_verified": "not verified: CI only. Proves a call does not raise; does not prove the result is right"
   }
  ]
 }
