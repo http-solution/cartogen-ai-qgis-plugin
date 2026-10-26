@@ -206,10 +206,33 @@ def _known_tool_names():
     return names
 
 
+# A data source named in plain words has its own fetch tool (1.18.3 hand test A3 and A10): "search HDX for Yemen health facilities
+# datasets" matched the task "Map health facilities" and "conflict events in Yemen from UCDP" matched "Map conflict events", whose tool
+# lists carry neither search_hdx_datasets nor fetch_ucdp_conflict_events, so a confirmation card for the wrong task appeared. Naming the
+# source counts like naming the tool: a task that does not use that tool gives no directive.
+_SOURCE_TOOLS = (
+    (re.compile(r"\bucdp\b"), "fetch_ucdp_conflict_events"),
+    (re.compile(r"\bgdacs\b"), "fetch_gdacs_disaster_alerts"),
+    (re.compile(r"\busgs\b"), "fetch_usgs_earthquakes"),
+    (re.compile(r"\beonet\b"), "fetch_nasa_eonet_events"),
+    (re.compile(r"\bfirms\b"), "fetch_nasa_active_fires"),
+    (re.compile(r"\bfts\b"), "fetch_fts_funding_data"),
+    (re.compile(r"\b(?:search|find|look\s+for|look\s+up)\b.{0,60}\bdatasets?\b"), "search_hdx_datasets"),
+)
+
+
 def named_tools(query):
-    """Tool names the query spells out, e.g. {"optimal_hub_siting"}."""
-    candidates = set(_TOOL_NAME.findall((query or "").lower()))
-    return candidates & _known_tool_names() if candidates else set()
+    """Tool names the query spells out, e.g. {"optimal_hub_siting"}, plus the fetch tool of a data source it names (UCDP, GDACS, USGS...)."""
+    lowered = (query or "").lower()
+    candidates = set(_TOOL_NAME.findall(lowered))
+    found = candidates & _known_tool_names() if candidates else set()
+    known = None
+    for pattern, tool in _SOURCE_TOOLS:
+        if pattern.search(lowered):
+            known = _known_tool_names() if known is None else known
+            if tool in known:
+                found.add(tool)
+    return found
 
 
 _ASKS_FOR_CHART = re.compile(r"\b(chart|charts|graph|graphs|histogram|histograms|plot|plots|scatter\s?plot|pie|bar\s+chart)\b")
