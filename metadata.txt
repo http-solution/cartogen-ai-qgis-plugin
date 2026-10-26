@@ -8,7 +8,7 @@ name=Cartogen AI
 qgisMinimumVersion=4.2
 qgisMaximumVersion=4.99
 description=AI assistant for QGIS: describe a task in plain language and it plans, runs and shows every step.
-version=1.18.2
+version=1.18.3
 author=Alaa Alshoubaki
 email=cartogenai@gmail.com
 
@@ -34,7 +34,17 @@ license=GNU GPL v2
 hasProcessingProvider=yes
 # Declares Qt 6 support for QGIS 4 plugin managers that read this key; managers that do not know it ignore it (added by the rc28 self-audit; confirm against the directory page after the next upload).
 supportsQt6=True
-changelog=v1.18.2 (2026-10-26):
+changelog=v1.18.3 (2026-10-26):
+    No breaking changes -- requires QGIS 4.2+. Fixes from the owner's 2026-10-26 hand run of 1.18.2: a satellite search that can be limited by cloud cover, a route-risk buffer in real metres, a CSV with no coordinates that loads as a table, a task grid for one area without filtering the layer, clearer chat text, and a percent mode for forecast probabilities. The three 1.18.2 checks passed by hand; the fixes below are CI-checked, not hand-tested.
+    - Forecast triggers accept a percent column: evaluate_forecast_trigger has a probability_scale option: 'percent' reads the probability column and min_probability as 0-100 (70 means 70 percent) and prints the rule with a percent sign; a column outside the chosen scale is warned about. The default 'fraction' (0-1) is unchanged.
+    - Satellite search can be limited by cloud cover: search_stac_satellite_imagery takes max_cloud_cover (percent) and asks the service to apply it, returns the newest scenes first, echoes the filters and says plainly when nothing matches. Before, 'under 20 percent cloud' had no parameter, so unfiltered scenes came back and the table was padded from the model's memory.
+    - Route risk uses real metres: score_route_incident_risk applied its buffer distance in degrees on a route in a latitude/longitude CRS, so 500 meant 500 degrees and every incident counted as near. It now buffers in the local UTM zone and returns the polygon in the route's own CRS.
+    - A table with no coordinates now loads: load_tabular_data_as_layer could never load a CSV without coordinate columns: it told the model to omit the coordinate arguments, which only returned the field suggestion again, so the call repeated until the loop guard stopped the turn. The new as_table option loads it as a plain table, and loading the same file twice adds no second layer and says so.
+    - Task grid for one area without a filter: generate_mapping_task_grid takes aoi_where, a QGIS expression that limits the area to matching features, so a grid over one governorate no longer needs a filter set on the source boundary layer.
+    - Clearer chat text and write previews: A line break the model writes as <br> stays a line break instead of showing as text, and class text such as $< 0.2$ loses its dollar signs (prices are untouched). The confirmation preview for severity, presence-gap, population-in-need and damage-exposure now names the field and layer it writes instead of showing a comment.
+    - Known and open: Hand-verified on 2026-10-26 with the 1.18.2 build (QGIS 4.2.3, Gemini): borders between provinces visible, HDX Yemen ADM1 download, recolour at 25 percent keeping borders. Not yet explained: confirmation clicks on a search request and a UCDP download, layers added that were not asked for, one labels report (C5). Issues #362 and #380 stay open for their hand rows.
+    - Not hand-tested: The fixes above are checked by the offline suite and, for the QGIS parts, by CI on QGIS 4.2.2; none of them has been hand-tested in desktop QGIS.
+v1.18.2 (2026-10-26):
     No breaking changes -- requires QGIS 4.2+. Every tool is now called once in real QGIS by a test, and what that found is fixed: a tool given a layer of the wrong kind answers with a message instead of failing, one tool no longer hangs on a vector layer, one overlay no longer crashes, and boundary downloads that redirect to another site (HDX) work again. CI-checked, not hand-tested.
     - Every tool is called in real QGIS by a test: A test now calls each of the 296 tools once in a real QGIS 4.2.2 in CI with layers that are missing, of the wrong kind or empty, and with data services that are unreachable, answer with an error page, or return JSON of the wrong shape. A tool may refuse with a message; it may not raise or hang. It found the problems listed below. It proves a tool does not crash; it does not prove the result is right.
     - Wrong kind of layer: Naming a raster where a vector layer is needed (or the reverse) used to end in a bare failure in 28 tools. The tool registry now turns that error into a message that says what kind of layer the tool works on, and the raster tools check the layer kind before they run.
