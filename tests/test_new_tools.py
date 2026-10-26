@@ -237,6 +237,19 @@ class TestNewTools(unittest.TestCase):
         finally:
             os.remove(path)
 
+    def test_suggestion_message_names_as_table(self):
+        import tempfile
+        import os
+        fd, path = tempfile.mkstemp(suffix=".csv")
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                f.write("id,name,value\n1,a,10\n")
+            with patch("cartogen_ai.core.agent.tools.vector_tools.QGIS_AVAILABLE", True):
+                res = load_tabular_data_as_layer(path)
+            self.assertIn("as_table=true", res["message"])
+        finally:
+            os.remove(path)
+
     def test_sniff_excel_header(self):
         # Regression test for the bug this was built to fix: geometry-column
         # auto-detection previously only ran for CSV, so an Excel file with

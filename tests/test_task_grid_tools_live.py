@@ -47,6 +47,24 @@ class TestGenerateMappingTaskGrid(unittest.TestCase):
         self.addCleanup(QgsProject.instance().clear)
         QgsProject.instance().addMapLayer(_aoi())
 
+    def test_aoi_where_limits_the_area_without_filtering_the_source_layer(self):
+        # 1.18.2 hand test B1 (2026-10-26): "grid over Aden only" left a subset filter on the admin layer. aoi_where does it in the tool.
+        from cartogen_ai.core.agent.tools.task_grid_tools import generate_mapping_task_grid
+        aoi = QgsProject.instance().mapLayersByName("aoi")[0]
+        f = QgsFeature(aoi.fields())
+        f.setGeometry(QgsGeometry.fromWkt("POLYGON((44.30 15.30, 44.34 15.30, 44.34 15.32, 44.30 15.32, 44.30 15.30))"))
+        f.setAttributes(["other"])
+        aoi.dataProvider().addFeatures([f])
+        both = generate_mapping_task_grid("aoi", cell_size_m=1000, output_layer_name="both")
+        one = generate_mapping_task_grid("aoi", cell_size_m=1000, output_layer_name="one", aoi_where="\"name\" = 'other'")
+        self.assertTrue(one.get("success"), one)
+        self.assertLess(one["task_count"], both["task_count"])
+        self.assertEqual(aoi.subsetString(), "")
+        bad = generate_mapping_task_grid("aoi", cell_size_m=1000, aoi_where="\"name\" = 'nothing'")
+        self.assertIn("matching", bad["error"])
+        broken = generate_mapping_task_grid("aoi", cell_size_m=1000, aoi_where="name = = 1")
+        self.assertIn("expression", broken["error"])
+
     def test_builds_a_grid_that_covers_the_area_once(self):
         from cartogen_ai.core.agent.tools.task_grid_tools import generate_mapping_task_grid
         res = generate_mapping_task_grid("aoi", cell_size_m=1000)

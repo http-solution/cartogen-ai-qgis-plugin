@@ -949,7 +949,7 @@ Capture current map canvas view and return visual inspection context.
 
 ### `search_stac_satellite_imagery` _(network-only)_
 
-Search STAC API (Earth Search / Sentinel-2) for satellite scenes by bounding box and date range.
+Search STAC API (Earth Search / Sentinel-2) for satellite scenes by bounding box and date range. Pass max_cloud_cover (percent) when the user names a cloud limit: the filter is applied by the service, so every scene returned meets it. The reply lists only scenes the service returned (newest first); never add scenes from memory.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
@@ -957,6 +957,7 @@ Search STAC API (Earth Search / Sentinel-2) for satellite scenes by bounding box
 | `start_date` | string | yes |  |
 | `end_date` | string | yes |  |
 | `limit` | integer | no |  |
+| `max_cloud_cover` | number | no | Only scenes with eo:cloud_cover below this percent (0-100). |
 
 ## Styling & Labeling
 
@@ -1438,7 +1439,7 @@ Join attributes from one layer to another by a shared field value (not location 
 
 ### `load_tabular_data_as_layer`
 
-Load the FULL contents of a CSV or Excel (.xlsx/.xls) file as a real QGIS layer -- not a preview or a summary. Use this whenever the user has attached, downloaded, or referenced a spreadsheet/CSV file and wants the actual data in the project, not just a description of it. If the file has coordinate columns (e.g. latitude/longitude) or a WKT geometry column, pass x_field/y_field or wkt_field to create a real point/geometry layer; if omitted, this tool tries to auto-detect common column names on its own (for both CSV and Excel) and reports what it used -- if it can't confidently guess, it returns FIELD_SUGGESTION with the real column names instead of guessing wrong. Omit all three (or call again after a FIELD_SUGGESTION with none set) to load it as a plain non-spatial attribute table.
+Load the FULL contents of a CSV or Excel (.xlsx/.xls) file as a real QGIS layer -- not a preview or a summary. Use this whenever the user has attached, downloaded, or referenced a spreadsheet/CSV file and wants the actual data in the project, not just a description of it. If the file has coordinate columns (e.g. latitude/longitude) or a WKT geometry column, pass x_field/y_field or wkt_field to create a real point/geometry layer; if omitted, this tool tries to auto-detect common column names on its own (for both CSV and Excel) and reports what it used -- if it can't confidently guess, it returns FIELD_SUGGESTION with the real column names instead of guessing wrong. A file with no coordinate columns (a forecast, survey or 3W table) is loaded as a plain non-spatial attribute table by passing as_table=true; omitting the coordinate arguments alone just returns the suggestion again.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
@@ -1450,6 +1451,7 @@ Load the FULL contents of a CSV or Excel (.xlsx/.xls) file as a real QGIS layer 
 | `sheet_name` | string | no | Sheet name for Excel files with multiple sheets. Defaults to the first sheet. |
 | `crs` | string | no | CRS of x_field/y_field coordinates. Defaults to EPSG:4326. |
 | `delimiter` | string | no | CSV field delimiter. Defaults to ','. |
+| `as_table` | boolean | no | true: load as a plain attribute table with no geometry (a forecast, survey or 3W file). Skips coordinate detection. |
 
 ### `merge_layers`
 
@@ -3270,6 +3272,7 @@ Split an area of interest into a grid of square mapping tasks for remote or crow
 | `cell_size_m` | number | no | Task width in metres (minimum 100). Default 2000. |
 | `priority_points_layer` | string | no | Optional point (or other vector) layer; the priority value is the number of its features in each cell. |
 | `population_raster_layer` | string | no | Optional population raster; the priority value is the sum of its cells in each task. Ignored if priority_points_layer is given. |
+| `aoi_where` | string | no | Optional QGIS expression (e.g. "ADM1_EN" = 'Aden') limiting the area to matching features of aoi_layer. Use this instead of filtering the source layer, which would hide features from the whole project. |
 | `output_layer_name` | string | no | Name of the new task layer. Default 'mapping_tasks'. |
 | `export_geojson_path` | string | no | Optional file path for the GeoJSON export. Use 'auto' to write into the system temp folder. |
 

@@ -2149,6 +2149,7 @@ class TestScoreRouteIncidentRiskPropagatesCrsWarning(unittest.TestCase):
 
     def _run(self, buffer_warning):
         route = MagicMock()
+        route.crs.return_value.isGeographic.return_value = False  # projected: buffer_analysis path (geographic is covered live)
         route_geom = MagicMock()
         route_geom.isEmpty.return_value = False
         route_geom.distance.return_value = 42.0

@@ -1116,6 +1116,73 @@
           "tests/test_trigger_tools.py::TestEvaluate::test_scale_validation"
       ],
       "hand_verified": "not verified: offline tests only"
+  },
+  {
+      "id": "stac-search-cloud-filter",
+      "feature": "search_stac_satellite_imagery filters by max_cloud_cover at the service and returns newest first",
+      "issues": [],
+      "since": "unreleased (after 1.18.2)",
+      "sources": [
+          "src/cartogen_ai/core/agent/tools/multimodal_remote_sensing.py"
+      ],
+      "guards": [
+          "tests/test_multimodal_remote_sensing.py::TestStacCloudFilter::test_cloud_limit_is_sent_to_the_service_and_echoed"
+      ],
+      "hand_verified": "not verified: CI only (owner hand-smoke 2026-10-26 found the defect; the fix has not been re-run)"
+  },
+  {
+      "id": "route-risk-buffer-in-metres",
+      "feature": "score_route_incident_risk buffers a lat/lon route by real metres",
+      "issues": [],
+      "since": "unreleased (after 1.18.2)",
+      "sources": [
+          "src/cartogen_ai/core/agent/tools/logistics_tools.py"
+      ],
+      "guards": [
+          "tests/test_route_risk_metres_live.py::TestRouteRiskUsesMetres::test_500_m_catches_only_the_100_m_incident",
+          "tests/test_route_risk_metres_live.py::TestRouteRiskUsesMetres::test_2500_m_catches_two"
+      ],
+      "hand_verified": "not verified: CI only (owner hand-smoke 2026-10-26 found the defect; the fix has not been re-run)"
+  },
+  {
+      "id": "chat-br-and-comparison-spans",
+      "feature": "a model-written <br> stays a line break and comparison-only dollar spans lose their dollars",
+      "issues": [],
+      "since": "unreleased (after 1.18.2)",
+      "sources": [
+          "src/cartogen_ai/core/ui/chat_formatting.py"
+      ],
+      "guards": [
+          "tests/test_chat_formatting.py::TestModelBreaksAndComparisonSpans::test_model_written_br_stays_a_break_but_other_tags_stay_escaped",
+          "tests/test_chat_formatting.py::TestModelBreaksAndComparisonSpans::test_prices_are_left_alone"
+      ],
+      "hand_verified": "not verified: CI only (owner hand-smoke 2026-10-26 found the defect; the fix has not been re-run)"
+  },
+  {
+      "id": "task-grid-aoi-where",
+      "feature": "generate_mapping_task_grid limits the area with aoi_where instead of a filter on the source layer",
+      "issues": [],
+      "since": "unreleased (after 1.18.2)",
+      "sources": [
+          "src/cartogen_ai/core/agent/tools/task_grid_tools.py"
+      ],
+      "guards": [
+          "tests/test_task_grid_tools_live.py::TestGenerateMappingTaskGrid::test_aoi_where_limits_the_area_without_filtering_the_source_layer"
+      ],
+      "hand_verified": "not verified: CI only (owner hand-smoke 2026-10-26 found the defect; the fix has not been re-run)"
+  },
+  {
+      "id": "load-tabular-twice-adds-nothing",
+      "feature": "loading the same file twice adds no second layer and says so",
+      "issues": [],
+      "since": "unreleased (after 1.18.2)",
+      "sources": [
+          "src/cartogen_ai/core/agent/tools/vector_tools.py"
+      ],
+      "guards": [
+          "tests/test_load_tabular_twice_live.py::TestLoadTabularTwice::test_second_identical_load_adds_nothing_and_says_so"
+      ],
+      "hand_verified": "not verified: CI only (owner hand-smoke 2026-10-26 found the defect; the fix has not been re-run)"
   }
  ]
 }

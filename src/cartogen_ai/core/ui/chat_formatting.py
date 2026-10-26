@@ -111,6 +111,8 @@ def _linkify_output_paths(text):
 # (a half-converted formula is worse than a raw one), and "$5 and $10" is not math: only $...$ spans that contain
 # a backslash or a caret are touched.
 _LATEX_SPAN = re.compile(r"\$([^$\n]{1,80}?)\$")
+_MODEL_BR = re.compile(r"<br\s*/?>", re.IGNORECASE)
+_COMPARISON_SPAN = re.compile(r"^\s*(?:<=|>=|<|>|=)\s*(?:\d[\d.,]*%?)?\s*$")
 _LATEX_SYMBOLS = {
     r"\leq": "\u2264", r"\le": "\u2264", r"\geq": "\u2265", r"\ge": "\u2265", r"\neq": "\u2260",
     r"\times": "\u00d7", r"\cdot": "\u00b7", r"\approx": "\u2248", r"\pm": "\u00b1",
@@ -149,6 +151,10 @@ def simplify_latex(text):
     def _span(m):
         inner = m.group(1)
         if "\\" not in inner and "^" not in inner:
+            # 1.18.2 hand test B6: class text like "$< 0.2$" / "$>=$" showed its dollar signs. A span that is only a comparison
+            # operator, optionally with a number, is math, not prices ("$5 and $10" never starts with an operator).
+            if _COMPARISON_SPAN.match(inner):
+                return inner.strip()
             return m.group(0)
         converted = _latex_inner(inner)
         return m.group(0) if converted is None else converted
@@ -187,8 +193,10 @@ def render_markdown(text, colors=None):
     text = re.sub(r'```(\w*)\n?(.*?)```', _stash_code, text, flags=re.DOTALL)
     text = simplify_latex(text)
 
-    # 2. Escape remaining HTML-sensitive characters.
-    text = text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    # 2. Escape remaining HTML-sensitive characters. A line break the model wrote as <br> (it does so inside table cells and bullets)
+    # is kept as a break: 1.18.2 hand test A4 showed the literal "<br>" in a facility list because escaping turned it into text.
+    text = _MODEL_BR.sub("\x01BR\x01", text)
+    text = text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\x01BR\x01", "<br>")
 
     # 3. Block-level formatting. Index-based (not a plain for-line loop) so
     # multi-line constructs -- a table's header+separator+data rows, a run

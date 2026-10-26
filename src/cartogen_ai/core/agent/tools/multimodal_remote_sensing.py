@@ -28,14 +28,30 @@ _STAC_QUOTA = {"count": 0}   # holder rather than a global (ruff PLW0603)
 _STAC_MAX_REQUESTS = 20
 
 
-@register_tool("search_stac_satellite_imagery", "Search STAC API (Earth Search / Sentinel-2) for satellite scenes by bounding box and date range.", {"type": "object", "properties": {"bbox": {"type": "array", "items": {"type": "number"}}, "start_date": {"type": "string"}, "end_date": {"type": "string"}, "limit": {"type": "integer"}}, "required": ["bbox", "start_date", "end_date"]})
-def search_stac_satellite_imagery(bbox: list, start_date: str, end_date: str, limit: int = 5):
+@register_tool(
+    "search_stac_satellite_imagery",
+    "Search STAC API (Earth Search / Sentinel-2) for satellite scenes by bounding box and date range. Pass max_cloud_cover (percent) "
+    "when the user names a cloud limit: the filter is applied by the service, so every scene returned meets it. The reply lists "
+    "only scenes the service returned (newest first); never add scenes from memory.",
+    {"type": "object", "properties": {"bbox": {"type": "array", "items": {"type": "number"}}, "start_date": {"type": "string"},
+     "end_date": {"type": "string"}, "limit": {"type": "integer"},
+     "max_cloud_cover": {"type": "number", "description": "Only scenes with eo:cloud_cover below this percent (0-100)."}},
+     "required": ["bbox", "start_date", "end_date"]})
+def search_stac_satellite_imagery(bbox: list, start_date: str, end_date: str, limit: int = 5, max_cloud_cover: float | None = None):
     """Queries STAC Earth Search API (Element 84 / Sentinel-2). Cached and quota-guarded to
     avoid burning API quota via repeated agent-loop queries within the same plugin session."""
     if len(bbox) != 4:
         return {"error": "bbox must be list of 4 numbers [west, south, east, north]"}
 
-    cache_key = (tuple(bbox), start_date, end_date, limit)
+    if max_cloud_cover is not None:
+        try:
+            max_cloud_cover = float(max_cloud_cover)
+        except (TypeError, ValueError):
+            return {"error": "max_cloud_cover must be a number between 0 and 100 (percent)."}
+        if not 0 <= max_cloud_cover <= 100:
+            return {"error": "max_cloud_cover must be a number between 0 and 100 (percent)."}
+
+    cache_key = (tuple(bbox), start_date, end_date, limit, max_cloud_cover)
     cached = _STAC_CACHE.get(cache_key)
     if cached is not None:
         cached_at, cached_result = cached
@@ -55,7 +71,13 @@ def search_stac_satellite_imagery(bbox: list, start_date: str, end_date: str, li
         "datetime": f"{start_date}T00:00:00Z/{end_date}T23:59:59Z",
         "collections": ["sentinel-2-l2a"],
         "limit": limit,
+        # newest first, so "the latest scenes" is what the service returns rather than what the model fills in
+        "sortby": [{"field": "properties.datetime", "direction": "desc"}],
     }
+    if max_cloud_cover is not None:
+        # 1.18.2 hand test A13 (2026-10-26): "under 20 percent cloud" had no parameter, so the service returned unfiltered scenes and
+        # the model padded the table from memory. The STAC query extension filters at the service.
+        payload["query"] = {"eo:cloud_cover": {"lt": max_cloud_cover}}
 
     try:
         data_bytes = json.dumps(payload).encode("utf-8")
@@ -77,7 +99,10 @@ def search_stac_satellite_imagery(bbox: list, start_date: str, end_date: str, li
                     "visual_href": assets.get("visual", {}).get("href"),
                 })
 
-            result = {"success": True, "scene_count": len(results), "scenes": results}
+            result = {"success": True, "scene_count": len(results), "scenes": results,
+                      "filters": {"max_cloud_cover": max_cloud_cover, "start_date": start_date, "end_date": end_date}}
+            if not results:
+                result["note"] = "The service returned no scenes for these filters; say so rather than listing scenes from memory."
             _STAC_CACHE[cache_key] = (time.time(), result)
             return result
     except Exception as e:

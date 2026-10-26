@@ -114,9 +114,35 @@ def _copy_transformed(geom, src, dst):
     return out
 
 
-def _aoi_union(layer):
-    geoms = [f.geometry() for f in _ck.features(layer, "Task grid: reading features") if f.geometry() is not None and not f.geometry().isEmpty()]
+def _aoi_union(layer, where=None):
+    """Union of the area's polygons; `where` (a QGIS expression) keeps only matching features so the source layer need not be filtered."""
+    from qgis.core import QgsExpression
+    expression = QgsExpression(where) if where else None
+    if expression is not None and expression.hasParserError():
+        raise ValueError(f"aoi_where is not a valid QGIS expression: {expression.parserErrorString()}")
+    from qgis.core import QgsExpressionContext, QgsExpressionContextUtils
+    context = QgsExpressionContext(QgsExpressionContextUtils.globalProjectLayerScopes(layer)) if expression is not None else None
+    geoms = []
+    for f in _ck.features(layer, "Task grid: reading features"):
+        if f.geometry() is None or f.geometry().isEmpty():
+            continue
+        if expression is not None:
+            context.setFeature(f)
+            if not expression.evaluate(context):
+                continue
+        geoms.append(f.geometry())
     return QgsGeometry.unaryUnion(geoms) if geoms else None
+
+
+def _aoi_union_or_error(aoi, aoi_layer, aoi_where):
+    """(union, None) or (None, {"error": ...}) so the tool body stays a straight line."""
+    try:
+        union = _aoi_union(aoi, aoi_where)
+    except ValueError as e:
+        return None, {"error": str(e)}
+    if union is None:
+        return None, {"error": f"'{aoi_layer}' has no usable polygons" + (f" matching {aoi_where}." if aoi_where else ".")}
+    return union, None
 
 
 def _point_counts(cells_metric, points_layer, metric):
@@ -175,6 +201,7 @@ def _raster_sums(cells_metric, raster_layer, metric):
             "cell_size_m": {"type": "number", "description": "Task width in metres (minimum 100). Default 2000."},
             "priority_points_layer": {"type": "string", "description": "Optional point (or other vector) layer; the priority value is the number of its features in each cell."},
             "population_raster_layer": {"type": "string", "description": "Optional population raster; the priority value is the sum of its cells in each task. Ignored if priority_points_layer is given."},
+            "aoi_where": {"type": "string", "description": "Optional QGIS expression (e.g. \"ADM1_EN\" = 'Aden') limiting the area to matching features of aoi_layer. Use this instead of filtering the source layer, which would hide features from the whole project."},
             "output_layer_name": {"type": "string", "description": "Name of the new task layer. Default 'mapping_tasks'."},
             "export_geojson_path": {"type": "string", "description": "Optional file path for the GeoJSON export. Use 'auto' to write into the system temp folder."},
         },
@@ -182,7 +209,7 @@ def _raster_sums(cells_metric, raster_layer, metric):
     },
 )
 def generate_mapping_task_grid(aoi_layer, cell_size_m=2000, priority_points_layer=None, population_raster_layer=None,
-                               output_layer_name="mapping_tasks", export_geojson_path=None):
+                               output_layer_name="mapping_tasks", export_geojson_path=None, aoi_where=None):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
     problem = validate_options(cell_size_m)
@@ -205,9 +232,9 @@ def generate_mapping_task_grid(aoi_layer, cell_size_m=2000, priority_points_laye
         if raster is None or not hasattr(raster, "bandCount"):
             return {"error": f"Raster layer '{population_raster_layer}' not found"}
 
-    union = _aoi_union(aoi)
-    if union is None:
-        return {"error": f"'{aoi_layer}' has no usable polygons."}
+    union, problem = _aoi_union_or_error(aoi, aoi_layer, aoi_where)
+    if problem:
+        return problem
 
     wgs = QgsCoordinateReferenceSystem("EPSG:4326")
     centre = _transform(aoi.crs(), wgs).transform(union.boundingBox().center())
