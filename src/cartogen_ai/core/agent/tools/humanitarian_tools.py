@@ -698,7 +698,7 @@ def _auto_label_admin(layer):
     """Name labels on an admin-boundary layer when it is small enough to read (a few dozen areas, not thousands).
 
     Also makes it a backdrop: rc11 smoke test S5 -- a downloaded governorate layer arrived as an opaque default-orange fill at
-    the TOP of the layer tree, hiding the roads and facilities under it. A light grey fill with thin white borders between the areas (the look the owner asked for with a picture on 2026-10-26: the borders between provinces must show), then the usual
+    the TOP of the layer tree, hiding the roads and facilities under it. A translucent light grey fill (200,200,200 at 55 percent: about #e1e1e1 on a white canvas, and it never buries what is drawn under it, the rc11 S5 rule that tests/test_hdx_admin_live.py keeps) with thin white borders between the areas (the look the owner asked for with a picture on 2026-10-26: the borders between provinces must show), then the usual
     points > lines > polygons order, keeps the analysis visible. Best-effort cosmetics; never raises. Not re-run in a real
     QGIS session from the sandbox."""
     with contextlib.suppress(Exception):
@@ -708,7 +708,7 @@ def _auto_label_admin(layer):
     with contextlib.suppress(Exception):
         from qgis.core import QgsFillSymbol
         layer.renderer().setSymbol(QgsFillSymbol.createSimple({
-            "color": "229,229,229,235", "outline_color": "255,255,255,255", "outline_width": "0.3"}))   # light grey, white borders between areas
+            "color": "200,200,200,140", "outline_color": "255,255,255,255", "outline_width": "0.3"}))   # light grey, white borders between areas
         layer.triggerRepaint()
         from .styling_tools import auto_arrange_layer_order
         auto_arrange_layer_order()

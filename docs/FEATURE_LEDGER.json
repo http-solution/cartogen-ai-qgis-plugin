@@ -1089,7 +1089,7 @@
   },
   {
       "id": "admin-boundary-borders-stay-visible",
-      "feature": "A boundary layer from fetch_geoboundaries or fetch_hdx_admin_boundaries draws a light grey fill with thin white borders, and change_layer_color / set_layer_transparency on a single-symbol polygon layer put the opacity into the fill colour only, so the borders between areas stay visible",
+      "feature": "A boundary layer from fetch_geoboundaries or fetch_hdx_admin_boundaries draws a translucent light grey fill with thin white borders, and change_layer_color / set_layer_transparency on a single-symbol polygon layer put the opacity into the fill colour only, so the borders between areas stay visible",
       "issues": [],
       "since": "1.18.2 (unreleased change)",
       "sources": [

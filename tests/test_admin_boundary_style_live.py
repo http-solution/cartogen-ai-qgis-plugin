@@ -43,7 +43,8 @@ class TestAdminBoundaryBorders(unittest.TestCase):
         self.assertEqual(sl.strokeColor().name(), "#ffffff")
         self.assertEqual(sl.strokeColor().alpha(), 255)
         self.assertGreaterEqual(sl.strokeWidth(), 0.25)
-        self.assertEqual(sl.fillColor().name(), "#e5e5e5")
+        self.assertEqual(sl.fillColor().name(), "#c8c8c8")
+        self.assertLess(sl.fillColor().alpha(), 150)         # stays a backdrop: translucent, as tests/test_hdx_admin_live.py requires
 
     def test_recolour_with_opacity_fades_the_fill_not_the_border(self):
         from cartogen_ai.core.agent.tools.styling_tools import change_layer_color
