@@ -536,6 +536,9 @@ def _qgis_buffered_hop(req, timeout, first_error):
     return Response(reply.body, reply.status, reply.headers, req.full_url)
 
 
+_PROXY_LIKE_STATUSES = (403, 407)
+
+
 def _stream_open_once(req, timeout, qgis=True, qgis_fallback=False):
     """One streaming GET hop with redirects NOT followed: a 3xx comes back as a response whose .status is 3xx (QGIS path) or as the
     HTTPError urllib raises for it (fallback path, same .status and .headers).
@@ -561,6 +564,13 @@ def _stream_open_once(req, timeout, qgis=True, qgis_fallback=False):
     except urllib.error.HTTPError as e:
         if e.code in _REDIRECT_STATUSES:
             return e
+        # A proxy that urllib cannot authenticate to (or a gateway that does not know the CDN host) answers with its own 403, 407 or
+        # 5xx page, not a connection error: field report 2026-10-26, Yemen ADM1: HDX "403 Forbidden" and geoBoundaries "500 Domain Not
+        # Found" on the redirected download hop, after the first request (QGIS stack) had worked. Retry that status once through the
+        # QGIS stack; if QGIS gets the same status it is raised instead (the server really refuses), so a genuine 403 costs one request.
+        if qgis_fallback and QGIS_NETWORK_AVAILABLE and (e.code in _PROXY_LIKE_STATUSES or e.code >= 500):
+            e.close()
+            return _qgis_buffered_hop(req, timeout, e)
         raise
     except OSError as e:          # URLError, timeouts, SSL and proxy failures; an HTTP status was handled above
         if qgis_fallback and QGIS_NETWORK_AVAILABLE:

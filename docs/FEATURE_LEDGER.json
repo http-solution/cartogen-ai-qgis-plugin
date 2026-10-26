@@ -1055,6 +1055,21 @@
     "sources": ["src/cartogen_ai/core/agent/tools/layout_chart_profile_tools.py"],
     "guards": ["tests/test_layout_item_ink.py::TestInkVerdict::test_axes_only_is_reported_as_empty_with_what_to_check", "tests/test_layout_item_ink.py::TestInkVerdict::test_the_boundary_is_the_documented_minimum", "tests/test_layout_items_render_live.py::TestLayoutItemsRender::test_every_tool_says_whether_its_item_drew_data", "tests/test_layout_items_render_live.py::TestLayoutItemsRender::test_the_profile_curve_is_there_every_time_it_is_rendered", "tests/test_layout_items_render_live.py::TestLayoutItemsRender::test_the_rendered_items_are_not_empty"],
     "hand_verified": "not verified: CI only. Placement and the empty bar, pie, line and profile items were fixed under PLAN-008 (CI renders: bar 0.130, pie 0.382, line 0.001, profile 0.011 to 0.012 of their area coloured, two runs); the owner has not looked at them since"
+  },
+  {
+      "id": "download-redirect-hop-status-via-qgis",
+      "feature": "A file download whose redirected hop (urllib with QGIS proxy dictionary) is answered with 403, 407 or a 5xx status is retried once through the QGIS network stack, which carries PAC/system proxy, proxy authentication and the SSL setup; a refusal the server really gives is raised unchanged. Affects fetch_hdx_admin_boundaries, fetch_geoboundaries and every other download through net.stream_following",
+      "issues": [],
+      "since": "1.18.2 (unreleased change)",
+      "sources": [
+          "src/cartogen_ai/core/net.py"
+      ],
+      "guards": [
+          "tests/test_net.py::TestRedirectedHopFallsBackToTheQgisStack::test_a_proxy_like_status_from_urllib_is_retried_through_qgis",
+          "tests/test_net.py::TestRedirectedHopFallsBackToTheQgisStack::test_when_qgis_gets_the_same_refusal_that_status_is_raised",
+          "tests/test_net.py::TestRedirectedHopFallsBackToTheQgisStack::test_an_ordinary_missing_file_is_not_retried"
+      ],
+      "hand_verified": "not verified: CI offline fakes only. The cause of the owner report (HDX 403 and geoBoundaries 500 for Yemen ADM1 on 2026-10-26) is the best-supported explanation, not confirmed; a row on the owner machine is needed"
   }
  ]
 }
