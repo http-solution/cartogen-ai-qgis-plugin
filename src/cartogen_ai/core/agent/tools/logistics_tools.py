@@ -814,6 +814,34 @@ def _replace_named_layer(name, new_layer, to_tree=True, params=None):
     return replaced
 
 
+def _metric_route_buffer(route, route_geom, route_layer, distance_m):
+    """Buffer a geographic-CRS route by distance_m real metres: project to the local UTM zone, buffer, project back, and add the
+    polygon as '<route>_buffer_<distance>' (same name and role as buffer_analysis output). Returns buffer_analysis-shaped dict."""
+    try:
+        centre = route_geom.boundingBox().center()
+        utm = QgsCoordinateReferenceSystem(f"EPSG:{_utm_epsg_for(centre.x(), centre.y())}")
+        project = QgsProject.instance()
+        to_utm = QgsCoordinateTransform(route.crs(), utm, project)
+        to_route = QgsCoordinateTransform(utm, route.crs(), project)
+        metric = QgsGeometry(route_geom)
+        metric.transform(to_utm)
+        buffered = metric.buffer(float(distance_m), 8)
+        if buffered is None or buffered.isEmpty():
+            return {"error": "Route buffer produced no usable geometry."}
+        buffered.transform(to_route)
+        name = f"{route_layer}_buffer_{distance_m}"
+        layer = QgsVectorLayer(f"Polygon?crs={route.crs().authid()}", name, "memory")
+        feature = QgsFeature()
+        feature.setGeometry(buffered)
+        layer.dataProvider().addFeatures([feature])
+        layer.updateExtents()
+        project.addMapLayer(layer)
+        return {"success": True, "layer_name": name,
+                "note": f"Buffered {distance_m} m in {utm.authid()}, then returned to {route.crs().authid()}."}
+    except Exception as e:
+        return {"error": f"Route buffer failed: {e}"}
+
+
 def _style_risk_buffer_layer(layer):
     """Hardcoded, consistent 'risk corridor' look for score_route_incident_risk's
     buffer output -- same reasoning as humanitarian_tools._style_incident_layer:
@@ -3200,7 +3228,13 @@ def score_route_incident_risk(route_layer, incident_layer, buffer_distance, date
     if route_geom is None:
         return {"error": f"'{route_layer}' has no usable geometry."}
 
-    buffer_result = buffer_analysis(route_layer, buffer_distance)
+    if route.crs().isValid() and route.crs().isGeographic():
+        # 1.18.2 hand test C9 (2026-10-26): on an EPSG:4326 route, buffer_analysis applied 500 as 500 DEGREES, so every incident in
+        # the layer counted as "near" and the only signal was a warning. buffer_distance is documented as metres, so buffer in the
+        # local UTM zone and bring the polygon back instead of warning about a wrong number.
+        buffer_result = _metric_route_buffer(route, route_geom, route_layer, buffer_distance)
+    else:
+        buffer_result = buffer_analysis(route_layer, buffer_distance)
     if "error" in buffer_result:
         return buffer_result
     # QGIS-006/QGIS-007, 2026-09-13 audit: buffer_analysis already detects and warns when

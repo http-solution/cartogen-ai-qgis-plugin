@@ -147,6 +147,28 @@ class TestRenderMarkdown(unittest.TestCase):
         self.assertIn("#555555", hr_html)
 
 
+class TestModelBreaksAndComparisonSpans(unittest.TestCase):
+    """1.18.2 hand test A4/B6: a literal '<br>' in a facility list and raw '$' around '< 0.2' in class text."""
+
+    def test_model_written_br_stays_a_break_but_other_tags_stay_escaped(self):
+        out = render_markdown("Hospital A<br>Hospital B<br/>C <b>x</b>")
+        self.assertIn("Hospital A<br>Hospital B<br>C", out)
+        self.assertNotIn("&lt;br", out)
+        self.assertIn("&lt;b&gt;x&lt;/b&gt;", out)
+
+    def test_br_inside_a_table_cell(self):
+        out = render_markdown("| a | b |\n|---|---|\n| x<br>y | z |")
+        self.assertIn("x<br>y</td>", out)
+
+    def test_comparison_only_dollar_spans_lose_their_dollars(self):
+        self.assertEqual(cf.simplify_latex("score $< 0.2$ and $>=$"), "score < 0.2 and >=")
+        self.assertEqual(cf.simplify_latex("$>= 80%$"), ">= 80%")
+
+    def test_prices_are_left_alone(self):
+        self.assertEqual(cf.simplify_latex("between $5 and $10"), "between $5 and $10")
+        self.assertEqual(cf.simplify_latex("$5 < $10"), "$5 < $10")
+
+
 class TestLinkifyOutputPaths(unittest.TestCase):
     """Phase 4 (2026-09-19): a tool's output_path was previously shown in chat as a raw,
     unclickable string ('Created report at: C:\\Users\\x\\report.pdf') -- linkified into a

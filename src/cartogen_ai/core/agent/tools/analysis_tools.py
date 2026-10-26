@@ -370,7 +370,7 @@ def calculate_severity_index(layer_name, indicator_fields, unit_name_field, weig
                 "invert_indicators": invert_indicators, "output_field": output_field,
                 "confirmed": True,
             },
-            "code_snippet": f"layer.startEditing()\n# Add/update field '{output_field}' = composite severity score across features\nlayer.commitChanges()",
+            "code_snippet": f"layer = '{layer_name}'\nlayer.startEditing()\nlayer.changeAttributeValue(fid, field_index('{output_field}'), value)  # every feature: composite severity score; an existing field of that name is overwritten\nlayer.commitChanges()",
             "rationale": f"Data Mutation Preview: Add/update field '{output_field}' on layer '{layer_name}' with each unit's composite severity score.",
             "message": f"Confirmation required before mutating attribute field '{output_field}' on '{layer_name}'.",
         }
@@ -527,7 +527,7 @@ def calculate_presence_gap(layer_name, indicator_fields, unit_name_field, presen
                 "sheet_name": sheet_name, "delimiter": delimiter, "output_field": output_field,
                 "confirmed": True,
             },
-            "code_snippet": f"layer.startEditing()\n# Add/update field '{output_field}' = presence-gap status ('gap'/'covered'/'unmatched') across features\nlayer.commitChanges()",
+            "code_snippet": f"layer = '{layer_name}'\nlayer.startEditing()\nlayer.changeAttributeValue(fid, field_index('{output_field}'), value)  # every feature: presence-gap status ('gap'/'covered'/'unmatched'); an existing field of that name is overwritten\nlayer.commitChanges()",
             "rationale": f"Data Mutation Preview: Add/update field '{output_field}' on layer '{layer_name}' with each high-severity unit's presence-gap status.",
             "message": f"Confirmation required before mutating attribute field '{output_field}' on '{layer_name}'.",
         }
@@ -704,7 +704,7 @@ def calculate_population_in_need(layer_name, indicator_fields, unit_name_field, 
                 "high_severity_classes": high_severity_classes, "output_field": output_field,
                 "confirmed": True,
             },
-            "code_snippet": f"layer.startEditing()\n# Add/update field '{output_field}' = population-in-need figure across features\nlayer.commitChanges()",
+            "code_snippet": f"layer = '{layer_name}'\nlayer.startEditing()\nlayer.changeAttributeValue(fid, field_index('{output_field}'), value)  # every feature: population-in-need figure; an existing field of that name is overwritten\nlayer.commitChanges()",
             "rationale": f"Data Mutation Preview: Add/update field '{output_field}' on layer '{layer_name}' with each unit's population figure.",
             "message": f"Confirmation required before mutating attribute field '{output_field}' on '{layer_name}'.",
         }
@@ -955,7 +955,7 @@ def calculate_damage_exposure_severity(admin_layer, unit_name_field, raster_befo
                 "high_severity_classes": high_severity_classes, "output_field": output_field,
                 "confirmed": True,
             },
-            "code_snippet": f"layer.startEditing()\n# Add/update field '{output_field}' = damage-exposure severity score across features\nlayer.commitChanges()",
+            "code_snippet": f"layer = '{admin_layer}'\nlayer.startEditing()\nlayer.changeAttributeValue(fid, field_index('{output_field}'), value)  # every feature: damage-exposure severity score; an existing field of that name is overwritten\nlayer.commitChanges()",
             "rationale": f"Data Mutation Preview: Add/update field '{output_field}' on layer '{admin_layer}' with each unit's damage-exposure severity score.",
             "message": f"Confirmation required before mutating attribute field '{output_field}' on '{admin_layer}'.",
         }

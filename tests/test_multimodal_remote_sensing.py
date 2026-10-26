@@ -81,6 +81,46 @@ class TestStacCacheAndQuota(unittest.TestCase):
         self.assertEqual(mock_urlopen.call_args.kwargs.get("timeout"), 15)
 
 
+class TestStacCloudFilter(unittest.TestCase):
+    """1.18.2 hand test A13: 'under 20 percent cloud' had no parameter, so unfiltered scenes were returned and the table was padded
+    from memory. The filter must reach the service."""
+
+    def setUp(self):
+        mrs._STAC_CACHE.clear()
+        mrs._STAC_QUOTA["count"] = 0
+
+    @staticmethod
+    def _body(mock_urlopen):
+        import json
+        return json.loads(mock_urlopen.call_args.args[0].data.decode())
+
+    @patch("urllib.request.urlopen")
+    def test_cloud_limit_is_sent_to_the_service_and_echoed(self, mock_urlopen):
+        mock_urlopen.return_value = _mock_stac_response()
+        res = mrs.search_stac_satellite_imagery([1, 2, 3, 4], "2026-01-01", "2026-01-31", max_cloud_cover=20)
+        body = self._body(mock_urlopen)
+        self.assertEqual(body["query"], {"eo:cloud_cover": {"lt": 20.0}})
+        self.assertEqual(body["sortby"][0]["direction"], "desc")
+        self.assertEqual(res["filters"]["max_cloud_cover"], 20.0)
+
+    @patch("urllib.request.urlopen")
+    def test_no_limit_sends_no_query(self, mock_urlopen):
+        mock_urlopen.return_value = _mock_stac_response()
+        mrs.search_stac_satellite_imagery([1, 2, 3, 4], "2026-01-01", "2026-01-31")
+        self.assertNotIn("query", self._body(mock_urlopen))
+
+    @patch("urllib.request.urlopen")
+    def test_a_different_limit_is_a_different_cache_entry(self, mock_urlopen):
+        mock_urlopen.return_value = _mock_stac_response()
+        mrs.search_stac_satellite_imagery([1, 2, 3, 4], "2026-01-01", "2026-01-31", max_cloud_cover=20)
+        second = mrs.search_stac_satellite_imagery([1, 2, 3, 4], "2026-01-01", "2026-01-31", max_cloud_cover=50)
+        self.assertNotIn("cached", second)
+
+    def test_out_of_range_limit_is_refused(self):
+        for bad in (-1, 101, "lots"):
+            self.assertIn("max_cloud_cover", mrs.search_stac_satellite_imagery([1, 2, 3, 4], "2026-01-01", "2026-01-31", max_cloud_cover=bad)["error"])
+
+
 class TestInspectCanvasVisually(unittest.TestCase):
     """inspect_canvas_visually: no test coverage at all before QUAL-006 (2026-09-14
     audit)."""

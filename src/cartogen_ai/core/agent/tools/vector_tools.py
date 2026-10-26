@@ -1083,6 +1083,20 @@ def load_tabular_data_as_layer(file_path, layer_name=None, x_field=None, y_field
         if not layer.isValid():
             return {"error": f"Could not load '{file_path}' as a layer -- check the file and field names are correct."}
 
+        # 1.18.2 hand test D5 (2026-10-26): the same CSV was loaded three times in one turn until the loop guard stopped it. Each call
+        # silently added another copy and said "success", so the model never learned the table was already there. A second identical
+        # load now adds nothing and says so.
+        for existing in QgsProject.instance().mapLayersByName(layer.name()):
+            if existing.source() == layer.source():
+                return {
+                    "success": True,
+                    "already_loaded": True,
+                    "layer_name": existing.name(),
+                    "feature_count": existing.featureCount(),
+                    "is_spatial": existing.isSpatial(),
+                    "note": f"'{existing.name()}' is already in the project from this file; nothing was added. Use that layer.",
+                }
+
         QgsProject.instance().addMapLayer(layer)
         if layer.isSpatial():
             with contextlib.suppress(Exception):
