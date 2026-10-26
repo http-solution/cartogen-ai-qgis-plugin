@@ -9,6 +9,7 @@ import json
 import math
 import urllib.request
 from ...net import urlopen as _qgis_urlopen
+from ... import net as _net
 import urllib.parse
 import urllib.error
 from datetime import date
@@ -643,7 +644,6 @@ def fetch_geoboundaries_network_phase(iso3: str, admin_level: str = "ADM1", allo
     # uses urllib, which does not see QGIS's proxy settings. Say which stage and which host, so a failure on a proxied machine can be
     # told apart from a geoBoundaries outage (the unexplained 2026-10-13 tester failure).
     stage = "API request"
-    download_host = None
     try:
         req = _net_build_request(url, headers={'User-Agent': 'QGIS-AI-Assistant'})
         with _qgis_urlopen(req, timeout=30) as response:
@@ -670,7 +670,6 @@ def fetch_geoboundaries_network_phase(iso3: str, admin_level: str = "ADM1", allo
         if too_big:
             return too_big
         stage = "boundary file download"
-        download_host = urllib.parse.urlparse(geojson_url).hostname
         req2 = _net_build_request(geojson_url, headers={'User-Agent': 'QGIS-AI-Assistant'})
         with _build_safe_opener().open(req2, timeout=60) as response2:
             geojson_bytes = _read_capped(response2, MAX_DOWNLOAD_BYTES)
@@ -690,10 +689,9 @@ def fetch_geoboundaries_network_phase(iso3: str, admin_level: str = "ADM1", allo
     except Exception as e:
         log_event("geoboundaries_fetch_failed", tag="humanitarian_tools", stage=stage, error_class=type(e).__name__, error=True)
         if stage == "API request":
-            return {"error": f"geoBoundaries API request failed: {e}" + BOUNDARY_NO_SUBSTITUTE}
-        return {"error": (f"geoBoundaries boundary file download from {download_host} failed ({type(e).__name__}: {e}). The lookup "
-                          "itself worked, so the service is up; if this machine uses a proxy, the file host may be unreachable "
-                          "from it. fetch_hdx_admin_boundaries is the alternative source." + BOUNDARY_NO_SUBSTITUTE)}
+            return {"error": ("geoBoundaries lookup failed: " + _net.describe_download_failure(e, url)) + BOUNDARY_NO_SUBSTITUTE}
+        return {"error": (f"The geoBoundaries boundary file could not be downloaded. {_net.describe_download_failure(e, geojson_url)} "
+                          "The lookup itself worked, so the service is up. fetch_hdx_admin_boundaries is the alternative source." + BOUNDARY_NO_SUBSTITUTE)}
 
 
 def _auto_label_admin(layer):
@@ -794,9 +792,9 @@ def fetch_hdx_admin_boundaries_network_phase(iso3: str, admin_level: str = "ADM1
                     "(broader country coverage, but no P-codes)." + BOUNDARY_NO_SUBSTITUTE
                 )
             }
-        return {"error": f"HDX request failed: {e}"}
+        return {"error": "HDX lookup failed: " + _net.describe_download_failure(e, show_url)}
     except Exception as e:
-        return {"error": f"HDX request failed: {e}"}
+        return {"error": "HDX lookup failed: " + _net.describe_download_failure(e, show_url)}
     # Same real live crash class as hazard_monitoring_tools.py's fetch_nasa_eonet_events/
     # fetch_gdacs_disaster_alerts (2026-09-13): the try/except above only guarantees valid
     # JSON, not a dict -- a CKAN error page or gateway response served with a JSON
@@ -830,7 +828,8 @@ def fetch_hdx_admin_boundaries_network_phase(iso3: str, admin_level: str = "ADM1
         with _build_safe_opener().open(req2, timeout=60) as response2:
             zip_bytes = _read_capped(response2, MAX_DOWNLOAD_BYTES)
     except Exception as e:
-        return {"error": f"Failed to download '{zip_url}': {e}"}
+        return {"error": (f"The HDX boundary file for {iso3} {admin_level} could not be downloaded. "
+                          f"{_net.describe_download_failure(e, zip_url)} fetch_geoboundaries is the alternative source." + BOUNDARY_NO_SUBSTITUTE)}
 
     import io
     import zipfile

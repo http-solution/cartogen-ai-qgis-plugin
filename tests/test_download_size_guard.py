@@ -86,7 +86,8 @@ class TestGeoboundariesFailureNamesTheStage(unittest.TestCase):
         ht = self.ht
         with patch.object(ht, "_qgis_urlopen", side_effect=OSError("network unreachable")):
             res = ht.fetch_geoboundaries_network_phase("QQQ", "ADM1")
-        self.assertIn("geoBoundaries API request failed", res["error"])
+        self.assertIn("geoBoundaries lookup failed", res["error"])
+        self.assertIn("geoboundaries.org", res["error"])        # names the site, in a sentence a person can act on
 
     def test_a_failed_file_download_names_the_stage_the_host_and_the_exception(self):
         ht = self.ht
@@ -100,11 +101,12 @@ class TestGeoboundariesFailureNamesTheStage(unittest.TestCase):
             res = ht.fetch_geoboundaries_network_phase("QQQ", "ADM2")
         msg = res["error"]
         self.assertIn("Do NOT substitute", msg)       # Jordan ADM1 hand test: the model drew 12 capitals from memory after both downloads failed
-        self.assertIn("boundary file download", msg)
+        self.assertIn("boundary file could not be downloaded", msg)
         self.assertIn("raw.githubusercontent.com", msg)
         self.assertIn("OSError", msg)
         self.assertIn("lookup", msg)                      # says the lookup itself worked
         self.assertNotIn("API request failed", msg)
+        self.assertNotIn("?", msg.split("Do NOT")[0])         # no link with a query string in the message
 
 
 if __name__ == "__main__":
