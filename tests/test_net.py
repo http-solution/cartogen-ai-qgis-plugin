@@ -136,6 +136,50 @@ class TestRedirectedHopFallsBackToTheQgisStack(unittest.TestCase):
             net._stream_open_once(net.build_request("https://x.example.org/"), 5, qgis=False, qgis_fallback=True)
 
 
+class TestRedirectDoesNotCarryTheHostHeader(unittest.TestCase):
+    """2026-10-26, Yemen ADM1: HDX redirects to a presigned S3 link; the first request's Host header was copied onto the second request, S3
+    took the bucket from it and answered 403 SignatureDoesNotMatch. curl got 200 for the same link."""
+
+    class _Redirect:
+        status = 302
+        headers = net._Headers([("Location", "https://s3.example.org/bucket/file.zip?Signature=abc%3D&Expires=1")])
+
+        def close(self):
+            pass
+
+    class _Ok:
+        status = 200
+        headers = net._Headers([])
+
+        def close(self):
+            pass
+
+    def test_host_is_not_copied_but_the_other_headers_are(self):
+        seen = []
+
+        def fake(req, timeout, qgis=True, qgis_fallback=False):
+            seen.append(req)
+            return self._Redirect() if len(seen) == 1 else self._Ok()
+        first = net.build_request("https://data.example.org/download/file.zip", headers={"User-Agent": "Cartogen-test", "Host": "data.example.org"})
+        first.add_unredirected_header("Host", "data.example.org")      # what urllib adds when it opens a request
+        with unittest.mock.patch.object(net, "_stream_open_once", side_effect=fake):
+            net.stream_following(first, timeout=5)
+        self.assertEqual(len(seen), 2)
+        names = [k.lower() for k, _v in seen[1].header_items()]
+        self.assertNotIn("host", names)
+        self.assertIn("user-agent", names)
+
+    def test_the_signed_query_string_reaches_the_second_request_unchanged(self):
+        seen = []
+
+        def fake(req, timeout, qgis=True, qgis_fallback=False):
+            seen.append(req)
+            return self._Redirect() if len(seen) == 1 else self._Ok()
+        with unittest.mock.patch.object(net, "_stream_open_once", side_effect=fake):
+            net.stream_following("https://data.example.org/download/file.zip", timeout=5)
+        self.assertEqual(seen[1].full_url, "https://s3.example.org/bucket/file.zip?Signature=abc%3D&Expires=1")
+
+
 if __name__ == "__main__":
     unittest.main()
 
