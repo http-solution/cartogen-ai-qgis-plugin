@@ -1,0 +1,71 @@
+"""Live QGIS: a district whose raster value DROPPED is scored as the most damaged, not the least (1.18.3 hand test D7, 2026-10-26: the
+zonal mean of the signed change put the district that lost 70 lowest, so unchanged districts scored 1 and the damaged one 0). Written
+without a local QGIS: CI's first run is its first execution."""
+import os
+import tempfile
+import unittest
+
+try:
+    from qgis.core import QgsFeature, QgsGeometry, QgsProject, QgsRasterLayer, QgsVectorLayer
+    LIVE = True
+except ImportError:
+    LIVE = False
+
+
+def _asc(path, fn):
+    cols = rows = 20
+    lines = [f"ncols {cols}", f"nrows {rows}", "xllcorner 0", "yllcorner 0", "cellsize 0.01", "NODATA_value -9999"]
+    lines.extend(" ".join(f"{fn(c, rows - 1 - r):.1f}" for c in range(cols)) for r in range(rows))
+    with open(path, "w") as fh:
+        fh.write("\n".join(lines) + "\n")
+    with open(path[:-4] + ".prj", "w") as fh:
+        fh.write('GEOGCS["GCS_WGS_1984",DATUM["D_WGS_1984",SPHEROID["WGS_1984",6378137.0,298.257223563]],'
+                 'PRIMEM["Greenwich",0.0],UNIT["Degree",0.0174532925199433]]\n')
+
+
+@unittest.skipUnless(LIVE, "requires real QGIS")
+class TestDamageDirection(unittest.TestCase):
+    def setUp(self):
+        from tests.test_network_units_live import _boot
+        why = _boot()
+        if why:
+            self.skipTest(why)
+        QgsProject.instance().clear()
+        self.addCleanup(QgsProject.instance().clear)
+        self.tmp = tempfile.mkdtemp()
+        before, after = os.path.join(self.tmp, "before.asc"), os.path.join(self.tmp, "after.asc")
+        _asc(before, lambda c, r: 100.0)
+        _asc(after, lambda c, r: 30.0 if c >= 10 else 100.0)   # the east half loses 70
+        for path, name in ((before, "before"), (after, "after")):
+            layer = QgsRasterLayer(path, name)
+            self.assertTrue(layer.isValid())
+            QgsProject.instance().addMapLayer(layer)
+        admin = QgsVectorLayer("Polygon?crs=EPSG:4326&field=name:string", "admin", "memory")
+        for name, wkt in (("west", "POLYGON((0 0,0.1 0,0.1 0.2,0 0.2,0 0))"), ("east", "POLYGON((0.1 0,0.2 0,0.2 0.2,0.1 0.2,0.1 0))")):
+            f = QgsFeature(admin.fields())
+            f.setGeometry(QgsGeometry.fromWkt(wkt))
+            f.setAttributes([name])
+            admin.dataProvider().addFeatures([f])
+        QgsProject.instance().addMapLayer(admin)
+        foot = QgsVectorLayer("Polygon?crs=EPSG:4326&field=id:integer", "footprints", "memory")
+        f = QgsFeature(foot.fields())
+        f.setGeometry(QgsGeometry.fromWkt("POLYGON((0.15 0.1,0.151 0.1,0.151 0.101,0.15 0.101,0.15 0.1))"))
+        f.setAttributes([1])
+        foot.dataProvider().addFeatures([f])
+        QgsProject.instance().addMapLayer(foot)
+
+    def test_the_district_that_lost_value_is_the_most_severe(self):
+        from cartogen_ai.core.agent.tools.analysis_tools import calculate_damage_exposure_severity
+        res = calculate_damage_exposure_severity("admin", "name", "before", "after", "footprints", output_field="damage")
+        if res.get("status") == "PREVIEW_REQUIRED":
+            res = calculate_damage_exposure_severity("admin", "name", "before", "after", "footprints", output_field="damage", confirmed=True)
+        self.assertTrue(res.get("success"), res)
+        by_unit = {u["unit"]: u for u in res["unit_results"]}
+        self.assertGreater(by_unit["east"]["severity_score"], by_unit["west"]["severity_score"], res)
+        admin = QgsProject.instance().mapLayersByName("admin")[0]
+        written = {f["name"]: f["damage"] for f in admin.getFeatures()}
+        self.assertGreater(written["east"], written["west"])
+
+
+if __name__ == "__main__":
+    unittest.main()
