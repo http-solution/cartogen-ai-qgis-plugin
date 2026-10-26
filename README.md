@@ -20,15 +20,15 @@
   <a href="https://cartogenai.com"><img src="https://img.shields.io/badge/website-cartogenai.com-0b6efd" alt="Website"></a>
 </p>
 
-**Community edition · Version 1.18.1 · GNU GPL v2 · QGIS 4.2–4.99 · [cartogenai.com](https://cartogenai.com)**
+**Community edition · Version 1.18.2 · GNU GPL v2 · QGIS 4.2–4.99 · [cartogenai.com](https://cartogenai.com)**
 
 Cartogen AI is built for GIS analysts, humanitarian teams, researchers, and anyone who
 needs to move from a question to a reproducible spatial result without leaving QGIS.
 The agent exposes its plan, tool calls, progress, and errors instead of returning a
 black-box answer.
 
-> **Project status (2026-10-25):** active Community edition, currently at **1.18.1**, a patch on 1.18.0 (the sum of the 1.17.0 release candidates 42 to 52 since 1.16.3). Neither has passed a full hand test; see the hand-testing line below.
-> - **Tests:** 5,043 automated tests run offline, 0 failures (757 skipped there: the live-QGIS tests and those needing optional libraries). The QGIS ones run in CI (the `qgis-live-tests` job, QGIS 4.2.2) together with ruff, mypy and a release-zip check.
+> **Project status (2026-10-26):** active Community edition, currently at **1.18.2**, a patch on 1.18.1 and 1.18.0 (the sum of the 1.17.0 release candidates 42 to 52 since 1.16.3). Neither has passed a full hand test; see the hand-testing line below.
+> - **Tests:** 5,062 automated tests run offline, 0 failures (767 skipped there: the live-QGIS tests and those needing optional libraries). The QGIS ones run in CI (the `qgis-live-tests` job, QGIS 4.2.2) together with ruff, mypy and a release-zip check.
 > - **Hand testing:** rc44 to rc46 were hand-tested in desktop QGIS 4.2.3 (tool sweep: 65 of 83 rows Pass, 1 Fail, the rest Partial or Skip; 21 of 21 priority algorithms Pass); the plain-language algorithm test (385 prompts) has **not** been run. rc48 was hand-tested on 2026-10-24 (52 of 87 rows Pass, 18 Partial, 16 Fail, 1 Skip; results in [docs/HAND_TEST_RESULTS_rc48_2026-10-24.md](docs/HAND_TEST_RESULTS_rc48_2026-10-24.md)); the changes from rc49 to 1.18.0 are CI-checked only (a partial rc50 run covered 20 of its 87 rows) until the v2 hand test (a layout check script that costs no API money, plus nine rows; [docs/LEAN_HAND_TEST_PROTOCOL.md](docs/LEAN_HAND_TEST_PROTOCOL.md)) is run.
 > - **Open issues (2):** #362 and #380. Their code is merged and green in CI; they stay open for hand rows that depend on what the model answers. Everything else from the audit and smoke-test lists is closed, each with its evidence in a comment (several on CI evidence only, which the comment says). Per-issue status: [docs/OPEN_ISSUES_STATUS_2026-10-25_v2.md](docs/OPEN_ISSUES_STATUS_2026-10-25_v2.md).
 > - **Not yet verified:** a clean-profile install and an in-place upgrade on a recent release candidate (last done on rc6), and the 28-tool default of rc47 against live model answers.
@@ -79,6 +79,17 @@ black-box answer.
   a restricted execution sandbox for model-generated PyQGIS scripts, fail-closed
   read-only SQL enforcement, an SSRF guard on fetched URLs, and a destructive-action
   confirmation gate the model cannot self-approve.
+
+## What's new in 1.18.2
+
+Built on 1.18.1. Offline tests and the QGIS 4.2.2 live checks in CI pass; **not hand-tested** in desktop QGIS unless an item says so. Full list: the `v1.18.2` block in [metadata.txt](metadata.txt) and [CHANGELOG.md](CHANGELOG.md).
+
+- Every tool is called in real QGIS by a test: A test now calls each of the 296 tools once in a real QGIS 4.2.2 in CI with layers that are missing, of the wrong kind or empty, and with data services that are unreachable, answer with an error page, or return JSON of the wrong shape. A tool may refuse with a message; it may not raise or hang. It found the problems listed below. It proves a tool does not crash; it does not prove the result is right.
+- Wrong kind of layer: Naming a raster where a vector layer is needed (or the reverse) used to end in a bare failure in 28 tools. The tool registry now turns that error into a message that says what kind of layer the tool works on, and the raster tools check the layer kind before they run.
+- A hang and a crash fixed: aspect_analysis given a vector layer ran for minutes with no result; it now refuses at once. score_route_incident_risk raised an error while styling its route overlay under QGIS 4's Qt 6; it now uses the Qt 6 value. NDVI, NDWI and NDRE named a vector layer as a band and failed with an attribute error; they now say the layer is not a raster.
+- Downloads behind a proxy: A boundary download (HDX, geoBoundaries) whose redirected step was answered with 403, 407 or a 5xx status by a proxy or gateway is retried once through QGIS's own network settings, which carry system or PAC proxies, proxy login and certificates. A refusal the server really gives is reported as before. This is the best-supported explanation of a Yemen ADM1 failure seen on 2026-10-26, not a confirmed one.
+- Known and open: Issues #362 and #380 stay open for their hand rows. The 1.18.1 hand-test results have not come back, so none of the 1.18.1 changes is hand-verified. The Yemen ADM1 download has not been retried on the machine where it failed. Not changed: undo of rename_field and delete_field, and temporary layers from tools other than add_point_layer.
+- Not hand-tested: Everything above is checked by the offline suite and, for the QGIS parts, by CI on QGIS 4.2.2; none of it has been hand-tested in desktop QGIS.
 
 ## What's new in 1.18.1
 

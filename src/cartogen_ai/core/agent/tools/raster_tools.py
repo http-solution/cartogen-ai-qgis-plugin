@@ -18,7 +18,7 @@ from ._layer_checks import require_valid_layer
 
 try:
     from qgis.core import (
-        QgsApplication, QgsProject, QgsRasterLayer, QgsWkbTypes, QgsSingleBandGrayRenderer,
+        QgsApplication, QgsMapLayer, QgsProject, QgsRasterLayer, QgsVectorLayer, QgsWkbTypes, QgsSingleBandGrayRenderer,
         QgsSingleBandPseudoColorRenderer, QgsContrastEnhancement, QgsRasterShader,
         QgsColorRampShader, QgsRasterBandStats, QgsStyle,
     )
@@ -226,9 +226,34 @@ def _run_in_background(alg, params):
                              label=alg.split(":")[-1])
 
 
+def _wrong_layer_kind(alg, params):
+    """A message when a layer in `params` is not the kind the algorithm's parameter asks for (a vector layer where it wants a raster, or
+    the reverse), else None. Why: tests/test_every_tool_live.py, hostile pass, 2026-10-26: aspect_analysis given a vector layer made
+    native:aspect run for more than two minutes with no result (a user sees "still running" until the time limit). Checked before the run."""
+    if "QgsMapLayer" not in globals():      # the offline tests switch QGIS_AVAILABLE on with fakes and no QGIS classes
+        return None
+    registry = QgsApplication.processingRegistry()
+    algorithm = registry.algorithmById(alg)
+    if algorithm is None:
+        return None
+    for key, value in params.items():
+        if not isinstance(value, QgsMapLayer):
+            continue
+        definition = algorithm.parameterDefinition(key)
+        kind = definition.type() if definition is not None else ""
+        if kind == "raster" and not isinstance(value, QgsRasterLayer):
+            return f"'{value.name()}' is not a raster layer, and {algorithm.displayName()} needs a raster."
+        if kind in ("source", "vector") and not isinstance(value, QgsVectorLayer):
+            return f"'{value.name()}' is not a vector layer, and {algorithm.displayName()} needs a vector layer."
+    return None
+
+
 def _run_raster_and_add(alg, params, new_name, output_key="OUTPUT"):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
+    wrong = _wrong_layer_kind(alg, params)
+    if wrong:
+        return {"error": wrong}
     try:
         out_path = _temp_raster_path()
         params[output_key] = out_path
