@@ -991,8 +991,9 @@ def _load_excel_as_geometry_layer(file_path, name, sheet_name, x_field, y_field,
     "x_field/y_field or wkt_field to create a real point/geometry layer; if omitted, this tool "
     "tries to auto-detect common column names on its own (for both CSV and Excel) and reports what "
     "it used -- if it can't confidently guess, it returns FIELD_SUGGESTION with the real column "
-    "names instead of guessing wrong. Omit all three (or call again after a FIELD_SUGGESTION with "
-    "none set) to load it as a plain non-spatial attribute table.",
+    "names instead of guessing wrong. A file with no coordinate columns (a forecast, survey or 3W table) is "
+    "loaded as a plain non-spatial attribute table by passing as_table=true; omitting the coordinate arguments "
+    "alone just returns the suggestion again.",
     {
         "type": "object",
         "properties": {
@@ -1004,11 +1005,13 @@ def _load_excel_as_geometry_layer(file_path, name, sheet_name, x_field, y_field,
             "sheet_name": {"type": "string", "description": "Sheet name for Excel files with multiple sheets. Defaults to the first sheet."},
             "crs": {"type": "string", "description": "CRS of x_field/y_field coordinates. Defaults to EPSG:4326."},
             "delimiter": {"type": "string", "description": "CSV field delimiter. Defaults to ','."},
+            "as_table": {"type": "boolean", "description": "true: load as a plain attribute table with no geometry (a forecast, survey or 3W file). Skips coordinate detection."},
         },
         "required": ["file_path"],
     },
 )
-def load_tabular_data_as_layer(file_path, layer_name=None, x_field=None, y_field=None, wkt_field=None, sheet_name=None, crs="EPSG:4326", delimiter=","):
+def load_tabular_data_as_layer(file_path, layer_name=None, x_field=None, y_field=None, wkt_field=None, sheet_name=None, crs="EPSG:4326", delimiter=",",
+                               as_table=False):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
 
@@ -1023,7 +1026,7 @@ def load_tabular_data_as_layer(file_path, layer_name=None, x_field=None, y_field
     name = layer_name or os.path.splitext(os.path.basename(file_path))[0] or "layer"
     auto_detected = None
 
-    if not (x_field or y_field or wkt_field):
+    if not (x_field or y_field or wkt_field or as_table):
         try:
             header = _sniff_csv_header(file_path, delimiter) if ext == ".csv" else _sniff_excel_header(file_path, sheet_name)
         except ImportError:
@@ -1042,7 +1045,7 @@ def load_tabular_data_as_layer(file_path, layer_name=None, x_field=None, y_field
                 "message": (
                     "Couldn't confidently auto-detect coordinate columns for a point layer. Call "
                     "again with x_field/y_field (or wkt_field) set to one of the columns below to "
-                    "create a point layer, or call again with all three omitted to load the FULL "
+                    "create a point layer, or call again with as_table=true to load the FULL "
                     "file as a non-spatial attribute table instead."
                 ),
                 "columns": header,

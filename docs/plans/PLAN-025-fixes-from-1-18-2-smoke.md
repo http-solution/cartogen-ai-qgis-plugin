@@ -12,7 +12,7 @@ In (numbers are the issue list sent to the owner):
 3. Confirmation cards: the four write previews (`calculate_severity_index`, `calculate_presence_gap`, `calculate_population_in_need`, `calculate_damage_exposure_severity`) showed a comment as "code"; they now show the write they make. The confirmation on those tools is the data-write gate, not the plan gate, so it is expected with `plan_validation_gate=OFF`.
 4. Side effects: `generate_mapping_task_grid` gets `aoi_where` so one area can be gridded without filtering the source layer (the filter the owner saw on the admin layer).
 5. Display: a `<br>` the model writes stays a line break; class text such as `$< 0.2$` loses its dollar signs; prices are untouched.
-6. D5: loading the same file twice no longer adds a second layer and says it is already loaded, which stops the repeat that tripped the loop guard.
+6. D5: the cause was that a CSV with no coordinate columns could never load as a table (the tool said to omit the coordinate arguments, which only returned the suggestion again). New `as_table` argument; loading the same file twice also no longer adds a second layer and says it is already loaded.
 Out, with reasons: the A3 and A10 confirm clicks (no code path found that explains them; needs the log of those prompts), the unrequested "Incident" and country layers (no tool in the code adds them; they come from the model's plan, needs the log), the edit-mode pencil after B3 (`edit_command` commits and leaves the layer not editable when it started the session; covered by `tests/test_edit_session_live.py`; not reproduced), C5 inverted labels (no description of which labels), B1 nationwide 5 km grid refusal (a design decision for the owner), Overpass 502 (server side).
 
 ## Acceptance
@@ -32,3 +32,4 @@ Each fix is its own commit; revert the commit. Released fixes ship as 1.18.3.
 
 ## Status log
 - 2026-10-26: plan written from the owner's results file and screenshots. Fixes 1 to 6 written with offline tests; live tests written without a local QGIS, so CI's first run is their first execution. Not hand-verified.
+- 2026-10-26: first CI run on PR 449: the live job failed on my own D5 test, which showed the real cause of the D5 repeat (no way to load a coordinate-free CSV as a table). Fixed with `as_table`; tests extended.
