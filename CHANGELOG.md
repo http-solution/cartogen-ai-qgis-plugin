@@ -7,6 +7,7 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 | Version | Date | Summary |
 |---|---|---|
+| [1.18.2](#v1-18-2) | 2026-10-26 | **Patch release 1.18.2.** No breaking changes -- requires QGIS 4.2+. Every tool is now called once in real QGIS by a test, and what that found is fixed: a tool given a layer of the wrong kind answers with a message instead of failing, one tool no longer hangs on a vector layer, one overlay no longer crashes, and a download blocked on the redirected step by a proxy is retried through QGIS's own network settings. CI-checked, not hand-tested. |
 | [1.18.1](#v1-18-1) | 2026-10-25 | **Stable patch release 1.18.1.** No breaking changes -- requires QGIS 4.2+. Fixes from the 1.18.0 hand run and the open-issue review: the legend fits its frame, the footer warning stops crying wolf, layouts keep the name you ask for, charts and profiles say whether they drew, one Log Messages tab, fewer wrong plans, undo of a new field, and a hand test that costs no API money. CI-checked, not hand-tested. |
 | [1.18.0](#v1-18-0) | 2026-10-25 | **Stable release 1.18.0.** No breaking changes -- requires QGIS 4.2+. The sum of the 1.17.0 release candidates 42 to 52 since 1.16.3: many more QGIS actions by plain request, safer exports of sensitive layers, print layouts with credits, page sizes A3 to A1, map profiles with branding and sign-off, and the disclaimer wording. Mostly CI-checked, not hand-tested (see Not hand-tested). |
 | [1.17.0-rc51](#v1-17-0-rc51) | 2026-10-25 | **Release candidate 51 for 1.17.0.** No breaking changes -- requires QGIS 4.2+. Profile changes apply to layouts already made, maps made from sensitive layers ask before they export, the footer is sized from the real font and contour lines make a layer. CI-checked, not hand-tested. |
@@ -97,6 +98,18 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 The detailed narrative entries below are unchanged -- this table is purely an additive index on
 top of them.
+
+<a id="v1-18-2"></a>
+## [1.18.2] — 2026-10-26 — Patch release 1.18.2: No breaking changes -- requires QGIS 4.2+. Every tool is now called once in real QGIS by a test, and what that found is fixed: a tool given a layer of the wrong kind answers with a message instead of failing, one tool no longer hangs on a vector layer, one overlay no longer crashes, and a download blocked on the redirected step by a proxy is retried through QGIS's own network settings. CI-checked, not hand-tested.
+
+No breaking changes; QGIS 4.2+. Everything since 1.18.1:
+
+- Every tool is called in real QGIS by a test: A test now calls each of the 296 tools once in a real QGIS 4.2.2 in CI with layers that are missing, of the wrong kind or empty, and with data services that are unreachable, answer with an error page, or return JSON of the wrong shape. A tool may refuse with a message; it may not raise or hang. It found the problems listed below. It proves a tool does not crash; it does not prove the result is right.
+- Wrong kind of layer: Naming a raster where a vector layer is needed (or the reverse) used to end in a bare failure in 28 tools. The tool registry now turns that error into a message that says what kind of layer the tool works on, and the raster tools check the layer kind before they run.
+- A hang and a crash fixed: aspect_analysis given a vector layer ran for minutes with no result; it now refuses at once. score_route_incident_risk raised an error while styling its route overlay under QGIS 4's Qt 6; it now uses the Qt 6 value. NDVI, NDWI and NDRE named a vector layer as a band and failed with an attribute error; they now say the layer is not a raster.
+- Downloads behind a proxy: A boundary download (HDX, geoBoundaries) whose redirected step was answered with 403, 407 or a 5xx status by a proxy or gateway is retried once through QGIS's own network settings, which carry system or PAC proxies, proxy login and certificates. A refusal the server really gives is reported as before. This is the best-supported explanation of a Yemen ADM1 failure seen on 2026-10-26, not a confirmed one.
+- Known and open: Issues #362 and #380 stay open for their hand rows. The 1.18.1 hand-test results have not come back, so none of the 1.18.1 changes is hand-verified. The Yemen ADM1 download has not been retried on the machine where it failed. Not changed: undo of rename_field and delete_field, and temporary layers from tools other than add_point_layer.
+- Not hand-tested: Everything above is checked by the offline suite and, for the QGIS parts, by CI on QGIS 4.2.2; none of it has been hand-tested in desktop QGIS.
 
 <a id="v1-18-1"></a>
 ## [1.18.1] — 2026-10-25 — Patch release 1.18.1: No breaking changes -- requires QGIS 4.2+. Fixes from the 1.18.0 hand run and the open-issue review: the legend fits its frame, the footer warning stops crying wolf, layouts keep the name you ask for, charts and profiles say whether they drew, one Log Messages tab, fewer wrong plans, undo of a new field, and a hand test that costs no API money. CI-checked, not hand-tested.
