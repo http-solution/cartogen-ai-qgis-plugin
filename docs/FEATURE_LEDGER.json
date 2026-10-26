@@ -1086,6 +1086,22 @@
           "tests/test_every_tool_live.py::TestEveryToolInputsOffline::test_every_required_argument_gets_a_value", "tests/test_every_tool_live.py::TestEveryToolHostileInputsLive::test_layer_of_the_wrong_type", "tests/test_registry_wrong_layer_kind.py::TestWrongLayerKindGuard::test_a_raster_given_where_features_are_needed_becomes_an_error_result", "tests/test_registry_wrong_layer_kind.py::TestWrongLayerKindGuard::test_other_attribute_errors_still_raise"
       ],
       "hand_verified": "not verified: CI only. Proves a call does not raise; does not prove the result is right"
+  },
+  {
+      "id": "admin-boundary-borders-stay-visible",
+      "feature": "A boundary layer from fetch_geoboundaries or fetch_hdx_admin_boundaries draws a light grey fill with thin white borders, and change_layer_color / set_layer_transparency on a single-symbol polygon layer put the opacity into the fill colour only, so the borders between areas stay visible",
+      "issues": [],
+      "since": "1.18.2 (unreleased change)",
+      "sources": [
+          "src/cartogen_ai/core/agent/tools/humanitarian_tools.py",
+          "src/cartogen_ai/core/agent/tools/styling_tools.py"
+      ],
+      "guards": [
+          "tests/test_admin_boundary_style_live.py::TestAdminBoundaryBorders::test_default_style_has_a_white_opaque_border_on_a_grey_fill",
+          "tests/test_admin_boundary_style_live.py::TestAdminBoundaryBorders::test_recolour_with_opacity_fades_the_fill_not_the_border",
+          "tests/test_admin_boundary_style_live.py::TestAdminBoundaryBorders::test_set_layer_transparency_keeps_the_border_too"
+      ],
+      "hand_verified": "not verified: CI only. The look follows the picture the owner attached on 2026-10-26; the owner has not seen the new build"
   }
  ]
 }

@@ -376,6 +376,34 @@ def _apply_opacity(layer, opacity):
     return resolved
 
 
+def _apply_fill_opacity(layer, opacity):
+    """Opacity for a plain polygon layer WITHOUT fading its outline. Layer opacity fades everything, so a governorate layer made 25 percent
+    opaque lost the borders between its provinces (owner report 2026-10-26, Yemen ADM1: the borders were visible in the map the owner
+    wanted and gone in ours). For a single-symbol polygon layer with simple fill symbol layers the opacity goes into the fill colour's alpha
+    and the layer's own opacity is put back to 100 percent; any other layer keeps the old layer-opacity behaviour."""
+    resolved = max(0, min(100, opacity))
+    try:
+        is_plain_polygon = (layer.geometryType() == QgsWkbTypes.GeometryType.PolygonGeometry
+                            and isinstance(layer.renderer(), QgsSingleSymbolRenderer))
+    except (NameError, AttributeError):     # the offline tests switch QGIS_AVAILABLE on without the QGIS classes (names are None)
+        is_plain_polygon = False
+    if not is_plain_polygon:
+        return _apply_opacity(layer, resolved)
+    changed = False
+    symbol = layer.renderer().symbol()
+    for i in range(symbol.symbolLayerCount()):
+        sl = symbol.symbolLayer(i)
+        if hasattr(sl, "setFillColor") and hasattr(sl, "strokeColor"):
+            fill = QColor(sl.fillColor())
+            fill.setAlpha(round(resolved * 2.55))
+            sl.setFillColor(fill)
+            changed = True
+    if not changed:
+        return _apply_opacity(layer, resolved)
+    layer.setOpacity(1.0)
+    return resolved
+
+
 def _reorder_top_level_layers(ordered_layers):
     """Reorders layers directly under the project root to match
     ordered_layers (first = topmost). Layers is a QGIS project's layer tree
@@ -1086,7 +1114,7 @@ def change_layer_color(layer_name, color_hex, opacity=None):
         # the caller never asked to touch opacity at all -- directly contradicting this
         # tool's own schema doc above ("Leaves current opacity unchanged if omitted").
         if opacity is not None:
-            result["opacity_percent"] = _apply_opacity(layer, opacity)
+            result["opacity_percent"] = _apply_fill_opacity(layer, opacity)
         layer.triggerRepaint()
         return result
     except Exception as e:
@@ -1116,7 +1144,7 @@ def set_layer_transparency(layer_name, opacity_percent):
     if layer is None:
         return {"error": f"Layer '{layer_name}' not found"}
     try:
-        resolved = _apply_opacity(layer, opacity_percent)
+        resolved = _apply_fill_opacity(layer, opacity_percent)
         layer.triggerRepaint()
         return {"success": True, "layer_name": layer_name, "opacity_percent": resolved}
     except Exception as e:
