@@ -53,7 +53,7 @@ try:
     except ImportError:
         Qgis = None
     from qgis.PyQt.QtGui import QColor
-    from qgis.PyQt.QtCore import QVariant
+    from qgis.PyQt.QtCore import QVariant, Qt
     import processing
     QGIS_AVAILABLE = True
 except ImportError:
@@ -829,7 +829,8 @@ def _style_risk_buffer_layer(layer):
     for i in range(symbol.symbolLayerCount()):
         sym_layer = symbol.symbolLayer(i)
         if hasattr(sym_layer, "setStrokeStyle"):
-            sym_layer.setStrokeStyle(0)  # Qt.PenStyle.NoPen -- no border ring
+            # Qt6/PyQt6 takes the enum member, not the int 0 (TypeError found by tests/test_every_tool_live.py, 2026-10-26).
+            sym_layer.setStrokeStyle(Qt.PenStyle.NoPen)  # no border ring
     layer.setRenderer(QgsSingleSymbolRenderer(symbol))
     layer.triggerRepaint()
 

@@ -89,10 +89,30 @@ class TestRedirectedHopFallsBackToTheQgisStack(unittest.TestCase):
         self.assertEqual(resp.read(), b"{}")
         self.assertEqual(hop.call_args.args[1], "https://files.example.org/data.geojson")
 
-    def test_an_http_status_from_urllib_is_not_retried(self):
+    def test_a_proxy_like_status_from_urllib_is_retried_through_qgis(self):
+        # 2026-10-26 field report: HDX 403 and geoBoundaries 500 on the redirected download hop, first request fine.
+        ok = net.Reply(ok=True, status=200, headers=[], body=b"zip", error="", timed_out=False)
+        for code in (403, 407, 500, 502):
+            with self.subTest(code=code):
+                err = net.urllib.error.HTTPError("https://files.example.org/data.geojson", code, "x", net._Headers([]), io.BytesIO(b""))
+                resp, hop = self._run(err, ok)
+                self.assertEqual(resp.read(), b"zip")
+                self.assertEqual(hop.call_count, 1)
+
+    def test_when_qgis_gets_the_same_refusal_that_status_is_raised(self):
         err = net.urllib.error.HTTPError("https://files.example.org/data.geojson", 403, "Forbidden", net._Headers([]), io.BytesIO(b""))
-        with self.assertRaises(net.urllib.error.HTTPError):
-            self._run(err, None)
+        denied = net.Reply(ok=False, status=403, headers=[], body=b"no", error="Forbidden", timed_out=False)
+        with self.assertRaises(net.urllib.error.HTTPError) as cm:
+            self._run(err, denied)
+        self.assertEqual(cm.exception.code, 403)
+
+    def test_an_ordinary_missing_file_is_not_retried(self):
+        for code in (400, 404, 410):
+            with self.subTest(code=code):
+                err = net.urllib.error.HTTPError("https://files.example.org/data.geojson", code, "x", net._Headers([]), io.BytesIO(b""))
+                with self.assertRaises(net.urllib.error.HTTPError) as cm:
+                    self._run(err, None)
+                self.assertEqual(cm.exception.code, code)
 
     def test_when_both_stacks_fail_the_message_names_both(self):
         dead = net.Reply(ok=False, status=0, headers=[], body=b"", error="Host files.example.org not found", timed_out=False)

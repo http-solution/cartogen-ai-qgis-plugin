@@ -179,6 +179,12 @@ def align_layers_to_first(layers, resampling="bilinear"):
 
 def _grid_or_error(layers, align_to_first=False, resampling="bilinear"):
     """(layers_to_use, error, alignment_note). On one common grid: the layers unchanged. Otherwise: align when asked, else the refusal."""
+    # tests/test_every_tool_live.py (first CI run, 2026-10-26): a vector layer named as a band raised AttributeError 'width' in
+    # calculate_ndvi / ndwi / ndre instead of saying the layer is not a raster.
+    not_rasters = [layer.name() for layer in layers if not hasattr(layer, "rasterUnitsPerPixelX")]
+    if not_rasters:
+        return None, ("These layers are not rasters: " + ", ".join(repr(n) for n in not_rasters)
+                      + ". The index needs raster band layers."), None
     problem = _common_grid_error(layers)
     if not problem:
         return layers, None, None
