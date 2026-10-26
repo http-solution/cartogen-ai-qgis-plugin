@@ -14,6 +14,7 @@ from .registry import register_tool
 from .humanitarian_style import look_hint
 from .raster_tools import estimate_population_exposure
 from .multimodal_remote_sensing import calculate_raster_change_detection
+from ...logger import log_event
 import itertools
 
 try:
@@ -885,6 +886,21 @@ def _count_points_in_polygons(admin_layer, point_geometries):
     return _count_points_in_polygons_indexed(index, admin_features_by_id, point_geometries)
 
 
+def _absolute_change_raster(change_raster):
+    """In-memory (not added to the project) raster holding |change| for the damage score, or None if it cannot be built."""
+    try:
+        import processing
+        from qgis.core import QgsRasterLayer
+        out = processing.run("gdal:rastercalculator", {
+            "INPUT_A": change_raster, "BAND_A": 1, "FORMULA": "numpy.abs(A)", "NO_DATA": None, "RTYPE": 5,
+            "OUTPUT": "TEMPORARY_OUTPUT"})["OUTPUT"]
+        layer = QgsRasterLayer(out, "abs_change", "gdal")
+        return layer if layer.isValid() else None
+    except Exception as e:
+        log_event("swallowed_exception", tag="Tools", tool="absolute_change_raster", error_class=type(e).__name__, error=True)
+        return None
+
+
 @register_tool(
     "calculate_damage_exposure_severity",
     "Composite post-crisis damage-and-exposure assessment, in the same thin-composite pattern as "
@@ -973,7 +989,13 @@ def calculate_damage_exposure_severity(admin_layer, unit_name_field, raster_befo
         return {"error": "Could not resolve QgsZonalStatistics.Mean in this QGIS version."}
 
     change_raster = _find_layer_by_name(change["layer_name"])
-    zonal = QgsZonalStatistics(layer, change_raster, "chg_", 1, mean_flag)
+    # 1.18.3 hand test D7 (2026-10-26): the zonal mean of the SIGNED change (after - before) put a district that lost 70 at -70, the
+    # lowest value, so min-max scored it 0 and the unchanged districts 1: damage came out inverted. Severity needs the size of the
+    # change either way, so average the absolute change (what this tool's description says).
+    magnitude_raster = _absolute_change_raster(change_raster)
+    if magnitude_raster is None:
+        return {"error": "Could not build the absolute change raster needed to measure damage; the signed change would score losses as the lowest severity."}
+    zonal = QgsZonalStatistics(layer, magnitude_raster, "chg_", 1, mean_flag)
     zonal.calculateStatistics(None)
     if layer.fields().indexFromName("chg_mean") < 0:
         return {"error": "Zonal statistics ran but no 'chg_mean' field was created -- check admin_layer overlaps the change-detection raster."}

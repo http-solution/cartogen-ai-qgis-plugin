@@ -2366,6 +2366,10 @@ def obfuscate_sensitive_points(layer_name, method, radius=None, cell_size=None, 
     if layer is None:
         return {"error": f"Layer '{layer_name}' not found"}
     if QgsWkbTypes.geometryType(layer.wkbType()) != QgsWkbTypes.GeometryType.PointGeometry:
+        if not layer.isSpatial():
+            # 1.18.3 hand test D8: a CSV loaded as a plain table has no geometry; say how to get points instead of "not a point layer".
+            return {"error": f"'{layer_name}' has no geometry (it is a plain table). Load the file again with its longitude and latitude "
+                             "columns as x_field and y_field to get a point layer, then run obfuscate_sensitive_points on that."}
         return {"error": f"'{layer_name}' is not a point layer -- obfuscate_sensitive_points only handles point geometries."}
 
     admin_layer = None

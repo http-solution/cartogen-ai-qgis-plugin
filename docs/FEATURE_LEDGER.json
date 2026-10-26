@@ -1183,6 +1183,19 @@
           "tests/test_load_tabular_twice_live.py::TestLoadTabularTwice::test_second_identical_load_adds_nothing_and_says_so"
       ],
       "hand_verified": "not verified: CI only (owner hand-smoke 2026-10-26 found the defect; the fix has not been re-run)"
+  },
+  {
+      "id": "damage-severity-uses-absolute-change",
+      "feature": "calculate_damage_exposure_severity scores the mean absolute change per district, so a district that lost value ranks as the most severe",
+      "issues": [],
+      "since": "unreleased (after 1.18.3)",
+      "sources": [
+          "src/cartogen_ai/core/agent/tools/analysis_tools.py"
+      ],
+      "guards": [
+          "tests/test_damage_direction_live.py::TestDamageDirection::test_the_district_that_lost_value_is_the_most_severe"
+      ],
+      "hand_verified": "not verified: CI only (owner hand run 1.18.3 row D7 found the defect; the fix has not been re-run)"
   }
  ]
 }
