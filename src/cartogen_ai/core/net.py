@@ -30,6 +30,9 @@ import io
 import urllib.error
 import urllib.request
 import contextlib
+import socket
+import ssl
+import urllib.parse
 
 try:
     from qgis.core import QgsBlockingNetworkRequest, QgsNetworkAccessManager
@@ -51,6 +54,51 @@ MAX_EXPANDED_BYTES = 256 * 1024 * 1024     # what a gzip tile or zip member may 
 
 class ResponseTooLargeError(OSError):
     """A remote answer, or what it expands to, is bigger than the ceiling for that kind of data."""
+
+
+def redact_url(url):
+    """scheme://host/path without the query or fragment. A signed download link carries its credentials in the query (AWSAccessKeyId,
+    Signature, x-amz-security-token), and an error message that quotes the link would show them in the chat and the log. Pure."""
+    try:
+        parts = urllib.parse.urlsplit(str(url))
+        return urllib.parse.urlunsplit((parts.scheme, parts.netloc, parts.path, "", ""))
+    except ValueError:
+        return "(link)"
+
+
+def describe_download_failure(exc, url=None):
+    """One plain sentence for a person: which site, what kind of failure, what to try. Never quotes the exception text, because that text
+    can hold the whole signed link (the Yemen ADM1 report of 2026-10-26 printed an Amazon S3 key and token in the chat). Pure."""
+    host = urllib.parse.urlsplit(str(url)).hostname if url else None
+    where = f" from {host}" if host else ""
+    code = getattr(exc, "code", None)
+    reason = getattr(exc, "reason", None)
+    if isinstance(code, int):
+        if code == 407:
+            return (f"The download{where} was stopped by a proxy that asks for a login (HTTP 407). Check the proxy settings and login in QGIS "
+                    "(Settings > Options > Network).")
+        if code in (401, 403):
+            return (f"The download{where} was refused (HTTP {code}). The file host, or a proxy or firewall on this network, did not allow this "
+                    "request. Try again in a minute; if it keeps happening, download the file in a browser and load it with add_layer_from_path.")
+        if code in (404, 410):
+            return f"The file{where} was not found (HTTP {code}); the dataset may have moved or been removed."
+        if code == 429:
+            return f"The server{where} says there were too many requests (HTTP 429). Wait a few minutes and try again."
+        if code >= 500:
+            return (f"The server{where} answered with an error (HTTP {code}). It may be down, or a proxy or gateway on this network could "
+                    "not reach it. Try again later.")
+        return f"The download{where} failed (HTTP {code})."
+    inner = reason if isinstance(reason, BaseException) else exc
+    if isinstance(inner, (socket.timeout, TimeoutError)) or "timed out" in str(exc).lower():
+        return f"The download{where} timed out. The connection may be slow or blocked; try again, or check the proxy settings in QGIS."
+    if isinstance(inner, socket.gaierror) or ("not found" in str(inner).lower() and "host" in str(inner).lower()):
+        return f"The site{where} could not be found (DNS or proxy). Check the internet connection and the proxy settings in QGIS."
+    if isinstance(inner, ssl.SSLError) or "ssl" in str(inner).lower() or "certificate" in str(inner).lower():
+        return (f"A secure connection{where} could not be made (certificate or SSL). A proxy that inspects traffic can cause this; check "
+                "the proxy and certificate settings in QGIS.")
+    if isinstance(inner, ResponseTooLargeError):
+        return f"The file{where} is larger than this tool accepts."
+    return f"The download{where} failed ({type(exc).__name__}). Check the internet connection and the proxy settings in QGIS."
 
 
 def read_capped(response, limit=MAX_TEXT_BYTES):
@@ -198,6 +246,11 @@ def _qgis_send_blocking(method, url, header_items, data, timeout):
 
 
 # Headers that carry a credential: dropped when a redirect leaves the original site (what requests and curl do), kept on the same site.
+# A Host header names the site the request was MADE to. It must not follow a redirect: S3 picks the bucket from Host, so a presigned
+# download link on s3.amazonaws.com that received "Host: data.humdata.org" answered 403 SignatureDoesNotMatch (the signed resource became
+# /data.humdata.org/...). Reproduced 2026-10-26 with this module's own stream_following against HDX's yem_admin_boundaries.geojson.zip while
+# curl got 200; it is what blocked the HDX boundary download in the Yemen ADM1 field report. urllib and QGIS each set Host for the new target.
+_HOST_HEADER = "host"
 _CREDENTIAL_HEADERS = frozenset({"authorization", "proxy-authorization", "cookie", "x-api-key", "api-key", "x-goog-api-key"})
 _REDIRECT_CODES = (301, 302, 303, 307, 308)
 _MAX_REDIRECTS = 5
@@ -302,6 +355,7 @@ def _qgis_send_following(method, url, header_items, data, timeout):
         other_site = _origin(target) != _origin(url)
         if other_site:
             headers = [(k, v) for k, v in headers if k.lower() not in _CREDENTIAL_HEADERS]
+        headers = [(k, v) for k, v in headers if k.lower() != _HOST_HEADER]
         # Metadata only (no URL path, query, header or body): a later 401/403 report can then say whether a redirect was in the way.
         from .logger import log_event
         log_event("http_redirect", tag="Net", status=reply.status, from_host=_origin(url)[1], to_host=_origin(target)[1],
@@ -611,7 +665,8 @@ def stream_following(request, timeout=30, check_url=None):
         from .logger import log_event
         log_event("http_redirect", tag="Net", status=resp.status, from_host=_origin(req.full_url)[1], to_host=_origin(target)[1],
                   other_site=other_site)
-        headers = {k: v for k, v in req.header_items() if not (other_site and k.lower() in _CREDENTIAL_HEADERS)}
+        headers = {k: v for k, v in req.header_items()
+                   if k.lower() != _HOST_HEADER and not (other_site and k.lower() in _CREDENTIAL_HEADERS)}
         req = build_request(target, headers=headers)
     raise urllib.error.URLError(f"too many redirects (more than {_MAX_REDIRECTS})")
 
