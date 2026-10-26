@@ -66,6 +66,23 @@ class TestDamageDirection(unittest.TestCase):
         written = {f["name"]: f["damage"] for f in admin.getFeatures()}
         self.assertGreater(written["east"], written["west"])
 
+    def test_a_second_run_does_not_read_the_first_runs_stale_field(self):
+        # QGIS names the second run's column chg_mean_2; the old code kept reading chg_mean (the signed 1.18.3 values after an upgrade).
+        from cartogen_ai.core.agent.tools.analysis_tools import calculate_damage_exposure_severity
+        admin = QgsProject.instance().mapLayersByName("admin")[0]
+        from qgis.core import QgsField
+        from qgis.PyQt.QtCore import QVariant
+        admin.dataProvider().addAttributes([QgsField("chg_mean", QVariant.Double)])
+        admin.updateFields()
+        admin.startEditing()
+        for f in admin.getFeatures():
+            admin.changeAttributeValue(f.id(), admin.fields().indexOf("chg_mean"), -70.0 if f["name"] == "west" else 0.0)  # stale and inverted
+        admin.commitChanges()
+        res = calculate_damage_exposure_severity("admin", "name", "before", "after", "footprints")
+        self.assertTrue(res.get("success"), res)
+        by_unit = {u["unit"]: u for u in res["unit_results"]}
+        self.assertGreater(by_unit["east"]["severity_score"], by_unit["west"]["severity_score"], res)
+
 
 if __name__ == "__main__":
     unittest.main()
