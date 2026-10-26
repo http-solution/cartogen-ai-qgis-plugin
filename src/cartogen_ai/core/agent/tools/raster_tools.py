@@ -230,6 +230,8 @@ def _wrong_layer_kind(alg, params):
     """A message when a layer in `params` is not the kind the algorithm's parameter asks for (a vector layer where it wants a raster, or
     the reverse), else None. Why: tests/test_every_tool_live.py, hostile pass, 2026-10-26: aspect_analysis given a vector layer made
     native:aspect run for more than two minutes with no result (a user sees "still running" until the time limit). Checked before the run."""
+    if "QgsMapLayer" not in globals():      # the offline tests switch QGIS_AVAILABLE on with fakes and no QGIS classes
+        return None
     registry = QgsApplication.processingRegistry()
     algorithm = registry.algorithmById(alg)
     if algorithm is None:
