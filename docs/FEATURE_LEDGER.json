@@ -1083,7 +1083,7 @@
       ],
       "guards": [
           "tests/test_every_tool_live.py::TestEveryToolLive::test_no_tool_raises_or_returns_nothing_on_plausible_arguments",
-          "tests/test_every_tool_live.py::TestEveryToolInputsOffline::test_every_required_argument_gets_a_value"
+          "tests/test_every_tool_live.py::TestEveryToolInputsOffline::test_every_required_argument_gets_a_value", "tests/test_every_tool_live.py::TestEveryToolHostileInputsLive::test_layer_of_the_wrong_type", "tests/test_registry_wrong_layer_kind.py::TestWrongLayerKindGuard::test_a_raster_given_where_features_are_needed_becomes_an_error_result", "tests/test_registry_wrong_layer_kind.py::TestWrongLayerKindGuard::test_other_attribute_errors_still_raise"
       ],
       "hand_verified": "not verified: CI only. Proves a call does not raise; does not prove the result is right"
   }
