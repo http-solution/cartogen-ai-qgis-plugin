@@ -33,3 +33,4 @@ Each fix is its own commit; revert the commit. Released fixes ship as 1.18.3.
 ## Status log
 - 2026-10-26: plan written from the owner's results file and screenshots. Fixes 1 to 6 written with offline tests; live tests written without a local QGIS, so CI's first run is their first execution. Not hand-verified.
 - 2026-10-26: first CI run on PR 449: the live job failed on my own D5 test, which showed the real cause of the D5 repeat (no way to load a coordinate-free CSV as a table). Fixed with `as_table`; tests extended.
+- 2026-10-26: PR 449 merged (live CI green). Version 1.18.3 prepared; not hand-verified.

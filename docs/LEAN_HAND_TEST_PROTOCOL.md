@@ -29,4 +29,6 @@ rc51: the bundle for 1.17.0-rc51 adds 3 rows for PLAN-016 (profile re-read, line
 
 1.18.1: the hand test is no longer a 29-row sheet. `python tools/build_hand_test_v2.py --plugin-zip dist/cartogen_ai_v1.18.1.zip` builds a bundle with (A) `layout_check_script.py`, run once in the QGIS Python console, which makes no model calls and costs no API money and measures and exports the layouts, and (B) the rows of `docs/HAND_TEST_V2_ROWS.json` that still need a person or a real model, each starting from its own stated state. `tools/check_evidence.py` reads what comes back. See PLAN-021.
 
+1.18.3: re-run the five rows the 2026-10-26 hand run failed or flagged: A13 (Sentinel-2 scenes over Aden, last month, under 20 percent cloud: every scene listed must come from the tool and show cloud_cover under 20), C9 (score a convoy route against incidents within 500 metres on a latitude/longitude layer: only incidents within 500 m count), D5 (load a forecast CSV without coordinates: one table layer, no repeat), A4 and B6 (no literal <br> and no stray $ in the reply). See PLAN-025.
+
 1.18.2: no new rows. The 1.18.1 bundle (script plus rows V1 to V9) still applies unchanged; add one row for the Yemen ADM1 request that failed on 2026-10-26 ("create a new layer of ADM1 Yemen"; expect a layer, or a log line that names the host and the status). See PLAN-024.

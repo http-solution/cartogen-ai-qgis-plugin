@@ -20,14 +20,14 @@
   <a href="https://cartogenai.com"><img src="https://img.shields.io/badge/website-cartogenai.com-0b6efd" alt="Website"></a>
 </p>
 
-**Community edition · Version 1.18.2 · GNU GPL v2 · QGIS 4.2–4.99 · [cartogenai.com](https://cartogenai.com)**
+**Community edition · Version 1.18.3 · GNU GPL v2 · QGIS 4.2–4.99 · [cartogenai.com](https://cartogenai.com)**
 
 Cartogen AI is built for GIS analysts, humanitarian teams, researchers, and anyone who
 needs to move from a question to a reproducible spatial result without leaving QGIS.
 The agent exposes its plan, tool calls, progress, and errors instead of returning a
 black-box answer.
 
-> **Project status (2026-10-26):** active Community edition, currently at **1.18.2**, a patch on 1.18.1 and 1.18.0 (the sum of the 1.17.0 release candidates 42 to 52 since 1.16.3). Neither has passed a full hand test; see the hand-testing line below.
+> **Project status (2026-10-26):** active Community edition, currently at **1.18.3**, a patch on 1.18.2, 1.18.1 and 1.18.0 (the sum of the 1.17.0 release candidates 42 to 52 since 1.16.3). Neither has passed a full hand test; see the hand-testing line below.
 > - **Tests:** 5,062 automated tests run offline, 0 failures (767 skipped there: the live-QGIS tests and those needing optional libraries). The QGIS ones run in CI (the `qgis-live-tests` job, QGIS 4.2.2) together with ruff, mypy and a release-zip check.
 > - **Hand testing:** rc44 to rc46 were hand-tested in desktop QGIS 4.2.3 (tool sweep: 65 of 83 rows Pass, 1 Fail, the rest Partial or Skip; 21 of 21 priority algorithms Pass); the plain-language algorithm test (385 prompts) has **not** been run. rc48 was hand-tested on 2026-10-24 (52 of 87 rows Pass, 18 Partial, 16 Fail, 1 Skip; results in [docs/HAND_TEST_RESULTS_rc48_2026-10-24.md](docs/HAND_TEST_RESULTS_rc48_2026-10-24.md)); the changes from rc49 to 1.18.0 are CI-checked only (a partial rc50 run covered 20 of its 87 rows) until the v2 hand test (a layout check script that costs no API money, plus nine rows; [docs/LEAN_HAND_TEST_PROTOCOL.md](docs/LEAN_HAND_TEST_PROTOCOL.md)) is run.
 > - **Open issues (2):** #362 and #380. Their code is merged and green in CI; they stay open for hand rows that depend on what the model answers. Everything else from the audit and smoke-test lists is closed, each with its evidence in a comment (several on CI evidence only, which the comment says). Per-issue status: [docs/OPEN_ISSUES_STATUS_2026-10-25_v2.md](docs/OPEN_ISSUES_STATUS_2026-10-25_v2.md).
@@ -79,6 +79,19 @@ black-box answer.
   a restricted execution sandbox for model-generated PyQGIS scripts, fail-closed
   read-only SQL enforcement, an SSRF guard on fetched URLs, and a destructive-action
   confirmation gate the model cannot self-approve.
+
+## What's new in 1.18.3
+
+Built on 1.18.2. Offline tests and the QGIS 4.2.2 live checks in CI pass; **not hand-tested** in desktop QGIS unless an item says so. Full list: the `v1.18.3` block in [metadata.txt](metadata.txt) and [CHANGELOG.md](CHANGELOG.md).
+
+- Forecast triggers accept a percent column: evaluate_forecast_trigger has a probability_scale option: 'percent' reads the probability column and min_probability as 0-100 (70 means 70 percent) and prints the rule with a % sign; a column outside the chosen scale is warned about. The default 'fraction' (0-1) is unchanged.
+- Satellite search can be limited by cloud cover: search_stac_satellite_imagery takes max_cloud_cover (percent) and asks the service to apply it, returns the newest scenes first, echoes the filters and says plainly when nothing matches. Before, 'under 20 percent cloud' had no parameter, so unfiltered scenes came back and the table was padded from the model's memory.
+- Route risk uses real metres: score_route_incident_risk applied its buffer distance in degrees on a route in a latitude/longitude CRS, so 500 meant 500 degrees and every incident counted as near. It now buffers in the local UTM zone and returns the polygon in the route's own CRS.
+- A table with no coordinates now loads: load_tabular_data_as_layer could never load a CSV without coordinate columns: it told the model to omit the coordinate arguments, which only returned the field suggestion again, so the call repeated until the loop guard stopped the turn. The new as_table option loads it as a plain table, and loading the same file twice adds no second layer and says so.
+- Task grid for one area without a filter: generate_mapping_task_grid takes aoi_where, a QGIS expression that limits the area to matching features, so a grid over one governorate no longer needs a filter set on the source boundary layer.
+- Clearer chat text and write previews: A line break the model writes as <br> stays a line break instead of showing as text, and class text such as $< 0.2$ loses its dollar signs (prices are untouched). The confirmation preview for severity, presence-gap, population-in-need and damage-exposure now names the field and layer it writes instead of showing a comment.
+- Known and open: Hand-verified on 2026-10-26 with the 1.18.2 build (QGIS 4.2.3, Gemini): borders between provinces visible, HDX Yemen ADM1 download, recolour at 25 percent keeping borders. Not yet explained: confirmation clicks on a search request and a UCDP download, layers added that were not asked for, one labels report (C5). Issues #362 and #380 stay open for their hand rows.
+- Not hand-tested: The fixes above are checked by the offline suite and, for the QGIS parts, by CI on QGIS 4.2.2; none of them has been hand-tested in desktop QGIS.
 
 ## What's new in 1.18.2
 

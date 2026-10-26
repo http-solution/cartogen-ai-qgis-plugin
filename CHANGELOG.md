@@ -7,6 +7,7 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 | Version | Date | Summary |
 |---|---|---|
+| [1.18.3](#v1-18-3) | 2026-10-26 | **Patch release 1.18.3.** No breaking changes -- requires QGIS 4.2+. Fixes from the owner's 2026-10-26 hand run of 1.18.2: a satellite search that can be limited by cloud cover, a route-risk buffer in real metres, a CSV with no coordinates that loads as a table, a task grid for one area without filtering the layer, clearer chat text, and a percent mode for forecast probabilities. The three 1.18.2 checks passed by hand; the fixes below are CI-checked, not hand-tested. |
 | [1.18.2](#v1-18-2) | 2026-10-26 | **Patch release 1.18.2.** No breaking changes -- requires QGIS 4.2+. Every tool is now called once in real QGIS by a test, and what that found is fixed: a tool given a layer of the wrong kind answers with a message instead of failing, one tool no longer hangs on a vector layer, one overlay no longer crashes, and boundary downloads that redirect to another site (HDX) work again. CI-checked, not hand-tested. |
 | [1.18.1](#v1-18-1) | 2026-10-25 | **Stable patch release 1.18.1.** No breaking changes -- requires QGIS 4.2+. Fixes from the 1.18.0 hand run and the open-issue review: the legend fits its frame, the footer warning stops crying wolf, layouts keep the name you ask for, charts and profiles say whether they drew, one Log Messages tab, fewer wrong plans, undo of a new field, and a hand test that costs no API money. CI-checked, not hand-tested. |
 | [1.18.0](#v1-18-0) | 2026-10-25 | **Stable release 1.18.0.** No breaking changes -- requires QGIS 4.2+. The sum of the 1.17.0 release candidates 42 to 52 since 1.16.3: many more QGIS actions by plain request, safer exports of sensitive layers, print layouts with credits, page sizes A3 to A1, map profiles with branding and sign-off, and the disclaimer wording. Mostly CI-checked, not hand-tested (see Not hand-tested). |
@@ -98,6 +99,20 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 The detailed narrative entries below are unchanged -- this table is purely an additive index on
 top of them.
+
+<a id="v1-18-3"></a>
+## [1.18.3] — 2026-10-26 — Patch release 1.18.3: No breaking changes -- requires QGIS 4.2+. Fixes from the owner's 2026-10-26 hand run of 1.18.2: a satellite search that can be limited by cloud cover, a route-risk buffer in real metres, a CSV with no coordinates that loads as a table, a task grid for one area without filtering the layer, clearer chat text, and a percent mode for forecast probabilities. The three 1.18.2 checks passed by hand; the fixes below are CI-checked, not hand-tested.
+
+No breaking changes; QGIS 4.2+. Everything since 1.18.2:
+
+- Forecast triggers accept a percent column: evaluate_forecast_trigger has a probability_scale option: 'percent' reads the probability column and min_probability as 0-100 (70 means 70 percent) and prints the rule with a % sign; a column outside the chosen scale is warned about. The default 'fraction' (0-1) is unchanged.
+- Satellite search can be limited by cloud cover: search_stac_satellite_imagery takes max_cloud_cover (percent) and asks the service to apply it, returns the newest scenes first, echoes the filters and says plainly when nothing matches. Before, 'under 20 percent cloud' had no parameter, so unfiltered scenes came back and the table was padded from the model's memory.
+- Route risk uses real metres: score_route_incident_risk applied its buffer distance in degrees on a route in a latitude/longitude CRS, so 500 meant 500 degrees and every incident counted as near. It now buffers in the local UTM zone and returns the polygon in the route's own CRS.
+- A table with no coordinates now loads: load_tabular_data_as_layer could never load a CSV without coordinate columns: it told the model to omit the coordinate arguments, which only returned the field suggestion again, so the call repeated until the loop guard stopped the turn. The new as_table option loads it as a plain table, and loading the same file twice adds no second layer and says so.
+- Task grid for one area without a filter: generate_mapping_task_grid takes aoi_where, a QGIS expression that limits the area to matching features, so a grid over one governorate no longer needs a filter set on the source boundary layer.
+- Clearer chat text and write previews: A line break the model writes as <br> stays a line break instead of showing as text, and class text such as $< 0.2$ loses its dollar signs (prices are untouched). The confirmation preview for severity, presence-gap, population-in-need and damage-exposure now names the field and layer it writes instead of showing a comment.
+- Known and open: Hand-verified on 2026-10-26 with the 1.18.2 build (QGIS 4.2.3, Gemini): borders between provinces visible, HDX Yemen ADM1 download, recolour at 25 percent keeping borders. Not yet explained: confirmation clicks on a search request and a UCDP download, layers added that were not asked for, one labels report (C5). Issues #362 and #380 stay open for their hand rows.
+- Not hand-tested: The fixes above are checked by the offline suite and, for the QGIS parts, by CI on QGIS 4.2.2; none of them has been hand-tested in desktop QGIS.
 
 <a id="v1-18-2"></a>
 ## [1.18.2] — 2026-10-26 — Patch release 1.18.2: No breaking changes -- requires QGIS 4.2+. Every tool is now called once in real QGIS by a test, and what that found is fixed: a tool given a layer of the wrong kind answers with a message instead of failing, one tool no longer hangs on a vector layer, one overlay no longer crashes, and boundary downloads that redirect to another site (HDX) work again. CI-checked, not hand-tested.
