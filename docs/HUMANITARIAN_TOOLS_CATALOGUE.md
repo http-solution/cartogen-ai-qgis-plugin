@@ -20,7 +20,7 @@ Every tool Cartogen AI offers for humanitarian work, organised by the six workfl
 Search the Humanitarian Data Exchange by keyword. **Map output:** none (a list of datasets). **Better results:** search with the place and the theme ("Yemen health facilities", "Sudan flood extent"), then ask for the specific dataset to be downloaded or loaded; check the dataset's date and licence yourself.
 
 ### `fetch_hdx_admin_boundaries`
-Downloads OCHA COD-AB administrative boundaries with real P-codes. **Map output:** pale-fill backdrop with a grey outline, name labels when there are few enough areas, ordered under points and lines. **Better results:** use this rather than `fetch_geoboundaries` whenever you will join data by P-code; pass the reported `pcode_field` to the severity and presence-gap tools. A large file asks for confirmation before download.
+Downloads OCHA COD-AB administrative boundaries with real P-codes. **Map output:** light grey fill with thin white borders between areas, name labels when there are few enough areas, ordered under points and lines. **Better results:** use this rather than `fetch_geoboundaries` whenever you will join data by P-code; pass the reported `pcode_field` to the severity and presence-gap tools. A large file asks for confirmation before download.
 
 ### `fetch_geoboundaries`
 Administrative boundaries from geoBoundaries (broader coverage, no P-codes). **Map output:** same backdrop styling as above. **Better results:** use as a fallback when COD-AB does not exist for the country; join by name only with care (spelling variants break joins).
