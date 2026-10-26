@@ -309,7 +309,8 @@ class TestEveryToolHostileInputsLive(TestEveryToolLive):
                 undo()
         label = mode if network is None else f"net:{mode}"
         new = {n: m for n, m in report["crashed"].items() if f"{label}:{n}" not in KNOWN_HOSTILE_CRASHES}
-        self.assertEqual(new, {}, f"[{label}] tools that raised (fix the tool, or add '{label}:<tool>' to KNOWN_HOSTILE_CRASHES)")
+        listing = "\n".join(f"  {n}: {m}" for n, m in sorted(new.items()))     # the default diff is cut off in the CI log
+        self.assertFalse(new, f"[{label}] {len(new)} tools raised (fix the tool, or add '{label}:<tool>' to KNOWN_HOSTILE_CRASHES):\n{listing}")
 
     def test_layer_that_does_not_exist(self):
         self._check("missing")
