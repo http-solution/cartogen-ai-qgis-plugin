@@ -79,6 +79,23 @@ class TestValidation(unittest.TestCase):
         self.assertEqual(len(issues), 3)
 
 
+class TestIssuesNameTheArea(unittest.TestCase):
+    """1.18.3 hand test D1: the IPC import reported 'row 3' and 'row 4' but not which areas they were."""
+
+    def test_issue_carries_the_area_and_a_name_column_with_admin_in_its_name_is_found(self):
+        import csv
+        fd, path = tempfile.mkstemp(suffix=".csv")
+        os.close(fd)
+        self.addCleanup(os.remove, path)
+        with open(path, "w", newline="", encoding="utf-8") as fh:
+            csv.writer(fh).writerows([["admin1_pcode", "admin1_name", "ipc_phase", "population"],
+                                      ["YE01", "A", 3, 10], ["YE03", "C", "", 20], ["YE04", "D", 7, 30]])
+        res = ti.import_humanitarian_table(path, "ipc")
+        self.assertEqual([i["area"] for i in res["issues"]], ["YE03", "YE04"])
+        self.assertEqual(res["mapping_used"]["area_name"], "admin1_name")
+        self.assertEqual(res["records"][0]["area_name"], "A")
+
+
 class TestJoin(unittest.TestCase):
     def test_code_wins_name_falls_back_and_blank_is_none(self):
         self.assertEqual(ti.key_of(" ye01 ", "x"), "code:YE01")

@@ -35,7 +35,7 @@ _RESPONSE_CAP = 50
 SPECS = {
     "ipc": {
         "area_code": (["admin_pcode", "pcode", "p_code", "adm2_pcode", "adm1_pcode", "adm3_pcode", "admin2_pcode", "admin1_pcode", "area_code", "code"], False),
-        "area_name": (["area", "area_name", "admin_name", "admin2", "admin1", "adm2_en", "adm1_en", "district", "name", "region"], False),
+        "area_name": (["area", "area_name", "admin_name", "admin2", "admin1", "adm2_en", "adm1_en", "admin1_name", "admin2_name", "adm1_name", "adm2_name", "district", "name", "region"], False),
         "phase": (["phase", "overall_phase", "area_phase", "ipc_phase", "current_phase", "phase_class", "cl_phase", "classification"], True),
         "population": (["population", "total_population", "analysed_population", "population_analysed", "pop", "total_pop"], False),
         "phase3plus_population": (["phase3plus", "phase_3_plus", "p3plus", "population_phase3plus", "people_phase3plus", "pop_phase3plus", "phase_3+", "p3+"], False),
@@ -43,7 +43,7 @@ SPECS = {
     },
     "inform": {
         "area_code": (["admin_pcode", "pcode", "p_code", "iso3", "adm1_pcode", "adm2_pcode", "area_code", "code"], False),
-        "area_name": (["area", "area_name", "admin_name", "country", "admin1", "admin2", "district", "name", "region"], False),
+        "area_name": (["area", "area_name", "admin_name", "country", "admin1", "admin2", "admin1_name", "admin2_name", "adm1_name", "adm2_name", "district", "name", "region"], False),
         "risk": (["inform_risk", "risk", "risk_index", "inform", "inform_risk_index", "overall_risk"], True),
         "hazard_exposure": (["hazard_exposure", "hazard_and_exposure", "hazard", "hazard_exposure_index"], False),
         "vulnerability": (["vulnerability", "vulnerability_index"], False),
@@ -153,7 +153,10 @@ def normalise_rows(rows, kind, used):
         rec = {"row": i}
 
         def bad(role, why, i=i, get=get):
-            issues.append({"row": i, "role": role, "value": None if _blank(get(role)) else str(get(role)), "problem": why})
+            # 1.18.3 hand test D1: the issue named only a row number, so the user could not tell which area to fix.
+            area = get("area_code") if not _blank(get("area_code")) else get("area_name")
+            issues.append({"row": i, "area": None if _blank(area) else str(area).strip(), "role": role,
+                           "value": None if _blank(get(role)) else str(get(role)), "problem": why})
 
         if kind == "ipc":
             rec["area_code"] = None if _blank(get("area_code")) else str(get("area_code")).strip()
