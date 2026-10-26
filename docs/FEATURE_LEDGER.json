@@ -1102,6 +1102,20 @@
           "tests/test_admin_boundary_style_live.py::TestAdminBoundaryBorders::test_set_layer_transparency_keeps_the_border_too"
       ],
       "hand_verified": "not verified: CI only. The look follows the picture the owner attached on 2026-10-26; the owner has not seen the new build"
+  },
+  {
+      "id": "forecast-trigger-percent-mode",
+      "feature": "evaluate_forecast_trigger accepts a 0-100 probability column with probability_scale='percent' (min_probability 70 means 70%); the rule is printed with a % sign and a column outside the chosen scale is warned about",
+      "issues": [],
+      "since": "unreleased (after 1.18.2)",
+      "sources": [
+          "src/cartogen_ai/core/agent/tools/trigger_tools.py"
+      ],
+      "guards": [
+          "tests/test_trigger_tools.py::TestEvaluate::test_percent_scale_compares_a_0_to_100_column_directly",
+          "tests/test_trigger_tools.py::TestEvaluate::test_scale_validation"
+      ],
+      "hand_verified": "not verified: offline tests only"
   }
  ]
 }
