@@ -3341,8 +3341,9 @@ Evaluate an anticipatory-action trigger rule against forecast values already in 
 | `date_field` | string | no | Field with the date the forecast is valid for. Required with lead_days. |
 | `lead_days` | number | no | Only count forecast rows dated from as_of to as_of + lead_days. |
 | `as_of` | string | no | ISO date the lead window starts from. Default today. |
-| `probability_field` | string | no | Optional numeric field (0-1) with the forecast probability of the value. |
-| `min_probability` | number | no | With probability_field: minimum probability (0-1) for a row to count. |
+| `probability_field` | string | no | Optional numeric field with the forecast probability of the value (0-1, or 0-100 with probability_scale='percent'). |
+| `min_probability` | number | no | With probability_field: minimum probability for a row to count, in the same unit as the field (0-1, or 0-100 when probability_scale is 'percent', e.g. 70 for 70%). |
+| `probability_scale` | string | no | 'fraction' (default): probability_field and min_probability are 0-1. 'percent': both are 0-100. |
 | `min_exceedances` | integer | no | Exceeding forecast rows needed to activate a unit. Default 1. |
 
 ## watershed_tools

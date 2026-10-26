@@ -26,6 +26,9 @@ COMPARISONS = {
     "<": lambda v, t: v < t,
 }
 _MAX_ROWS = 500_000
+# Forecast products publish probability either as 0-1 or as 0-100 (percent). The row values and min_probability are compared as
+# given, so they must be in the same unit; the scale only fixes the allowed range and how the rule is printed back.
+PROBABILITY_SCALES = {"fraction": 1.0, "percent": 100.0}
 
 
 # ---------------------------------------------------------------- pure --
@@ -65,7 +68,7 @@ def to_number(value):
     return number if number == number else None
 
 
-def validate_rule(threshold, comparison, lead_days, min_probability, min_exceedances):
+def validate_rule(threshold, comparison, lead_days, min_probability, min_exceedances, probability_scale="fraction"):
     """Error text for an invalid rule, else None. Pure. A threshold is mandatory: there is no default."""
     if threshold is None or to_number(threshold) is None:
         return "threshold is required and must be a number: it comes from your trigger protocol, there is no default."
@@ -73,8 +76,14 @@ def validate_rule(threshold, comparison, lead_days, min_probability, min_exceeda
         return f"comparison must be one of {list(COMPARISONS)}."
     if lead_days is not None and (to_number(lead_days) is None or float(lead_days) < 0):
         return "lead_days must be zero or a positive number of days."
-    if min_probability is not None and not (to_number(min_probability) is not None and 0.0 <= float(min_probability) <= 1.0):
-        return "min_probability must be between 0 and 1."
+    if probability_scale not in PROBABILITY_SCALES:
+        return f"probability_scale must be one of {list(PROBABILITY_SCALES)}."
+    top = PROBABILITY_SCALES[probability_scale]
+    if min_probability is not None and not (to_number(min_probability) is not None and 0.0 <= float(min_probability) <= top):
+        if probability_scale == "fraction":
+            return ("min_probability must be between 0 and 1. If your probability column is 0-100, say so with "
+                    "probability_scale='percent' and give min_probability as a percent (e.g. 70).")
+        return "min_probability must be between 0 and 100 when probability_scale is 'percent'."
     if to_number(min_exceedances) is None or int(min_exceedances) < 1:
         return "min_exceedances must be 1 or more."
     return None
@@ -153,11 +162,12 @@ def evaluate_triggers(rows, value_key, threshold, comparison=">=", unit_key=None
 
 
 def describe_rule(value_key, threshold, comparison, unit_key, date_key, as_of, lead_days, probability_key, min_probability,
-                  min_exceedances):
+                  min_exceedances, probability_scale="fraction"):
     """The rule in one sentence, echoed in the result so an 'activated' can always be traced to it. Pure."""
     text = f"{value_key} {comparison} {float(threshold):g}"
     if probability_key is not None and min_probability is not None:
-        text += f" with {probability_key} >= {float(min_probability):g}"
+        unit = "%" if probability_scale == "percent" else ""
+        text += f" with {probability_key} >= {float(min_probability):g}{unit}"
     if lead_days is not None:
         start = as_of or datetime.date.today()
         text += f", forecast dated {start.isoformat()} to {(start + datetime.timedelta(days=float(lead_days))).isoformat()} ({float(lead_days):g} days lead)"
@@ -188,16 +198,18 @@ def describe_rule(value_key, threshold, comparison, unit_key, date_key, as_of, l
             "date_field": {"type": "string", "description": "Field with the date the forecast is valid for. Required with lead_days."},
             "lead_days": {"type": "number", "description": "Only count forecast rows dated from as_of to as_of + lead_days."},
             "as_of": {"type": "string", "description": "ISO date the lead window starts from. Default today."},
-            "probability_field": {"type": "string", "description": "Optional numeric field (0-1) with the forecast probability of the value."},
-            "min_probability": {"type": "number", "description": "With probability_field: minimum probability (0-1) for a row to count."},
+            "probability_field": {"type": "string", "description": "Optional numeric field with the forecast probability of the value (0-1, or 0-100 with probability_scale='percent')."},
+            "min_probability": {"type": "number", "description": "With probability_field: minimum probability for a row to count, in the same unit as the field (0-1, or 0-100 when probability_scale is 'percent', e.g. 70 for 70%)."},
+            "probability_scale": {"type": "string", "enum": list(PROBABILITY_SCALES), "description": "'fraction' (default): probability_field and min_probability are 0-1. 'percent': both are 0-100."},
             "min_exceedances": {"type": "integer", "description": "Exceeding forecast rows needed to activate a unit. Default 1."},
         },
         "required": ["layer_name", "value_field", "threshold"],
     },
 )
 def evaluate_forecast_trigger(layer_name, value_field, threshold=None, comparison=">=", unit_field=None, date_field=None,
-                              lead_days=None, as_of=None, probability_field=None, min_probability=None, min_exceedances=1):
-    problem = validate_rule(threshold, comparison, lead_days, min_probability, min_exceedances)
+                              lead_days=None, as_of=None, probability_field=None, min_probability=None, min_exceedances=1,
+                              probability_scale="fraction"):
+    problem = validate_rule(threshold, comparison, lead_days, min_probability, min_exceedances, probability_scale)
     if problem:
         return {"error": problem}
     if lead_days is not None and not date_field:
@@ -231,10 +243,17 @@ def evaluate_forecast_trigger(layer_name, value_field, threshold=None, compariso
         "success": True,
         "layer_name": layer_name,
         "rule": describe_rule(value_field, threshold, comparison, unit_field, date_field, start, lead_days,
-                              probability_field, min_probability, min_exceedances),
+                              probability_field, min_probability, min_exceedances, probability_scale),
         "note": "This evaluates the rule you gave against the forecast values in the layer; it is not a forecast and the "
                 "threshold is not validated here.",
     })
+    if probability_field is not None:
+        top = PROBABILITY_SCALES[probability_scale]
+        out_of_range = sum(1 for row in rows if (to_number(row.get(probability_field)) or 0.0) > top)
+        if out_of_range:
+            result["warning_probability_scale"] = (
+                f"{out_of_range} row(s) have {probability_field} above {top:g}, which is outside the '{probability_scale}' scale; "
+                "check probability_scale matches the column.")
     if result["rows_used"] == 0:
         result["warning"] = "No forecast row could be used (see rows_skipped); no unit can be activated from this data."
     return result

@@ -93,6 +93,28 @@ class TestEvaluate(unittest.TestCase):
         self.assertTrue(u["B"]["activated"])
         self.assertEqual(res["rows_skipped"], {"missing_probability": 1})
 
+    def test_percent_scale_compares_a_0_to_100_column_directly(self):
+        # A 0-100 column against min_probability=70 (percent): 85 passes, 60 does not. Before the percent mode a user had to
+        # divide by 100 first, and 70 was refused as out of range.
+        r = [{"unit": "A", "q": 200, "p": 85}, {"unit": "B", "q": 200, "p": 60}]
+        self.assertIsNone(t.validate_rule(100, ">=", None, 70, 1, "percent"))
+        res = t.evaluate_triggers(r, "q", 100, ">=", "unit", probability_key="p", min_probability=70)
+        u = by_unit(res)
+        self.assertTrue(u["A"]["activated"])
+        self.assertFalse(u["B"]["activated"])
+
+    def test_scale_validation(self):
+        self.assertIn("percent", t.validate_rule(100, ">=", None, 70, 1))  # fraction scale: hint names the percent mode
+        self.assertIn("between 0 and 100", t.validate_rule(100, ">=", None, 101, 1, "percent"))
+        self.assertIn("probability_scale", t.validate_rule(100, ">=", None, 0.5, 1, "per cent"))
+        self.assertIsNone(t.validate_rule(100, ">=", None, 0.7, 1))  # fraction behaviour unchanged
+
+    def test_rule_text_shows_the_percent_sign_only_in_percent_mode(self):
+        pct = t.describe_rule("q", 100, ">=", "unit", None, None, None, "p", 70, 1, "percent")
+        frac = t.describe_rule("q", 100, ">=", "unit", None, None, None, "p", 0.7, 1)
+        self.assertIn("p >= 70%", pct)
+        self.assertIn("p >= 0.7;", frac)
+
     def test_min_exceedances(self):
         r = [{"unit": "A", "q": 200}, {"unit": "A", "q": 50}]
         self.assertFalse(by_unit(t.evaluate_triggers(r, "q", 100, ">=", "unit", min_exceedances=2))["A"]["activated"])
