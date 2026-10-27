@@ -1,0 +1,141 @@
+# Master task list (2026-10-27, after release 1.18.4)
+
+One list to follow up and plan from. It replaces the session task list (101 entries: 84 done, 17 open) and consolidates the open work of PLAN-022, PLAN-023 and the unmerged master list (W-1 to W-58, O-1 to O-11), the roadmap audit, and what the 1.18.2 to 1.18.4 hand runs found. The same rows are in `docs/MASTER_TASK_LIST_2026-10-27.csv` for a spreadsheet.
+
+**Status words:** Not started, Waiting on you (only you can do it), Decision needed, Blocked (waiting on another row), In progress, Closed. **Priority:** P0 do now, P1 next, P2 soon, P3 later. **Size:** XS under an hour, S a day, M a few days, L a release, XL several. Sizes are planning guesses, not measurements. Nothing here is claimed done on CI evidence alone.
+
+## State today
+
+| Item | Value |
+|---|---|
+| Latest release | 1.18.4 (published 2026-10-27), checked by the offline suite and CI on QGIS 4.2.2; only the three 1.18.2 checks and part of 1.18.3 are hand-verified |
+| Offline tests / registered tools | 5,103 passing (779 skipped, live-QGIS) / 296 |
+| Open GitHub issues | 2: #362, #380 (waiting on hand rows V3 to V8) |
+| Feature ledger | 98 entries; 27 'not verified', 5 'partly' |
+| Plans | 26 plan files; 14 flagged stale by PLAN-022 (not yet corrected) |
+| Remote branches | 193 |
+| Unmerged documents | branch claude/pending-work-master-list (earlier master list and PLAN-023) |
+
+## Do these first (the next two weeks)
+
+1. **OWN-1**: run Section N of the 1.18.4 package and send the folder with logs. Everything else about 1.18.x quality hangs on it.
+2. **OWN-5**: confirm the roadmap order so RM-A can get a plan.
+3. **HT-1**: Claude triages your results into 1.18.5.
+4. **DEF-1**: Claude adds the empty-render capture to CI so release builds stop failing at random.
+5. **OWN-3 and OWN-4**: the logs and rows that close the unexplained defects and the two open issues.
+
+## A. Your actions and decisions
+
+| ID | Task | Why | Who | Depends on | Size | Pri | Status | Source |
+|---|---|---|---|---|---|---|---|---|
+| OWN-1 | Install 1.18.4 and run Section N of the 1.18.4 test package (8 checks, about 15 minutes); then the rest as time allows. Save the CartogenAI log and a screenshot per row. | Hand-verifies the fixes of PRs 449, 452-456 (damage score, distances in degrees, wrong task card, IPC names, GDACS). Nothing from 1.18.2 to 1.18.4 is hand-verified yet except the three 1.18.2 checks. | You | - | S | P0 | Waiting on you | 1.18.4 test package, TEST_RUNBOOK.md |
+| OWN-2 | Send the screenshot of the change-layer legend (row D6: is it blue-to-red, is the no-change area transparent?). | The colour stops are correct in code; without the picture the fault cannot be located. | You | - | XS | P2 | Waiting on you | 1.18.3 hand run D6 |
+| OWN-3 | For the rows that failed without a found cause, send the per-prompt Log Messages text: unrequested layers (A5 country layer, A7 Incident layer), C5 inverted labels, D3, D4, S5. | Last two runs' logs held only the verdict line; the causes of these rows are unknown. | You | OWN-1 | S | P1 | Waiting on you | 1.18.3 hand run |
+| OWN-4 | Run the 1.18.1-bundle rows V3 to V8 so issues #362 (V4, V5, V6) and #380 (V3, V7, V8) can be closed or fixed. | The only two open GitHub issues; waiting since 2026-10-23. | You | - | S | P1 | Waiting on you | PLAN-021, PLAN-022 N0 |
+| OWN-5 | Confirm or change the roadmap order A to G in the roadmap audit (this unlocks plans and issues for RM-A to RM-D). | Nothing in the roadmap can start without it. | You | - | XS | P1 | Decision needed | ROADMAP_AUDIT_2026-10-27.md |
+| OWN-6 | Answer the PLAN-022 N6 questions: temporary-layer note for incident, hazard and event layers; undo for rename_field and delete_field; add a clean-profile install row; stable versus pre-release channel; architecture items. | Small product choices that block HY work and wording of releases. | You | - | S | P2 | Decision needed | PLAN-022 N6 |
+| OWN-7 | Confirm or change the PLAN-023 defaults (questions Q1 to Q15: persona model 'lens, never a gate', one primary plus one secondary persona, Power BI hand-off files only, assumed speeds only on request, and so on). | Needed before the profile programme starts. | You | - | S | P2 | Decision needed | PLAN-023 (branch claude/pending-work-master-list) |
+| OWN-8 | Decide what happens to branch claude/pending-work-master-list (the earlier master list W-1 to W-58 and PLAN-023): merge for the record, or discard because this list replaces it. | It has never been merged; two lists must not drift apart. | You | - | XS | P2 | Decision needed | docs/PENDING_WORK_AND_PROFILE_ANALYSIS_2026-10-26.md |
+| OWN-9 | Close the JIAF validation blockers: a Flags dashboard export or country records, the flag-6 historical table, the flag-3 zero case, the thresholds sheet, one real filled Annex 4 file. | The two JIAF blockers are printed in every JIAF result. | You | - | M | P2 | Waiting on you | session task 69, JIAF2 docs |
+| OWN-10 | Provide credentials and terms for the deferred integrations: ACLED key, ReliefWeb app name, Kobo/ODK, GloFAS/CHIRPS, Logistics Cluster, LandScan. | Cannot be built without keys and licence terms. | You | - | M | P3 | Waiting on you | session task 67, gap analysis H10 |
+| OWN-11 | Clean-profile install and in-place upgrade test of the exact release zip (tracker 1.10). | Needs a person with a fresh QGIS profile. | You | - | S | P2 | Waiting on you | IMPLEMENTATION_TRACKER 1.10 |
+| OWN-12 | Upload to plugins.qgis.org if wanted (needs your login) and unpublish the old GitHub Pages site (replaced by the wiki). | Only you can do either. | You | - | XS | P3 | Waiting on you | PLAN-019, STATUS_DONE_VS_TESTED |
+| OWN-13 | Close the open secret-scanning alert in repository settings (CI gitleaks passes on every push). | Repository setting only you can change. | You | - | XS | P3 | Waiting on you | STATUS_DONE_VS_TESTED |
+| OWN-14 | Provide real-data samples when the matching release approaches: case-count file (R2), a DEM site and the engineer's report (R4), a depot and orders sample (R5), parcels and a store list (R6). | Known-answer tests and hand rows need real inputs. | You | - | M | P3 | Waiting on you | PLAN-023 Q7 to Q11 |
+
+## B. Verification and hand-test follow-up
+
+| ID | Task | Why | Who | Depends on | Size | Pri | Status | Source |
+|---|---|---|---|---|---|---|---|---|
+| HT-1 | Triage the 1.18.4 results into defects, write a failing test per defect, fix, and cut 1.18.5. | The loop that has produced 1.18.2, 1.18.3 and 1.18.4. | Claude | OWN-1, OWN-3 | M | P0 | Waiting on you | release process |
+| HT-2 | Ledger traceability: add a hand_row (a row id or 'none: reason') to every 'not verified' ledger entry (27 now, 12 at the time of PLAN-022) and make a test fail when a new entry has neither. | The ledger is the contract; 'not verified' must say which hand row would verify it. | Claude | - | M | P2 | Not started | PLAN-022 N2 |
+| HT-3 | Build eval rows for model tool choice (prompt, expected tool) and measure them: D3 (survey tool), D4 (presence-gap write), S5 (refuse a trigger with no threshold). Change prompts or descriptions only with a measured gain. | The router already offers the right tools; what the model picks has never been measured. | Claude | OWN-3 | M | P2 | Not started | 1.18.3 hand run, W-4 |
+| HT-4 | Verification debt, CI only today: Windows and macOS QGIS; large, messy, non-English and database-backed user data; numerical correctness of Processing outputs; delineate_watershed on a real DEM versus the engineer's report; a real Geofabrik extract and prompt-cache check. | Built and passing in CI, never run by a person. | Both | OWN-11, OWN-14 | L | P3 | Not started | W-5 to W-9 |
+| HT-5 | Re-check 'partly' ledger entries (5) and wave E1, DXF and Excel export and the 20 later routing additions by hand. | Only 21 algorithms were ever hand-tested. | Both | OWN-1 | M | P3 | Not started | W-2, W-3 |
+
+## C. Open defects and observations
+
+| ID | Task | Why | Who | Depends on | Size | Pri | Status | Source |
+|---|---|---|---|---|---|---|---|---|
+| DEF-1 | Elevation-profile print item renders empty intermittently in CI (#379 observation). It failed twice on one commit and passed on a third run with no change. Add a CI step that saves the PNG when the render is empty, then debug on QGIS 4.2. | Makes release CI fail at random; cause not found (a QGIS 3.34 reproduction in the sandbox was not comparable). | Claude | - | M | P1 | Not started | PLAN-026, PR 453 CI history |
+| DEF-2 | Change-layer legend (D6): confirm blue-to-red with a transparent no-change area; fix if the screenshot shows otherwise. | Open since the 1.18.3 run. | Claude | OWN-2 | S | P2 | Blocked | 1.18.3 hand run D6 |
+| DEF-3 | Unrequested layers: an 'Incident' layer after GDACS (A7), a country layer after building footprints (A5). No tool in the code adds them; trace the plan that does. | Surprises the user; cause unknown. | Claude | OWN-3 | S | P2 | Blocked | 1.18.2 and 1.18.3 hand runs |
+| DEF-4 | C5 labels reported inverted: find which layer and labels. | Reported without detail. | Claude | OWN-3 | S | P2 | Blocked | 1.18.2 hand run |
+| DEF-5 | Zonal-statistics columns (chg_mean, chg2_mean...) stay on the admin layer after the damage tool runs; remove them or run on a copy. | Side effect on the user's layer; a file-based layer keeps them. | Claude | - | S | P2 | Not started | PLAN-026 class C |
+| DEF-6 | Nationwide 5 km task grid is refused above 5,000 cells: add a 'suggest a cell size' path. | Clear message today; a design choice. | Claude | OWN-6 | S | P3 | Decision needed | 1.18.2 hand run B1 |
+| DEF-7 | OSM Overpass road download answered HTTP 502 after 4 retries: consider a mirror fallback and a clearer message. | Server side; the fixtures covered it in the test. | Claude | - | S | P3 | Not started | 1.18.2 hand run C1 |
+| DEF-8 | Quiet-release clean-up: 24 unused noqa comments; the baseline of 504 broad-except handlers (none silent) recorded for review. | Lint hygiene. | Claude | - | S | P3 | Not started | PLAN-026 class G, H |
+
+## D. Product roadmap (from the roadmap audit)
+
+| ID | Task | Why | Who | Depends on | Size | Pri | Status | Source |
+|---|---|---|---|---|---|---|---|---|
+| RM-A | Verified result gate: after each analysis that writes a layer or field, run applicable checks (CRS, geometry, not-all-null or constant, value range and unit, no stale field) and add them to the result; the answer must quote a failed check. | Three result errors in three hand runs were silent; this is the defensible differentiator. | Claude | OWN-5 | L | P1 | Decision needed | ROADMAP_AUDIT step A, session task 97 |
+| RM-B | Attach the map canvas (or a region) plus legend text and layer list to the next message as an image part. | inspect_canvas_visually sends the map as base64 text in a tool result; the chat clients already accept image parts. | Claude | OWN-5 | M | P1 | Decision needed | ROADMAP_AUDIT step B, task 98 |
+| RM-C | Record source URL, licence, retrieval date and coverage on every fetch result, the provenance sidecar and the report. | Needed for donors and for the verified workflow report. | Claude | OWN-5 | M | P1 | Decision needed | ROADMAP_AUDIT step C, task 99 |
+| RM-D | Verified workflow report: sources, parameters, checks, assumptions and limitations, a rerun recipe, for one worked example (service coverage). | The lead feature; mostly assembly once A and C exist. | Claude | RM-A, RM-C | M | P1 | Not started | ROADMAP_AUDIT step D, task 100 |
+| RM-E | Data discovery ranking (licence, coverage, freshness); STAC scene load, change detection and a validation step; one-prompt report. | Builds on D. | Claude | RM-D | L | P2 | Not started | ROADMAP_AUDIT step E, task 101 |
+| RM-F | MCP transport over the tool registry with the existing write, egress and sensitivity gates intact. | Reach for little code, but only after A so exposed tools inherit the checks. | Claude | RM-A | M | P2 | Not started | ROADMAP_AUDIT step F, task 102 |
+| RM-G | Record owner decisions before designing the workflow builder, specialist agents, cloud workers (no tier gating in this codebase) and a skills marketplace. | Each depends on a product or security decision. | You | - | M | P3 | Decision needed | ROADMAP_AUDIT step G, task 103 |
+
+## E. Engineering hygiene
+
+| ID | Task | Why | Who | Depends on | Size | Pri | Status | Source |
+|---|---|---|---|---|---|---|---|---|
+| HY-1 | Set the 14 stale plan statuses from their own logs; fold PLAN-020 into PLAN-021; close PLAN-024 to PLAN-026 when their hand rows pass; mark PLAN-019 done. | Status words no longer match the logs. | Claude | - | S | P2 | Not started | PLAN-022 N1 |
+| HY-2 | Sweep IMPLEMENTATION_TRACKER.md (2,746 lines; duplicate sections 1.19 to 1.24; stale list at the top) and BUG_TRACKER.md. | The trackers are the planning source and are out of date. | Claude | - | M | P2 | Not started | PLAN-022 N3 |
+| HY-3 | CI and release hygiene: pin the Windows runner, check upload-artifact against the Node notice, add an optional status_note input to release.yml (releases cannot be edited from this session type), generate the README test count. | A release cannot say 'not hand-tested' without a manual edit. | Claude | - | S | P2 | Not started | PLAN-022 N4 |
+| HY-4 | Prune the 190-odd remote branches (merged and abandoned claude/* branches); keep the open ones. | 193 remote branches; it hides what is live. | Both | OWN-8 | S | P3 | Not started | repository state |
+| HY-5 | Clean the session task list: drop the 84 completed entries, keep this list's open rows. | The list is a history, not a plan. | Claude | - | XS | P3 | Not started | this document |
+
+## F. Capability programme (PLAN-023: releases R1 to R12, one release per package)
+
+| ID | Task | Why | Who | Depends on | Size | Pri | Status | Source |
+|---|---|---|---|---|---|---|---|---|
+| PR-R1 | 1.19.0 Profiles: persona pack loader and picker with honest readiness, router re-rank, 52 seed tasks, catalogue generator, style profiles skeleton, data-source catalogue. | Scoped with acceptance and known-answer tests in PLAN-023; none started. | Claude | OWN-7 | L | P3 | Not started | PLAN-023 |
+| PR-R2 | 1.20.0 Spatial statistics: Moran's I, Getis-Ord Gi*, Kulldorff scan with Monte Carlo, rates, relative risk, SMR and smoothing, small-number flag. | Scoped with acceptance and known-answer tests in PLAN-023; none started. | Claude | OWN-14 | L | P3 | Not started | PLAN-023 |
+| PR-R3 | 1.21.0 Indices, time series, STAC: SAVI/EVI/NDMI/NBR, STAC load, multi-date statistics and anomaly, from-to change matrix, management zones, WorldCover, CHIRPS. | Scoped with acceptance and known-answer tests in PLAN-023; none started. | Claude | - | L | P3 | Not started | PLAN-023 |
+| PR-R4 | 1.22.0 Terrain, flood, engineering: cut and fill, HAND, bathtub flood footprint, viewshed, engineering sheet, mobility cost surface. | Scoped with acceptance and known-answer tests in PLAN-023; none started. | Claude | OWN-14 | L | P3 | Not started | PLAN-023 |
+| PR-R5 | 1.23.0 Network and movement: VRP with capacity and time windows, OD desire lines, GTFS accessibility, utility trace with valve isolation, walking and cycling profiles. | Scoped with acceptance and known-answer tests in PLAN-023; none started. | Claude | OWN-14 | L | P3 | Not started | PLAN-023 |
+| PR-R6 | 1.24.0 Site selection and urban: Huff model, centre of gravity, trade areas, scenario allocation, parcel split. | Scoped with acceptance and known-answer tests in PLAN-023; none started. | Claude | OWN-14 | M | P3 | Not started | PLAN-023 |
+| PR-R7 | 1.25.0 Connectors and Power BI: CKAN, ArcGIS Hub, Socrata, DEM/hydrography/soils, ERA5, WDPA, GTFS, DHIS2, Kobo/ODK, ACLED; Power BI hand-off files. | Scoped with acceptance and known-answer tests in PLAN-023; none started. | Claude | OWN-10, OWN-7 | L | P3 | Not started | PLAN-023 |
+| PR-R8 | 1.26.0 Standards and publication: ISO 19115 sidecar and validation, OGC API or QGIS Server project generator, topology rule checks, publication figure layout. | Scoped with acceptance and known-answer tests in PLAN-023; none started. | Claude | - | M | P3 | Not started | PLAN-023 |
+| PR-R9 | 1.27.0 Geometry editing: vertex edit, add part and ring, reshape, offset, chamfer, trim/extend, copy and paste between layers, identify by coordinate. | Scoped with acceptance and known-answer tests in PLAN-023; none started. | Claude | - | M | P3 | Not started | PLAN-023 |
+| PR-R10 | 1.28.0 Attributes, project, raster rows: virtual fields, conditional formatting, forms, actions, extra renderers, pyramids, raster attribute tables, datum transformations. | Scoped with acceptance and known-answer tests in PLAN-023; none started. | Claude | - | L | P3 | Not started | PLAN-023 |
+| PR-R11 | 1.29.0 Processing models and waves: Processing models and batch, in-place modification, the remaining file-writing algorithm waves, expression screening, argument-list checks against 4.2.3. | Scoped with acceptance and known-answer tests in PLAN-023; none started. | Claude | - | L | P3 | Not started | PLAN-023 |
+| PR-R12 | 1.30.0 Close-out: verification debt, JIAF re-check, reply-quality eval rows, remaining architecture records. | Scoped with acceptance and known-answer tests in PLAN-023; none started. | Claude | OWN-9, OWN-11 | M | P3 | Not started | PLAN-023 |
+
+## G. Humanitarian and analysis carry-overs
+
+| ID | Task | Why | Who | Depends on | Size | Pri | Status | Source |
+|---|---|---|---|---|---|---|---|---|
+| HU-1 | HX4 tools once keys exist: Kobo/ODK pull, ACLED, GloFAS/CHIRPS, Logistics Cluster, LandScan. | Blocked on OWN-10. | Claude | OWN-10 | L | P3 | Blocked | gap analysis H10 |
+| HU-2 | JIAF: re-check flag formulas and the Annex 4 reader when OWN-9 material arrives; closing the blockers stays your decision. | Two open validation blockers. | Claude | OWN-9 | M | P3 | Blocked | JIAF2 |
+| HU-3 | travel_time_matrix about 8 minutes on a whole country; optimize_delivery_route builds the graph per stop pair; assumed speeds by road class (only 0.9 percent of Jordan's roads carry a speed). | Performance and realism limits. | Claude | - | L | P3 | Not started | BUG-2026-09-25-3, W-39 |
+| HU-4 | Raster-unit check (people per cell versus density) in population exposure; points into the admin CRS in damage counting; score-write labels. | Result-correctness items in the same class as RM-A. | Claude | RM-A | M | P2 | Not started | W-40 |
+| HU-5 | Smaller carry-overs: task-runner callbacks at unload (#167 tail), find_region naming the wrong country, output layers piling up in long sessions. | Known, minor. | Claude | - | M | P3 | Not started | W-41 to W-43 |
+
+## H. Architecture decisions (deferred, yours)
+
+| ID | Task | Why | Who | Depends on | Size | Pri | Status | Source |
+|---|---|---|---|---|---|---|---|---|
+| AR-1 | Agent pipeline redesign (intent, inspector, planner) and a deterministic plan, validate, execute model. | Large change; only after RM-A shows what a gate buys. | You | RM-A | XL | P3 | Decision needed | tracker 1.5, 1.6 |
+| AR-2 | Standard project folder architecture with immutable raw data. | Product opinion. | You | - | M | P3 | Decision needed | tracker 1.7 |
+| AR-3 | task_matcher keyword normalisation favours short task definitions (partly mitigated in 1.18.1 and 1.18.4). | Routing fairness. | Claude | - | M | P3 | Not started | tracker 1.8 |
+| AR-4 | Chunked k-means for very large rasters; further GUI-thread offloading. | Guard shipped, chunking not. | Claude | - | M | P3 | Not started | A14, A15 |
+| AR-5 | Recorded as scoped and not recommended: vector memory stores, constrained decoding libraries, RestrictedPython, Presidio egress scan, semantic router. | Keep the record so they are not rediscovered. | You | - | - | - | Closed (record) | W-49 |
+
+## Counts by status
+
+| Status | Rows |
+|---|---|
+| Not started | 33 |
+| Decision needed | 11 |
+| Waiting on you | 11 |
+| Blocked | 5 |
+| Closed (record) | 1 |
+| **Total** | **61** |
+
+## How to keep it current
+
+Edit the status column when a row changes; add a dated line to the plan or issue the row points at; when a row is done write what verified it (CI only, or the hand row). Do not delete rows: set them to Closed with a reason. A new defect from a hand run gets a DEF row before work starts.
