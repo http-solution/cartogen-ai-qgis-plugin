@@ -15,7 +15,7 @@ try:
         QgsCoordinateReferenceSystem, QgsCoordinateTransform, QgsFeature, QgsFeatureRequest, QgsGeometry,
         QgsPalLayerSettings, QgsTextFormat, QgsTextBufferSettings, QgsVectorLayerSimpleLabeling, QgsWkbTypes,
         QgsField, QgsPointXY, QgsSpatialIndex, QgsUnitTypes, QgsLabelObstacleSettings,
-        QgsProcessingFeatureSourceDefinition
+        QgsProcessingFeatureSourceDefinition, QgsDistanceArea, Qgis
     )
     from qgis.PyQt.QtCore import QVariant, Qt
     from qgis.PyQt.QtGui import QColor, QFont
@@ -32,7 +32,7 @@ from ...validators.expression_screen import screen_expression
 from ...logger import log_event
 import contextlib
 from ...net import build_request as _net_build_request
-from ._layer_checks import require_valid_layer
+from ._layer_checks import degrees_value_problem, require_valid_layer
 
 
 def _find_layer_by_name(name):
@@ -1420,8 +1420,9 @@ def delaunay_triangulation(layer_name):
 @register_tool(
     "find_nearest_features",
     "For each feature in input_layer, find the nearest feature(s) in near_layer and join it "
-    "(distance in meters, plus the nearest feature's attributes) -- e.g. 'nearest hospital to "
-    "each village'. Creates a new layer; input_layer and near_layer are unchanged.",
+    "(plus the nearest feature's attributes) -- e.g. 'nearest hospital to each village'. The 'distance' field is in the "
+    "layer's own CRS units; distance_m is added in real metres (ellipsoidal) whenever those units are not metres, so use "
+    "distance_m when the layers are in latitude/longitude. Creates a new layer; input_layer and near_layer are unchanged.",
     {
         "type": "object",
         "properties": {
@@ -1459,7 +1460,44 @@ def find_nearest_features(input_layer, near_layer, neighbors=1):
     )
     if isinstance(res, dict) and crs_info.get("warning"):
         res["crs_warning"] = crs_info["warning"]
+    if isinstance(res, dict) and res.get("success"):
+        # Self-audit round 2 (2026-10-26), the same class as the route-risk buffer in degrees: native:joinbynearest writes 'distance' in
+        # the input layer's CRS units, so on an EPSG:4326 layer "distance in meters" was a number of degrees.
+        res.update(_add_metre_distance(res.get("layer_name"), a))
     return res
+
+
+def _add_metre_distance(result_name, source_layer):
+    """Adds distance_m (ellipsoidal metres between each feature and its nearest match) to a joinbynearest result when the source CRS is
+    not metric. Returns the keys to merge into the tool result (a note, or a warning when it could not be added). Never raises."""
+    try:
+        layer = _find_layer_by_name(result_name) if result_name else None
+        if layer is None:
+            return {}
+        crs = source_layer.crs()
+        if crs.isValid() and not crs.isGeographic() and crs.mapUnits() == Qgis.DistanceUnit.Meters:
+            return {}
+        names = [f.name() for f in layer.fields()]
+        needed = ("feature_x", "feature_y", "nearest_x", "nearest_y")
+        if any(n not in names for n in needed):
+            return {"distance_warning": "'distance' is in the layer's CRS units (degrees for latitude/longitude); distance_m could not be added."}
+        area = QgsDistanceArea()
+        area.setSourceCrs(crs, QgsProject.instance().transformContext())
+        ellipsoid = QgsProject.instance().ellipsoid()
+        area.setEllipsoid(ellipsoid if ellipsoid and ellipsoid != "NONE" else "WGS84")
+        from ._edit_session import add_numeric_field, edit_command
+        with edit_command(layer, "Cartogen: distance in metres"):
+            idx = add_numeric_field(layer, "distance_m")
+            for feat in layer.getFeatures():
+                values = [feat[n] for n in needed]
+                if any(v is None for v in values):
+                    continue
+                metres = area.measureLine(QgsPointXY(values[0], values[1]), QgsPointXY(values[2], values[3]))
+                layer.changeAttributeValue(feat.id(), idx, round(float(metres), 2))
+        return {"distance_note": f"distance_m holds real metres; 'distance' is in the CRS units of {crs.authid()}."}
+    except Exception as e:
+        log_event("swallowed_exception", tag="Tools", tool="nearest_distance_m", error_class=type(e).__name__, error=True)
+        return {"distance_warning": "'distance' is in the layer's CRS units (degrees for latitude/longitude); distance_m could not be added."}
 
 
 @register_tool(
@@ -1504,6 +1542,9 @@ def simplify_geometry(layer_name, tolerance):
     layer = _find_layer_by_name(layer_name)
     if layer is None:
         return {"error": f"Layer '{layer_name}' not found"}
+    problem = degrees_value_problem(layer, tolerance, "the tolerance")
+    if problem:
+        return {"error": problem}
     return _run_and_add(
         "native:simplifygeometries",
         {"INPUT": layer, "METHOD": 0, "TOLERANCE": tolerance, "OUTPUT": "memory:"},
@@ -2322,6 +2363,15 @@ def _admin_unit_centroid(geom, index, admin_features_by_id, to_admin, to_layer):
     return None
 
 
+def _obfuscation_size_problem(layer, method, radius, cell_size):
+    """Degrees-versus-metres refusal for the blur size of a jitter or grid_snap run on a latitude/longitude layer, else None."""
+    if method == "jitter" and radius:
+        return degrees_value_problem(layer, radius, "the radius")
+    if method == "grid_snap" and cell_size:
+        return degrees_value_problem(layer, cell_size, "the cell size")
+    return None
+
+
 @register_tool(
     "obfuscate_sensitive_points",
     "Displace or aggregate sensitive point locations (e.g. GBV survivors, individual IDP "
@@ -2372,6 +2422,9 @@ def obfuscate_sensitive_points(layer_name, method, radius=None, cell_size=None, 
                              "columns as x_field and y_field to get a point layer, then run obfuscate_sensitive_points on that."}
         return {"error": f"'{layer_name}' is not a point layer -- obfuscate_sensitive_points only handles point geometries."}
 
+    problem = _obfuscation_size_problem(layer, method, radius, cell_size)
+    if problem:
+        return {"error": problem}
     admin_layer = None
     if method == "jitter":
         if not radius or radius <= 0:

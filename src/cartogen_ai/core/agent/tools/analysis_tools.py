@@ -886,6 +886,17 @@ def _count_points_in_polygons(admin_layer, point_geometries):
     return _count_points_in_polygons_indexed(index, admin_features_by_id, point_geometries)
 
 
+def _free_zonal_prefix(layer, base):
+    """A zonal-statistics column prefix ('chg_', then 'chg2_', 'chg3_' ...) whose '<prefix>mean' field is not on `layer` yet. Pure given the layer's
+    field names."""
+    names = {f.name() for f in layer.fields()}
+    prefix, n = base, 1
+    while f"{prefix}mean" in names:
+        n += 1
+        prefix = f"{base.rstrip('_')}{n}_"
+    return prefix
+
+
 def _absolute_change_raster(change_raster):
     """In-memory (not added to the project) raster holding |change| for the damage score, or None if it cannot be built."""
     try:
@@ -995,20 +1006,27 @@ def calculate_damage_exposure_severity(admin_layer, unit_name_field, raster_befo
     magnitude_raster = _absolute_change_raster(change_raster)
     if magnitude_raster is None:
         return {"error": "Could not build the absolute change raster needed to measure damage; the signed change would score losses as the lowest severity."}
-    zonal = QgsZonalStatistics(layer, magnitude_raster, "chg_", 1, mean_flag)
+    # Self-audit round 2 (2026-10-26): a second run on the same layer found 'chg_mean' already there, QGIS wrote the new values to
+    # 'chg_mean_2', and the code went on reading the OLD 'chg_mean': stale numbers (the signed ones of 1.18.3, after an upgrade) scored the
+    # districts. Each run uses a prefix whose field does not exist yet and reads that field.
+    chg_prefix = _free_zonal_prefix(layer, "chg_")
+    chg_field = f"{chg_prefix}mean"
+    zonal = QgsZonalStatistics(layer, magnitude_raster, chg_prefix, 1, mean_flag)
     zonal.calculateStatistics(None)
-    if layer.fields().indexFromName("chg_mean") < 0:
-        return {"error": "Zonal statistics ran but no 'chg_mean' field was created -- check admin_layer overlaps the change-detection raster."}
+    if layer.fields().indexFromName(chg_field) < 0:
+        return {"error": f"Zonal statistics ran but no '{chg_field}' field was created -- check admin_layer overlaps the change-detection raster."}
 
     intensity_raster = None
     if hazard_intensity_raster:
         intensity_raster = _find_layer_by_name(hazard_intensity_raster)
         if intensity_raster is None:
             return {"error": f"Layer '{hazard_intensity_raster}' not found"}
-        zonal2 = QgsZonalStatistics(layer, intensity_raster, "hzd_", 1, mean_flag)
+        hzd_prefix = _free_zonal_prefix(layer, "hzd_")
+        hzd_field = f"{hzd_prefix}mean"
+        zonal2 = QgsZonalStatistics(layer, intensity_raster, hzd_prefix, 1, mean_flag)
         zonal2.calculateStatistics(None)
-        if layer.fields().indexFromName("hzd_mean") < 0:
-            return {"error": "Zonal statistics ran but no 'hzd_mean' field was created -- check hazard_intensity_raster overlaps admin_layer."}
+        if layer.fields().indexFromName(hzd_field) < 0:
+            return {"error": f"Zonal statistics ran but no '{hzd_field}' field was created -- check hazard_intensity_raster overlaps admin_layer."}
 
     footprint_centroids = _geometries_in_crs((feat.geometry().centroid() for feat in _ck.features(footprints, "Analysis: reading features")),
                                              footprints.crs(), layer.crs())
@@ -1018,9 +1036,9 @@ def calculate_damage_exposure_severity(admin_layer, unit_name_field, raster_befo
     rows = []
     labels, labels_changed = _unit_labels(layer, unit_name_field)
     for feat in _ck.features(layer, "Analysis: reading features"):
-        row = {"unit": labels[feat.id()], "__fid__": feat.id(), "change_magnitude": feat["chg_mean"]}
+        row = {"unit": labels[feat.id()], "__fid__": feat.id(), "change_magnitude": feat[chg_field]}
         if intensity_raster is not None:
-            row["hazard_intensity"] = feat["hzd_mean"]
+            row["hazard_intensity"] = feat[hzd_field]
         rows.append(row)
 
     indicators = ["change_magnitude"] + (["hazard_intensity"] if intensity_raster is not None else [])

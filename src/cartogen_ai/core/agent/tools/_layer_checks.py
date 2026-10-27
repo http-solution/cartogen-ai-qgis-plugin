@@ -10,3 +10,25 @@ def require_valid_layer(layer):
     if not layer.isValid():
         raise ValueError("QGIS could not create a temporary (memory) layer here; check the input layer's coordinate system.")
     return layer
+
+
+def degrees_value_problem(layer, value, label):
+    """Error text when `value` (a distance, radius, tolerance or cell size taken in the layer's own CRS units) is implausible for a layer in
+    latitude/longitude, else None. Pure apart from reading the CRS.
+
+    Self-audit round 2 (2026-10-26), the same class as the route-risk buffer that applied 500 as 500 degrees (1.18.2 hand test C9): a
+    layer in EPSG:4326 measures in degrees, so "1 km" typed as 1000 moves points 1000 degrees (off the globe) and 1 is already 111 km.
+    One degree or more is never what a user means by a blur radius, kernel radius, cell size or simplification tolerance here, so it is
+    refused with the conversion. `is True` keeps a test double's auto-attributes from reading as geographic."""
+    try:
+        crs = layer.crs()
+        if crs.isValid() is not True or crs.isGeographic() is not True:
+            return None
+        number = float(value)
+    except (TypeError, ValueError, AttributeError):
+        return None
+    if abs(number) >= 1.0:
+        return (f"'{layer.name()}' is in latitude/longitude ({crs.authid()}), so {label} is measured in DEGREES and {number:g} degrees is about "
+                f"{number * 111:,.0f} km. Give {label} in degrees (0.01 is about 1.1 km, 0.001 about 110 m), or reproject the layer to a "
+                "projected CRS such as the local UTM zone and give metres.")
+    return None

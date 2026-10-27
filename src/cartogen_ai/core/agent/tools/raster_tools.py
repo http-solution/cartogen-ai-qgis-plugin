@@ -951,6 +951,11 @@ def interpolate_surface(point_layer, field, method="idw", cell_size=None):
     resolved_cell_size = cell_size or max(extent.width(), extent.height()) / 250
     if resolved_cell_size <= 0:
         return {"error": "cell_size must be positive."}
+    if cell_size:
+        from ._layer_checks import degrees_value_problem
+        problem = degrees_value_problem(layer, cell_size, "the cell size")
+        if problem:
+            return {"error": problem}
 
     try:
         # qgis:idwinterpolation / qgis:tininterpolation both take their input as

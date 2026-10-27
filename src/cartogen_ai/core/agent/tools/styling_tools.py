@@ -12,6 +12,7 @@ from ._paths import resolve_output_path
 from .plain_colour import resolve_colour
 from ._qgis_enum_compat import resolve_qgis_enum
 from ...logger import log_event
+from ._layer_checks import degrees_value_problem
 import itertools
 
 try:
@@ -1042,6 +1043,9 @@ def hotspot_analysis(point_layer, radius, pixel_size=None, weight_field=None):
     layer = _find_layer_by_name(point_layer)
     if layer is None:
         return {"error": f"Layer '{point_layer}' not found"}
+    problem = degrees_value_problem(layer, radius, "the radius")
+    if problem:
+        return {"error": problem}
     if weight_field and weight_field not in [f.name() for f in layer.fields()]:
         return {"error": f"Field '{weight_field}' not found in '{point_layer}'"}
 

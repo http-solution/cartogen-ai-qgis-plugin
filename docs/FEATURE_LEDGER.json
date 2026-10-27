@@ -1210,6 +1210,64 @@
           "tests/test_hazard_monitoring_tools.py::TestGdacsFailureHandling::test_a_persistent_400_is_explained_not_quoted"
       ],
       "hand_verified": "not verified: CI only (owner hand run 1.18.3 row A7 saw one HTTP 400; it did not repeat on the rerun)"
+  },
+  {
+      "id": "lat-lon-distance-guard",
+      "feature": "a distance, radius, tolerance or cell size of 1 degree or more on a latitude/longitude layer is refused with the conversion (blur, hotspot, simplify, interpolate)",
+      "issues": [],
+      "since": "unreleased (after 1.18.3)",
+      "sources": [
+          "src/cartogen_ai/core/agent/tools/_layer_checks.py",
+          "src/cartogen_ai/core/agent/tools/vector_tools.py",
+          "src/cartogen_ai/core/agent/tools/styling_tools.py",
+          "src/cartogen_ai/core/agent/tools/raster_tools.py"
+      ],
+      "guards": [
+          "tests/test_layer_checks_degrees.py::TestDegreesValueProblem::test_a_metre_sized_number_on_a_latlon_layer_is_refused_with_the_conversion",
+          "tests/test_layer_checks_degrees.py::TestDegreesValueProblem::test_a_projected_layer_is_never_refused"
+      ],
+      "hand_verified": "not verified: CI only (found by the self-audit round 2, PLAN-026)"
+  },
+  {
+      "id": "nearest-feature-distance-in-metres",
+      "feature": "find_nearest_features adds distance_m in real metres when the layer CRS is not metric",
+      "issues": [],
+      "since": "unreleased (after 1.18.3)",
+      "sources": [
+          "src/cartogen_ai/core/agent/tools/vector_tools.py"
+      ],
+      "guards": [
+          "tests/test_nearest_distance_metres_live.py::TestNearestInMetres::test_latlon_layers_get_distance_m_close_to_the_real_distance",
+          "tests/test_nearest_distance_metres_live.py::TestNearestInMetres::test_a_metre_crs_is_left_alone"
+      ],
+      "hand_verified": "not verified: CI only (found by the self-audit round 2, PLAN-026)"
+  },
+  {
+      "id": "damage-score-reads-its-own-run",
+      "feature": "calculate_damage_exposure_severity reads the zonal column it just made, not a column left by an earlier run",
+      "issues": [],
+      "since": "unreleased (after 1.18.3)",
+      "sources": [
+          "src/cartogen_ai/core/agent/tools/analysis_tools.py"
+      ],
+      "guards": [
+          "tests/test_free_zonal_prefix.py::TestFreeZonalPrefix::test_a_taken_prefix_moves_on",
+          "tests/test_damage_direction_live.py::TestDamageDirection::test_a_second_run_does_not_read_the_first_runs_stale_field"
+      ],
+      "hand_verified": "not verified: CI only (found by the self-audit round 2, PLAN-026)"
+  },
+  {
+      "id": "named-data-source-gets-its-own-tool",
+      "feature": "a request naming a data source (UCDP, GDACS, USGS, EONET, FIRMS, FTS) or searching datasets gets no Map-task directive",
+      "issues": [],
+      "since": "unreleased (after 1.18.3)",
+      "sources": [
+          "src/cartogen_ai/core/agent/task_matcher.py"
+      ],
+      "guards": [
+          "tests/test_task_matcher_named_tools.py::TestNamedDataSourceGivesNoTaskDirective::test_source_requests_are_not_matched_to_a_map_task"
+      ],
+      "hand_verified": "not verified: CI only (owner hand run 1.18.3 rows A3 and A10 found the defect; the fix has not been re-run)"
   }
  ]
 }
