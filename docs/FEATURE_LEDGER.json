@@ -1196,6 +1196,20 @@
           "tests/test_damage_direction_live.py::TestDamageDirection::test_the_district_that_lost_value_is_the_most_severe"
       ],
       "hand_verified": "not verified: CI only (owner hand run 1.18.3 row D7 found the defect; the fix has not been re-run)"
+  },
+  {
+      "id": "gdacs-400-retry-and-plain-failure",
+      "feature": "fetch_gdacs_disaster_alerts retries an HTTP 400 once with explicit query parameters and explains any failure in plain words without quoting the exception",
+      "issues": [],
+      "since": "unreleased (after 1.18.3)",
+      "sources": [
+          "src/cartogen_ai/core/agent/tools/hazard_monitoring_tools.py"
+      ],
+      "guards": [
+          "tests/test_hazard_monitoring_tools.py::TestGdacsFailureHandling::test_a_400_is_retried_once_with_explicit_parameters",
+          "tests/test_hazard_monitoring_tools.py::TestGdacsFailureHandling::test_a_persistent_400_is_explained_not_quoted"
+      ],
+      "hand_verified": "not verified: CI only (owner hand run 1.18.3 row A7 saw one HTTP 400; it did not repeat on the rerun)"
   }
  ]
 }
