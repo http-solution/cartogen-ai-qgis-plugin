@@ -20,14 +20,14 @@
   <a href="https://cartogenai.com"><img src="https://img.shields.io/badge/website-cartogenai.com-0b6efd" alt="Website"></a>
 </p>
 
-**Community edition · Version 1.18.3 · GNU GPL v2 · QGIS 4.2–4.99 · [cartogenai.com](https://cartogenai.com)**
+**Community edition · Version 1.18.4 · GNU GPL v2 · QGIS 4.2–4.99 · [cartogenai.com](https://cartogenai.com)**
 
 Cartogen AI is built for GIS analysts, humanitarian teams, researchers, and anyone who
 needs to move from a question to a reproducible spatial result without leaving QGIS.
 The agent exposes its plan, tool calls, progress, and errors instead of returning a
 black-box answer.
 
-> **Project status (2026-10-26):** active Community edition, currently at **1.18.3**, a patch on 1.18.2, 1.18.1 and 1.18.0 (the sum of the 1.17.0 release candidates 42 to 52 since 1.16.3). Neither has passed a full hand test; see the hand-testing line below.
+> **Project status (2026-10-26):** active Community edition, currently at **1.18.4**, a patch on 1.18.3, 1.18.2, 1.18.1 and 1.18.0 (the sum of the 1.17.0 release candidates 42 to 52 since 1.16.3). Neither has passed a full hand test; see the hand-testing line below.
 > - **Tests:** 5,062 automated tests run offline, 0 failures (767 skipped there: the live-QGIS tests and those needing optional libraries). The QGIS ones run in CI (the `qgis-live-tests` job, QGIS 4.2.2) together with ruff, mypy and a release-zip check.
 > - **Hand testing:** rc44 to rc46 were hand-tested in desktop QGIS 4.2.3 (tool sweep: 65 of 83 rows Pass, 1 Fail, the rest Partial or Skip; 21 of 21 priority algorithms Pass); the plain-language algorithm test (385 prompts) has **not** been run. rc48 was hand-tested on 2026-10-24 (52 of 87 rows Pass, 18 Partial, 16 Fail, 1 Skip; results in [docs/HAND_TEST_RESULTS_rc48_2026-10-24.md](docs/HAND_TEST_RESULTS_rc48_2026-10-24.md)); the changes from rc49 to 1.18.0 are CI-checked only (a partial rc50 run covered 20 of its 87 rows) until the v2 hand test (a layout check script that costs no API money, plus nine rows; [docs/LEAN_HAND_TEST_PROTOCOL.md](docs/LEAN_HAND_TEST_PROTOCOL.md)) is run.
 > - **Open issues (2):** #362 and #380. Their code is merged and green in CI; they stay open for hand rows that depend on what the model answers. Everything else from the audit and smoke-test lists is closed, each with its evidence in a comment (several on CI evidence only, which the comment says). Per-issue status: [docs/OPEN_ISSUES_STATUS_2026-10-25_v2.md](docs/OPEN_ISSUES_STATUS_2026-10-25_v2.md).
@@ -79,6 +79,18 @@ black-box answer.
   a restricted execution sandbox for model-generated PyQGIS scripts, fail-closed
   read-only SQL enforcement, an SSRF guard on fetched URLs, and a destructive-action
   confirmation gate the model cannot self-approve.
+
+## What's new in 1.18.4
+
+Built on 1.18.3. Offline tests and the QGIS 4.2.2 live checks in CI pass; **not hand-tested** in desktop QGIS unless an item says so. Full list: the `v1.18.4` block in [metadata.txt](metadata.txt) and [CHANGELOG.md](CHANGELOG.md).
+
+- Damage score ranks the most damaged district first: calculate_damage_exposure_severity took the average of the SIGNED change (after minus before), so a district that lost value had the lowest number and scored 0 while unchanged districts scored 1. It now averages the size of the change. A second run on the same layer also read the first run's old column (QGIS wrote the new one as chg_mean_2); each run now reads the column it just made.
+- Distances in degrees are caught: find_nearest_features said its distance was in metres but wrote degrees for a latitude/longitude layer; it now also adds distance_m in real metres. The blur tool (radius, grid cell), hotspot_analysis, simplify_geometry and interpolate_surface accepted 1000 on such a layer and used it as 1000 degrees; a value of 1 degree or more is now refused with the conversion (0.01 is about 1.1 km).
+- A named data source gets its own tool: A request such as 'search HDX for health facilities datasets' or 'conflict events from UCDP' matched a 'Map health facilities' or 'Map conflict events' task whose tools could not do it, and a confirmation card for the wrong task appeared. Naming UCDP, GDACS, USGS, EONET, FIRMS or FTS, or searching datasets, now gives no task directive.
+- IPC import names the area: import_humanitarian_table reported problem rows by number only; each issue now carries the area (P-code or name), and admin1_name, admin2_name, adm1_name and adm2_name columns are recognised as the area name.
+- Clearer errors: obfuscate_sensitive_points given a plain table says it has no geometry and how to load points. A GDACS HTTP 400 is retried once with the documented query parameters, and any GDACS failure names the site and the kind of failure without quoting the raw error.
+- Known and open: The elevation-profile print item sometimes renders empty in CI (#379); the cause is not found. In the 1.18.3 hand run the model did not call the survey tool (D3), exported instead of writing the field (D4) and planned an analysis instead of refusing a trigger with no threshold (S5); the tool router already offers those tools, so these are model choices. The change-layer legend (D6) needs a screenshot. Issues #362 and #380 stay open for their hand rows.
+- Not hand-tested: Everything above is checked by the offline suite and, for the QGIS parts, by CI on QGIS 4.2.2; none of it has been hand-tested in desktop QGIS.
 
 ## What's new in 1.18.3
 

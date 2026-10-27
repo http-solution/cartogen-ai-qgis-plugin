@@ -8,19 +8,18 @@ metadata changelog, CHANGELOG.md, README and this module agree). Checklist: CONT
 releases listed in NEW_MARK_VERSIONS.
 """
 
-WHATS_NEW_VERSION = "1.18.3"
-NEW_MARK_VERSIONS = ("1.18.2", "1.18.3")
+WHATS_NEW_VERSION = "1.18.4"
+NEW_MARK_VERSIONS = ("1.18.3", "1.18.4")
 
 # Headline items of the current version (the full list is the metadata.txt changelog block and CHANGELOG.md).
 WHATS_NEW_ITEMS = [
-    ('Forecast triggers accept a percent column', "evaluate_forecast_trigger has a probability_scale option: 'percent' reads the probability column and min_probability as 0-100 (70 means 70 percent) and prints the rule with a percent sign; a column outside the chosen scale is warned about. The default 'fraction' (0-1) is unchanged."),
-    ('Satellite search can be limited by cloud cover', "search_stac_satellite_imagery takes max_cloud_cover (percent) and asks the service to apply it, returns the newest scenes first, echoes the filters and says plainly when nothing matches. Before, 'under 20 percent cloud' had no parameter, so unfiltered scenes came back and the table was padded from the model's memory."),
-    ('Route risk uses real metres', "score_route_incident_risk applied its buffer distance in degrees on a route in a latitude/longitude CRS, so 500 meant 500 degrees and every incident counted as near. It now buffers in the local UTM zone and returns the polygon in the route's own CRS."),
-    ('A table with no coordinates now loads', 'load_tabular_data_as_layer could never load a CSV without coordinate columns: it told the model to omit the coordinate arguments, which only returned the field suggestion again, so the call repeated until the loop guard stopped the turn. The new as_table option loads it as a plain table, and loading the same file twice adds no second layer and says so.'),
-    ('Task grid for one area without a filter', 'generate_mapping_task_grid takes aoi_where, a QGIS expression that limits the area to matching features, so a grid over one governorate no longer needs a filter set on the source boundary layer.'),
-    ('Clearer chat text and write previews', 'A line break the model writes as <br> stays a line break instead of showing as text, and class text such as $< 0.2$ loses its dollar signs (prices are untouched). The confirmation preview for severity, presence-gap, population-in-need and damage-exposure now names the field and layer it writes instead of showing a comment.'),
-    ('Known and open', 'Hand-verified on 2026-10-26 with the 1.18.2 build (QGIS 4.2.3, Gemini): borders between provinces visible, HDX Yemen ADM1 download, recolour at 25 percent keeping borders. Not yet explained: confirmation clicks on a search request and a UCDP download, layers added that were not asked for, one labels report (C5). Issues #362 and #380 stay open for their hand rows.'),
-    ('Not hand-tested', 'The fixes above are checked by the offline suite and, for the QGIS parts, by CI on QGIS 4.2.2; none of them has been hand-tested in desktop QGIS.')
+    ('Damage score ranks the most damaged district first', "calculate_damage_exposure_severity took the average of the SIGNED change (after minus before), so a district that lost value had the lowest number and scored 0 while unchanged districts scored 1. It now averages the size of the change. A second run on the same layer also read the first run's old column (QGIS wrote the new one as chg_mean_2); each run now reads the column it just made."),
+    ('Distances in degrees are caught', 'find_nearest_features said its distance was in metres but wrote degrees for a latitude/longitude layer; it now also adds distance_m in real metres. The blur tool (radius, grid cell), hotspot_analysis, simplify_geometry and interpolate_surface accepted 1000 on such a layer and used it as 1000 degrees; a value of 1 degree or more is now refused with the conversion (0.01 is about 1.1 km).'),
+    ('A named data source gets its own tool', "A request such as 'search HDX for health facilities datasets' or 'conflict events from UCDP' matched a 'Map health facilities' or 'Map conflict events' task whose tools could not do it, and a confirmation card for the wrong task appeared. Naming UCDP, GDACS, USGS, EONET, FIRMS or FTS, or searching datasets, now gives no task directive."),
+    ('IPC import names the area', 'import_humanitarian_table reported problem rows by number only; each issue now carries the area (P-code or name), and admin1_name, admin2_name, adm1_name and adm2_name columns are recognised as the area name.'),
+    ('Clearer errors', 'obfuscate_sensitive_points given a plain table says it has no geometry and how to load points. A GDACS HTTP 400 is retried once with the documented query parameters, and any GDACS failure names the site and the kind of failure without quoting the raw error.'),
+    ('Known and open', 'The elevation-profile print item sometimes renders empty in CI (#379); the cause is not found. In the 1.18.3 hand run the model did not call the survey tool (D3), exported instead of writing the field (D4) and planned an analysis instead of refusing a trigger with no threshold (S5); the tool router already offers those tools, so these are model choices. The change-layer legend (D6) needs a screenshot. Issues #362 and #380 stay open for their hand rows.'),
+    ('Not hand-tested', 'Everything above is checked by the offline suite and, for the QGIS parts, by CI on QGIS 4.2.2; none of it has been hand-tested in desktop QGIS.')
 ]
 
 HUMANITARIAN_WORKFLOWS = [('1. Rapid crisis and base mapping',

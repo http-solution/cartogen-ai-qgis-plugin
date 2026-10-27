@@ -1188,7 +1188,7 @@
       "id": "damage-severity-uses-absolute-change",
       "feature": "calculate_damage_exposure_severity scores the mean absolute change per district, so a district that lost value ranks as the most severe",
       "issues": [],
-      "since": "unreleased (after 1.18.3)",
+      "since": "1.18.4",
       "sources": [
           "src/cartogen_ai/core/agent/tools/analysis_tools.py"
       ],
@@ -1201,7 +1201,7 @@
       "id": "gdacs-400-retry-and-plain-failure",
       "feature": "fetch_gdacs_disaster_alerts retries an HTTP 400 once with explicit query parameters and explains any failure in plain words without quoting the exception",
       "issues": [],
-      "since": "unreleased (after 1.18.3)",
+      "since": "1.18.4",
       "sources": [
           "src/cartogen_ai/core/agent/tools/hazard_monitoring_tools.py"
       ],
@@ -1215,7 +1215,7 @@
       "id": "lat-lon-distance-guard",
       "feature": "a distance, radius, tolerance or cell size of 1 degree or more on a latitude/longitude layer is refused with the conversion (blur, hotspot, simplify, interpolate)",
       "issues": [],
-      "since": "unreleased (after 1.18.3)",
+      "since": "1.18.4",
       "sources": [
           "src/cartogen_ai/core/agent/tools/_layer_checks.py",
           "src/cartogen_ai/core/agent/tools/vector_tools.py",
@@ -1232,7 +1232,7 @@
       "id": "nearest-feature-distance-in-metres",
       "feature": "find_nearest_features adds distance_m in real metres when the layer CRS is not metric",
       "issues": [],
-      "since": "unreleased (after 1.18.3)",
+      "since": "1.18.4",
       "sources": [
           "src/cartogen_ai/core/agent/tools/vector_tools.py"
       ],
@@ -1246,7 +1246,7 @@
       "id": "damage-score-reads-its-own-run",
       "feature": "calculate_damage_exposure_severity reads the zonal column it just made, not a column left by an earlier run",
       "issues": [],
-      "since": "unreleased (after 1.18.3)",
+      "since": "1.18.4",
       "sources": [
           "src/cartogen_ai/core/agent/tools/analysis_tools.py"
       ],
@@ -1260,7 +1260,7 @@
       "id": "named-data-source-gets-its-own-tool",
       "feature": "a request naming a data source (UCDP, GDACS, USGS, EONET, FIRMS, FTS) or searching datasets gets no Map-task directive",
       "issues": [],
-      "since": "unreleased (after 1.18.3)",
+      "since": "1.18.4",
       "sources": [
           "src/cartogen_ai/core/agent/task_matcher.py"
       ],
