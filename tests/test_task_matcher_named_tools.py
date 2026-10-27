@@ -183,3 +183,19 @@ class TestClusteringFindsImageClassification(unittest.TestCase):
         from cartogen_ai.core.agent import task_matcher as tm
         top = [e["id"] for e, _s in tm.match("Cluster smoke_image into four groups", limit=3)]
         self.assertIn("16.21", top)
+
+
+class TestNamedDataSourceGivesNoTaskDirective(unittest.TestCase):
+    """1.18.3 hand test A3 and A10: a request naming a data source (UCDP, GDACS, ...) or searching HDX datasets matched a "Map ..."
+    task whose tools do not include that source's fetch tool, and a confirmation card for the wrong task appeared."""
+
+    def test_source_requests_are_not_matched_to_a_map_task(self):
+        for query in ("search HDX for Yemen health facilities datasets",
+                      "conflict events in Yemen for last year from UCDP",
+                      "show current disaster alerts for Yemen from GDACS"):
+            verdict = tm.classify(query)
+            self.assertIsNone(verdict["best"], query)
+            self.assertEqual(verdict["reason"], "names a tool the matched task does not use", query)
+
+    def test_a_plain_map_request_still_matches(self):
+        self.assertIsNotNone(tm.classify("Map health facilities in Aden")["best"])
