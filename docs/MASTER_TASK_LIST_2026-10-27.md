@@ -52,6 +52,7 @@ One list to follow up and plan from. It replaces the session task list (101 entr
 | HT-3 | Build eval rows for model tool choice (prompt, expected tool) and measure them: D3 (survey tool), D4 (presence-gap write), S5 (refuse a trigger with no threshold). Change prompts or descriptions only with a measured gain. | The router already offers the right tools; what the model picks has never been measured. | Claude | OWN-3 | M | P2 | Not started | 1.18.3 hand run, W-4 |
 | HT-4 | Verification debt, CI only today: Windows and macOS QGIS; large, messy, non-English and database-backed user data; numerical correctness of Processing outputs; delineate_watershed on a real DEM versus the engineer's report; a real Geofabrik extract and prompt-cache check. | Built and passing in CI, never run by a person. | Both | OWN-11, OWN-14 | L | P3 | Not started | W-5 to W-9 |
 | HT-5 | Re-check 'partly' ledger entries (5) and wave E1, DXF and Excel export and the 20 later routing additions by hand. | Only 21 algorithms were ever hand-tested. | Both | OWN-1 | M | P3 | Not started | W-2, W-3 |
+| HT-6 | Prove tools/collect_evidence.py in a real QGIS 4.2 session (written without QGIS, never run) and fix what breaks; then add it to the repo with a live test. | The agent-edition smoke package depends on it for logs, screenshots and layer tables; until run, evidence may fall back to manual capture. | Claude | OWN-1 | S | P1 | Not started | smoke package 2026-10-27 |
 
 ## C. Open defects and observations
 
@@ -129,13 +130,19 @@ One list to follow up and plan from. It replaces the session task list (101 entr
 
 | Status | Rows |
 |---|---|
-| Not started | 33 |
+| Not started | 34 |
 | Decision needed | 11 |
 | Waiting on you | 11 |
 | Blocked | 5 |
 | Closed (record) | 1 |
-| **Total** | **61** |
+| **Total** | **62** |
 
 ## How to keep it current
 
 Edit the status column when a row changes; add a dated line to the plan or issue the row points at; when a row is done write what verified it (CI only, or the hand row). Do not delete rows: set them to Closed with a reason. A new defect from a hand run gets a DEF row before work starts.
+
+## Change log
+
+Newest last. One line per status change; written by `tools/master_list.py set`.
+- 2026-10-27: OWN-1 Waiting on you -> Waiting on you. 2026-10-27: use the agent-edition package cartogen_ai_live_smoke_1.18.4.zip (AGENT_INSTRUCTIONS.md, 61 rows, shapefile/GPKG/GeoTIFF copies, collect_evidence.py); return the whole results folder zipped
+- 2026-10-27: OWN-2 Waiting on you -> Waiting on you. 2026-10-27: the smoke package asks for a close legend screenshot at row D6
