@@ -130,8 +130,8 @@ One list to follow up and plan from. It replaces the session task list (101 entr
 | Status | Rows |
 |---|---|
 | Not started | 33 |
-| Waiting on you | 11 |
 | Decision needed | 11 |
+| Waiting on you | 11 |
 | Blocked | 5 |
 | Closed (record) | 1 |
 | **Total** | **61** |
