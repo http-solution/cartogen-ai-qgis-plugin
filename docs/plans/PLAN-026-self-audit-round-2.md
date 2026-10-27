@@ -37,3 +37,4 @@ Each fix is its own commit; revert it. A released fix that misbehaves gets a pat
 
 ## Status log
 - 2026-10-26: plan written; sweeps A to H run. Fixes for A and C written with offline tests; the live tests were written without a local QGIS, so CI's first run is their first execution. Not hand-verified.
+- 2026-10-27: PR 455 merged (live CI green). Version 1.18.4 prepared together with the GDACS retry (PLAN-025); not hand-verified.

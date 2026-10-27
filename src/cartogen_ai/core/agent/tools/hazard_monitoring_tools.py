@@ -508,6 +508,28 @@ _GDACS_EVENTLIST_URL = "https://www.gdacs.org/gdacsapi/api/events/geteventlist/S
 _GDACS_ALERT_RANK = {"green": 0, "orange": 1, "red": 2}
 
 
+def _gdacs_event_list():
+    """(parsed JSON, None) or (None, plain-language failure). 1.18.3 hand test A7: the bare SEARCH URL answered HTTP 400 once on the owner's
+    machine (it answers 200 from elsewhere), so a 400 is retried once with the documented query parameters spelled out. The failure text
+    names the site and the kind of failure and never quotes the exception, which can hold a full link."""
+    from ...net import describe_download_failure
+    explicit = _GDACS_EVENTLIST_URL + "?" + urllib.parse.urlencode({"eventlist": "EQ;TC;FL;VO;DR;WF", "alertlevel": "Green;Orange;Red"}, safe=";")
+    last = None
+    for url in (_GDACS_EVENTLIST_URL, explicit):
+        try:
+            req = _net_build_request(url, headers={'User-Agent': 'QGIS-AI-Assistant'})
+            with urlopen_with_retry(req, timeout=30) as response:
+                return json.loads(_read_capped(response).decode()), None
+        except urllib.error.HTTPError as e:
+            last = e
+            if e.code != 400:
+                break
+        except Exception as e:
+            last = e
+            break
+    return None, f"GDACS API request failed. {describe_download_failure(last, _GDACS_EVENTLIST_URL)}"
+
+
 def fetch_gdacs_disaster_alerts_network_phase(bbox=None, min_alert_level="Orange", country=None):
     """Pure network phase: queries GDACS's public event-list API for UN-coordinated disaster
     alerts (earthquakes, floods, tropical cyclones, volcanoes, wildfires, droughts), each with a
@@ -536,12 +558,9 @@ def fetch_gdacs_disaster_alerts_network_phase(bbox=None, min_alert_level="Orange
     min_rank = _GDACS_ALERT_RANK.get(str(min_alert_level).strip().lower(), 1)
     country_needle = str(country).strip().lower() if country else None
 
-    try:
-        req = _net_build_request(_GDACS_EVENTLIST_URL, headers={'User-Agent': 'QGIS-AI-Assistant'})
-        with urlopen_with_retry(req, timeout=30) as response:
-            data = json.loads(_read_capped(response).decode())
-    except Exception as e:
-        return {"error": f"GDACS API request failed: {e}"}
+    data, failure = _gdacs_event_list()
+    if failure:
+        return {"error": failure}
     # See fetch_nasa_eonet_events_network_phase's identical comment above -- same real
     # live crash, same fix, GDACS's own docs already warn its data "may require further
     # validation" so a malformed non-dict body here is a real, not hypothetical, risk.

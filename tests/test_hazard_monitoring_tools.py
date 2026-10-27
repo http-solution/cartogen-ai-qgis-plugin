@@ -274,6 +274,41 @@ class TestFetchGdacsDisasterAlertsNetworkPhase(unittest.TestCase):
         self.assertEqual(res["alerts"][0]["unit"], "")
 
 
+class TestGdacsFailureHandling(unittest.TestCase):
+    """1.18.3 hand test A7: one HTTP 400 from the bare SEARCH url on the owner's machine. A 400 is retried once with the documented
+    parameters; any other failure is explained in plain words without quoting the exception."""
+
+    @staticmethod
+    def _http_error(code):
+        import urllib.error
+        return urllib.error.HTTPError("https://www.gdacs.org/gdacsapi/api/events/geteventlist/SEARCH", code, "bad", {}, None)
+
+    @patch("urllib.request.urlopen")
+    def test_a_400_is_retried_once_with_explicit_parameters(self, mock_urlopen):
+        ok = _mock_response(json.dumps({"type": "FeatureCollection", "features": []}))
+        mock_urlopen.side_effect = [self._http_error(400), ok]
+        res = hz.fetch_gdacs_disaster_alerts_network_phase()
+        self.assertTrue(res["success"], res)
+        second = mock_urlopen.call_args_list[1].args[0].full_url
+        self.assertIn("eventlist=EQ;TC;FL;VO;DR;WF", second)
+        self.assertIn("alertlevel=Green;Orange;Red", second)
+
+    @patch("urllib.request.urlopen")
+    def test_a_persistent_400_is_explained_not_quoted(self, mock_urlopen):
+        mock_urlopen.side_effect = [self._http_error(400), self._http_error(400)]
+        res = hz.fetch_gdacs_disaster_alerts_network_phase()
+        self.assertIn("gdacs.org", res["error"])
+        self.assertIn("400", res["error"])
+        self.assertNotIn("HTTPError", res["error"])
+
+    @patch("urllib.request.urlopen")
+    def test_a_503_is_not_retried_as_a_400(self, mock_urlopen):
+        mock_urlopen.side_effect = self._http_error(503)
+        hz.fetch_gdacs_disaster_alerts_network_phase()
+        self.assertLessEqual(mock_urlopen.call_count, 4)    # only the transport retry of urlopen_with_retry, never the explicit-parameter form
+        self.assertTrue(all("eventlist=" not in c.args[0].full_url for c in mock_urlopen.call_args_list))
+
+
 class TestGdacsAndEonetLayersHaveAnEventIdField(unittest.TestCase):
     """2026-09-24 live report: 'buffer 5 km around active GDACS alerts X,Y' had no field to
     select those specific alerts by -- GDACS/EONET's own event id was returned in each
