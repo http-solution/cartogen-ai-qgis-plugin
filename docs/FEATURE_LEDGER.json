@@ -1196,6 +1196,19 @@
           "tests/test_damage_direction_live.py::TestDamageDirection::test_the_district_that_lost_value_is_the_most_severe"
       ],
       "hand_verified": "not verified: CI only (owner hand run 1.18.3 row D7 found the defect; the fix has not been re-run)"
+  },
+  {
+      "id": "named-data-source-gets-its-own-tool",
+      "feature": "a request naming a data source (UCDP, GDACS, USGS, EONET, FIRMS, FTS) or searching datasets gets no Map-task directive",
+      "issues": [],
+      "since": "unreleased (after 1.18.3)",
+      "sources": [
+          "src/cartogen_ai/core/agent/task_matcher.py"
+      ],
+      "guards": [
+          "tests/test_task_matcher_named_tools.py::TestNamedDataSourceGivesNoTaskDirective::test_source_requests_are_not_matched_to_a_map_task"
+      ],
+      "hand_verified": "not verified: CI only (owner hand run 1.18.3 rows A3 and A10 found the defect; the fix has not been re-run)"
   }
  ]
 }
