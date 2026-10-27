@@ -1346,7 +1346,7 @@ Compute summary statistics (count, sum, mean, median, min, max, stdev, range) fo
 
 ### `find_nearest_features`
 
-For each feature in input_layer, find the nearest feature(s) in near_layer and join it (distance in meters, plus the nearest feature's attributes) -- e.g. 'nearest hospital to each village'. Creates a new layer; input_layer and near_layer are unchanged.
+For each feature in input_layer, find the nearest feature(s) in near_layer and join it (plus the nearest feature's attributes) -- e.g. 'nearest hospital to each village'. The 'distance' field is in the layer's own CRS units; distance_m is added in real metres (ellipsoidal) whenever those units are not metres, so use distance_m when the layers are in latitude/longitude. Creates a new layer; input_layer and near_layer are unchanged.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
