@@ -1,6 +1,7 @@
 """PLAN-038: the experimental CLI provider wiring in a real QGIS process (CI live job; written without a QGIS install, so CI's first run
 is its first execution). Checks the Settings dialog with the switch off and on, what Save writes, and that the agent builds the matching
 client. No CLI is run."""
+import threading
 import unittest
 
 try:
@@ -39,30 +40,30 @@ class TestCliProviderSettings(unittest.TestCase):
         from cartogen_ai.core.ui.settings_dialog import CartogenAiSettingsDialog
         return CartogenAiSettingsDialog()
 
-    def test_off_by_default_no_cli_entries_and_a_saved_cli_provider_falls_back(self):
+    def test_off_by_default_cli_pills_are_listed_but_disabled_and_a_saved_cli_provider_falls_back(self):
         from cartogen_ai.infrastructure.settings_keys import DEFAULT_PROVIDER, SETTINGS_PROVIDER, normalize_provider
         QgsSettings().setValue(SETTINGS_PROVIDER, "claude_cli")
         self.assertEqual(normalize_provider("claude_cli"), DEFAULT_PROVIDER)
         dialog = self._dialog()
         self.assertFalse(dialog.experimental_cli_checkbox.isChecked())
         for p in ("claude_cli", "codex_cli", "gemini_cli"):
-            self.assertNotIn(p, dialog._key_edits)
+            self.assertIn(p, dialog._key_edits)
+            self.assertFalse(dialog._provider_buttons[p].isEnabled(), p)
+        self.assertEqual(dialog._active_provider, DEFAULT_PROVIDER)
 
-    def test_ticking_the_switch_then_reopening_shows_the_entries_and_save_writes_the_path_as_a_plain_setting(self):
+    def test_ticking_the_acknowledgement_enables_the_pills_without_reopening_and_save_writes_a_plain_setting(self):
         from cartogen_ai.infrastructure.auth import CredentialManager
         from cartogen_ai.infrastructure.settings_keys import (
             SETTINGS_CLAUDE_CLI_MODEL, SETTINGS_PROVIDER, cli_path_setting_key, normalize_provider,
         )
-        first = self._dialog()
-        first.experimental_cli_checkbox.setChecked(True)
-        first.accept()
-        self.assertEqual(normalize_provider("claude_cli"), "claude_cli")
-
         dialog = self._dialog()
-        self.assertTrue(dialog.experimental_cli_checkbox.isChecked())
+        dialog.experimental_cli_checkbox.setChecked(True)
+        for p in ("claude_cli", "codex_cli", "gemini_cli"):
+            self.assertTrue(dialog._provider_buttons[p].isEnabled(), p)
         self.assertEqual(dialog._key_edits["claude_cli"].text(), "claude")  # the default program name
         dialog._key_edits["claude_cli"].setText("/opt/tools/claude")
-        dialog._select_provider("claude_cli")
+        dialog._provider_buttons["claude_cli"].click()
+        self.assertEqual(dialog._active_provider, "claude_cli")
         dialog._model_combos["claude_cli"].setCurrentText("sonnet")
         dialog.accept()
 
@@ -70,11 +71,66 @@ class TestCliProviderSettings(unittest.TestCase):
         self.assertEqual(settings.value(SETTINGS_PROVIDER), "claude_cli")
         self.assertEqual(settings.value(cli_path_setting_key("claude_cli")), "/opt/tools/claude")
         self.assertEqual(settings.value(SETTINGS_CLAUDE_CLI_MODEL), "sonnet")
+        self.assertEqual(normalize_provider("claude_cli"), "claude_cli")
         self.assertEqual(CredentialManager.get_credential("claude_cli"), "", "a program path must not go in the credential store")
 
         again = self._dialog()
+        self.assertTrue(again.experimental_cli_checkbox.isChecked())
         self.assertEqual(again._key_edits["claude_cli"].text(), "/opt/tools/claude")
         self.assertEqual(again._active_provider, "claude_cli")
+
+    def test_unticking_while_a_cli_provider_is_active_returns_to_the_default(self):
+        from cartogen_ai.infrastructure.settings_keys import DEFAULT_PROVIDER
+        dialog = self._dialog()
+        dialog.experimental_cli_checkbox.setChecked(True)
+        dialog._provider_buttons["gemini_cli"].click()
+        self.assertEqual(dialog._active_provider, "gemini_cli")
+        dialog.experimental_cli_checkbox.setChecked(False)
+        self.assertEqual(dialog._active_provider, DEFAULT_PROVIDER)
+        self.assertTrue(dialog._provider_buttons[DEFAULT_PROVIDER].isChecked())
+        self.assertFalse(dialog._provider_buttons["gemini_cli"].isEnabled())
+
+    def test_each_cli_page_shows_a_status_and_the_check_and_signin_buttons(self):
+        dialog = self._dialog()
+        for p in ("claude_cli", "codex_cli", "gemini_cli"):
+            self.assertIn(p, dialog._cli_status_labels)
+            self.assertEqual(len(dialog._cli_buttons[p]), 2)
+        dialog._key_edits["codex_cli"].setText("/no/such/codex-xyz")
+        self.assertIn("not found", dialog._cli_status_labels["codex_cli"].text())
+
+    def test_check_results_update_the_status_and_re_enable_the_buttons(self):
+        dialog = self._dialog()
+        dialog.experimental_cli_checkbox.setChecked(True)
+        pv = "claude_cli"
+        for btn in dialog._cli_buttons[pv]:
+            btn.setEnabled(False)
+        dialog._on_cli_check(pv, {"ok": True, "stage": "ready", "message": "Answered in 2.0 s (ok).", "version": "2.1.0"})
+        self.assertIn("Signed in", dialog._cli_status_labels[pv].text())
+        self.assertIn("2.1.0", dialog._cli_status_labels[pv].text())
+        self.assertTrue(all(b.isEnabled() for b in dialog._cli_buttons[pv]))
+        dialog._on_cli_check(pv, {"ok": False, "stage": "signin", "message": "Is it signed in?"})
+        self.assertIn("Sign in", dialog._cli_status_labels[pv].text())
+        dialog._on_cli_check(pv, {"ok": False, "stage": "install", "message": "not found"})
+        self.assertIn("program name or path", dialog._cli_status_labels[pv].text())
+
+    def test_the_check_and_signin_buttons_call_the_status_helpers_with_the_form_values(self):
+        from unittest.mock import patch
+
+        from cartogen_ai.infrastructure.providers import cli_bridge_status
+        dialog = self._dialog()
+        dialog.experimental_cli_checkbox.setChecked(True)
+        dialog._key_edits["codex_cli"].setText("/opt/codex")
+        with patch.object(cli_bridge_status, "open_signin_terminal",
+                          return_value={"launched": True, "command": "x", "message": "A terminal window should have opened"}) as signin:
+            dialog._signin_cli("codex_cli")
+        signin.assert_called_once_with("codex_cli", "/opt/codex")
+        self.assertIn("terminal", dialog._cli_status_labels["codex_cli"].text())
+        with patch.object(cli_bridge_status, "check_connection", return_value={"ok": True, "stage": "ready", "message": "m", "version": "v"}) as check:
+            dialog._check_cli("codex_cli")
+            for t in threading.enumerate():
+                if t is not threading.current_thread() and t.daemon:
+                    t.join(timeout=5)
+        check.assert_called_once_with("codex_cli", "/opt/codex", None)
 
     def test_the_agent_builds_the_matching_client_from_the_saved_settings(self):
         import cartogen_ai.core.agent.agent_orchestrator as agent_mod

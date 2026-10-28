@@ -24,12 +24,14 @@ from ...infrastructure.providers.gemini import list_models as _list_gemini
 from ...infrastructure.providers.ollama import list_models as _list_ollama
 from ...infrastructure.providers.openai import list_models as _list_openai
 from ...infrastructure.providers.claude import list_models as _list_claude
+from ...infrastructure.providers import cli_bridge_status as _cli_status
 from ...infrastructure.providers.cartogen import list_models as _list_cartogen, FALLBACK_MODELS as _CARTOGEN_FALLBACK_MODELS
 from .chat_formatting import build_dock_stylesheet, BRAND_TEAL
 from ...infrastructure.settings_keys import (
     SETTINGS_API_TRACE_ENABLED,
     SETTINGS_EVIDENCE_ENABLED,
     SETTINGS_PROVIDER as PROVIDER_KEY,
+    DEFAULT_PROVIDER,
     ENABLED_PROVIDERS,
     normalize_provider,
     cli_path_setting_key,
@@ -199,7 +201,7 @@ _CLI_PROVIDERS = [
         "key_label": "claude program:", "model_label": "Model (optional):",
         "model_setting_key": SETTINGS_CLAUDE_CLI_MODEL, "default_model": AUTO_SENTINEL,
         "extra_seed_models": ["sonnet", "opus", "haiku"],
-        "key_default": "claude", "list_fn": None, "key_storage": "setting", "page_note": _CLI_NOTE,
+        "key_default": "claude", "group": "cli", "list_fn": None, "key_storage": "setting", "page_note": _CLI_NOTE,
         "key_tooltip": "Name or full path of the claude program. Sign in once by running `claude` in a terminal. "
                         "Auto = the CLI's own default model.",
     },
@@ -207,7 +209,7 @@ _CLI_PROVIDERS = [
         "value": "codex_cli", "provider_label": "Codex CLI (experimental)", "pill_label": "Codex CLI",
         "key_label": "codex program:", "model_label": "Model (optional):",
         "model_setting_key": SETTINGS_CODEX_CLI_MODEL, "default_model": AUTO_SENTINEL,
-        "key_default": "codex", "list_fn": None, "key_storage": "setting", "page_note": _CLI_NOTE,
+        "key_default": "codex", "group": "cli", "list_fn": None, "key_storage": "setting", "page_note": _CLI_NOTE,
         "key_tooltip": "Name or full path of the codex program. Sign in once with `codex login`. Auto = the CLI's own default model.",
     },
     {
@@ -215,12 +217,26 @@ _CLI_PROVIDERS = [
         "key_label": "gemini program:", "model_label": "Model (optional):",
         "model_setting_key": SETTINGS_GEMINI_CLI_MODEL, "default_model": AUTO_SENTINEL,
         "extra_seed_models": ["pro", "flash", "flash-lite"],
-        "key_default": "gemini", "list_fn": None, "key_storage": "setting", "page_note": _CLI_NOTE,
+        "key_default": "gemini", "group": "cli", "list_fn": None, "key_storage": "setting", "page_note": _CLI_NOTE,
         "key_tooltip": "Name or full path of the gemini program. Sign in once by running `gemini` and choosing Login with Google. "
                         "Auto = the CLI's own default model.",
     },
 ]
 
+
+
+# How the connection choices are grouped in the dialog (PLAN-039): what a user is choosing between is not "which vendor" but "where does my
+# data go and what do I need to bring" -- a key, nothing, or a program already signed in on this computer.
+_GROUP_OF = {"openrouter": "hosted", "gemini": "hosted", "openai": "hosted", "claude": "hosted", "cartogen": "hosted", "ollama": "local"}
+_GROUP_TITLES = {
+    "hosted": "Hosted -- your prompts go to the provider; you bring an API key",
+    "local": "Local -- nothing leaves this machine",
+    "cli": "Your own CLI login -- your prompts go to that vendor; you bring a signed-in program (experimental)",
+}
+
+
+def _group_of(entry):
+    return entry.get("group") or _GROUP_OF.get(entry["value"], "hosted")
 
 
 class CartogenAiSettingsDialog(QDialog):
@@ -231,14 +247,20 @@ class CartogenAiSettingsDialog(QDialog):
     # to _on_models_fetched on the main thread since the receiver (this dialog)
     # lives there -- same cross-thread pattern already used in dock_widget.py.
     modelsFetchedSignal = pyqtSignal(str, dict)
+    # Same pattern for the CLI connection check (it runs a subprocess and a model call, so never on the UI thread).
+    cli_check_signal = pyqtSignal(str, dict)
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Cartogen AI — Settings")
         self.setMinimumWidth(420)
         self.settings = QgsSettings()
-        # Fixed for this dialog's lifetime: the experimental CLI entries appear only if the switch was on when it opened.
-        self._providers = PROVIDERS + (_CLI_PROVIDERS if cli_providers_enabled() else [])
+        # The CLI entries are always listed, under their own heading; their pills stay disabled until the user ticks the acknowledgement
+        # box under that heading (no reopening the dialog), and normalize_provider() ignores a saved CLI provider while it is unticked.
+        self._providers = PROVIDERS + _CLI_PROVIDERS
+        self._cli_status_labels = {}
+        self._cli_buttons = {}
+        self._cli_checking = set()
         self._key_edits = {}
         self._model_combos = {}
         self._cached_model_lists = {}
@@ -251,6 +273,7 @@ class CartogenAiSettingsDialog(QDialog):
         # deliberately shows two different words rather than claiming more than it knows.
         self._verified_providers = set()
         self.modelsFetchedSignal.connect(self._on_models_fetched)
+        self.cli_check_signal.connect(self._on_cli_check)
         self.init_ui()
 
     def init_ui(self):
@@ -329,12 +352,31 @@ class CartogenAiSettingsDialog(QDialog):
         pills_col.setSpacing(4)
         self._provider_button_group = QButtonGroup(self)
         self._provider_button_group.setExclusive(True)
+        last_group = None
         for entry in self._providers:
             pv = entry["value"]
+            group = _group_of(entry)
+            if group != last_group:
+                group_label = QLabel(_GROUP_TITLES[group])
+                group_label.setWordWrap(True)
+                group_label.setStyleSheet("color: gray; font-size: 11px; font-weight: 600; margin-top: 6px;")
+                pills_col.addWidget(group_label)
+                if group == "cli":
+                    self.experimental_cli_checkbox = QCheckBox("I understand: use a CLI I am already signed in to as the model")
+                    self.experimental_cli_checkbox.setChecked(cli_providers_enabled())
+                    self.experimental_cli_checkbox.setToolTip(
+                        "Experimental and not yet verified against a real signed-in CLI. Cartogen AI runs the program on this computer "
+                        "with your own account; it never sees or stores your login. The conversation, including any layer or "
+                        "attribute data a tool surfaces, goes to that vendor's service. Off by default.")
+                    self.experimental_cli_checkbox.toggled.connect(self._on_cli_ack_toggled)
+                    pills_col.addWidget(self.experimental_cli_checkbox)
+                last_group = group
             btn = QPushButton(entry["provider_label"])
             btn.setObjectName("providerPill")
             btn.setCheckable(True)
             btn.setChecked(pv == self._active_provider)
+            if group == "cli":
+                btn.setEnabled(self.experimental_cli_checkbox.isChecked())
             btn.clicked.connect(lambda checked, p=pv: self._select_provider(p))
             self._provider_button_group.addButton(btn)
             self._provider_buttons[pv] = btn
@@ -348,7 +390,7 @@ class CartogenAiSettingsDialog(QDialog):
         privacy_note = QLabel(
             "Chat text and any layer/attribute data a tool call surfaces to the model are "
             "sent to whichever provider is selected above (Ollama excepted -- fully local, "
-            "nothing leaves this machine). Each provider's Data Processing Addendum link "
+            "nothing leaves this machine; a CLI login sends it to that CLI's vendor). Each provider's Data Processing Addendum link "
             "below is a starting point, not a substitute for your organization's own GDPR "
             "review before processing real beneficiary data. See docs/USER_GUIDE.md and "
             "SECURITY.md's \"Data protection\" section."
@@ -356,14 +398,6 @@ class CartogenAiSettingsDialog(QDialog):
         privacy_note.setWordWrap(True)
         privacy_note.setStyleSheet("color: gray; font-size: 11px;")
         layout.addWidget(privacy_note)
-
-        self.experimental_cli_checkbox = QCheckBox("Show experimental CLI providers (Claude Code, Codex, Gemini)")
-        self.experimental_cli_checkbox.setChecked(cli_providers_enabled())
-        self.experimental_cli_checkbox.setToolTip(
-            "Lets you use a locally installed Claude Code, Codex or Gemini CLI, signed in with your own account, as the model. "
-            "Experimental and not yet verified against a real signed-in CLI. Saving this setting adds or removes the CLI entries "
-            "the next time you open Settings. Off by default.")
-        layout.addWidget(self.experimental_cli_checkbox)
 
         # One page per provider, holding just that provider's key/URL field and
         # model combo -- only the selected provider's page is ever shown, instead
@@ -407,6 +441,29 @@ class CartogenAiSettingsDialog(QDialog):
                 note_label.setWordWrap(True)
                 note_label.setStyleSheet("color: gray; font-size: 11px;")
                 page_form.addRow("", note_label)
+
+            if is_setting:
+                status_label = QLabel(self._cli_quick_status(pv, key_edit.text()))
+                status_label.setWordWrap(True)
+                status_label.setStyleSheet("font-size: 11px;")
+                self._cli_status_labels[pv] = status_label
+                page_form.addRow("", status_label)
+                button_row = QHBoxLayout()
+                check_btn = QPushButton("Check connection")
+                check_btn.setToolTip("Finds the program, then asks the model one tiny question through your own login "
+                                     "(a few tokens of your plan).")
+                check_btn.clicked.connect(lambda _checked=False, p=pv: self._check_cli(p))
+                signin_btn = QPushButton("Sign in...")
+                signin_btn.setToolTip("Opens a terminal running the program's own sign-in. Your login stays with that program.")
+                signin_btn.clicked.connect(lambda _checked=False, p=pv: self._signin_cli(p))
+                button_row.addWidget(check_btn)
+                button_row.addWidget(signin_btn)
+                button_row.addStretch(1)
+                self._cli_buttons[pv] = (check_btn, signin_btn)
+                button_holder = QWidget()
+                button_holder.setLayout(button_row)
+                page_form.addRow("", button_holder)
+                key_edit.textChanged.connect(lambda text, p=pv: self._cli_status_labels[p].setText(self._cli_quick_status(p, text)))
 
             key_help_url = entry.get("key_help_url")
             if key_help_url:
@@ -843,6 +900,66 @@ QPushButton#settingsCancelButton {{
         row_layout.addWidget(title_label)
         row_layout.addStretch(1)
         return row
+
+    def _on_cli_ack_toggled(self, checked):
+        """Ticking the acknowledgement enables the CLI pills; unticking disables them and, if one was the active choice, moves the
+        choice back to the default provider so Save cannot store a provider this dialog is no longer offering."""
+        for entry in self._providers:
+            if _group_of(entry) == "cli":
+                self._provider_buttons[entry["value"]].setEnabled(checked)
+        if not checked and self._active_provider in _cli_status.DEFAULT_PROGRAM:
+            self._provider_buttons[DEFAULT_PROVIDER].setChecked(True)
+            self._select_provider(DEFAULT_PROVIDER)
+
+    @staticmethod
+    def _cli_quick_status(provider, program_text):
+        """A one-line status that needs no subprocess: is the program on this computer? (Signed in or not only the check button knows.)"""
+        program = _cli_status.program_for(provider, program_text)
+        path = _cli_status.cb.find_executable(program)
+        if path:
+            return f"Program found: {path}. Press Check connection to confirm you are signed in."
+        return f"Program '{program}' not found. {_cli_status.install_hint(provider)}"
+
+    def _cli_form_values(self, provider):
+        program = self._key_edits[provider].text().strip()
+        model = self._resolve_model_value(provider)
+        return program, (None if model == AUTO_SENTINEL else model)
+
+    def _check_cli(self, provider):
+        if provider in self._cli_checking:
+            return
+        program, model = self._cli_form_values(provider)
+        self._cli_checking.add(provider)
+        for btn in self._cli_buttons[provider]:
+            btn.setEnabled(False)
+        self._cli_status_labels[provider].setText("Checking... (this asks the model one short question and can take a minute)")
+
+        def worker():
+            try:
+                result = _cli_status.check_connection(provider, program, model)
+            except Exception as e:
+                result = {"ok": False, "stage": "other", "message": f"Unexpected error: {type(e).__name__}", "seconds": 0.0}
+            with contextlib.suppress(RuntimeError):
+                self.cli_check_signal.emit(provider, result)
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _on_cli_check(self, provider, result):
+        self._cli_checking.discard(provider)
+        for btn in self._cli_buttons[provider]:
+            btn.setEnabled(True)
+        label = self._cli_status_labels[provider]
+        if result.get("ok"):
+            version = f" ({result['version']})" if result.get("version") else ""
+            label.setText(f"Ready{version}. Signed in. {result.get('message', '')}")
+            return
+        hint = {"install": " Fix the program name or path above.", "signin": " Press Sign in..., finish there, then check again."}
+        label.setText(f"Not ready: {result.get('message', 'unknown error')}{hint.get(result.get('stage'), '')}")
+
+    def _signin_cli(self, provider):
+        program = self._key_edits[provider].text().strip()
+        outcome = _cli_status.open_signin_terminal(provider, program)
+        self._cli_status_labels[provider].setText(outcome["message"])
 
     def _select_provider(self, provider_value):
         self._active_provider = provider_value
