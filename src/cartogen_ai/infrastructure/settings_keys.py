@@ -16,11 +16,42 @@ ENABLED_PROVIDERS = ("openrouter", "gemini", "ollama", "cartogen")
 DEFAULT_PROVIDER = "openrouter"
 
 
+# CLI bridge providers (PLAN-038): a locally installed Claude Code / Codex / Gemini CLI used as the model on the
+# user's own login. EXPERIMENTAL and UNVERIFIED against a real signed-in CLI, so they are deliberately NOT in
+# ENABLED_PROVIDERS: they appear (Settings, and in normalize_provider below) only when the user switches on
+# SETTINGS_EXPERIMENTAL_CLI, which is off by default.
+CLI_PROVIDERS = ("claude_cli", "codex_cli", "gemini_cli")
+SETTINGS_EXPERIMENTAL_CLI = "cartogen_ai/experimental_cli_providers"
+SETTINGS_CLAUDE_CLI_MODEL = "cartogen_ai/claude_cli_model"
+SETTINGS_CODEX_CLI_MODEL = "cartogen_ai/codex_cli_model"
+SETTINGS_GEMINI_CLI_MODEL = "cartogen_ai/gemini_cli_model"
+
+
+def cli_path_setting_key(provider):
+    """Where a CLI provider's executable path is kept. A plain setting, not the credential store: a path is not a secret."""
+    return f"cartogen_ai/{provider}_path"
+
+
+def cli_providers_enabled():
+    """True only when the user has switched on the experimental CLI providers. False outside QGIS and on any error."""
+    try:
+        from qgis.core import QgsSettings
+        value = QgsSettings().value(SETTINGS_EXPERIMENTAL_CLI, False)
+    except Exception:
+        return False
+    return value is True or str(value).strip().lower() in ("true", "1")
+
+
 def normalize_provider(value):
     """The provider to actually use for a saved setting. A value from an earlier version that
     is no longer enabled (e.g. "openai") falls back to the default instead of silently running
-    an untested client; the saved setting itself is left alone."""
-    return value if value in ENABLED_PROVIDERS else DEFAULT_PROVIDER
+    an untested client; the saved setting itself is left alone. The experimental CLI providers
+    count as enabled only while their opt-in switch is on."""
+    if value in ENABLED_PROVIDERS:
+        return value
+    if value in CLI_PROVIDERS and cli_providers_enabled():
+        return value
+    return DEFAULT_PROVIDER
 
 
 # Provider-specific Model Configuration

@@ -32,6 +32,12 @@ from ...infrastructure.settings_keys import (
     SETTINGS_PROVIDER as PROVIDER_KEY,
     ENABLED_PROVIDERS,
     normalize_provider,
+    cli_path_setting_key,
+    cli_providers_enabled,
+    SETTINGS_EXPERIMENTAL_CLI as EXPERIMENTAL_CLI_KEY,
+    SETTINGS_CLAUDE_CLI_MODEL,
+    SETTINGS_CODEX_CLI_MODEL,
+    SETTINGS_GEMINI_CLI_MODEL,
     SETTINGS_OPENROUTER_MODEL,
     SETTINGS_GEMINI_MODEL,
     SETTINGS_OLLAMA_MODEL,
@@ -179,6 +185,42 @@ _ALL_PROVIDERS = [
 # Only the providers this build enables (settings_keys.ENABLED_PROVIDERS); the rest stay defined above.
 PROVIDERS = [e for e in _ALL_PROVIDERS if e["value"] in ENABLED_PROVIDERS]
 
+# Experimental CLI bridge providers (PLAN-038). Not in ENABLED_PROVIDERS: each dialog adds them to its own list only while the user has
+# switched on SETTINGS_EXPERIMENTAL_CLI (see CartogenAiSettingsDialog._providers). The "key" field holds the executable path and is
+# stored as a plain setting ("key_storage": "setting"), not in the credential store: a path is not a secret.
+_CLI_NOTE = (
+    "Experimental and not yet verified against a real signed-in CLI. Runs the program below on this computer with your own login "
+    "and sends the conversation, including any layer or attribute data a tool surfaces, to that vendor's service, so treat it as a "
+    "cloud provider. Cartogen AI never sees or stores your login. Check that your plan's terms allow this use."
+)
+_CLI_PROVIDERS = [
+    {
+        "value": "claude_cli", "provider_label": "Claude Code CLI (experimental)", "pill_label": "Claude Code CLI",
+        "key_label": "claude program:", "model_label": "Model (optional):",
+        "model_setting_key": SETTINGS_CLAUDE_CLI_MODEL, "default_model": AUTO_SENTINEL,
+        "extra_seed_models": ["sonnet", "opus", "haiku"],
+        "key_default": "claude", "list_fn": None, "key_storage": "setting", "page_note": _CLI_NOTE,
+        "key_tooltip": "Name or full path of the claude program. Sign in once by running `claude` in a terminal. "
+                        "Auto = the CLI's own default model.",
+    },
+    {
+        "value": "codex_cli", "provider_label": "Codex CLI (experimental)", "pill_label": "Codex CLI",
+        "key_label": "codex program:", "model_label": "Model (optional):",
+        "model_setting_key": SETTINGS_CODEX_CLI_MODEL, "default_model": AUTO_SENTINEL,
+        "key_default": "codex", "list_fn": None, "key_storage": "setting", "page_note": _CLI_NOTE,
+        "key_tooltip": "Name or full path of the codex program. Sign in once with `codex login`. Auto = the CLI's own default model.",
+    },
+    {
+        "value": "gemini_cli", "provider_label": "Gemini CLI (experimental)", "pill_label": "Gemini CLI",
+        "key_label": "gemini program:", "model_label": "Model (optional):",
+        "model_setting_key": SETTINGS_GEMINI_CLI_MODEL, "default_model": AUTO_SENTINEL,
+        "extra_seed_models": ["pro", "flash", "flash-lite"],
+        "key_default": "gemini", "list_fn": None, "key_storage": "setting", "page_note": _CLI_NOTE,
+        "key_tooltip": "Name or full path of the gemini program. Sign in once by running `gemini` and choosing Login with Google. "
+                        "Auto = the CLI's own default model.",
+    },
+]
+
 
 
 class CartogenAiSettingsDialog(QDialog):
@@ -195,6 +237,8 @@ class CartogenAiSettingsDialog(QDialog):
         self.setWindowTitle("Cartogen AI — Settings")
         self.setMinimumWidth(420)
         self.settings = QgsSettings()
+        # Fixed for this dialog's lifetime: the experimental CLI entries appear only if the switch was on when it opened.
+        self._providers = PROVIDERS + (_CLI_PROVIDERS if cli_providers_enabled() else [])
         self._key_edits = {}
         self._model_combos = {}
         self._cached_model_lists = {}
@@ -285,7 +329,7 @@ class CartogenAiSettingsDialog(QDialog):
         pills_col.setSpacing(4)
         self._provider_button_group = QButtonGroup(self)
         self._provider_button_group.setExclusive(True)
-        for entry in PROVIDERS:
+        for entry in self._providers:
             pv = entry["value"]
             btn = QPushButton(entry["provider_label"])
             btn.setObjectName("providerPill")
@@ -313,22 +357,31 @@ class CartogenAiSettingsDialog(QDialog):
         privacy_note.setStyleSheet("color: gray; font-size: 11px;")
         layout.addWidget(privacy_note)
 
+        self.experimental_cli_checkbox = QCheckBox("Show experimental CLI providers (Claude Code, Codex, Gemini)")
+        self.experimental_cli_checkbox.setChecked(cli_providers_enabled())
+        self.experimental_cli_checkbox.setToolTip(
+            "Lets you use a locally installed Claude Code, Codex or Gemini CLI, signed in with your own account, as the model. "
+            "Experimental and not yet verified against a real signed-in CLI. Saving this setting adds or removes the CLI entries "
+            "the next time you open Settings. Off by default.")
+        layout.addWidget(self.experimental_cli_checkbox)
+
         # One page per provider, holding just that provider's key/URL field and
         # model combo -- only the selected provider's page is ever shown, instead
         # of all providers' rows being present in one long form and merely
         # greyed out when not selected (the previous design).
         self.provider_stack = QStackedWidget()
         self._provider_page_index = {}
-        for entry in PROVIDERS:
+        for entry in self._providers:
             pv = entry["value"]
             page = QWidget()
             page_form = QFormLayout(page)
             page_form.setContentsMargins(0, 2, 0, 2)
 
             key_edit = QLineEdit()
-            if pv != "ollama":
+            is_setting = entry.get("key_storage") == "setting"
+            if pv != "ollama" and not is_setting:
                 key_edit.setEchoMode(QLineEdit.EchoMode.Password)
-            saved_key = CredentialManager.get_credential(pv)
+            saved_key = self.settings.value(cli_path_setting_key(pv), "") if is_setting else CredentialManager.get_credential(pv)
             key_edit.setText(saved_key if saved_key else entry["key_default"])
             key_edit.editingFinished.connect(lambda p=pv: self._fetch_models(p))
             # Live feedback for the Keys summary below (masked value + Set/Verified badge) --
@@ -347,6 +400,13 @@ class CartogenAiSettingsDialog(QDialog):
                 key_edit.setToolTip(key_tooltip)
             page_form.addRow(entry["key_label"], key_edit)
             self._key_edits[pv] = key_edit
+
+            page_note = entry.get("page_note")
+            if page_note:
+                note_label = QLabel(page_note)
+                note_label.setWordWrap(True)
+                note_label.setStyleSheet("color: gray; font-size: 11px;")
+                page_form.addRow("", note_label)
 
             key_help_url = entry.get("key_help_url")
             if key_help_url:
@@ -806,14 +866,14 @@ QPushButton#settingsCancelButton {{
         self._update_masthead()
 
     def _update_masthead(self):
-        entry = next((e for e in PROVIDERS if e["value"] == self._active_provider), None)
+        entry = next((e for e in self._providers if e["value"] == self._active_provider), None)
         if entry is None:
             return
         model_text = self._model_combos[self._active_provider].currentText().strip() or AUTO_LABEL
         # Ollama excluded from the count: it's a local endpoint URL with a working default,
         # not a credential a user needs to go obtain -- counting it would make "N of 6" read
         # as if something were missing when nothing is.
-        keyed_providers = [e["value"] for e in PROVIDERS if e["value"] != "ollama"]
+        keyed_providers = [e["value"] for e in self._providers if e["value"] != "ollama" and e.get("key_storage") != "setting"]
         set_count = sum(1 for pv in keyed_providers if self._key_edits[pv].text().strip())
         self.masthead_label.setText(
             f"{entry['provider_label']} &middot; {model_text} model &middot; "
@@ -833,7 +893,7 @@ QPushButton#settingsCancelButton {{
             if w is not None:
                 w.deleteLater()
 
-        rows = [(e["value"], e["provider_label"]) for e in PROVIDERS if e["value"] != "ollama"]
+        rows = [(e["value"], e["provider_label"]) for e in self._providers if e["value"] != "ollama" and e.get("key_storage") != "setting"]
         rows.append(("firms", "NASA FIRMS"))
         for pv, label in rows:
             key_edit = self.firms_key_edit if pv == "firms" else self._key_edits[pv]
@@ -905,10 +965,10 @@ QPushButton#settingsCancelButton {{
         target.selectAll()
 
     def _fetch_models(self, provider_value):
-        entry = next(e for e in PROVIDERS if e["value"] == provider_value)
+        entry = next(e for e in self._providers if e["value"] == provider_value)
         key_text = self._key_edits[provider_value].text().strip()
-        if not key_text or provider_value in self._fetching:
-            return
+        if not key_text or provider_value in self._fetching or entry.get("key_storage") == "setting":
+            return  # a CLI provider has no model list to fetch: its "key" is just a program path
 
         self._fetching.add(provider_value)
         self.fetch_status_label.setText(f"Fetching {entry['provider_label']} models...")
@@ -926,7 +986,7 @@ QPushButton#settingsCancelButton {{
 
     def _on_models_fetched(self, provider_value, result):
         self._fetching.discard(provider_value)
-        entry = next(e for e in PROVIDERS if e["value"] == provider_value)
+        entry = next(e for e in self._providers if e["value"] == provider_value)
         combo = self._model_combos[provider_value]
 
         if result.get("success"):
@@ -975,6 +1035,7 @@ QPushButton#settingsCancelButton {{
         from ...infrastructure.auth import CredentialManager
         provider = self._active_provider
         self.settings.setValue(PROVIDER_KEY, provider)
+        self.settings.setValue(EXPERIMENTAL_CLI_KEY, self.experimental_cli_checkbox.isChecked())
         self.settings.setValue(PERSIST_SETTING_KEY, self.persist_history_checkbox.isChecked())
         self.settings.setValue(PERSIST_PROJECT_MEMORY_KEY, self.persist_project_memory_checkbox.isChecked())
         self.settings.setValue(SETTINGS_EVIDENCE_ENABLED, self.evidence_checkbox.isChecked())
@@ -1000,7 +1061,7 @@ QPushButton#settingsCancelButton {{
         # informational notice below, there is no consent prompt or plaintext-persist
         # call to make regardless of what the user chooses.
         session_only_entries = []
-        for entry in PROVIDERS:
+        for entry in self._providers:
             pv = entry["value"]
             self.settings.setValue(entry["model_setting_key"], self._resolve_model_value(pv))
             if pv in self._cached_model_lists:
@@ -1009,6 +1070,9 @@ QPushButton#settingsCancelButton {{
                 )
 
             key_text = self._key_edits[pv].text().strip()
+            if entry.get("key_storage") == "setting":
+                self.settings.setValue(cli_path_setting_key(pv), key_text)
+                continue
             if key_text and CredentialManager.save_credential(pv, key_text) and CredentialManager.used_session_only_fallback(pv):
                 session_only_entries.append(entry.get("provider_label", pv))
 

@@ -33,7 +33,7 @@ from ...infrastructure.settings_keys import SETTINGS_PROVIDER, normalize_provide
 
 from .chat_formatting import build_dock_stylesheet
 from .theme import extract_theme_palette
-from .dock_constants import PROVIDER_CHOICES
+from .dock_constants import PROVIDER_CHOICES, CLI_PROVIDER_LABELS
 from .icons import themed_icon
 from .chat_tab_widget import ChatTabWidget
 from ..logger import log_event
@@ -139,6 +139,8 @@ class CartogenAiDockWidget(QDockWidget):
         for label, value in PROVIDER_CHOICES:
             self.provider_combo.addItem(label, value)
         current_provider = normalize_provider(QgsSettings().value(SETTINGS_PROVIDER, "openrouter"))
+        if current_provider in CLI_PROVIDER_LABELS:
+            self.provider_combo.addItem(CLI_PROVIDER_LABELS[current_provider], current_provider)
         idx = self.provider_combo.findData(current_provider)
 
         if idx >= 0:
@@ -250,6 +252,11 @@ class CartogenAiDockWidget(QDockWidget):
             # Keep the quick-switch dropdown in sync without re-triggering _on_provider_switch.
             provider_value = normalize_provider(QgsSettings().value(SETTINGS_PROVIDER, "openrouter"))
             idx = self.provider_combo.findData(provider_value)
+            if idx < 0 and provider_value in CLI_PROVIDER_LABELS:
+                self.provider_combo.blockSignals(True)
+                self.provider_combo.addItem(CLI_PROVIDER_LABELS[provider_value], provider_value)
+                self.provider_combo.blockSignals(False)
+                idx = self.provider_combo.findData(provider_value)
 
             if idx >= 0:
                 self.provider_combo.blockSignals(True)

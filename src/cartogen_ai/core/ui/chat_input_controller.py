@@ -21,7 +21,7 @@ import traceback
 from qgis.core import QgsSettings
 
 from .attachments import read_attached_file as _read_attached_file
-from .settings_dialog import PROVIDERS as _PROVIDERS
+from .settings_dialog import PROVIDERS as _PROVIDERS, _CLI_PROVIDERS
 from ...infrastructure.settings_keys import SETTINGS_PROVIDER, normalize_provider
 
 
@@ -43,7 +43,7 @@ class ChatInputController:
         if provider_value == "ollama":
             return "This file's content stays local (Ollama) -- nothing is sent to a third party."
         label = next(
-            (p["provider_label"] for p in _PROVIDERS if p["value"] == provider_value),
+            (p["provider_label"] for p in [*_PROVIDERS, *_CLI_PROVIDERS] if p["value"] == provider_value),
             provider_value,
         )
         return f"This file's content will be sent to {label} for analysis."

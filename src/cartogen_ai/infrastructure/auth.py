@@ -14,7 +14,7 @@ except ImportError:
 
 from ..core.logger import log_event, log_warning
 from .settings_keys import (
-    SETTINGS_PROVIDER, SETTINGS_API_KEY, normalize_provider, fallback_credential_key, auth_id_setting_key,
+    SETTINGS_PROVIDER, SETTINGS_API_KEY, normalize_provider, CLI_PROVIDERS, fallback_credential_key, auth_id_setting_key,
 )
 
 
@@ -351,8 +351,8 @@ class CredentialManager:
             settings = QgsSettings()
             if provider is None:
                 provider = normalize_provider(settings.value(SETTINGS_PROVIDER, "openrouter"))
-            if provider == "ollama":
-                return None
+            if provider == "ollama" or provider in CLI_PROVIDERS:
+                return None  # no key to be missing: an endpoint URL with a default, or a local CLI on its own login
             if CredentialManager.get_credential(provider):
                 return None
         except Exception:
