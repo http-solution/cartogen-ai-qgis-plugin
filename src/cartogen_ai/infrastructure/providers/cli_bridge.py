@@ -7,7 +7,8 @@ orchestrator, previews, confirmations and egress gate are untouched. The CLI's o
 Status: SHIPPED AS A MODULE ONLY, not yet selectable in Settings or the orchestrator. UNVERIFIED against a real logged-in CLI: the flags
 below come from Claude Code's CLI reference (code.claude.com/docs/en/cli-reference, read 2026-10-28) and the shape of its `--output-format
 json` result is the documented one; the Codex flags and `--json` event names come from OpenAI's non-interactive-mode page (read 2026-10-28)
-and a third-party event reference. CI has no CLI and no login for either. The owner's spike (PLAN-038 acceptance 3) is what verifies it.
+and a third-party event reference; the Gemini flags and JSON fields from the Gemini CLI repository docs (cli-reference.md and headless.md, read
+2026-10-28), whose `stats` fields are not documented. CI has no CLI and no login for either. The owner's spike (PLAN-038 acceptance 3) is what verifies it.
 """
 import contextlib
 import json
@@ -457,3 +458,88 @@ class CodexCliClient(_CliClient):
         if code != 0 and not out.strip():
             raise CliBridgeError(f"The Codex CLI exited with status {code}. Is it signed in (`codex login`)?")
         return parse_codex_events(out)
+
+
+# ---------------------------------------------------------------------------------------------------------------------------------
+# Gemini CLI adapter
+# ---------------------------------------------------------------------------------------------------------------------------------
+
+# Fixed text for `-p`. The real prompt goes on stdin (the Gemini CLI docs say stdin is combined with -p), so this has to read the same
+# whichever side comes first, and it must contain none of the characters that are unsafe for a Windows .cmd launcher.
+_GEMINI_PROMPT_ARG = "Answer the request given in the input and follow its instructions exactly."
+
+
+def gemini_argv(executable, model=None):
+    """The exact command line for one Gemini CLI call. `--approval-mode plan` is the documented read-only mode, so a tool call that
+    would change anything is not approved; the CLI is also run in an empty temp folder. The Gemini docs read on 2026-10-28 give NO flag
+    that removes the built-in tools (only a `tools.core` allowlist in settings.json, which this adapter does not write into the user's
+    config), so, as with Codex, `parse_gemini_result` rejects a run whose statistics show tool calls."""
+    if model and not _MODEL_RE.match(model):
+        raise CliBridgeError("The model name contains characters that are not allowed.")
+    argv = [executable, "-p", _GEMINI_PROMPT_ARG, "--output-format", "json", "--approval-mode", "plan"]
+    if model:
+        argv += ["--model", model]
+    return argv
+
+
+def _gemini_usage(stats):
+    """Token counts from the JSON `stats` object, or (None, None). The docs name `stats` but not its fields; this reads the shape
+    seen in the CLI's own output (`models.<name>.tokens.prompt` / `.candidates`) and returns None for anything else, so the caller
+    falls back to an estimate instead of reporting a wrong number."""
+    models = stats.get("models") if isinstance(stats, dict) else None
+    if not isinstance(models, dict) or not models:
+        return None, None
+    prompt = candidates = 0
+    found = False
+    for info in models.values():
+        tokens = info.get("tokens") if isinstance(info, dict) else None
+        if isinstance(tokens, dict) and ("prompt" in tokens or "candidates" in tokens):
+            found = True
+            prompt += int(tokens.get("prompt") or 0)
+            candidates += int(tokens.get("candidates") or 0)
+    name = next(iter(models))
+    return ({"input_tokens": prompt, "output_tokens": candidates} if found else None), name
+
+
+def parse_gemini_result(stdout):
+    """Reads `gemini --output-format json`: a single object with `response`, `stats` and an optional `error`. Returns
+    (text, usage_or_None, model_or_None). Raises on an error object, a missing response, or statistics showing tool calls."""
+    start = (stdout or "").find("{")
+    if start == -1:
+        raise CliBridgeError("The Gemini CLI did not return JSON. Is it a current version (`npm i -g @google/gemini-cli`)?")
+    try:
+        data, _ = json.JSONDecoder().raw_decode(stdout, start)
+    except ValueError as e:
+        raise CliBridgeError("The Gemini CLI did not return JSON. Is it a current version (`npm i -g @google/gemini-cli`)?") from e
+    if not isinstance(data, dict):
+        raise CliBridgeError("The Gemini CLI returned an unexpected result.")
+    if data.get("error"):
+        err = data["error"]
+        detail = err.get("message") if isinstance(err, dict) else err
+        raise CliBridgeError("The Gemini CLI reported an error: " + str(detail)[:300])
+    text = data.get("response")
+    if not isinstance(text, str):
+        raise CliBridgeError("The Gemini CLI result had no response.")
+    stats = data.get("stats")
+    tools = stats.get("tools") if isinstance(stats, dict) else None
+    if isinstance(tools, dict) and int(tools.get("totalCalls") or 0) > 0:
+        raise CliBridgeError("The Gemini CLI tried to act on its own (it ran its own tools) instead of answering; that is not allowed here.")
+    usage, model = _gemini_usage(stats)
+    return text, usage, model
+
+
+class GeminiCliClient(_CliClient):
+    """Gemini CLI (`gemini -p`) used as a model on the user's own login. UNVERIFIED against a real logged-in Gemini CLI; see the module
+    docstring. Provider API keys are scrubbed from the environment, so it uses the CLI's own sign-in (Google account)."""
+    label = "Gemini CLI"
+    log_name = "gemini_cli"
+    default_exe = "gemini"
+    default_model_name = "gemini-cli"
+
+    def _invoke(self, exe, system_text, prompt, workdir):
+        # No system-prompt slot: the instructions lead the single stdin prompt.
+        code, out, _err = run_cli(gemini_argv(exe, self.model), system_text + "\n\n" + prompt, timeout=self.timeout,
+                                  cancel_event=self.cancel_event, cwd=workdir)
+        if code != 0 and not out.strip():
+            raise CliBridgeError(f"The Gemini CLI exited with status {code}. Is it signed in (run `gemini` once and choose Login with Google)?")
+        return parse_gemini_result(out)

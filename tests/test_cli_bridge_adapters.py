@@ -265,5 +265,97 @@ class TestCodexCliClient(unittest.TestCase):
         self.assertIsNotNone(run.call_args.kwargs["cwd"])
 
 
+def gemini_json(response="ok", **extra):
+    return json.dumps({"response": response, "stats": {"models": {"gemini-x": {"tokens": {"prompt": 30, "candidates": 8, "total": 38}}},
+                                                       "tools": {"totalCalls": 0}}, **extra})
+
+
+class TestGeminiArgv(unittest.TestCase):
+    def test_exact_command_line(self):
+        self.assertEqual(cb.gemini_argv("/bin/gemini"), ["/bin/gemini", "-p", cb._GEMINI_PROMPT_ARG, "--output-format", "json",
+                                                         "--approval-mode", "plan"])
+
+    def test_model_and_validation(self):
+        self.assertEqual(cb.gemini_argv("g", "flash")[-2:], ["--model", "flash"])
+        for bad in ("a b", "x;rm", "$(id)", "-x", "m\nn"):
+            with self.assertRaises(cb.CliBridgeError):
+                cb.gemini_argv("g", bad)
+
+    def test_never_auto_approves_and_the_fixed_prompt_text_is_cmd_safe(self):
+        argv = cb.gemini_argv("g")
+        for forbidden in ("--yolo", "-y", "yolo", "auto_edit"):
+            self.assertNotIn(forbidden, argv)
+        self.assertIsNone(cb._CMD_UNSAFE.search(cb._GEMINI_PROMPT_ARG))
+
+
+class TestParseGeminiResult(unittest.TestCase):
+    def test_response_usage_and_model(self):
+        self.assertEqual(cb.parse_gemini_result(gemini_json("hi")), ("hi", {"input_tokens": 30, "output_tokens": 8}, "gemini-x"))
+
+    def test_leading_log_lines_before_the_json_are_skipped(self):
+        self.assertEqual(cb.parse_gemini_result("Loaded cached credentials.\n" + gemini_json("hi"))[0], "hi")
+
+    def test_unknown_stats_shape_gives_no_usage_so_the_caller_estimates(self):
+        out = json.dumps({"response": "x", "stats": {"something": 1}})
+        self.assertEqual(cb.parse_gemini_result(out), ("x", None, None))
+
+    def test_error_object_and_non_json_and_missing_response_raise(self):
+        for out in (json.dumps({"error": {"message": "not logged in"}}), "Welcome", json.dumps({"stats": {}}), json.dumps([1])):
+            with self.assertRaises(cb.CliBridgeError):
+                cb.parse_gemini_result(out)
+        with self.assertRaises(cb.CliBridgeError) as cm:
+            cb.parse_gemini_result(json.dumps({"error": {"message": "not logged in"}}))
+        self.assertIn("not logged in", str(cm.exception))
+
+    def test_tool_calls_in_the_stats_are_rejected(self):
+        out = json.dumps({"response": "done", "stats": {"tools": {"totalCalls": 2}}})
+        with self.assertRaises(cb.CliBridgeError) as cm:
+            cb.parse_gemini_result(out)
+        self.assertIn("on its own", str(cm.exception))
+
+
+class TestGeminiCliClient(unittest.TestCase):
+    def _run(self, stdout, code=0):
+        with patch.object(cb, "find_executable", return_value="/bin/gemini"), patch.object(cb, "run_cli", return_value=(code, stdout, "")) as run:
+            result = cb.GeminiCliClient(model="flash").complete([{"role": "system", "content": "Be careful."}, {"role": "user", "content": "hi"}], TOOLS)
+        return result, run
+
+    def test_tool_call_round_trip(self):
+        reply = '{"tool_calls":[{"name":"add_layer","arguments":{"path":"r.shp"}}]}'
+        result, run = self._run(gemini_json(reply))
+        self.assertEqual(result["message"]["tool_calls"][0]["function"]["name"], "add_layer")
+        self.assertEqual(result["usage"], {"input_tokens": 30, "output_tokens": 8})
+        self.assertEqual(result["model"], "gemini-x")
+        argv, stdin = run.call_args.args[0], run.call_args.args[1]
+        self.assertEqual(argv[0], "/bin/gemini")
+        self.assertIn("Be careful.", stdin)
+        self.assertNotIn("hi", " ".join(argv))
+        self.assertIsNotNone(run.call_args.kwargs["cwd"])
+
+    def test_plain_answer_with_estimated_usage_when_stats_are_missing(self):
+        result, _ = self._run(json.dumps({"response": '{"final": "Hello"}'}))
+        self.assertEqual(result["message"]["content"], "Hello")
+        self.assertTrue(result["usage"]["estimated"])
+        self.assertEqual(result["model"], "flash")
+
+    def test_unknown_tool_and_own_tool_calls_are_error_dicts(self):
+        self.assertIn("error", self._run(gemini_json('{"tool_calls":[{"name":"nope","arguments":{}}]}'))[0])
+        out = json.dumps({"response": "x", "stats": {"tools": {"totalCalls": 1}}})
+        self.assertIn("on its own", self._run(out)[0]["error"])
+
+    def test_not_signed_in_exit_is_explained(self):
+        self.assertIn("Login with Google", self._run("", code=41)[0]["error"])
+
+    def test_missing_cli_is_explained_without_running_anything(self):
+        with patch.object(cb, "find_executable", return_value=None), patch.object(cb, "run_cli") as run:
+            result = cb.GeminiCliClient().complete([{"role": "user", "content": "hi"}])
+        self.assertIn("Gemini CLI not found", result["error"])
+        run.assert_not_called()
+
+    def test_api_keys_for_gemini_are_scrubbed_so_the_cli_uses_its_own_login(self):
+        for key in ("GEMINI_API_KEY", "GOOGLE_API_KEY"):
+            self.assertIn(key, cb.SCRUBBED_ENV)
+
+
 if __name__ == "__main__":
     unittest.main()
