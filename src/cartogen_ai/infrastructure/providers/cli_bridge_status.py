@@ -76,7 +76,9 @@ def stage_of(error_text):
     text = (error_text or "").lower()
     if "not found" in text or "executable path" in text:
         return "install"
-    if "signed in" in text or "login" in text or "log in" in text:
+    # Codex 0.165 signed out reports "Reconnecting... unexpected status 401 Unauthorized: Missing bearer or basic authentication"
+    # (seen in the 2026-10-28 audit against the real CLI), with none of the words below it, so it was filed under "other".
+    if any(w in text for w in ("signed in", "login", "log in", "sign in", "401", "unauthorized", "not authenticated", "authentication")):
         return "signin"
     return "other"
 
