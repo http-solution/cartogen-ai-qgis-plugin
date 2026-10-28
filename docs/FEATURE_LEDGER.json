@@ -1539,6 +1539,24 @@
     ],
     "hand_verified": "not verified: CI only (no provider account or key in the sandbox; no real provider has been called)",
     "hand_row": "SPIKE-1 (press Test on OpenRouter and Gemini with a good key, a bad key and no key)"
+  },
+  {
+    "id": "script-worker-survives-print-and-odd-results",
+    "feature": "execute_pyqgis_script: a script that prints, or returns a set, a date or another value JSON cannot hold, gets a normal reply from the isolation worker (its printed text comes back as `printed`; odd values become text) instead of a crashed worker; a call missing its required `script` says which argument is missing and that a cut-off reply is the usual cause",
+    "issues": [],
+    "since": "1.18.6",
+    "sources": [
+      "src/cartogen_ai/core/agent/services/_script_isolation_worker.py",
+      "src/cartogen_ai/core/agent/agent_orchestrator.py"
+    ],
+    "guards": [
+      "tests/test_script_isolation_worker_protocol.py::TestServe::test_an_unencodable_result_does_not_end_the_loop",
+      "tests/test_script_isolation_worker_protocol.py::TestEncode::test_non_json_results_are_turned_into_text_not_raised",
+      "tests/test_agent_runner.py::TestToolArgumentShapeValidation::test_a_missing_required_argument_says_so_and_hints_at_a_cut_off_reply",
+      "tests/test_script_isolation_worker_live.py::TestWorkerRunJob::test_printed_text_is_returned_not_written_to_the_reply_channel"
+    ],
+    "hand_verified": "not verified: CI only (cause found by reading the code and reproducing the old behaviour with a stand-in QGIS module; the original crash in the owner's 1.18.4 run was never logged, so it is not proven to be this one)",
+    "hand_row": "DEF-12 hand row: ask for 'make a situation dashboard titled Aden test' (runbook B7) and check no worker crash and no empty reply"
   }
  ]
 }

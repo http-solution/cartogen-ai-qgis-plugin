@@ -18,10 +18,15 @@ blocks the untrusted SCRIPT from importing it, and is enforced by
 `_validate_script_safety` against the script's own source text below, exactly
 as it is in-process today.
 """
+import contextlib
+import io
 import json
 import os
 import sys
 import traceback
+
+# A script's print() output is returned to the model, capped so one chatty loop cannot flood the reply.
+_MAX_CAPTURED_OUTPUT = 4000
 
 
 def _init_qgis():
@@ -53,13 +58,18 @@ def _run_job(job, local_env_factory):
     local_env["__builtins__"] = _SAFE_BUILTINS
     local_env["__name__"] = "execute_pyqgis_script"
 
+    # print() is an allowed builtin and writes to sys.stdout, which is this worker's reply channel to the parent: one printed line made the
+    # parent fail to parse the reply and kill the worker ("unreadable response (crashed?)", DEF-12). The script's output is captured instead
+    # and handed back as `printed`, so the model also gets to see it.
+    captured = io.StringIO()
     try:
-        exec(script, local_env)  # noqa: S102  # nosec B102 (this is the isolated worker process; the script runs with restricted builtins after the static safety check)
-        if "run" not in local_env:
-            return {"error": "Script must define a 'run()' function."}
-        result = local_env["run"]()
+        with contextlib.redirect_stdout(captured):
+            exec(script, local_env)  # noqa: S102  # nosec B102 (this is the isolated worker process; the script runs with restricted builtins after the static safety check)
+            if "run" not in local_env:
+                return {"error": "Script must define a 'run()' function.", **_printed(captured)}
+            result = local_env["run"]()
     except Exception as e:
-        return {"error": str(e), "traceback": traceback.format_exc()}
+        return {"error": str(e), "traceback": traceback.format_exc(), **_printed(captured)}
 
     try:
         # Same fix as script_isolation.py's _build_scratch_project, applied on
@@ -81,7 +91,45 @@ def _run_job(job, local_env_factory):
     except Exception as e:
         return {"error": f"Script ran but the isolated project could not be saved back: {e}"}
 
-    return {"success": True, "result": result}
+    return {"success": True, "result": result, **_printed(captured)}
+
+
+def _printed(captured):
+    text = captured.getvalue()
+    if not text:
+        return {}
+    return {"printed": text[:_MAX_CAPTURED_OUTPUT] + ("... [truncated]" if len(text) > _MAX_CAPTURED_OUTPUT else "")}
+
+
+def _encode_response(response):
+    """One JSON line for the parent. A script may return a set, a date, a QGIS object: str() those rather than raise, because an
+    exception here used to end the worker's loop and the parent then reported a crash (DEF-12). Never raises."""
+    try:
+        return json.dumps(response, default=str)
+    except Exception as e:
+        return json.dumps({"error": f"The script ran, but its result could not be sent back as JSON ({type(e).__name__}: {e}). "
+                                    "Return plain numbers, text, lists and dicts from run()."})
+
+
+def serve(lines, out, run_job):
+    """The job loop, apart from QGIS so it can be tested: one JSON job per input line, one JSON reply line per job on `out`. A job that
+    raises, or whose reply cannot be encoded, yields an error reply and the loop goes on."""
+    for raw_line in lines:
+        line = raw_line.strip()
+        if not line:
+            continue
+        try:
+            job = json.loads(line)
+        except json.JSONDecodeError as e:
+            out.write(json.dumps({"error": f"Worker received unreadable job: {e}"}) + "\n")
+            out.flush()
+            continue
+        try:
+            response = run_job(job)
+        except Exception as e:
+            response = {"error": f"Isolation worker crashed running the job: {e}", "traceback": traceback.format_exc()}
+        out.write(_encode_response(response) + "\n")
+        out.flush()
 
 
 def main():
@@ -120,28 +168,16 @@ def main():
     # module, not (for example) the QGIS application binary itself silently
     # spawned by a wrong interpreter-lookup result, which would otherwise sit
     # here forever with no output at all.
-    sys.stdout.write(json.dumps({"ready": True}) + "\n")
-    sys.stdout.flush()
+    # Replies go to the real stdout; anything else in this process that writes to sys.stdout (a library, a stray print) is discarded
+    # rather than mixed into the reply stream. Not sent to stderr: the parent only reads that pipe after killing the worker, so a
+    # chatty library could fill the pipe and block the worker.
+    protocol_out = sys.stdout
+    sys.stdout = open(os.devnull, "w")  # noqa: SIM115 -- must stay open for the life of the process
+    protocol_out.write(json.dumps({"ready": True}) + "\n")
+    protocol_out.flush()
 
     try:
-        for raw_line in sys.stdin:
-            line = raw_line.strip()
-            if not line:
-                continue
-            try:
-                job = json.loads(line)
-            except json.JSONDecodeError as e:
-                sys.stdout.write(json.dumps({"error": f"Worker received unreadable job: {e}"}) + "\n")
-                sys.stdout.flush()
-                continue
-
-            try:
-                response = _run_job(job, local_env_factory)
-            except Exception as e:
-                response = {"error": f"Isolation worker crashed running the job: {e}", "traceback": traceback.format_exc()}
-
-            sys.stdout.write(json.dumps(response) + "\n")
-            sys.stdout.flush()
+        serve(sys.stdin, protocol_out, lambda job: _run_job(job, local_env_factory))
     finally:
         qgs.exitQgis()
 
