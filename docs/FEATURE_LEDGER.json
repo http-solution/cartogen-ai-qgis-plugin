@@ -1328,16 +1328,20 @@
   },
   {
     "id": "update-task-without-an-id-is-explained",
-    "feature": "update_task with a missing id updates the one open task or says there is no plan, never a Task ID None message",
+    "feature": "update_task with a missing or null id updates the one open task, or says there is no plan, or that every task is already finished, or asks for the id; a missing status is explained; never a Task ID None message or a Python error",
     "issues": [],
     "since": "1.18.5",
     "sources": [
-      "src/cartogen_ai/core/agent/task_manager.py"
+      "src/cartogen_ai/core/agent/task_manager.py",
+      "src/cartogen_ai/core/agent/tools/task_tools.py"
     ],
     "guards": [
-      "tests/test_task_manager.py::TestUpdateTaskWithoutAnId::test_no_plan_gives_a_plain_message_not_none"
+      "tests/test_task_manager.py::TestUpdateTaskWithoutAnId::test_no_plan_gives_a_plain_message_not_none",
+      "tests/test_task_manager.py::TestUpdateTaskWithoutAnId::test_a_finished_plan_says_so_instead_of_listing_no_open_ids",
+      "tests/test_task_manager.py::TestUpdateTaskWithoutAnId::test_a_missing_status_is_explained_not_raised",
+      "tests/test_task_manager.py::TestUpdateTaskWithoutAnId::test_the_tool_treats_an_omitted_id_like_a_null_one"
     ],
-    "hand_verified": "not verified: CI only (owner hand run 1.18.4 row N7c found the defect; the fix has not been re-run)",
+    "hand_verified": "not verified: CI only (owner hand run 1.18.4 row N7c found the defect; the 1.18.5 fix and the 2026-10-28 audit fixes have not been re-run by a person)",
     "hand_row": "none: no prompt reliably triggers it (a model sends a null id); covered by tests/test_task_manager.py"
   },
   {

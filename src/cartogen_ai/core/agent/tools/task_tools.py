@@ -49,7 +49,8 @@ def set_task_preview(task_id: str, code_snippet: str, rationale: str = "", is_de
 
 
 @register_tool("update_task", "Update status of a task in current plan (TODO, IN_PROGRESS, PREVIEW_READY, CONFIRMED, DONE, FAILED).", {"type": "object", "properties": {"task_id": {"type": "string"}, "status": {"type": "string"}, "result": {"type": "string"}, "rationale": {"type": "string"}, "code_snippet": {"type": "string"}}, "required": ["task_id", "status"]})
-def update_task(task_id: str, status: str, result: str = "", rationale: str = "", code_snippet: str = ""):
+def update_task(task_id: str | None = None, status: str | None = None, result: str = "", rationale: str = "", code_snippet: str = ""):
+    # Both default to None so a call that leaves one out reaches the task manager's plain-language answers instead of a Python TypeError (DEF-13).
     if _BOUND["task_manager"] is None:
         return {"error": "Task manager not initialized."}
     return _BOUND["task_manager"].update_task(task_id, status, result, rationale, code_snippet)

@@ -98,6 +98,33 @@ class TestUpdateTaskWithoutAnId(unittest.TestCase):
         self.assertIn("task_id is required", res["error"])
         self.assertEqual([t["status"] for t in tm.tasks], ["TODO", "TODO"])
 
+    def test_a_finished_plan_says_so_instead_of_listing_no_open_ids(self):
+        # DEF-13 audit: with every task DONE the "several open tasks" answer ended in "Open task ids: " and an empty list.
+        tm = AgentTaskManager()
+        tm.create_plan("Plan", ["A", "B"])
+        for task in list(tm.tasks):
+            tm.update_task(task["id"], "DONE")
+        res = tm.update_task(None, "DONE")
+        self.assertIn("already finished", res["error"])
+        self.assertNotIn("Open task ids", res["error"])
+
+    def test_a_missing_status_is_explained_not_raised(self):
+        tm = AgentTaskManager()
+        tm.create_plan("Plan", ["A"])
+        for bad in (None, "", "  "):
+            self.assertIn("status is required", tm.update_task(tm.tasks[0]["id"], bad)["error"])
+        self.assertEqual(tm.tasks[0]["status"], "TODO")
+
+    def test_the_tool_treats_an_omitted_id_like_a_null_one(self):
+        from cartogen_ai.core.agent.tools import task_tools
+        tm = AgentTaskManager()
+        tm.create_plan("Plan", ["Only step"])
+        task_tools.bind_agent_context(tm, None)
+        self.addCleanup(task_tools.bind_agent_context, None, None)
+        self.assertTrue(task_tools.update_task(status="DONE")["success"])
+        self.assertEqual(tm.tasks[0]["status"], "DONE")
+        self.assertIn("status is required", task_tools.update_task(task_id=tm.tasks[0]["id"])["error"])
+
 
 if __name__ == "__main__":
     unittest.main()
