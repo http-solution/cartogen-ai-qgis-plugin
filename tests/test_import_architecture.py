@@ -107,6 +107,43 @@ class TestImportArchitecture(unittest.TestCase):
         self.assertIs(sys.modules["cartogen_ai.core.agent.cancel_signal"], cancel_signal)
 
 
+class TestEveryRelativeImportResolves(unittest.TestCase):
+    """A module moved to another package keeps its old relative imports; one that is wrong from the new place raises ImportError only when
+    it runs. PLAN-040 stage 3 moved _background_processing to core/ with `from ....infrastructure` still in a function: the live job found
+    it because `except Exception: return True` made the "turn background analysis off" setting silently do nothing. This test fails offline
+    for any relative import (even inside a function) whose target module does not exist."""
+
+    def test_the_target_of_every_relative_import_exists(self):
+        import ast
+        import os
+
+        src = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src")
+        problems = []
+        for dirpath, _dirs, files in os.walk(os.path.join(src, "cartogen_ai")):
+            for fname in files:
+                if not fname.endswith(".py"):
+                    continue
+                path = os.path.join(dirpath, fname)
+                rel = os.path.relpath(path, src)[:-3].split(os.sep)
+                package = rel[:-1]
+                with open(path, encoding="utf-8") as fh:
+                    tree = ast.parse(fh.read())
+                for node in ast.walk(tree):
+                    if not isinstance(node, ast.ImportFrom) or not node.level:
+                        continue
+                    up = node.level - 1
+                    if up > len(package) - 1:
+                        problems.append(f"{'.'.join(rel)}:{node.lineno} goes above the top-level package")
+                        continue
+                    base = package[: len(package) - up]
+                    target = base + (node.module.split(".") if node.module else [])
+                    as_file = os.path.join(src, *target) + ".py"
+                    as_pkg = os.path.join(src, *target, "__init__.py")
+                    if not (os.path.exists(as_file) or os.path.exists(as_pkg)):
+                        problems.append(f"{'.'.join(rel)}:{node.lineno} imports missing {'.'.join(target)}")
+        self.assertEqual(problems, [])
+
+
 class TestCheckRunnersAreRegisteredByTheTools(unittest.TestCase):
     def test_importing_the_tools_registers_the_checks_the_model_cannot_import(self):
         from cartogen_ai.core.agent.tools import qa_checklist_tools, vector_tools  # noqa: F401

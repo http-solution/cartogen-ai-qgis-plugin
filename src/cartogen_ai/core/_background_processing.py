@@ -136,7 +136,7 @@ def _on_gui_thread():
 def _enabled_in_settings():
     try:
         from qgis.core import QgsSettings
-        from ....infrastructure.settings_keys import SETTINGS_BACKGROUND_NETWORK_ANALYSIS
+        from ..infrastructure.settings_keys import SETTINGS_BACKGROUND_NETWORK_ANALYSIS
         return bool(QgsSettings().value(SETTINGS_BACKGROUND_NETWORK_ANALYSIS, True, type=bool))
     except Exception:
         return True
