@@ -26,6 +26,7 @@ by hand; if you add or move a doc, update both.
 | Doc | Covers |
 |---|---|
 | [IMPLEMENTATION_TRACKER.md](IMPLEMENTATION_TRACKER.md) | **Start here for "what's open right now."** Living doc consolidating every genuinely open item, kept current as things resolve |
+| [SNAPSHOTS.md](SNAPSHOTS.md) | Generated list of every frozen dated or per-release doc (history, not current state); `python tools/docs_index.py` |
 | [BUG_TRACKER.md](BUG_TRACKER.md) | Living, in-repo bug tracker — currently-open real defects only, plus the known sandbox test-artifact baseline |
 | [RELEASE_SMOKE_TEST.md](RELEASE_SMOKE_TEST.md) | ~15-minute manual checklist to run in a real QGIS session before each release |
 | [QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md](QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md) | 27-point production-readiness architecture review |
