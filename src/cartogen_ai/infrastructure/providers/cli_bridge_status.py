@@ -36,6 +36,20 @@ def program_for(provider, configured):
     return (configured or "").strip() or DEFAULT_PROGRAM[provider]
 
 
+def locate(provider, configured=""):
+    """The real file for this provider's program, or None. A folder in the field means '<default program> inside that folder'."""
+    program = program_for(provider, configured)
+    return cb.find_executable(program) or cb.find_in_folder(program, DEFAULT_PROGRAM[provider])
+
+
+def not_found_message(provider, configured=""):
+    """Says what was looked for and how to give the plugin the exact location (the plugin may see a shorter PATH than a terminal)."""
+    program = program_for(provider, configured)
+    where = "where" if os.name == "nt" else "which"
+    return (f"Program '{program}' was not found. {_SPECS[provider][2]} If it already works in your terminal, run "
+            f"`{where} {DEFAULT_PROGRAM[provider]}` there and paste the full path it prints into this field.")
+
+
 def signin_command(provider, exe="", configured=""):
     """The command a user would type to sign in, as text for display."""
     program = exe or program_for(provider, configured)
@@ -44,10 +58,9 @@ def signin_command(provider, exe="", configured=""):
 
 def detect(provider, configured="", timeout=15):
     """{'found': bool, 'path': str, 'version': str, 'problem': str}. Runs `<program> --version` (no model call, no tokens)."""
-    program = program_for(provider, configured)
-    path = cb.find_executable(program)
+    path = locate(provider, configured)
     if not path:
-        return {"found": False, "path": "", "version": "", "problem": f"Program '{program}' was not found. {_SPECS[provider][2]}"}
+        return {"found": False, "path": "", "version": "", "problem": not_found_message(provider, configured)}
     try:
         code, out, err = cb.run_cli([path, "--version"], "", timeout=timeout, max_output_bytes=64 * 1024, cwd=os.path.dirname(path) or None)
     except cb.CliBridgeError as e:
@@ -63,7 +76,9 @@ def stage_of(error_text):
     text = (error_text or "").lower()
     if "not found" in text or "executable path" in text:
         return "install"
-    if "signed in" in text or "login" in text or "log in" in text:
+    # Codex 0.165 signed out reports "Reconnecting... unexpected status 401 Unauthorized: Missing bearer or basic authentication"
+    # (seen in the 2026-10-28 audit against the real CLI), with none of the words below it, so it was filed under "other".
+    if any(w in text for w in ("signed in", "login", "log in", "sign in", "401", "unauthorized", "not authenticated", "authentication")):
         return "signin"
     return "other"
 
@@ -107,10 +122,10 @@ def terminal_command(provider, exe, platform=None, which=shutil.which):
 def open_signin_terminal(provider, configured=""):
     """Tries to open a terminal for signing in. {'launched': bool, 'command': str, 'message': str}; never raises."""
     program = program_for(provider, configured)
-    path = cb.find_executable(program)
+    path = locate(provider, configured)
     command_text = signin_command(provider, path or program)
     if not path:
-        return {"launched": False, "command": command_text, "message": f"Program '{program}' was not found. {_SPECS[provider][2]}"}
+        return {"launched": False, "command": command_text, "message": not_found_message(provider, configured)}
     argv = terminal_command(provider, path)
     if argv is None:
         return {"launched": False, "command": command_text,

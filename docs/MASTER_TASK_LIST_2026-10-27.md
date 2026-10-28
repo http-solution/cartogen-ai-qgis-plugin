@@ -214,3 +214,4 @@ Newest last. One line per status change; written by `tools/master_list.py set`.
 - 2026-10-28: LEAD-8 In progress -> In progress. adapters wired into Settings behind an opt-in box (off by default), CI-only; owner: tick the box, reopen Settings, run the spike (SPIKE-1); Settings 'Test connection' and hand-test rows not done
 - 2026-10-28: LEAD-9 In progress -> In progress. slice 1 (CLI panel, groups) merged; slice 2 (rest of the window regrouped by purpose) in PR, CI-only; owner: look at the window
 - 2026-10-28: LEAD-9 In progress -> In progress. slices 1 and 2 merged; slice 3 (Test button for key-based providers) in PR, CI-only; owner: look at Settings, press Test and the CLI Check connection buttons
+- 2026-10-28: LEAD-8 In progress -> In progress. CLI program discovery fix (shorter GUI PATH), in PR, CI-only; owner: retry Check connection or paste the path from where/which

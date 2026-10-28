@@ -39,6 +39,8 @@ class TestStage(unittest.TestCase):
         self.assertEqual(st.stage_of("Could not start the CLI (OSError). Check the executable path in Settings."), "install")
         self.assertEqual(st.stage_of("The Codex CLI exited with status 1. Is it signed in (`codex login`)?"), "signin")
         self.assertEqual(st.stage_of("run `gemini` once and choose Login with Google"), "signin")
+        self.assertEqual(st.stage_of("The Codex CLI reported an error: Reconnecting... 2/5 (unexpected status 401 Unauthorized: "
+                                     "Missing bearer or basic authentication in header, url: wss://api.openai.com/v1/responses)"), "signin")
         self.assertEqual(st.stage_of("The CLI did not answer within 180 seconds."), "other")
         self.assertEqual(st.stage_of(""), "other")
 
