@@ -5,6 +5,7 @@ performs visual canvas inspections, and calculates temporal layer change detecti
 """
 
 import contextlib
+import datetime
 import json
 import time
 from ...net import urlopen as _qgis_urlopen
@@ -50,6 +51,16 @@ def search_stac_satellite_imagery(bbox: list, start_date: str, end_date: str, li
             return {"error": "max_cloud_cover must be a number between 0 and 100 (percent)."}
         if not 0 <= max_cloud_cover <= 100:
             return {"error": "max_cloud_cover must be a number between 0 and 100 (percent)."}
+
+    # A malformed date reached the service as HTTP 400 and the model saw only "STAC API query failed", with nothing to correct (DEF-10).
+    try:
+        first = datetime.date.fromisoformat(str(start_date)[:10])
+        last = datetime.date.fromisoformat(str(end_date)[:10])
+    except ValueError:
+        return {"error": f"start_date and end_date must be dates written YYYY-MM-DD (got {start_date!r} and {end_date!r})."}
+    if first > last:
+        return {"error": f"start_date {start_date} is after end_date {end_date}; send the earlier date as start_date."}
+    start_date, end_date = first.isoformat(), last.isoformat()
 
     cache_key = (tuple(bbox), start_date, end_date, limit, max_cloud_cover)
     cached = _STAC_CACHE.get(cache_key)

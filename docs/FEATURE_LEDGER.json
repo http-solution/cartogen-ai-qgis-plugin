@@ -1575,6 +1575,25 @@
     ],
     "hand_verified": "not verified: CI only (cause found by reading the tool: it looked up layer names only, so a file path, even one repaired by the 1.18.5 backslash fix, could never be found; the live test has never run, nobody has run D6 by hand)",
     "hand_row": "P2 and D6 in the runbook: 'load before_fixture.asc and after_fixture.asc from <F>, then show the change between after_fixture and before_fixture'"
+  },
+  {
+    "id": "scene-search-gets-area-and-dates",
+    "feature": "a request to find satellite scenes over a named place is offered the scene search together with the place lookup that gives it an area, the model is told today's date whenever a date-range tool is offered so 'last month' becomes real dates, and the scene search refuses malformed or reversed dates with a message that says what to send",
+    "issues": [],
+    "since": "1.18.6",
+    "sources": [
+      "src/cartogen_ai/core/agent/capabilities.py",
+      "src/cartogen_ai/core/agent/prompts.py",
+      "src/cartogen_ai/core/agent/tools/multimodal_remote_sensing.py"
+    ],
+    "guards": [
+      "tests/test_satellite_scene_search_routing.py::TestToolsOffered::test_the_router_offers_both_to_the_model",
+      "tests/test_satellite_scene_search_routing.py::TestTodayLine::test_it_reaches_the_system_prompt",
+      "tests/test_satellite_scene_search_routing.py::TestDateValidation::test_a_malformed_date_is_explained_and_nothing_is_sent",
+      "tests/test_capabilities.py::TestTable::test_every_tool_named_in_the_table_is_registered"
+    ],
+    "hand_verified": "not verified: CI only. Checked here: the scene search returned real, cloud-filtered Aden scenes from the live Earth Search service (outside QGIS, through the urllib path, not QGIS's network layer), and the router did not offer geocode_and_enrich for the A13 prompt before this change. No model was run, so whether a model now completes A13 is unproven.",
+    "hand_row": "R1 / A13 / P5 in the runbook: 'find Sentinel-2 scenes over Aden for last month with under 20 percent cloud'"
   }
  ]
 }

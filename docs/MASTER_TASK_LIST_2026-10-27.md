@@ -216,4 +216,5 @@ Newest last. One line per status change; written by `tools/master_list.py set`.
 - 2026-10-28: LEAD-9 In progress -> In progress. slices 1 and 2 merged; slice 3 (Test button for key-based providers) in PR, CI-only; owner: look at Settings, press Test and the CLI Check connection buttons
 - 2026-10-28: LEAD-8 In progress -> In progress. CLI program discovery fix (shorter GUI PATH), in PR, CI-only; owner: retry Check connection or paste the path from where/which
 - 2026-10-28: DEF-12 Not started -> In progress. worker no longer dies on print or non-JSON result; clearer missing-argument message; PR open, CI only; cause inferred, original crash never logged
+- 2026-10-28: DEF-10 In progress -> In progress. second cause found and fixed: geocode tool not offered for the scene prompt, model not told today's date, malformed dates unexplained; PR open, CI only, no model run; hand rows R1/A13/P5
 - 2026-10-28: DEF-11 In progress -> In progress. second cause fixed: change detection only looked up layer names, now also loaded-file paths and raster files; PR open, CI only; hand rows P2/D6
