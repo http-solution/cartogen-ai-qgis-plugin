@@ -220,3 +220,4 @@ Newest last. One line per status change; written by `tools/master_list.py set`.
 - 2026-10-28: DEF-11 In progress -> In progress. second cause fixed: change detection only looked up layer names, now also loaded-file paths and raster files; PR open, CI only; hand rows P2/D6
 - 2026-10-28: DEF-13 In progress -> In progress. audit found 3 more gaps (finished plan message, null status raised, omitted id raised); fixed with tests; PR open, CI only; no hand row
 - 2026-10-28: DEF-17 In progress -> In progress. A5/A6 router gap fixed (place lookup not offered); other 7 rows already offered their tools so need the Claude rerun OWN-15 + eval HT-3; PR open, CI only
+- 2026-10-28: DEF-16 In progress -> In progress. expectations checked against fixtures and tool wording; S5/R3/N5/A11/C8 corrected, D7/N1 verified; rev2 package built; stays open until the corrected runbook is used in a real run; record docs/RUNBOOK_EXPECTATION_CHECKS_2026-10-28.md
