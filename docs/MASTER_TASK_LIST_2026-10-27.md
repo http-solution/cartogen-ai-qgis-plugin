@@ -78,6 +78,7 @@ One list to follow up and plan from. It replaces the session task list (101 entr
 | DEF-17 | Model-choice failures on Gemini flash-latest: A5, A6, C1, C3, C4, C6, D4, E2, S5. E2: compute_jiaf_preliminary left jf_pre_sev empty with two sectors; check the tool result itself carries the two open blockers and a severity-not-computed reason, so a weak model cannot drop them. | Separates model from tool; the tool must carry the message. | Claude | OWN-15 | M | P2 | In progress | 1.18.4 smoke run 2026-10-27/28 |
 | DEF-18 | C5: first run stopped by the loop guard (population_access_gap called 3 times with the same arguments) and the reachable figure differed between runs (1,028 vs 994). Find why identical calls are repeated and why the figure moves. | A figure that changes between identical runs cannot be trusted. | Claude | - | M | P1 | In progress | 1.18.4 smoke run 2026-10-27/28 |
 | DEF-19 | Side effects: A10 added an empty 'UCDP Conflict Events - Yemen 2025' layer and printed a literal '&nbsp;'; A12 left hidden buffer_output and deletecolumn_output layers; A7/A9 loaded global GDACS/USGS layers for a Yemen request. | Unrequested layers (see DEF-3). | Claude | DEF-3 | S | P3 | In progress | 1.18.4 smoke run 2026-10-27/28 |
+| DEF-20 | add_layer_from_path drops 'sublayer' on every live call: the orchestrator's special-cased branch calls the function with the path, name and source label only, so a named layer of a GeoPackage is never opened. Found while measuring drift for PLAN-033; fix with a CI live test. | A documented argument that never arrives. | Claude | - | S | P2 | Not started | codebase analysis 2026-10-28 |
 
 ## D. Product roadmap (from the roadmap audit)
 
@@ -138,18 +139,32 @@ One list to follow up and plan from. It replaces the session task list (101 entr
 | AR-4 | Chunked k-means for very large rasters; further GUI-thread offloading. | Guard shipped, chunking not. | Claude | - | M | P3 | Not started | A14, A15 |
 | AR-5 | Recorded as scoped and not recommended: vector memory stores, constrained decoding libraries, RestrictedPython, Presidio egress scan, semantic router. | Keep the record so they are not rediscovered. | You | - | - | - | Closed (record) | W-49 |
 
+## I. Leadership plan (from the 2026-10-28 codebase analysis)
+
+Source: the owner's analysis document of nine flagship QGIS AI plugins, checked against this repository. Umbrella plan: `docs/plans/PLAN-030-leadership-strategy.md`; the other plans are PLAN-031 (RM-A), PLAN-032 (RM-B), PLAN-033 (LEAD-4), PLAN-034 (RM-F), PLAN-035 (LEAD-5), PLAN-036 (LEAD-2, LEAD-3), PLAN-037 (LEAD-6).
+
+| ID | Task | Why | Who | Depends on | Size | Pri | Status | Source |
+|---|---|---|---|---|---|---|---|---|
+| LEAD-1 | Decide the positioning ('the trusted GIS agent for humanitarian and field work') and the order of PLAN-030: result gate, canvas image, MCP, benchmark, directory listing. Absorbs OWN-5. | Everything in this stream depends on one stated direction. | You | - | XS | P1 | Decision needed | codebase analysis 2026-10-28 |
+| LEAD-2 | Decide whether to support QGIS 3.x (stay 4.2+; current 3.x LTR only; 3.28 upward) after reading the PLAN-036 study. | The listing's audience; the cost is large and unknown until LEAD-3 reports. | You | LEAD-3 | XS | P1 | Decision needed | codebase analysis 2026-10-28 |
+| LEAD-3 | Run the QGIS 3.x feasibility study: Qt5/Qt6 and PyQGIS differences counted by a script kept in tools/, CI cost, three options with a size each. No plugin change. | Replaces a guess with a number; can start before LEAD-2. | Claude | - | M | P2 | Not started | codebase analysis 2026-10-28 |
+| LEAD-4 | Tool-argument drift (PLAN-033): fix the dropped sublayer, extend the drift test to every special-cased branch and to composite tools, build new tools' schemas from the signature. | Three dropped arguments in two days; the registry layer itself is consistent (measured), the orchestrator branches are not. | Claude | - | M | P1 | Not started | codebase analysis 2026-10-28 |
+| LEAD-5 | Public, reproducible benchmark from the smoke fixtures: machine-checkable cases, a headless runner, a scoring definition written first, a per-provider table on a public page. Extends HT-3. | A number beats an adjective in a directory listing; the fixtures and expected answers already exist. | Claude | LEAD-1, HT-3 | L | P2 | Not started | codebase analysis 2026-10-28 |
+| LEAD-6 | Directory listing pack and adoption material: metadata and tags checked against the directory rules, screenshots from the fixtures, a two-minute demo, worked examples per tool family, a fair comparison page, monthly download/rating record, two pilot teams. | Visibility, not features, is the current limit (OWN-12 still open; fewer than ten stars). | Both | LEAD-1, OWN-12 | M | P1 | Not started | codebase analysis 2026-10-28 |
+| LEAD-7 | Structural debt after LEAD-4: split the largest modules (agent_orchestrator, analysis_tools, vector_tools, layout_tools), burn down the 504 broad-except baseline with a ratchet test, typed result shapes for one tool family. Plan to be written when LEAD-4 lands. | Reviewers notice size and broad excepts first; it does not cause wrong answers the way dropped arguments do, so it follows LEAD-4. | Claude | LEAD-4 | XL | P3 | Not started | codebase analysis 2026-10-28 |
+
 ## Counts by status
 
 | Status | Rows |
 |---|---|
-| Not started | 31 |
+| Not started | 37 |
+| Decision needed | 13 |
 | In progress | 13 |
-| Decision needed | 11 |
 | Waiting on you | 11 |
 | Blocked | 5 |
 | Closed | 2 |
 | Closed (record) | 1 |
-| **Total** | **74** |
+| **Total** | **82** |
 
 ## How to keep it current
 
@@ -185,3 +200,7 @@ Newest last. One line per status change; written by `tools/master_list.py set`.
 - 2026-10-28: DEF-18 Not started -> In progress. 2026-10-28 cause found in the C5/A6 evidence: population_access_gap had no speed_field/direction_field, so 'using speed_blocked' was ignored (1,028 = bridge passable, 994 = blocked). Now passed through (PLAN-029 item 4); unreleased. The loop-guard stop: the first call also carried no speed field; not reproduced
 - 2026-10-28: DEF-18 In progress -> In progress. 2026-10-28 correction: the 1,028 vs 994 gap is most likely the missing speed field (the C5 first call carried none), not proven. Fix stands on its own: population_access_gap now takes speed_field/direction_field (PLAN-029 item 4); unreachable by the loop-guard stop, not reproduced
 - 2026-10-28: DEF-17 Not started -> In progress. 2026-10-28 E2 read from the evidence: the tool result carried the blockers; its write PREVIEW did not, nor that jf_pre_sev would be empty (2 of 8 sectors is by design). The preview now carries both (PLAN-029 item 5). The other eight model-choice rows still need the Claude-provider rerun (OWN-15)
+- 2026-10-28: RM-A Decision needed -> Decision needed. Plan written: docs/plans/PLAN-031-verified-result-gate.md (2026-10-28). Starts when LEAD-1 fixes the order
+- 2026-10-28: RM-B Decision needed -> Decision needed. Plan written: docs/plans/PLAN-032-canvas-as-an-image.md (2026-10-28). Starts when LEAD-1 fixes the order
+- 2026-10-28: RM-F Not started -> Not started. Plan written: docs/plans/PLAN-034-mcp-server.md (2026-10-28). Depends on RM-A
+- 2026-10-28: OWN-5 Decision needed -> Decision needed. 2026-10-28: widened by LEAD-1 (positioning and order); answer there
