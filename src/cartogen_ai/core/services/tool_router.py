@@ -823,6 +823,105 @@ _STOPWORDS = {
 _PROCESSING_GENERIC_TOOLS = frozenset({"find_processing_algorithm", "run_allowlisted_processing_algorithm"})
 
 
+def _query_terms(user_query):
+    """(lower-cased query, is it a long request, scoring words). _STOPWORDS are removed from the scoring words only: the lower-cased
+    query keeps every word, since a multi-word curated alias like "rank the districts" is matched as a whole substring, not word by word."""
+    query_lower = user_query.lower()
+    long_query = len(user_query.split()) > _LONG_QUERY_WORDS
+    query_tokens = set(re.findall(r'\w+', query_lower))
+    query_words = set()
+    for token in query_tokens:
+        if token not in _STOPWORDS:
+            query_words.add(token)
+        if "_" in token:
+            query_words.update(w for w in token.split("_") if w not in _STOPWORDS)
+    return query_lower, long_query, query_words
+
+
+def _add_capability_tools(always_include, user_query, known_names):
+    """Adds to `always_include` (in place) the tools the request's DATA SOURCES and ACTIONS require (core/agent/capabilities.py), claimed
+    before any description-word scoring: a long request used to fill the slots with weak description matches (a dashboard, PDF-table and
+    NDWI tool for a water-service request) and leave out the tools the steps actually needed. Bounded, and only registered names count.
+    Any failure inside keeps what was already added, as the inline code this was lifted from did."""
+    with contextlib.suppress(Exception):
+        from ..agent.capabilities import required_tools
+        always_include |= {n for n in required_tools(user_query) if n in known_names}
+        from ..agent.capabilities import is_multi_step, uncovered_capabilities
+        if (uncovered_capabilities(user_query) or is_multi_step(user_query)) and "find_tools" in known_names:
+            always_include.add("find_tools")      # a step with no dedicated tool, or a workflow: let the model look tools up
+        if is_multi_step(user_query) and "run_steps" in known_names:
+            always_include.add("run_steps")       # a workflow: let the model send a whole known chain in one round trip
+            from ..agent.capabilities import needed_capabilities
+            from ..agent.chains import chains_for
+            for chain in chains_for([c for c, _t, _v in needed_capabilities(user_query)]):
+                # run_steps only accepts tools that were offered, so offer the chain's own
+                always_include |= {st["tool"] for st in chain["steps"] if st["tool"] in known_names}
+
+
+def _algorithm_topic_match(user_query):
+    """A request that describes WHAT is wanted ("fill the gaps in my elevation raster", "which areas are visible from this point") rather
+    than naming an algorithm: the topic index (core/agent/algorithm_topics.py) finds the approved algorithms that fit, and the two generic
+    Processing tools are offered, so the model can search and run them. Without this only an algorithm's own name reached them (rc45 smoke
+    run: every test prompt spelled the name and id)."""
+    matched = False
+    with contextlib.suppress(Exception):
+        from ..agent.algorithm_topics import algorithms_for_task
+        from ..agent.algorithm_topics import rank as _rank_algorithms
+        matched = bool(_rank_algorithms(user_query, limit=1))
+        if not matched:
+            # a request the task register recognises, whose task names approved algorithms, is told about them (task_directive), so the
+            # two generic Processing tools must be among the offered ones for that advice to be usable
+            from ..agent.task_matcher import classify
+            verdict = classify(user_query)
+            best = verdict.get("best")
+            matched = bool(best and not (verdict["ambiguous"] and verdict["reason"] == "below confidence floor")
+                           and algorithms_for_task(best.get("id")))
+    return matched
+
+
+def _score_tool(name, desc, query_words, long_query, alias_query_lower, algorithm_topic_match):
+    """Relevance of one (non always-included) tool to the request: name words +10, description words +2 each (capped for a long request),
+    curated aliases +_ALIAS_MATCH_SCORE each, and the two generic Processing tools +_ALIAS_MATCH_SCORE on a topic match."""
+    # Word-boundary matching, not substring containment -- 2026-09-12, from a live
+    # token-usage report: a plain "hi" was costing ~8K tokens in wholly irrelevant tool
+    # schemas because `"hi" in "histogram_equalization"` (and highlight_features,
+    # hillshade) is True as a raw substring check, even though "hi" never appears there
+    # as an actual word. Same bug hit longer words too, just less obviously: "there" (5
+    # chars, already past the old length guard) still substring-matched inside "whereby"
+    # and 6 other tool descriptions. Splitting the tool name on "_" and tokenizing the
+    # description with the same \w+ regex used for query_words turns both checks into
+    # real word-boundary membership tests instead of "is this text contained anywhere in
+    # that text" -- the length guards below are now a secondary noise filter (e.g. "to"),
+    # not the only thing standing between a short query word and a false match.
+    # Generic words are discounted only for a LONG request, which is where the measurement that justified it was made. For a
+    # short one ("zoom to the layer", "create layer for Jordan ADM1", "remove the layer X") "layer", "add", "export", "create" ARE the
+    # signal: from rc23 on the discount applied to every request, add_layer_from_path, remove_layer, zoom_to_layer, export_layer and
+    # the other layer tools stopped being offered, and ties were then broken alphabetically (apply_*, calculate_*). Found by replaying
+    # 40 plain requests against every release (tests/test_tool_router_basics.py is the permanent guard).
+    name_words = set(name.lower().split("_"))
+    if long_query:
+        name_words -= _GENERIC_NAME_WORDS
+    desc_words = set(re.findall(r"\w+", desc))
+
+    score = 0
+    # Name match score
+    if query_words & {w for w in name_words if len(w) > 2}:
+        score += 10
+
+    # Description match score -- capped: in a 70-100 word request nearly every tool description shares a few ordinary words
+    # ("all", "points", "layer"), so uncapped +2 per word let description noise outrank real name and alias matches.
+    description_hits = sum(1 for word in query_words if len(word) > 2 and word in desc_words)
+    score += 2 * (min(description_hits, _DESCRIPTION_HIT_CAP) if long_query else description_hits)
+
+    # Curated alias/synonym match score
+    for alias in _TOOL_ALIASES.get(name, []):
+        if alias in alias_query_lower:
+            score += _ALIAS_MATCH_SCORE
+    if algorithm_topic_match and name in _PROCESSING_GENERIC_TOOLS:
+        score += _ALIAS_MATCH_SCORE
+    return score
+
+
 class ToolRouter:
     """Keyword & intent-based tool schema selector."""
 
@@ -840,18 +939,7 @@ class ToolRouter:
         if len(self.full_schema_list) <= top_k:
             return self.full_schema_list
 
-        query_lower = user_query.lower()
-        long_query = len(user_query.split()) > _LONG_QUERY_WORDS
-        # _STOPWORDS removed here only -- query_lower (used by the separate curated-alias
-        # check below) keeps every word, since a multi-word alias phrase like "rank the
-        # districts" is matched as a whole substring, not word-by-word.
-        query_tokens = set(re.findall(r'\w+', query_lower))
-        query_words = set()
-        for token in query_tokens:
-            if token not in _STOPWORDS:
-                query_words.add(token)
-            if "_" in token:
-                query_words.update(w for w in token.split("_") if w not in _STOPWORDS)
+        query_lower, long_query, query_words = _query_terms(user_query)
 
         # Alias matching only -- see _FUZZY_TYPO_VOCAB's docstring. Never touches query_words
         # itself, so name/description scoring (and every existing test asserting on it) is
@@ -882,19 +970,7 @@ class ToolRouter:
         # Tools the request's DATA SOURCES and ACTIONS require (core/agent/capabilities.py), claimed before any description-word
         # scoring: a long request used to fill the slots with weak description matches (a dashboard, PDF-table and NDWI tool for a
         # water-service request) and leave out the tools the steps actually needed. Bounded, and only registered names count.
-        with contextlib.suppress(Exception):
-            from ..agent.capabilities import required_tools
-            always_include |= {n for n in required_tools(user_query) if n in known_names}
-            from ..agent.capabilities import is_multi_step, uncovered_capabilities
-            if (uncovered_capabilities(user_query) or is_multi_step(user_query)) and "find_tools" in known_names:
-                always_include.add("find_tools")      # a step with no dedicated tool, or a workflow: let the model look tools up
-            if is_multi_step(user_query) and "run_steps" in known_names:
-                always_include.add("run_steps")       # a workflow: let the model send a whole known chain in one round trip
-                from ..agent.capabilities import needed_capabilities
-                from ..agent.chains import chains_for
-                for chain in chains_for([c for c, _t, _v in needed_capabilities(user_query)]):
-                    # run_steps only accepts tools that were offered, so offer the chain's own
-                    always_include |= {st["tool"] for st in chain["steps"] if st["tool"] in known_names}
+        _add_capability_tools(always_include, user_query, known_names)
         # At most six carried tools, so a long previous turn cannot crowd the relevant ones out of top_k.
         always_include |= {n for n in tuple(carry_over_tools or ())[:6] if n in known_names and n != "execute_pyqgis_script"}
         fallback_tool = "execute_pyqgis_script"
@@ -902,19 +978,7 @@ class ToolRouter:
         # rather than naming an algorithm: the topic index (core/agent/algorithm_topics.py) finds the approved algorithms that fit, and the
         # two generic Processing tools are offered, so the model can search and run them. Without this only an algorithm's own name
         # reached them (rc45 smoke run: every test prompt spelled the name and id).
-        algorithm_topic_match = False
-        with contextlib.suppress(Exception):
-            from ..agent.algorithm_topics import algorithms_for_task
-            from ..agent.algorithm_topics import rank as _rank_algorithms
-            algorithm_topic_match = bool(_rank_algorithms(user_query, limit=1))
-            if not algorithm_topic_match:
-                # a request the task register recognises, whose task names approved algorithms, is told about them (task_directive), so the
-                # two generic Processing tools must be among the offered ones for that advice to be usable
-                from ..agent.task_matcher import classify
-                verdict = classify(user_query)
-                best = verdict.get("best")
-                algorithm_topic_match = bool(best and not (verdict["ambiguous"] and verdict["reason"] == "below confidence floor")
-                                             and algorithms_for_task(best.get("id")))
+        algorithm_topic_match = _algorithm_topic_match(user_query)
 
         # Sort deterministically by tool name instead of randomizing -- 2026-09-19, live-
         # verified follow-up to the "hi" fix above. random.shuffle() reordered the whole tool
@@ -945,43 +1009,7 @@ class ToolRouter:
                 scored_tools.append((1000, tool_obj))
                 continue
 
-            # Word-boundary matching, not substring containment -- 2026-09-12, from a live
-            # token-usage report: a plain "hi" was costing ~8K tokens in wholly irrelevant tool
-            # schemas because `"hi" in "histogram_equalization"` (and highlight_features,
-            # hillshade) is True as a raw substring check, even though "hi" never appears there
-            # as an actual word. Same bug hit longer words too, just less obviously: "there" (5
-            # chars, already past the old length guard) still substring-matched inside "whereby"
-            # and 6 other tool descriptions. Splitting the tool name on "_" and tokenizing the
-            # description with the same \w+ regex used for query_words turns both checks into
-            # real word-boundary membership tests instead of "is this text contained anywhere in
-            # that text" -- the length guards below are now a secondary noise filter (e.g. "to"),
-            # not the only thing standing between a short query word and a false match.
-            # Generic words are discounted only for a LONG request, which is where the measurement that justified it was made. For a
-            # short one ("zoom to the layer", "create layer for Jordan ADM1", "remove the layer X") "layer", "add", "export", "create" ARE the
-            # signal: from rc23 on the discount applied to every request, add_layer_from_path, remove_layer, zoom_to_layer, export_layer and
-            # the other layer tools stopped being offered, and ties were then broken alphabetically (apply_*, calculate_*). Found by replaying
-            # 40 plain requests against every release (tests/test_tool_router_basics.py is the permanent guard).
-            name_words = set(name.lower().split("_"))
-            if long_query:
-                name_words -= _GENERIC_NAME_WORDS
-            desc_words = set(re.findall(r"\w+", desc))
-
-            score = 0
-            # Name match score
-            if query_words & {w for w in name_words if len(w) > 2}:
-                score += 10
-
-            # Description match score -- capped: in a 70-100 word request nearly every tool description shares a few ordinary words
-            # ("all", "points", "layer"), so uncapped +2 per word let description noise outrank real name and alias matches.
-            description_hits = sum(1 for word in query_words if len(word) > 2 and word in desc_words)
-            score += 2 * (min(description_hits, _DESCRIPTION_HIT_CAP) if long_query else description_hits)
-
-            # Curated alias/synonym match score
-            for alias in _TOOL_ALIASES.get(name, []):
-                if alias in alias_query_lower:
-                    score += _ALIAS_MATCH_SCORE
-            if algorithm_topic_match and name in _PROCESSING_GENERIC_TOOLS:
-                score += _ALIAS_MATCH_SCORE
+            score = _score_tool(name, desc, query_words, long_query, alias_query_lower, algorithm_topic_match)
 
             scored_tools.append((score, tool_obj))
 
