@@ -15,6 +15,14 @@ _ALL_PROVIDER_CHOICES = [
 # Quick switcher lists only the providers this build enables (settings_keys.ENABLED_PROVIDERS).
 PROVIDER_CHOICES = [c for c in _ALL_PROVIDER_CHOICES if c[1] in ENABLED_PROVIDERS]
 
+# Experimental CLI providers (PLAN-038) are not in the quick switcher's fixed list; the dock adds the one in use so the switcher shows
+# what is actually active (settings_keys.CLI_PROVIDERS, off unless the user opted in).
+CLI_PROVIDER_LABELS = {
+    "claude_cli": "Claude Code CLI (experimental)",
+    "codex_cli": "Codex CLI (experimental)",
+    "gemini_cli": "Gemini CLI (experimental)",
+}
+
 # Module-level (not a local in some widget's init_ui) so the Help tab can list the same
 # example prompts as the Chat tab's quick suggestion chips without a second, driftable
 # copy of the text.

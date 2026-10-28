@@ -210,3 +210,4 @@ Newest last. One line per status change; written by `tools/master_list.py set`.
 - 2026-10-28: DEF-20 Not started -> In progress. fixed in code (orchestrator forwards sublayer), offline test fails without the fix; CI-only until the hand row: open a named layer of the smoke GeoPackage
 - 2026-10-28: LEAD-8 In progress -> In progress. runner + Claude and Codex adapters built, CI-only; spike (tools/cli_bridge_spike.py --cli claude|codex) waits for the owner (SPIKE-1); Gemini not started
 - 2026-10-28: LEAD-8 In progress -> In progress. runner + Claude, Codex and Gemini adapters built, CI-only; spike (tools/cli_bridge_spike.py --cli claude|codex|gemini) waits for the owner (SPIKE-1); Settings wiring waits for the spike
+- 2026-10-28: LEAD-8 In progress -> In progress. adapters wired into Settings behind an opt-in box (off by default), CI-only; owner: tick the box, reopen Settings, run the spike (SPIKE-1); Settings 'Test connection' and hand-test rows not done

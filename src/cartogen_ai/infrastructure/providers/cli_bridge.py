@@ -317,6 +317,19 @@ def estimate_usage(prompt, reply):
     return {"input_tokens": max(1, len(prompt) // 4), "output_tokens": max(1, len(reply) // 4), "estimated": True}
 
 
+class _AgentStop:
+    """Adapts the agent's Stop button (core/agent/cancel_signal) to the `.is_set()` the runner polls, so pressing Stop ends the CLI
+    process instead of waiting for the call to time out."""
+
+    @staticmethod
+    def is_set():
+        try:
+            from ...core.agent import cancel_signal
+            return cancel_signal.is_cancelled()
+        except Exception:
+            return False
+
+
 class _CliClient(BaseAiProvider):
     """Shared client flow: build the prompt, run the CLI in an empty temp folder, parse the answer into the plugin's message shape.
     A subclass supplies the command line and the output parser; everything that keeps the CLI inside the plugin's gates (no shell,
@@ -332,7 +345,7 @@ class _CliClient(BaseAiProvider):
         self.executable = executable or self.default_exe
         self.model = model
         self.timeout = timeout
-        self.cancel_event = cancel_event
+        self.cancel_event = cancel_event if cancel_event is not None else _AgentStop()
         self._status_callback = status_callback
 
     def _emit_status(self, text):
