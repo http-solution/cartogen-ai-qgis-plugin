@@ -36,6 +36,7 @@ isn't" gap point 2 itself describes.
 
 import json
 import time
+from collections.abc import Callable
 
 try:
     from qgis.core import QgsProject  # noqa: F401 -- import used only to gate QGIS_AVAILABLE
@@ -175,6 +176,18 @@ def set_initial_status(layer, status="INGESTED", note=None) -> dict:
     return {"success": True, "status": status}
 
 
+# Checks that need a tool (topology diagnosis, the map QA checklist) are supplied BY those tools through register_check_runner when
+# they are imported. This module used to import the tools itself (a model reaching up into the tools layer, PLAN-040 stage 3); now the
+# dependency points the right way. Registered by tools/vector_tools.py and tools/qa_checklist_tools.py.
+_CHECK_RUNNERS: dict[str, Callable] = {}
+
+
+def register_check_runner(check_name, runner):
+    """Called by a tool module at import time. `runner` must look the tool function up when it is CALLED (a lambda over the module
+    global), not capture it, so a test that patches the tool still takes effect."""
+    _CHECK_RUNNERS[check_name] = runner
+
+
 def _run_automated_check(check_name, layer, contract_name=None, layout_name=None):
     """Runs one of the real, wired-in automated checks. Returns
     (passed: bool, detail: dict).
@@ -219,8 +232,10 @@ def _run_automated_check(check_name, layer, contract_name=None, layout_name=None
     if check_name == "geometry_validity":
         if not hasattr(layer, "getFeatures"):
             return False, {"error": "geometry_validity only applies to vector layers."}
-        from ..agent.tools.vector_tools import diagnose_topology
-        result = diagnose_topology(layer.name())
+        runner = _CHECK_RUNNERS.get("geometry_validity")
+        if runner is None:
+            return False, {"error": "geometry_validity needs the topology tool, which is not loaded."}
+        result = runner(layer.name())
         if "error" in result:
             return False, result
         passed = (
@@ -270,8 +285,10 @@ def _run_automated_check(check_name, layer, contract_name=None, layout_name=None
     if check_name == "map_qa":
         if layout_name is None:
             return False, {"error": "map_qa check requires a layout_name."}
-        from ..agent.tools.qa_checklist_tools import generate_map_product_qa_checklist
-        result = generate_map_product_qa_checklist(layer.name(), layout_name=layout_name)
+        runner = _CHECK_RUNNERS.get("map_qa")
+        if runner is None:
+            return False, {"error": "map_qa needs the QA checklist tool, which is not loaded."}
+        result = runner(layer.name(), layout_name=layout_name)
         if "error" in result:
             return False, result
         categories = result.get("categories", {})

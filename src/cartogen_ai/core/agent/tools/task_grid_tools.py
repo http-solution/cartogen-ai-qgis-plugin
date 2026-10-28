@@ -16,7 +16,7 @@ import json
 import math
 import tempfile
 
-from . import _chunked as _ck
+from ... import _chunked as _ck
 from ._paths import safe_file_stem, unique_path
 from .registry import register_tool
 from ._layer_checks import require_valid_layer

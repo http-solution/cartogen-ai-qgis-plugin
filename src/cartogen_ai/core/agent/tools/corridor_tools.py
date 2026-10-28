@@ -7,7 +7,7 @@ native:difference), so these are thin, checked wrappers that add what Processing
 metadata, and a styled result."""
 import os
 
-from . import _chunked as _ck
+from ... import _chunked as _ck
 from ._paths import temp_location_note
 from .registry import register_tool
 from ._qgis_enum_compat import resolve_qgis_enum  # noqa: F401  (kept for sibling modules' symmetry)

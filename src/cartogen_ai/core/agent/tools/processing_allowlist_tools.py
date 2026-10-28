@@ -19,7 +19,7 @@ preference, not a replacement.
 
 import contextlib
 from .registry import register_tool
-from . import _background_processing as _bg
+from ... import _background_processing as _bg
 from ._processing_allowlist import (ALLOWED_ALGORITHM_IDS, FILE_VECTOR_ALGORITHM_IDS, GRASS_ALGORITHM_IDS, MUTATES_INPUT_ALGORITHM_IDS,
                                     RASTER_OUTPUT_ALGORITHM_IDS, parameter_violation)
 

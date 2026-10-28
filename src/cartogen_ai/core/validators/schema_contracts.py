@@ -68,7 +68,7 @@ except ImportError:
 def _features(layer, label):
     """layer.getFeatures() sliced so QGIS keeps repainting and Stop works (tools/_chunked.py). Imported when called, not at import time:
     the tools package imports these validators."""
-    from ..agent.tools import _chunked
+    from .. import _chunked
     return _chunked.features(layer, label)
 
 

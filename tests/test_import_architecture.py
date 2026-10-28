@@ -35,14 +35,7 @@ FORBIDDEN = {
 }
 
 # Edges that still break a rule. Remove a line when the edge is fixed; the test fails if a listed edge is gone.
-KNOWN_VIOLATIONS = {
-    # a model reaching into tool modules (deferred imports): dataset_status should receive what it needs instead of calling the tools
-    ("core.models.dataset_status", "core.agent.tools.qa_checklist_tools"),
-    ("core.models.dataset_status", "core.agent.tools.vector_tools"),
-    # the chunked-iteration helper lives with the tools although validators use it; needs a neutral home
-    ("core.validators.pcode_validation", "core.agent.tools._chunked"),
-    ("core.validators.schema_contracts", "core.agent.tools._chunked"),
-}
+KNOWN_VIOLATIONS = set()
 
 # Modules that take part in an import cycle only through imports made inside functions (lazy imports). No module may join a cycle, and a
 # module that leaves one must be removed from this set. Stage 2 of the plan removes the styling cluster.
@@ -52,8 +45,6 @@ KNOWN_CYCLIC_MODULES = {
     "core.agent.tools.logistics_tools", "core.agent.tools.multimodal_remote_sensing", "core.agent.tools.output_style",
     "core.agent.tools.raster_tools", "core.agent.tools.styling_tools", "core.agent.tools.table_importers",
     "core.agent.tools.vector_tools",
-    "core.agent.provenance", "core.agent.tools.dataset_status_tools", "core.agent.tools.provenance_tools",
-    "core.agent.tools.qa_checklist_tools", "core.models.dataset_status",
     "core.agent.agent_orchestrator", "core.agent.prompts", "core.agent.tools", "core.agent.tools.data_export_tools",
 }
 
@@ -114,6 +105,61 @@ class TestImportArchitecture(unittest.TestCase):
         self.assertIs(old_selector, model_selector)
         self.assertIs(old_ops, tool_operations)
         self.assertIs(sys.modules["cartogen_ai.core.agent.cancel_signal"], cancel_signal)
+
+
+class TestEveryRelativeImportResolves(unittest.TestCase):
+    """A module moved to another package keeps its old relative imports; one that is wrong from the new place raises ImportError only when
+    it runs. PLAN-040 stage 3 moved _background_processing to core/ with `from ....infrastructure` still in a function: the live job found
+    it because `except Exception: return True` made the "turn background analysis off" setting silently do nothing. This test fails offline
+    for any relative import (even inside a function) whose target module does not exist."""
+
+    def test_the_target_of_every_relative_import_exists(self):
+        import ast
+        import os
+
+        src = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src")
+        problems = []
+        for dirpath, _dirs, files in os.walk(os.path.join(src, "cartogen_ai")):
+            for fname in files:
+                if not fname.endswith(".py"):
+                    continue
+                path = os.path.join(dirpath, fname)
+                rel = os.path.relpath(path, src)[:-3].split(os.sep)
+                package = rel[:-1]
+                with open(path, encoding="utf-8") as fh:
+                    tree = ast.parse(fh.read())
+                for node in ast.walk(tree):
+                    if not isinstance(node, ast.ImportFrom) or not node.level:
+                        continue
+                    up = node.level - 1
+                    if up > len(package) - 1:
+                        problems.append(f"{'.'.join(rel)}:{node.lineno} goes above the top-level package")
+                        continue
+                    base = package[: len(package) - up]
+                    target = base + (node.module.split(".") if node.module else [])
+                    as_file = os.path.join(src, *target) + ".py"
+                    as_pkg = os.path.join(src, *target, "__init__.py")
+                    if not (os.path.exists(as_file) or os.path.exists(as_pkg)):
+                        problems.append(f"{'.'.join(rel)}:{node.lineno} imports missing {'.'.join(target)}")
+        self.assertEqual(problems, [])
+
+
+class TestCheckRunnersAreRegisteredByTheTools(unittest.TestCase):
+    def test_importing_the_tools_registers_the_checks_the_model_cannot_import(self):
+        from cartogen_ai.core.agent.tools import qa_checklist_tools, vector_tools  # noqa: F401
+        from cartogen_ai.core.models import dataset_status
+        self.assertIn("geometry_validity", dataset_status._CHECK_RUNNERS)
+        self.assertIn("map_qa", dataset_status._CHECK_RUNNERS)
+
+    def test_a_missing_runner_is_reported_not_raised(self):
+        from unittest import mock
+
+        from cartogen_ai.core.models import dataset_status
+        layer = mock.Mock()
+        with mock.patch.dict(dataset_status._CHECK_RUNNERS, {}, clear=True):
+            passed, detail = dataset_status._run_automated_check("geometry_validity", layer)
+        self.assertFalse(passed)
+        self.assertIn("not loaded", detail["error"])
 
 
 if __name__ == "__main__":

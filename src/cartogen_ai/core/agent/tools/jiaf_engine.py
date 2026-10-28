@@ -39,7 +39,7 @@ the final result and the justification are separate fields throughout (see jiaf_
 import csv
 import os
 
-from . import _chunked as _ck
+from ... import _chunked as _ck
 from .registry import register_tool
 from ._edit_session import EditError, add_numeric_field, edit_command, set_value
 from . import jiaf_rules as rules

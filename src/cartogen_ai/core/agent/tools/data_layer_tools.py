@@ -207,7 +207,7 @@ def package_layers_offline(layer_names, file_path, only_selected=False, confirme
                                     {"layer_names": list(layer_names), "file_path": file_path, "only_selected": only_selected}, path)
         if preview:
             return preview
-    from . import _background_processing as _bg
+    from ... import _background_processing as _bg
     from .raster_tools import _run_in_background
     try:
         result = _run_in_background("native:package", {"LAYERS": layers, "OUTPUT": path, "OVERWRITE": exists, "SAVE_STYLES": True,

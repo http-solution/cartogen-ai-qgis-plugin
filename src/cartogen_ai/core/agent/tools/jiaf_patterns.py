@@ -11,8 +11,8 @@ Severity used here is the FINAL severity where a decision was recorded or the un
 """
 import math
 
-from . import _background_processing as _bg
-from . import _chunked as _ck
+from ... import _background_processing as _bg
+from ... import _chunked as _ck
 from .registry import register_tool
 from ._edit_session import EditError, add_numeric_field, edit_command, set_value
 from .jiaf_engine import run_analysis

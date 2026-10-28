@@ -11,7 +11,7 @@ restyled (only layers these tools create).
 """
 import math
 
-from . import _chunked as _ck
+from ... import _chunked as _ck
 
 try:
     from qgis.core import (QgsCategorizedSymbolRenderer, QgsColorRampShader, QgsFillSymbol, QgsGraduatedSymbolRenderer, QgsLineSymbol,

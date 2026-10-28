@@ -26,7 +26,7 @@ import datetime
 import json
 import os
 
-from . import _chunked as _ck
+from ... import _chunked as _ck
 from .registry import register_tool
 from ._edit_session import EditError, add_numeric_field, edit_command, set_value
 from .jiaf_engine import ranked_pins, rank_of_value, run_analysis

@@ -13,7 +13,7 @@ from ... import net as _net
 import urllib.parse
 import urllib.error
 from datetime import date
-from . import _chunked as _ck
+from ... import _chunked as _ck
 from .registry import register_tool
 from ...logger import log_event
 from ._cache_utils import TTLCache

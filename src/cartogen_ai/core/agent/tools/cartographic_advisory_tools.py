@@ -14,7 +14,7 @@ apply_graduated_style without bypassing the caller. This matches rule 19's
 than adding a second, competing auto-styling path.
 """
 
-from . import _chunked as _ck
+from ... import _chunked as _ck
 from .registry import register_tool
 from .styling_tools import _layer_geometry_kind, _classify_values, _find_layer_by_name
 from . import styling_tools as _styling_tools

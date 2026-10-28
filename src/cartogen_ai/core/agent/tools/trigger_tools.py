@@ -10,7 +10,7 @@ never treated as exceedances. The rule logic is pure and unit tested; reading th
 """
 import datetime
 
-from . import _chunked as _ck
+from ... import _chunked as _ck
 from .registry import register_tool
 
 try:
