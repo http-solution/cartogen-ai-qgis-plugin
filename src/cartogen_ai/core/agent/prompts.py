@@ -781,6 +781,22 @@ def _format_project_inspector(inspector_context: dict) -> str:
     return "\n".join(lines)
 
 
+# Tools that take a date range. The model has no clock, so "last month" becomes dates from its training years unless it is told today's date
+# (1.18.4 hand run A13, DEF-10).
+_DATE_RANGE_TOOLS = frozenset({"search_stac_satellite_imagery", "fetch_usgs_earthquakes", "fetch_ucdp_conflict_events",
+                               "fetch_nasa_active_fires", "fetch_gdacs_disaster_alerts"})
+
+
+def _today_line(active_tool_names, today=None):
+    """One line giving today's date, only when a date-range tool is offered this turn (or when no tool list was given). '' otherwise."""
+    if active_tool_names is not None and not _DATE_RANGE_TOOLS & set(active_tool_names):
+        return ""
+    import datetime
+    day = today or datetime.date.today()
+    return (f"Today's date is {day.isoformat()}. Use it to turn 'last month', 'this week' or 'the last 30 days' into explicit "
+            "start_date and end_date values (YYYY-MM-DD); never guess the year.")
+
+
 def build_system_prompt(task_manager=None, memory_manager=None, map_context=None,
                          user_profile_ctx=None, active_tool_names=None,
                          project_inspector_ctx=None) -> str:
@@ -812,6 +828,10 @@ def build_system_prompt(task_manager=None, memory_manager=None, map_context=None
     at the caller (agent_orchestrator.py's run()), not here -- None simply means "not sent this
     turn," identical to every other optional context parameter's off state."""
     prompt_parts = [_assemble_base_prompt(active_tool_names, rule_overrides={5: _rule_5_text(map_context)})]
+
+    today_text = _today_line(active_tool_names)
+    if today_text:
+        prompt_parts.append("\n" + today_text)
 
     map_ctx_text = _format_map_context(map_context)
     if map_ctx_text:
