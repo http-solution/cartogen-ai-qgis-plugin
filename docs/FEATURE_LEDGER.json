@@ -1414,6 +1414,20 @@
     ],
     "hand_verified": "not verified: CI only (owner hand run 1.18.4 row A10 showed the literal text)",
     "hand_row": "A10"
+  },
+  {
+    "id": "access-gap-uses-the-named-speed-field",
+    "feature": "population_access_gap passes speed_field and direction_field to the service area, so a blocked or slowed network is the one measured",
+    "issues": [],
+    "since": "1.18.6",
+    "sources": [
+      "src/cartogen_ai/core/agent/tools/logistics_tools.py"
+    ],
+    "guards": [
+      "tests/test_logistics_tools.py::TestPopulationAccessGapEstimateFields::test_speed_and_direction_fields_reach_the_service_area"
+    ],
+    "hand_verified": "not verified: CI only (owner hand run 1.18.4 rows C5 and A6: the call had no speed field; the figure differed between runs)",
+    "hand_row": "C5, S3 (with the blocked bridge: the road-buffer figure is 994, not 1,028)"
   }
  ]
 }

@@ -1305,6 +1305,7 @@ class TestPopulationAccessGapEstimateFields(unittest.TestCase):
             mock_processing = stack.enter_context(patch(f"{lt_path}.processing", create=True))
             mock_find = stack.enter_context(patch(f"{lt_path}._find_layer_by_name"))
             mock_calc = stack.enter_context(patch(f"{lt_path}.calculate_service_area"))
+            self.mock_calc = mock_calc
             mock_reach = stack.enter_context(patch(f"{lt_path}._road_reach_polygon"))
             mock_concave = stack.enter_context(patch(f"{lt_path}._concave_reach_polygon"))
             mock_wkb = stack.enter_context(patch(f"{lt_path}.QgsWkbTypes", create=True))
@@ -1344,6 +1345,17 @@ class TestPopulationAccessGapEstimateFields(unittest.TestCase):
                 kw["reach_geometry"] = reach_geometry
             res = population_access_gap(*args, **kw)
             return res, mock_reach, mock_processing
+
+    def test_speed_and_direction_fields_reach_the_service_area(self):
+        """1.18.4 smoke C5/A6: 'using speed_blocked' could not be passed, so the closed bridge stayed passable and the figure was for the wrong network."""
+        self._run(strategy="fastest", speed_field="speed_blocked", direction_field="oneway")
+        kwargs = self.mock_calc.call_args.kwargs
+        self.assertEqual(kwargs["speed_field"], "speed_blocked")
+        self.assertEqual(kwargs["direction_field"], "oneway")
+
+    def test_no_speed_field_still_means_none(self):
+        self._run()
+        self.assertIsNone(self.mock_calc.call_args.kwargs["speed_field"])
 
     def test_propagates_estimate_fields_from_population_exposure(self):
         res, _, _ = self._run()
