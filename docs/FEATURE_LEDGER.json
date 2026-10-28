@@ -1428,6 +1428,20 @@
     ],
     "hand_verified": "not verified: CI only (owner hand run 1.18.4 rows C5 and A6: the call had no speed field; the figure differed between runs)",
     "hand_row": "C5, S3 (with the blocked bridge: the road-buffer figure is 994, not 1,028)"
+  },
+  {
+    "id": "jiaf-write-preview-carries-statement-and-blockers",
+    "feature": "the confirmation preview of compute_jiaf_preliminary carries the standing statement, the open validation blockers, the coverage and a note when severity will be empty",
+    "issues": [],
+    "since": "1.18.6",
+    "sources": [
+      "src/cartogen_ai/core/agent/tools/jiaf_engine.py"
+    ],
+    "guards": [
+      "tests/test_jiaf_engine_live.py::TestJiafEngineLive::test_writing_needs_confirmation_then_writes_the_preliminary_figures"
+    ],
+    "hand_verified": "not verified: CI only (owner hand run 1.18.4 row E2: the reply asking for the confirmation named neither the blockers nor the empty severity)",
+    "hand_row": "E2"
   }
  ]
 }
