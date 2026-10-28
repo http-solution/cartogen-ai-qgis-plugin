@@ -219,3 +219,4 @@ Newest last. One line per status change; written by `tools/master_list.py set`.
 - 2026-10-28: DEF-10 In progress -> In progress. second cause found and fixed: geocode tool not offered for the scene prompt, model not told today's date, malformed dates unexplained; PR open, CI only, no model run; hand rows R1/A13/P5
 - 2026-10-28: DEF-11 In progress -> In progress. second cause fixed: change detection only looked up layer names, now also loaded-file paths and raster files; PR open, CI only; hand rows P2/D6
 - 2026-10-28: DEF-13 In progress -> In progress. audit found 3 more gaps (finished plan message, null status raised, omitted id raised); fixed with tests; PR open, CI only; no hand row
+- 2026-10-28: DEF-17 In progress -> In progress. A5/A6 router gap fixed (place lookup not offered); other 7 rows already offered their tools so need the Claude rerun OWN-15 + eval HT-3; PR open, CI only

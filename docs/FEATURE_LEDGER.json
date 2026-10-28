@@ -1598,6 +1598,22 @@
     ],
     "hand_verified": "not verified: CI only. Checked here: the scene search returned real, cloud-filtered Aden scenes from the live Earth Search service (outside QGIS, through the urllib path, not QGIS's network layer), and the router did not offer geocode_and_enrich for the A13 prompt before this change. No model was run, so whether a model now completes A13 is unproven.",
     "hand_row": "R1 / A13 / P5 in the runbook: 'find Sentinel-2 scenes over Aden for last month with under 20 percent cloud'"
+  },
+  {
+    "id": "place-lookup-offered-with-data-fetches",
+    "feature": "a request to fetch building footprints, population, OSM data or a DEM for a named place is offered geocode_and_enrich along with the fetch tool, so the model can turn the place into an area instead of asking the user for coordinates; 'download population ...' now counts as a population request",
+    "issues": [],
+    "since": "1.18.6",
+    "sources": [
+      "src/cartogen_ai/core/agent/capabilities.py"
+    ],
+    "guards": [
+      "tests/test_runbook_rows_tool_offer.py::TestRunbookRowsOfferTheirTools::test_every_needed_tool_exists_and_is_offered",
+      "tests/test_runbook_rows_tool_offer.py::TestRunbookRowsOfferTheirTools::test_a_place_name_request_is_offered_the_place_lookup_but_a_layer_request_is_not_burdened",
+      "tests/test_capabilities.py::TestTable::test_every_tool_named_in_the_table_is_registered"
+    ],
+    "hand_verified": "not verified: CI only. The router was run on the exact A5 and A6 prompts and did not offer geocode_and_enrich before this change; no model was run, so it is not shown that a model now completes A5 or A6.",
+    "hand_row": "A5 and A6 in the runbook ('get building footprints for a small area in Aden', 'download population for a small area in Aden')"
   }
  ]
 }

@@ -14,7 +14,11 @@ import re
 
 # (id, regex over the lower-cased request, ordered dedicated tools, tools that can cover it when none does)
 _TABLE = (
-    ("osm_data", r"\b(openstreetmap|open street map|osm|overpass)\b", ("fetch_osm_features", "ingest_osm_features"), ()),
+# geocode_and_enrich comes last in each data-fetch row below: "get building footprints for a small area in Aden" names a place but no layer or
+# bounding box, and the router offered no tool that turns the place into an area, so the model asked the user for coordinates (1.18.4 hand run
+# A5, A6; the same gap as A13, DEF-10/DEF-17). Appended after the existing tools so the first two shown in a workflow directive are unchanged.
+    ("osm_data", r"\b(openstreetmap|open street map|osm|overpass)\b", ("fetch_osm_features", "ingest_osm_features", "geocode_and_enrich"), ()),
+    ("building_footprints", r"\bbuilding footprints?\b|\bbuildings? (data|layer) (for|of|in)\b", ("fetch_building_footprints", "geocode_and_enrich"), ()),
     ("hdx_boundaries", r"\b(hdx|humanitarian data exchange|cod-?ab|administrative boundar\w*|admin\s*[0-4])\b",
      ("fetch_hdx_admin_boundaries", "fetch_geoboundaries", "search_hdx_datasets"), ()),
     ("buffer", r"\bbuffers?\b|\bservice buffer\b|\bexclusion zones?\b|\bcircular (study )?area\b|\b\d+(\.\d+)?\s*(km|m|metre|meter)s?\s+(radius|circular)",
@@ -41,9 +45,9 @@ _TABLE = (
     ("elevation_download", (r"\b(srtm|opentopography|terrain tiles?|elevation source|digital elevation)\b"
                             r"|\b(download|fetch|retrieve|pull|grab|obtain|get)\b.{0,40}\b(dem|elevation|terrain)\b"
                             r"|\b(dem|elevation data|terrain data)\s+(for|of|covering|around|over)\s+(?!the\s+(layer|raster|dem|map)\b)"),
-     ("fetch_dem",), ()),
-    ("population_data", r"\b(worldpop|population (raster|grid|data|exposure)|exposed population|people (living|exposed))\b",
-     ("fetch_worldpop_population", "estimate_population_exposure"), ()),
+     ("fetch_dem", "geocode_and_enrich"), ()),
+    ("population_data", r"\b(worldpop|population (raster|grid|data|exposure)|exposed population|people (living|exposed))\b|\b(download|fetch|get|retrieve)\b.{0,25}\bpopulation\b",
+     ("fetch_worldpop_population", "estimate_population_exposure", "geocode_and_enrich"), ()),
     ("pcode_check", r"\bp-?codes?\b.{0,60}\b(valid\w*|check\w*|unique\w*|hierarch\w*|duplicat\w*)|\b(valid\w*|check\w*|verify\w*)\b.{0,40}\bp-?codes?\b",
      ("check_pcode_uniqueness", "check_pcode_hierarchy"), ()),
     ("contours", r"\bcontour\w*\b", ("generate_contours",), ()),
@@ -155,7 +159,7 @@ _PLAIN_NAMES = {
     "length": "length", "centroids": "centroids", "labels": "labels", "graduated_style": "graduated colour style",
     "categorized_style": "categorised colour style", "slope": "slope", "elevation_download": "elevation (DEM) download",
     "contours": "contour lines", "population_data": "population data / exposure", "pcode_check": "P-code validation", "split_lines": "split lines by zones", "walking_access": "walking / travel access",
-    "rank": "rank", "filter_select": "filter / select", "extent": "bounding box", "satellite_scenes": "satellite scene search", "point_from_coordinates": "point from coordinates",
+    "rank": "rank", "filter_select": "filter / select", "extent": "bounding box", "satellite_scenes": "satellite scene search", "building_footprints": "building footprints", "point_from_coordinates": "point from coordinates",
     "zoom": "zoom", "export": "export", "report_numbers": "report totals",
 }
 
