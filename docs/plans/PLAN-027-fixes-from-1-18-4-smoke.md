@@ -35,3 +35,4 @@ Each fix is its own hunk; revert the commit. Released fixes ship as 1.18.5.
 
 ## Status log
 - 2026-10-28: owner returned the 1.18.4 results and the evidence folders. Fixes 1 to 5 written with offline tests (the orchestrator guard was shown to fail without fix 1). Not hand-verified.
+- 2026-10-28: PR merged; version 1.18.5 prepared and published. Not hand-verified.
