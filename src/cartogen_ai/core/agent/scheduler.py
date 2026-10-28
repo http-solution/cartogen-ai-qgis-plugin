@@ -103,7 +103,7 @@ class WorkflowScheduler(QObject):
         Qt every ~50 ms, a second timer (or the same one, if a tick outlasts its interval) can fire in the middle of the first and start
         another analysis on top of it, or run beside a chat request. One heavy job at a time: a tick that would overlap is skipped, counted
         in meta['skipped'], and the next interval tries again (a skipped tick does not use up max_runs)."""
-        from . import cancel_signal
+        from .. import cancel_signal
         if self._running or cancel_signal.request_active():
             meta["skipped"] = meta.get("skipped", 0) + 1
             return False

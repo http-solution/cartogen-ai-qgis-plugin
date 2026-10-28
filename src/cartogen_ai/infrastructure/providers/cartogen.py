@@ -47,7 +47,7 @@ from .base import (
     extract_openai_style_usage, format_http_error, key_in_use_note, format_request_exception,
     HTTPError,
 )
-from ...core.agent.model_selector import filter_chat_model_ids
+from ...core.model_selector import filter_chat_model_ids
 
 # Placeholder only -- no gateway is deployed at this or any other real domain today.
 # service/gateway/ only runs locally (see service/README.md). Now overridable via

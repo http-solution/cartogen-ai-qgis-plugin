@@ -7,7 +7,7 @@ QGIS or the live project, hence both are READ themselves.
 """
 
 from .registry import register_tool
-from .. import tool_operations as _ops
+from ... import tool_operations as _ops
 
 
 @register_tool(

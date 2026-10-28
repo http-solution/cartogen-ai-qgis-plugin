@@ -228,7 +228,7 @@ def _fetch_reliefweb(country, since):
 
 
 def _fetch_news(country, bbox, days, since):
-    from .. import cancel_signal
+    from ... import cancel_signal
     from .system_tools import _geocode_one
     from .web_research_tools import dedupe_articles, fetch_news_articles, news_query
     import time

@@ -13,7 +13,7 @@ from ..agent.agent_orchestrator import DEFAULT_TURN_TOKEN_BUDGET
 from ..agent.chat_persistence import PERSIST_DEFAULT, PERSIST_SETTING_KEY
 from ..agent.memory import PERSIST_PROJECT_MEMORY_KEY
 
-from ..agent.model_selector import AUTO_SENTINEL
+from ..model_selector import AUTO_SENTINEL
 from ..models.model_view import SCHEMA_DISCLOSURE
 from ..services.prompt_refiner import (
     PROFILE_LABELS, DEFAULT_PROFILE,

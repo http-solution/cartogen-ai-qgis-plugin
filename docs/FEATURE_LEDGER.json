@@ -373,7 +373,7 @@
     "sources": [
       "src/cartogen_ai/core/agent/tools/export_tools.py",
       "src/cartogen_ai/core/services/tool_router.py",
-      "src/cartogen_ai/core/agent/tool_operations.py",
+      "src/cartogen_ai/core/tool_operations.py",
       "docs/plans/PLAN-006-wave-e2-info-plots-exports.md"
     ],
     "guards": [

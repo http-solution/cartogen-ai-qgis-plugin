@@ -34,7 +34,7 @@ from ...infrastructure.providers import (
 from ...infrastructure.providers.base import DEFAULT_MAX_TOKENS
 from ...infrastructure.providers.cli_bridge import ClaudeCliClient, CodexCliClient, GeminiCliClient
 from ...infrastructure.providers.cartogen import FALLBACK_MODELS as CARTOGEN_FALLBACK_MODELS
-from .model_selector import AUTO_SENTINEL, classify_complexity, is_cheap_tier, pick_model_for_complexity
+from ..model_selector import AUTO_SENTINEL, classify_complexity, is_cheap_tier, pick_model_for_complexity
 from .tool_dispatcher import ToolDispatcher
 from .usage_tracker import UsageTracker
 from . import call_metrics, loop_guard
@@ -46,7 +46,8 @@ from .tools import TOOL_REGISTRY, TOOLS_SCHEMA
 from .tools._snapshot_registry import get_snapshot_fn
 from .tools.task_tools import bind_agent_context
 from .tools.transaction_tools import bind_transaction_log
-from . import api_trace, arg_repair, evidence, look_followup, step_runner, tool_operations, tool_result as tool_results
+from .. import tool_operations
+from . import api_trace, arg_repair, evidence, look_followup, step_runner, tool_result as tool_results
 from ..models.transactions import TurnTransactionLog
 from ..models.plan_gate import PlanValidationGate
 from ..models import egress_gate
@@ -1695,7 +1696,8 @@ class CartogenAi:
         national road network takes minutes -- can notice Stop and say what it is doing
         (cancel_signal.py). Before this, should_stop was only checked between tool calls, so a
         running tool could not be stopped and QGIS froze until it finished."""
-        from . import cancel_signal, project_session
+        from .. import cancel_signal
+        from . import project_session
         # #147 (audit F11): bind this turn to the project that is open now. A project clear/read bumps the generation, which
         # both stops the turn at its next checkpoint (via the combined should_stop, also polled by long tools) and makes
         # _execute_tool / _append_history refuse to touch whatever project is open by then.

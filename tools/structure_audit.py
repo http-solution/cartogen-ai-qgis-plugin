@@ -44,11 +44,13 @@ def _resolve(mods, packages, current, node):
             basemod = ".".join(base + ([node.module] if node.module else []))
         else:
             basemod = node.module or ""
-        if basemod in mods:
+        # `from . import some_module` depends on some_module, NOT on the package that merely contains it. Counting the package made a false
+        # 30-module "import cycle" through tools/__init__ (which imports every tool); the package is an edge only when a name other than a
+        # submodule is imported from it.
+        submodules = {f"{basemod}.{alias.name}" for alias in node.names if f"{basemod}.{alias.name}" in mods}
+        found |= submodules
+        if basemod in mods and (not submodules or len(submodules) < len(node.names)):
             found.add(basemod)
-        for alias in node.names:
-            if f"{basemod}.{alias.name}" in mods:
-                found.add(f"{basemod}.{alias.name}")
     else:
         for alias in node.names:
             if alias.name in mods:
