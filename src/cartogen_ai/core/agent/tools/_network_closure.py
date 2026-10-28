@@ -14,7 +14,7 @@ routable_network() applies it: if any segment is closed it returns a scratch cop
 is never edited), and says how many were removed. The same rule applies whatever the routing strategy, because a closed road is
 closed whether the user asked for the shortest or the fastest route.
 """
-from . import _chunked as _ck
+from ... import _chunked as _ck
 
 CLOSED_SPEED_KMH = -1.0
 

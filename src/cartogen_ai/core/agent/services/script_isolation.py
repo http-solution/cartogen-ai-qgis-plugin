@@ -64,7 +64,7 @@ _WORKER_START_TIMEOUT_SECONDS = 30
 
 def _features(layer, label):
     """layer.getFeatures() sliced so QGIS keeps repainting and Stop works (tools/_chunked.py); imported when called."""
-    from ..tools import _chunked
+    from ... import _chunked
     return _chunked.features(layer, label)
 
 

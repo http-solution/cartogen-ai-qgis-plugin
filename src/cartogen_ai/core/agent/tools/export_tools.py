@@ -7,7 +7,7 @@ import os
 import json
 import tempfile
 import datetime
-from . import _chunked as _ck
+from ... import _chunked as _ck
 from .registry import register_tool
 from ._paths import resolve_output_path, temp_location_note
 from ._qgis_enum_compat import resolve_qgis_enum

@@ -9,7 +9,7 @@ apply_graduated_style (mean/variance/skewness computed by hand there too).
 import contextlib
 import datetime
 import os
-from . import _chunked as _ck
+from ... import _chunked as _ck
 from .registry import register_tool
 from .humanitarian_style import look_hint
 from .raster_tools import estimate_population_exposure

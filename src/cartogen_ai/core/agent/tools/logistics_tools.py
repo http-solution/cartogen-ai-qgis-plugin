@@ -37,8 +37,8 @@ from .vector_tools import buffer_analysis
 from .analysis_tools import _parse_date, _cap_entries
 from ._qgis_enum_compat import resolve_qgis_enum
 from ...logger import log_event
-from . import _background_processing as _bg
-from . import _chunked as _ck
+from ... import _background_processing as _bg
+from ... import _chunked as _ck
 from ._layer_checks import require_valid_layer
 
 try:

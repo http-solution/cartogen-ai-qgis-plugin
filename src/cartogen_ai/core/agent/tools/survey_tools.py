@@ -17,7 +17,7 @@ Pure logic is unit tested offline; the layer work needs QGIS (tests/test_survey_
 import math
 import statistics
 
-from . import _chunked as _ck
+from ... import _chunked as _ck
 from .registry import register_tool
 from ._layer_checks import require_valid_layer
 

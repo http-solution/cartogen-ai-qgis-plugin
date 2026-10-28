@@ -6,7 +6,7 @@ import difflib
 import math
 import os
 import random
-from . import _chunked as _ck
+from ... import _chunked as _ck
 from .registry import register_tool
 
 try:

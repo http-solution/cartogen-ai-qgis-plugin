@@ -32,7 +32,7 @@ TRANSITIONS entry for "map_qa")."""
 import os
 
 from ...logger import log_event
-from . import _chunked as _ck
+from ... import _chunked as _ck
 from .registry import register_tool
 from ._paths import resolve_output_path
 from ...models import sensitivity as _sens

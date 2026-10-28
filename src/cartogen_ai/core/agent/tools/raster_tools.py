@@ -7,11 +7,11 @@ import math
 import os
 import re
 import tempfile
-from . import _chunked as _ck
+from ... import _chunked as _ck
 from .registry import register_tool
 from ._paths import resolve_output_path
 from ._qgis_enum_compat import resolve_qgis_enum
-from . import _background_processing as _bg
+from ... import _background_processing as _bg
 from ...logger import log_warning, log_error
 from ._layer_checks import require_valid_layer
 
@@ -723,7 +723,7 @@ def _zonal_stats_into_layer(raster, polygon_layer):
     one undoable edit command. An existing zs_ field is overwritten rather than duplicated. Raises on failure."""
     from qgis.core import QgsFeature, QgsField, QgsProcessingContext, QgsVectorLayer
     from qgis.PyQt.QtCore import QVariant
-    from . import _background_processing as _bg
+    from ... import _background_processing as _bg
     from ._edit_session import edit_command
 
     scratch = QgsVectorLayer(f"{QgsWkbTypes.displayString(polygon_layer.wkbType()) or 'Polygon'}?crs={polygon_layer.crs().authid()}"
@@ -784,7 +784,7 @@ def zonal_statistics(raster_layer, vector_layer):
                 result["map_looks"] = [measure_hint(vector_layer, "zs_mean", "The mean raster value per area")]
         return result
     except Exception as e:
-        from . import _background_processing as _bg
+        from ... import _background_processing as _bg
         if isinstance(e, _bg.AnalysisCancelledError):
             return {"error": f"Stopped: {e}", "cancelled": True}
         return {"error": f"zonal_statistics failed: {e}"}

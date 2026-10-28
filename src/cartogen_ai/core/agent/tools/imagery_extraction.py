@@ -357,7 +357,7 @@ def extract_features_from_imagery(raster_layer, output_layer_name=None, min_area
         return masks, (boxes.conf.cpu().numpy() if boxes is not None else [1.0] * len(masks))
 
     try:
-        from . import _background_processing as _bg
+        from ... import _background_processing as _bg
         inferred = _bg.run_callable(_infer, label="Feature extraction (model)")
     except _bg.AnalysisCancelledError as e:
         return {"error": f"Stopped: {e}", "cancelled": True}

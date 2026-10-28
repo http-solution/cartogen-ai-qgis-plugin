@@ -15,7 +15,7 @@ those two tools' side, matching the strategy doc's own stated integration
 path.
 """
 
-from . import _chunked as _ck
+from ... import _chunked as _ck
 from .registry import register_tool
 from ._edit_session import EditError, add_numeric_field, edit_command, set_value
 from ._network_closure import CLOSED_SPEED_KMH

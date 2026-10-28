@@ -36,6 +36,7 @@ isn't" gap point 2 itself describes.
 
 import json
 import time
+from collections.abc import Callable
 
 try:
     from qgis.core import QgsProject  # noqa: F401 -- import used only to gate QGIS_AVAILABLE
@@ -178,7 +179,7 @@ def set_initial_status(layer, status="INGESTED", note=None) -> dict:
 # Checks that need a tool (topology diagnosis, the map QA checklist) are supplied BY those tools through register_check_runner when
 # they are imported. This module used to import the tools itself (a model reaching up into the tools layer, PLAN-040 stage 3); now the
 # dependency points the right way. Registered by tools/vector_tools.py and tools/qa_checklist_tools.py.
-_CHECK_RUNNERS = {}
+_CHECK_RUNNERS: dict[str, Callable] = {}
 
 
 def register_check_runner(check_name, runner):

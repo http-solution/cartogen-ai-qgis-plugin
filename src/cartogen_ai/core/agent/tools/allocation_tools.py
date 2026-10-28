@@ -17,8 +17,8 @@ areas above their ceiling. No rate, price or coefficient is ever supplied by thi
 Areas are identified by feature id, so duplicate names cannot merge two areas. Pure logic is unit tested offline; the layer work needs
 QGIS (tests/test_allocation_tools_live.py, written without a local QGIS).
 """
-from . import _background_processing as _bg
-from . import _chunked as _ck
+from ... import _background_processing as _bg
+from ... import _chunked as _ck
 from .registry import register_tool
 from ._edit_session import EditError, add_numeric_field, edit_command, set_value
 from .humanitarian_style import look_hint

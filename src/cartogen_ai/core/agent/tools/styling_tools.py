@@ -6,7 +6,7 @@ import contextlib
 import math
 import os
 
-from . import _chunked as _ck
+from ... import _chunked as _ck
 from .registry import register_tool
 from ._paths import resolve_output_path
 from .plain_colour import resolve_colour
