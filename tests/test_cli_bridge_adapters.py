@@ -150,5 +150,120 @@ class TestClaudeCliClient(unittest.TestCase):
             self.assertEqual(cb.ClaudeCliClient().complete([{"role": "user", "content": "hi"}]), {"error": "timed out"})
 
 
+def codex_events(*events):
+    return "\n".join(json.dumps(e) for e in events) + "\n"
+
+
+def agent_message(text):
+    return {"type": "item.completed", "item": {"id": "item_1", "type": "agent_message", "text": text}}
+
+
+TURN_DONE = {"type": "turn.completed", "usage": {"input_tokens": 20, "cached_input_tokens": 5, "output_tokens": 6, "reasoning_output_tokens": 4}}
+
+
+class TestCodexArgv(unittest.TestCase):
+    def test_exact_command_line(self):
+        self.assertEqual(cb.codex_argv("/bin/codex"), ["/bin/codex", "exec", "--json", "--sandbox", "read-only", "--skip-git-repo-check",
+                                                       "--ephemeral", "--ignore-user-config", "--ignore-rules", "-"])
+
+    def test_model_goes_before_the_stdin_marker_and_is_validated(self):
+        self.assertEqual(cb.codex_argv("c", "gpt-x")[-3:], ["--model", "gpt-x", "-"])
+        for bad in ("a b", "x;rm", "$(id)", "-x", "m\nn"):
+            with self.assertRaises(cb.CliBridgeError):
+                cb.codex_argv("c", bad)
+
+    def test_no_write_access_and_no_prompt_in_argv(self):
+        argv = cb.codex_argv("c")
+        self.assertIn("read-only", argv)
+        self.assertNotIn("workspace-write", argv)
+        self.assertNotIn("--dangerously-bypass-approvals-and-sandbox", argv)
+
+
+class TestParseCodexEvents(unittest.TestCase):
+    def test_answer_and_usage_with_reasoning_counted_as_output(self):
+        out = codex_events({"type": "thread.started", "thread_id": "t"}, {"type": "turn.started"}, agent_message("hi"), TURN_DONE)
+        self.assertEqual(cb.parse_codex_events(out), ("hi", {"input_tokens": 20, "output_tokens": 10}, None))
+
+    def test_last_agent_message_wins(self):
+        out = codex_events(agent_message("draft"), agent_message("final"), TURN_DONE)
+        self.assertEqual(cb.parse_codex_events(out)[0], "final")
+
+    def test_no_usage_event_gives_none(self):
+        self.assertIsNone(cb.parse_codex_events(codex_events(agent_message("x")))[1])
+
+    def test_non_json_lines_between_events_are_skipped(self):
+        out = "Reading prompt from stdin...\n" + codex_events(agent_message("ok"))
+        self.assertEqual(cb.parse_codex_events(out)[0], "ok")
+
+    def test_no_events_or_no_answer_raises(self):
+        for out in ("", "Welcome to Codex", codex_events({"type": "turn.started"}, TURN_DONE)):
+            with self.assertRaises(cb.CliBridgeError):
+                cb.parse_codex_events(out)
+
+    def test_error_and_failed_turn_raise_with_the_message(self):
+        for ev in ({"type": "error", "message": "not logged in"}, {"type": "turn.failed", "error": {"message": "not logged in"}}):
+            with self.assertRaises(cb.CliBridgeError) as cm:
+                cb.parse_codex_events(codex_events(ev, agent_message("ignored")))
+            self.assertIn("not logged in", str(cm.exception))
+
+    def test_acting_on_its_own_is_rejected(self):
+        for kind in ("command_execution", "file_change", "mcp_tool_call", "web_search"):
+            for event in ("item.started", "item.completed"):
+                out = codex_events({"type": event, "item": {"id": "i", "type": kind}}, agent_message("done"))
+                with self.assertRaises(cb.CliBridgeError, msg=f"{event}/{kind}") as cm:
+                    cb.parse_codex_events(out)
+                self.assertIn("on its own", str(cm.exception))
+
+    def test_reasoning_items_are_allowed(self):
+        out = codex_events({"type": "item.completed", "item": {"id": "i", "type": "reasoning", "text": "thinking"}}, agent_message("ok"))
+        self.assertEqual(cb.parse_codex_events(out)[0], "ok")
+
+
+class TestCodexCliClient(unittest.TestCase):
+    def _run(self, stdout, code=0):
+        with patch.object(cb, "find_executable", return_value="/bin/codex"), patch.object(cb, "run_cli", return_value=(code, stdout, "")) as run:
+            result = cb.CodexCliClient(model="gpt-x").complete([{"role": "system", "content": "Be careful."}, {"role": "user", "content": "hi"}], TOOLS)
+        return result, run
+
+    def test_tool_call_round_trip_with_reported_usage(self):
+        reply = '{"tool_calls":[{"name":"delete_layer","arguments":{}}]}'
+        result, run = self._run(codex_events(agent_message(reply), TURN_DONE))
+        self.assertEqual(result["message"]["tool_calls"][0]["function"]["name"], "delete_layer")
+        self.assertEqual(result["usage"], {"input_tokens": 20, "output_tokens": 10})
+        self.assertEqual(result["model"], "gpt-x")
+        argv, stdin = run.call_args.args[0], run.call_args.args[1]
+        self.assertEqual(argv[:2], ["/bin/codex", "exec"])
+        self.assertIn("Be careful.", stdin)           # system text leads the single stdin prompt
+        self.assertIn(cb.REPLY_INSTRUCTIONS, stdin)
+        self.assertNotIn("hi", " ".join(argv))
+
+    def test_plain_answer_with_estimated_usage(self):
+        result, _ = self._run(codex_events(agent_message('{"final": "Hello"}')))
+        self.assertEqual(result["message"]["content"], "Hello")
+        self.assertTrue(result["usage"]["estimated"])
+
+    def test_unknown_tool_is_an_error_dict(self):
+        result, _ = self._run(codex_events(agent_message('{"tool_calls":[{"name":"nope","arguments":{}}]}')))
+        self.assertIn("error", result)
+
+    def test_acting_on_its_own_is_an_error_dict(self):
+        result, _ = self._run(codex_events({"type": "item.started", "item": {"type": "command_execution"}}, agent_message("x")))
+        self.assertIn("on its own", result["error"])
+
+    def test_not_signed_in_exit_is_explained(self):
+        result, _ = self._run("", code=1)
+        self.assertIn("codex login", result["error"])
+
+    def test_missing_cli_is_explained_without_running_anything(self):
+        with patch.object(cb, "find_executable", return_value=None), patch.object(cb, "run_cli") as run:
+            result = cb.CodexCliClient().complete([{"role": "user", "content": "hi"}])
+        self.assertIn("Codex CLI not found", result["error"])
+        run.assert_not_called()
+
+    def test_runs_in_an_empty_temp_folder(self):
+        _, run = self._run(codex_events(agent_message('{"final": "x"}')))
+        self.assertIsNotNone(run.call_args.kwargs["cwd"])
+
+
 if __name__ == "__main__":
     unittest.main()

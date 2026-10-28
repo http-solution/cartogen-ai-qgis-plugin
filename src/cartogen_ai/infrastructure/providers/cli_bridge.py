@@ -6,7 +6,8 @@ orchestrator, previews, confirmations and egress gate are untouched. The CLI's o
 
 Status: SHIPPED AS A MODULE ONLY, not yet selectable in Settings or the orchestrator. UNVERIFIED against a real logged-in CLI: the flags
 below come from Claude Code's CLI reference (code.claude.com/docs/en/cli-reference, read 2026-10-28) and the shape of its `--output-format
-json` result is the documented one, but CI has no CLI and no login. The owner's spike (PLAN-038 acceptance 3) is what verifies it.
+json` result is the documented one; the Codex flags and `--json` event names come from OpenAI's non-interactive-mode page (read 2026-10-28)
+and a third-party event reference. CI has no CLI and no login for either. The owner's spike (PLAN-038 acceptance 3) is what verifies it.
 """
 import contextlib
 import json
@@ -315,11 +316,19 @@ def estimate_usage(prompt, reply):
     return {"input_tokens": max(1, len(prompt) // 4), "output_tokens": max(1, len(reply) // 4), "estimated": True}
 
 
-class ClaudeCliClient(BaseAiProvider):
-    """Claude Code (`claude -p`) used as a model on the user's own login. See the module docstring for status."""
+class _CliClient(BaseAiProvider):
+    """Shared client flow: build the prompt, run the CLI in an empty temp folder, parse the answer into the plugin's message shape.
+    A subclass supplies the command line and the output parser; everything that keeps the CLI inside the plugin's gates (no shell,
+    scrubbed environment, limits, strict reply parsing) lives here and in `run_cli`."""
 
-    def __init__(self, executable="claude", model=None, status_callback=None, timeout=DEFAULT_TIMEOUT_SECONDS, cancel_event=None):
-        self.executable = executable
+    label = ""            # shown to the user: "Claude Code CLI"
+    log_name = ""         # metadata-only log provider name
+    default_exe = ""
+    default_model_name = ""
+    not_signed_in_hint = ""
+
+    def __init__(self, executable=None, model=None, status_callback=None, timeout=DEFAULT_TIMEOUT_SECONDS, cancel_event=None):
+        self.executable = executable or self.default_exe
         self.model = model
         self.timeout = timeout
         self.cancel_event = cancel_event
@@ -330,29 +339,121 @@ class ClaudeCliClient(BaseAiProvider):
             with contextlib.suppress(Exception):
                 self._status_callback(text)
 
-    def complete(self, messages, tools=None, max_tokens=None):  # max_tokens unused: the CLI has no output-token flag
+    def _invoke(self, exe, system_text, prompt, workdir):
+        """Runs the CLI once and returns (reply_text, usage_or_None, model_or_None). Raises CliBridgeError."""
+        raise NotImplementedError
+
+    def complete(self, messages, tools=None, max_tokens=None):  # max_tokens unused: the CLIs have no output-token flag
         exe = find_executable(self.executable)
         if not exe:
-            return {"error": "Claude Code CLI not found. Install it and sign in, or set its path in Settings."}
-        self._emit_status("Using Claude Code CLI" + (f": {self.model}" if self.model else ""))
+            return {"error": f"{self.label} not found. Install it and sign in, or set its path in Settings."}
+        self._emit_status(f"Using {self.label}" + (f": {self.model}" if self.model else ""))
         system_text, prompt = build_prompt(messages, tools)
         names = [(t.get("function", t) or {}).get("name", "") for t in (tools or []) if isinstance(t, dict)]
         started = time.monotonic()
-        # An empty working directory keeps the CLI from reading a project CLAUDE.md or listing files next to the user's data.
+        # An empty working directory keeps the CLI from reading a project instruction file or listing files next to the user's data.
         with tempfile.TemporaryDirectory(prefix="cartogen_cli_") as workdir:
-            system_file = os.path.join(workdir, "system.txt")
-            with open(system_file, "w", encoding="utf-8") as fh:
-                fh.write(system_text)
             try:
-                code, out, _err = run_cli(claude_argv(exe, system_file, self.model), prompt, timeout=self.timeout,
-                                          cancel_event=self.cancel_event, cwd=workdir)
-                if code != 0 and not out.strip():
-                    raise CliBridgeError(f"The Claude CLI exited with status {code}. Is it signed in (`claude` once, then /login)?")
-                text, usage, model = parse_claude_result(out)
+                text, usage, model = self._invoke(exe, system_text, prompt, workdir)
                 message = parse_reply(text, names)
             except CliBridgeError as e:
-                log_event("cli_bridge_error", provider="claude_cli", error_class="CliBridgeError",
+                log_event("cli_bridge_error", provider=self.log_name, error_class="CliBridgeError",
                           duration_ms=int((time.monotonic() - started) * 1000))
                 return {"error": str(e)}
-        log_event("cli_bridge_call", provider="claude_cli", status="ok", duration_ms=int((time.monotonic() - started) * 1000))
-        return {"message": message, "model": model or self.model or "claude-cli", "usage": usage or estimate_usage(prompt, text)}
+        log_event("cli_bridge_call", provider=self.log_name, status="ok", duration_ms=int((time.monotonic() - started) * 1000))
+        return {"message": message, "model": model or self.model or self.default_model_name,
+                "usage": usage or estimate_usage(prompt, text)}
+
+
+class ClaudeCliClient(_CliClient):
+    """Claude Code (`claude -p`) used as a model on the user's own login. See the module docstring for status."""
+    label = "Claude Code CLI"
+    log_name = "claude_cli"
+    default_exe = "claude"
+    default_model_name = "claude-cli"
+
+    def _invoke(self, exe, system_text, prompt, workdir):
+        system_file = os.path.join(workdir, "system.txt")
+        with open(system_file, "w", encoding="utf-8") as fh:
+            fh.write(system_text)
+        code, out, _err = run_cli(claude_argv(exe, system_file, self.model), prompt, timeout=self.timeout,
+                                  cancel_event=self.cancel_event, cwd=workdir)
+        if code != 0 and not out.strip():
+            raise CliBridgeError(f"The Claude CLI exited with status {code}. Is it signed in (`claude` once, then /login)?")
+        return parse_claude_result(out)
+
+
+# ---------------------------------------------------------------------------------------------------------------------------------
+# Codex CLI adapter
+# ---------------------------------------------------------------------------------------------------------------------------------
+
+# Item types in `codex exec --json` that mean Codex acted on its own (ran a command, edited a file, called an MCP tool, searched the
+# web) instead of just answering. Any of these means a step happened outside the plugin's confirmation and egress gates.
+_CODEX_OWN_ACTION_ITEMS = ("command_execution", "file_change", "mcp_tool_call", "web_search")
+
+
+def codex_argv(executable, model=None):
+    """The exact command line for one Codex call. The prompt is read from stdin (the trailing `-`). `--sandbox read-only` stops writes
+    and `--ephemeral` keeps no session file; `--ignore-user-config` and `--ignore-rules` keep the user's own config and exec-policy
+    files from changing what runs. Unlike Claude Code, Codex has no documented switch that removes its shell tool, so
+    `parse_codex_events` rejects a run in which Codex acted on its own."""
+    if model and not _MODEL_RE.match(model):
+        raise CliBridgeError("The model name contains characters that are not allowed.")
+    argv = [executable, "exec", "--json", "--sandbox", "read-only", "--skip-git-repo-check", "--ephemeral", "--ignore-user-config",
+            "--ignore-rules"]
+    if model:
+        argv += ["--model", model]
+    return [*argv, "-"]
+
+
+def parse_codex_events(stdout):
+    """Reads `codex exec --json` output (JSON Lines). Returns (text, usage_or_None, None).
+
+    The answer is the last `item.completed` event whose item type is `agent_message`. Raises when the stream has an error or failed turn,
+    has no answer, or shows Codex ran a command, edited a file, called an MCP tool or searched the web on its own."""
+    events = []
+    for raw in (stdout or "").splitlines():
+        stripped = raw.strip()
+        if stripped.startswith("{"):
+            with contextlib.suppress(ValueError):
+                obj = json.loads(stripped)
+                if isinstance(obj, dict):
+                    events.append(obj)
+    if not events:
+        raise CliBridgeError("The Codex CLI did not return JSON events. Is it a current version (`npm i -g @openai/codex`)?")
+    text = None
+    usage = None
+    for ev in events:
+        kind = ev.get("type")
+        if kind in ("error", "turn.failed"):
+            err = ev.get("error")
+            detail = ev.get("message") or (err.get("message") if isinstance(err, dict) else None)
+            raise CliBridgeError("The Codex CLI reported an error: " + str(detail or kind)[:300])
+        item = ev.get("item") if isinstance(ev.get("item"), dict) else {}
+        if kind and kind.startswith("item.") and item.get("type") in _CODEX_OWN_ACTION_ITEMS:
+            raise CliBridgeError(f"The Codex CLI tried to act on its own ({item.get('type')}) instead of answering; that is not allowed here.")
+        if kind == "item.completed" and item.get("type") == "agent_message" and isinstance(item.get("text"), str):
+            text = item["text"]
+        if kind == "turn.completed" and isinstance(ev.get("usage"), dict):
+            u = ev["usage"]
+            usage = {"input_tokens": int(u.get("input_tokens") or 0), "output_tokens": int(u.get("output_tokens") or 0)
+                     + int(u.get("reasoning_output_tokens") or 0)}
+    if text is None:
+        raise CliBridgeError("The Codex CLI returned no answer.")
+    return text, usage, None
+
+
+class CodexCliClient(_CliClient):
+    """Codex (`codex exec`) used as a model on the user's own login. UNVERIFIED against a real logged-in Codex; see the module docstring."""
+    label = "Codex CLI"
+    log_name = "codex_cli"
+    default_exe = "codex"
+    default_model_name = "codex-cli"
+
+    def _invoke(self, exe, system_text, prompt, workdir):
+        # Codex has no system-prompt slot, so the instructions lead the single stdin prompt.
+        code, out, _err = run_cli(codex_argv(exe, self.model), system_text + "\n\n" + prompt, timeout=self.timeout,
+                                  cancel_event=self.cancel_event, cwd=workdir)
+        if code != 0 and not out.strip():
+            raise CliBridgeError(f"The Codex CLI exited with status {code}. Is it signed in (`codex login`)?")
+        return parse_codex_events(out)
