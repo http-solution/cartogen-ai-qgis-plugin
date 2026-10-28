@@ -25,6 +25,7 @@ from ...infrastructure.providers.ollama import list_models as _list_ollama
 from ...infrastructure.providers.openai import list_models as _list_openai
 from ...infrastructure.providers.claude import list_models as _list_claude
 from ...infrastructure.providers import cli_bridge_status as _cli_status
+from ...infrastructure.providers import provider_check as _provider_check
 from ...infrastructure.providers.cartogen import list_models as _list_cartogen, FALLBACK_MODELS as _CARTOGEN_FALLBACK_MODELS
 from .chat_formatting import build_dock_stylesheet, BRAND_TEAL
 from ...infrastructure.settings_keys import (
@@ -249,6 +250,7 @@ class CartogenAiSettingsDialog(QDialog):
     modelsFetchedSignal = pyqtSignal(str, dict)
     # Same pattern for the CLI connection check (it runs a subprocess and a model call, so never on the UI thread).
     cli_check_signal = pyqtSignal(str, dict)
+    api_check_signal = pyqtSignal(str, dict)  # the Test button of the key-based providers
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -262,6 +264,9 @@ class CartogenAiSettingsDialog(QDialog):
         self._cli_buttons = {}
         self._cli_checking = set()
         self._collapsibles = []
+        self._api_status_labels = {}
+        self._api_test_buttons = {}
+        self._api_testing = set()
         self._key_edits = {}
         self._model_combos = {}
         self._cached_model_lists = {}
@@ -275,6 +280,7 @@ class CartogenAiSettingsDialog(QDialog):
         self._verified_providers = set()
         self.modelsFetchedSignal.connect(self._on_models_fetched)
         self.cli_check_signal.connect(self._on_cli_check)
+        self.api_check_signal.connect(self._on_api_check)
         self.init_ui()
 
     def init_ui(self):
@@ -465,6 +471,24 @@ class CartogenAiSettingsDialog(QDialog):
                 button_holder.setLayout(button_row)
                 page_form.addRow("", button_holder)
                 key_edit.textChanged.connect(lambda text, p=pv: self._cli_status_labels[p].setText(self._cli_quick_status(p, text)))
+
+            if not is_setting and pv in _provider_check.TESTABLE:
+                test_btn = QPushButton("Test")
+                test_btn.setToolTip("Uses what is typed above (it does not have to be saved yet): lists the provider's models, then "
+                                    "asks the chosen model one tiny question (a few tokens of your own key).")
+                test_btn.clicked.connect(lambda _checked=False, p=pv: self._test_api(p))
+                self._api_test_buttons[pv] = test_btn
+                test_row = QHBoxLayout()
+                test_row.addWidget(test_btn)
+                test_row.addStretch(1)
+                test_holder = QWidget()
+                test_holder.setLayout(test_row)
+                page_form.addRow("", test_holder)
+                api_status = QLabel("")
+                api_status.setWordWrap(True)
+                api_status.setStyleSheet("font-size: 11px;")
+                self._api_status_labels[pv] = api_status
+                page_form.addRow("", api_status)
 
             key_help_url = entry.get("key_help_url")
             if key_help_url:
@@ -1024,6 +1048,43 @@ QPushButton#settingsCancelButton {{
             return
         hint = {"install": " Fix the program name or path above.", "signin": " Press Sign in..., finish there, then check again."}
         label.setText(f"Not ready: {result.get('message', 'unknown error')}{hint.get(result.get('stage'), '')}")
+
+    def _test_api(self, provider):
+        """The Test button of a key-based provider: runs provider_check.check_provider on a background thread with the values typed in the
+        form. Nothing is saved by testing."""
+        if provider in self._api_testing:
+            return
+        key_text = self._key_edits[provider].text().strip()
+        model = self._resolve_model_value(provider)
+        model = None if model == AUTO_SENTINEL else model
+        self._api_testing.add(provider)
+        self._api_test_buttons[provider].setEnabled(False)
+        self._api_status_labels[provider].setText("Testing... (lists the models, then asks one short question; can take a minute)")
+
+        def worker():
+            try:
+                result = _provider_check.check_provider(provider, key_text, model)
+            except Exception as e:
+                result = {"ok": False, "stage": "other", "message": f"Unexpected error: {type(e).__name__}", "models": []}
+            with contextlib.suppress(RuntimeError):
+                self.api_check_signal.emit(provider, result)
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _on_api_check(self, provider, result):
+        self._api_testing.discard(provider)
+        self._api_test_buttons[provider].setEnabled(True)
+        label = self._api_status_labels[provider]
+        if result.get("ok"):
+            label.setText(result.get("message", "Works."))
+            if result.get("models"):
+                self._on_models_fetched(provider, {"success": True, "models": result["models"]})  # fills the model box, marks it verified
+            else:
+                self._verified_providers.add(provider)
+                self._rebuild_keys_summary()
+            return
+        hint = _provider_check.HINTS.get(result.get("stage"), "")
+        label.setText(f"Not working: {result.get('message', 'unknown error')}" + (f" {hint}" if hint else ""))
 
     def _signin_cli(self, provider):
         program = self._key_edits[provider].text().strip()
