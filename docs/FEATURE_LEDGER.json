@@ -910,7 +910,8 @@
     "since": "1.18.0 (unreleased change)",
     "sources": ["src/cartogen_ai/core/agent/tools/layout_style.py", "src/cartogen_ai/core/agent/tools/layout_tools.py", "docs/plans/PLAN-021-all-open-issues-and-hand-run-findings.md"],
     "guards": ["tests/test_layout_legend_fit.py::TestLegendFit::test_the_first_scale_that_fits_is_chosen", "tests/test_layout_legend_fit.py::TestLegendFit::test_nothing_fits_returns_none_so_entries_are_dropped", "tests/test_layout_legend_fit.py::TestLegendFit::test_the_title_names_how_many_layers_were_left_out", "tests/test_layout_fit_live.py::TestLayoutFitsItsFrames::test_a_legend_with_far_more_entries_than_its_frame_is_fitted_and_says_so"],
-    "hand_verified": "not verified: CI only; the cause (fixed frame, resizeToContents off, seven layers in 49.5 mm) was read from the owner's 1.18.0 layout file, the fix has not been looked at on a real export"
+    "hand_verified": "not verified: CI only; the cause (fixed frame, resizeToContents off, seven layers in 49.5 mm) was read from the owner's 1.18.0 layout file, the fix has not been looked at on a real export",
+    "hand_row": "layout_check.json check ids for the legend (tools/layout_check_script.py, v2 bundle part A)"
   },
   {
     "id": "layout-footer-check-numbers",
@@ -919,7 +920,8 @@
     "since": "1.18.0 (unreleased change)",
     "sources": ["src/cartogen_ai/core/agent/tools/layout_style.py", "src/cartogen_ai/core/agent/tools/layout_geometry_checks.py", "src/cartogen_ai/core/agent/tools/layout_tools.py"],
     "guards": ["tests/test_layout_legend_fit.py::TestFooterSlack::test_a_shortfall_within_the_padding_counts_as_fitting", "tests/test_layout_legend_fit.py::TestFooterSlack::test_the_same_shortfall_is_a_misfit_without_slack_and_a_real_one_still_is", "tests/test_layout_fit_live.py::TestLayoutFitsItsFrames::test_the_footer_check_reports_its_numbers_and_the_text_fits_the_page"],
-    "hand_verified": "not verified: CI only; whether the owner's Windows fonts still raise the warning is checked by the model-free layout script (PLAN-021 WP-G)"
+    "hand_verified": "not verified: CI only; whether the owner's Windows fonts still raise the warning is checked by the model-free layout script (PLAN-021 WP-G)",
+    "hand_row": "layout_check.json footer checks (tools/layout_check_script.py, v2 bundle part A)"
   },
   {
     "id": "layout-name-as-requested",
@@ -928,7 +930,8 @@
     "since": "1.18.0 (unreleased change)",
     "sources": ["src/cartogen_ai/core/agent/tools/_layout_names.py", "src/cartogen_ai/core/agent/tools/layout_tools.py"],
     "guards": ["tests/test_layout_legend_fit.py::TestLayoutName::test_the_requested_name_is_kept", "tests/test_layout_legend_fit.py::TestLayoutName::test_either_spelling_finds_the_layout", "tests/test_layout_fit_live.py::TestLayoutFitsItsFrames::test_the_layout_keeps_the_name_it_was_asked_for_and_the_old_spelling_still_finds_it"],
-    "hand_verified": "not verified: CI only"
+    "hand_verified": "not verified: CI only",
+    "hand_row": "layout_check.json name check (tools/layout_check_script.py)"
   },
   {
     "id": "hand-test-layout-check-script",
@@ -937,7 +940,8 @@
     "since": "1.18.0 (unreleased change)",
     "sources": ["tools/layout_check_script.py", "tests/test_layout_check_script_live.py", "docs/plans/PLAN-021-all-open-issues-and-hand-run-findings.md"],
     "guards": ["tests/test_layout_check_script_live.py::TestLayoutCheckScript::test_every_check_runs_and_passes_and_the_files_are_written", "tests/test_hand_test_v2.py::TestLayoutCheckScriptShape::test_it_compiles_and_every_check_id_is_unique", "tests/test_hand_test_v2.py::TestLayoutCheckScriptShape::test_it_makes_no_model_call"],
-    "hand_verified": "not verified: CI only (CI's fonts); the owner's Windows fonts are exactly what the script is for"
+    "hand_verified": "not verified: CI only (CI's fonts); the owner's Windows fonts are exactly what the script is for",
+    "hand_row": "run tools/layout_check_script.py on the owner's Windows machine (v2 bundle part A)"
   },
   {
     "id": "hand-test-v2-bundle-and-evidence-checker",
@@ -946,7 +950,8 @@
     "since": "1.18.0 (unreleased change)",
     "sources": ["tools/build_hand_test_v2.py", "tools/check_evidence.py", "docs/HAND_TEST_V2_ROWS.json"],
     "guards": ["tests/test_hand_test_v2.py::TestSheetIsGeneratedAndNotStale::test_the_version_comes_from_metadata_not_from_the_rows", "tests/test_hand_test_v2.py::TestSheetIsGeneratedAndNotStale::test_every_row_states_where_it_starts_and_none_depends_on_another", "tests/test_hand_test_v2.py::TestSheetIsGeneratedAndNotStale::test_the_readme_carries_the_update_steps_the_update_row_points_to", "tests/test_hand_test_v2.py::TestEvidenceChecker::test_a_forbidden_tool_fails_the_row_and_the_tools_are_listed"],
-    "hand_verified": "not verified: offline tests only; no v2 bundle has been run by the owner yet"
+    "hand_verified": "not verified: offline tests only; no v2 bundle has been run by the owner yet",
+    "hand_row": "run a v2 bundle and then tools/check_evidence.py on the returned folder"
   },
   {
     "id": "log-one-tab",
@@ -955,7 +960,8 @@
     "since": "1.18.0 (unreleased change)",
     "sources": ["src/cartogen_ai/core/logger.py", "tools/summarize_usage_log.py"],
     "guards": ["tests/test_log_tags.py::TestOneLogTab::test_every_tag_goes_to_the_one_tab_and_a_component_leads_the_text", "tests/test_log_tags.py::TestOneLogTab::test_the_calls_that_reach_qgis_all_use_the_one_tab", "tests/test_log_tags.py::TestOneLogTab::test_nothing_but_the_logger_talks_to_the_qgis_message_log", "tests/test_log_tags.py::TestOneLogTab::test_the_usage_summary_still_reads_a_prefixed_line"],
-    "hand_verified": "not verified: CI only (QgsMessageLog is replaced by a recorder); the owner's Log Messages panel is the check"
+    "hand_verified": "not verified: CI only (QgsMessageLog is replaced by a recorder); the owner's Log Messages panel is the check",
+    "hand_row": "none: needs a person to open the Log Messages panel; add a row (HT-2)"
   },
   {
     "id": "abandoned-bundles-released-live",
@@ -991,7 +997,8 @@
     "since": "1.18.0 (unreleased change)",
     "sources": ["src/cartogen_ai/core/agent/capabilities.py", "src/cartogen_ai/core/agent/tools/corridor_tools.py", "src/cartogen_ai/core/agent/tools/dem_tools.py"],
     "guards": ["tests/test_wp_d_routing.py::TestALoadedDemIsNotAFetch::test_a_bare_dem_is_not_a_download_request", "tests/test_wp_d_routing.py::TestALoadedDemIsNotAFetch::test_the_router_offers_the_contour_tool_and_no_workflow_runner", "tests/test_wp_d_routing.py::TestALoadedDemIsNotAFetch::test_a_real_download_request_is_still_one", "tests/test_capabilities.py::TestTable::test_steps_without_a_dedicated_tool_are_reported"],
-    "hand_verified": "not verified: CI only. Cause read from the owner's 1.18.0 chat export (fetch_dem failed on the 40-million-cell limit, then the loaded layer was used). Row V3-contour is the hand check"
+    "hand_verified": "not verified: CI only. Cause read from the owner's 1.18.0 chat export (fetch_dem failed on the 40-million-cell limit, then the loaded layer was used). Row V3-contour is the hand check",
+    "hand_row": "V3-contour"
   },
   {
     "id": "repeated-listing-says-why",
@@ -1000,7 +1007,8 @@
     "since": "1.18.0 (unreleased change)",
     "sources": ["src/cartogen_ai/core/agent/loop_guard.py"],
     "guards": ["tests/test_wp_d_routing.py::TestRepeatedListingSaysWhy::test_a_repeated_layout_listing_names_the_next_step", "tests/test_wp_d_routing.py::TestRepeatedListingSaysWhy::test_another_tool_gets_the_plain_sentence"],
-    "hand_verified": "not verified: CI only. Whether the model now adds the profile instead of looping is a model behaviour; row V5-profile is the hand check"
+    "hand_verified": "not verified: CI only. Whether the model now adds the profile instead of looping is a model behaviour; row V5-profile is the hand check",
+    "hand_row": "V5-profile"
   },
   {
     "id": "undo-add-field",
@@ -1009,7 +1017,8 @@
     "since": "1.18.0 (unreleased change)",
     "sources": ["src/cartogen_ai/core/agent/tools/_snapshot_registry.py", "src/cartogen_ai/core/agent/tools/transaction_tools.py", "src/cartogen_ai/core/agent/tools/attribute_edit_tools.py"],
     "guards": ["tests/test_undo_add_field.py::TestSnapshotAndRestore::test_an_empty_field_is_removed", "tests/test_undo_add_field.py::TestSnapshotAndRestore::test_a_filled_field_is_kept_and_the_reason_is_given", "tests/test_undo_add_field.py::TestTheUndoToolPassesTheReasonOn::test_a_refusal_reaches_the_user_instead_of_a_generic_failure", "tests/test_undo_add_field_live.py::TestUndoOfAddField::test_an_empty_new_field_is_taken_away_by_undo", "tests/test_undo_add_field_live.py::TestUndoOfAddField::test_a_field_that_was_filled_after_it_was_added_is_kept", "tests/test_snapshot_registry.py::TestRegistryLookups::test_priority_subset_tools_are_all_registered"],
-    "hand_verified": "not verified: CI only (the rc48 observation was that undo left the field in place; row V9-undo-field is the hand check)"
+    "hand_verified": "not verified: CI only (the rc48 observation was that undo left the field in place; row V9-undo-field is the hand check)",
+    "hand_row": "V9-undo-field"
   },
   {
     "id": "chat-export-after-reopen",
@@ -1027,7 +1036,8 @@
     "since": "1.18.0 (unreleased change)",
     "sources": ["src/cartogen_ai/core/agent/tools/humanitarian_tools.py", "src/cartogen_ai/core/agent/results_store.py"],
     "guards": ["tests/test_persistence_live.py::TestPointLayerIsKeptOrSaidTemporary::test_in_a_saved_project_the_layer_is_kept_and_is_there_after_reopen", "tests/test_persistence_live.py::TestPointLayerIsKeptOrSaidTemporary::test_in_an_unsaved_project_the_result_says_it_is_temporary", "tests/test_persistence_live.py::TestPointLayerIsKeptOrSaidTemporary::test_a_second_point_added_to_the_kept_layer_works", "tests/test_temporary_note.py::TestTemporaryNote::test_an_unsaved_project_is_named_as_the_reason"],
-    "hand_verified": "not verified: CI only (the black raster and labels parts of #120 were closed on rc50 and CI evidence earlier)"
+    "hand_verified": "not verified: CI only (the black raster and labels parts of #120 were closed on rc50 and CI evidence earlier)",
+    "hand_row": "none: no row yet; add one (HT-2)"
   },
   {
     "id": "buffer-then-rename-stays-protected",
@@ -1045,7 +1055,8 @@
     "since": "1.18.0 (unreleased change)",
     "sources": ["src/cartogen_ai/core/agent/tools/reporting_tools.py"],
     "guards": ["tests/test_persistence_live.py::TestCoverageChartIsDrawn::test_the_chart_file_is_a_real_picture_with_ink_on_it", "tests/test_plan010_correctness.py::TestCoverageChartSkipsMissingTargets::test_groups_without_a_target_are_not_plotted_as_zero"],
-    "hand_verified": "not verified: CI only (the 1.18.0 run did not open the chart image)"
+    "hand_verified": "not verified: CI only (the 1.18.0 run did not open the chart image)",
+    "hand_row": "none: no row yet; open the coverage chart image (HT-2)"
   },
   {
     "id": "layout-items-say-whether-they-drew",
@@ -1054,7 +1065,8 @@
     "since": "1.18.0 (unreleased change)",
     "sources": ["src/cartogen_ai/core/agent/tools/layout_chart_profile_tools.py"],
     "guards": ["tests/test_layout_item_ink.py::TestInkVerdict::test_axes_only_is_reported_as_empty_with_what_to_check", "tests/test_layout_item_ink.py::TestInkVerdict::test_the_boundary_is_the_documented_minimum", "tests/test_layout_items_render_live.py::TestLayoutItemsRender::test_every_tool_says_whether_its_item_drew_data", "tests/test_layout_items_render_live.py::TestLayoutItemsRender::test_the_profile_curve_is_there_every_time_it_is_rendered", "tests/test_layout_items_render_live.py::TestLayoutItemsRender::test_the_rendered_items_are_not_empty"],
-    "hand_verified": "not verified: CI only. Placement and the empty bar, pie, line and profile items were fixed under PLAN-008 (CI renders: bar 0.130, pie 0.382, line 0.001, profile 0.011 to 0.012 of their area coloured, two runs); the owner has not looked at them since"
+    "hand_verified": "not verified: CI only. Placement and the empty bar, pie, line and profile items were fixed under PLAN-008 (CI renders: bar 0.130, pie 0.382, line 0.001, profile 0.011 to 0.012 of their area coloured, two runs); the owner has not looked at them since",
+    "hand_row": "layout_check.json item checks and V6-charts"
   },
   {
       "id": "download-redirect-hop-status-via-qgis",
@@ -1069,7 +1081,8 @@
           "tests/test_net.py::TestRedirectedHopFallsBackToTheQgisStack::test_when_qgis_gets_the_same_refusal_that_status_is_raised",
           "tests/test_net.py::TestRedirectedHopFallsBackToTheQgisStack::test_an_ordinary_missing_file_is_not_retried"
       ],
-      "hand_verified": "not verified on the owner machine for HDX. geoBoundaries Yemen ADM1 loaded on the owner machine with the retry on 2026-10-26. The HDX 403 was reproduced in the sandbox with the plugin download code (S3 SignatureDoesNotMatch because Host was copied) and the fixed code downloaded the 4.98 MB file; a retry on the owner machine is still needed"
+      "hand_verified": "not verified on the owner machine for HDX. geoBoundaries Yemen ADM1 loaded on the owner machine with the retry on 2026-10-26. The HDX 403 was reproduced in the sandbox with the plugin download code (S3 SignatureDoesNotMatch because Host was copied) and the fixed code downloaded the 4.98 MB file; a retry on the owner machine is still needed",
+    "hand_row": "K2"
   },
   {
       "id": "every-tool-callable-in-qgis",
@@ -1085,7 +1098,8 @@
           "tests/test_every_tool_live.py::TestEveryToolLive::test_no_tool_raises_or_returns_nothing_on_plausible_arguments",
           "tests/test_every_tool_live.py::TestEveryToolInputsOffline::test_every_required_argument_gets_a_value", "tests/test_every_tool_live.py::TestEveryToolHostileInputsLive::test_layer_of_the_wrong_type", "tests/test_registry_wrong_layer_kind.py::TestWrongLayerKindGuard::test_a_raster_given_where_features_are_needed_becomes_an_error_result", "tests/test_registry_wrong_layer_kind.py::TestWrongLayerKindGuard::test_other_attribute_errors_still_raise"
       ],
-      "hand_verified": "not verified: CI only. Proves a call does not raise; does not prove the result is right"
+      "hand_verified": "not verified: CI only. Proves a call does not raise; does not prove the result is right",
+    "hand_row": "none: a CI-only proof by design (calls every tool); no person can add to it"
   },
   {
       "id": "admin-boundary-borders-stay-visible",
@@ -1101,7 +1115,8 @@
           "tests/test_admin_boundary_style_live.py::TestAdminBoundaryBorders::test_recolour_with_opacity_fades_the_fill_not_the_border",
           "tests/test_admin_boundary_style_live.py::TestAdminBoundaryBorders::test_set_layer_transparency_keeps_the_border_too"
       ],
-      "hand_verified": "not verified: CI only. The look follows the picture the owner attached on 2026-10-26; the owner has not seen the new build"
+      "hand_verified": "not verified: CI only. The look follows the picture the owner attached on 2026-10-26; the owner has not seen the new build",
+    "hand_row": "K1, K3"
   },
   {
       "id": "forecast-trigger-percent-mode",
@@ -1115,7 +1130,8 @@
           "tests/test_trigger_tools.py::TestEvaluate::test_percent_scale_compares_a_0_to_100_column_directly",
           "tests/test_trigger_tools.py::TestEvaluate::test_scale_validation"
       ],
-      "hand_verified": "not verified: offline tests only"
+      "hand_verified": "not verified: offline tests only",
+    "hand_row": "R7"
   },
   {
       "id": "stac-search-cloud-filter",
@@ -1128,7 +1144,8 @@
       "guards": [
           "tests/test_multimodal_remote_sensing.py::TestStacCloudFilter::test_cloud_limit_is_sent_to_the_service_and_echoed"
       ],
-      "hand_verified": "not verified: CI only (owner hand-smoke 2026-10-26 found the defect; the fix has not been re-run)"
+      "hand_verified": "not verified: CI only (owner hand-smoke 2026-10-26 found the defect; the fix has not been re-run)",
+    "hand_row": "R1, A13, P5"
   },
   {
       "id": "route-risk-buffer-in-metres",
@@ -1142,7 +1159,8 @@
           "tests/test_route_risk_metres_live.py::TestRouteRiskUsesMetres::test_500_m_catches_only_the_100_m_incident",
           "tests/test_route_risk_metres_live.py::TestRouteRiskUsesMetres::test_2500_m_catches_two"
       ],
-      "hand_verified": "not verified: CI only (owner hand-smoke 2026-10-26 found the defect; the fix has not been re-run)"
+      "hand_verified": "not verified: CI only (owner hand-smoke 2026-10-26 found the defect; the fix has not been re-run)",
+    "hand_row": "R2, R3"
   },
   {
       "id": "chat-br-and-comparison-spans",
@@ -1156,7 +1174,8 @@
           "tests/test_chat_formatting.py::TestModelBreaksAndComparisonSpans::test_model_written_br_stays_a_break_but_other_tags_stay_escaped",
           "tests/test_chat_formatting.py::TestModelBreaksAndComparisonSpans::test_prices_are_left_alone"
       ],
-      "hand_verified": "not verified: CI only (owner hand-smoke 2026-10-26 found the defect; the fix has not been re-run)"
+      "hand_verified": "not verified: CI only (owner hand-smoke 2026-10-26 found the defect; the fix has not been re-run)",
+    "hand_row": "R6, B6"
   },
   {
       "id": "task-grid-aoi-where",
@@ -1169,7 +1188,8 @@
       "guards": [
           "tests/test_task_grid_tools_live.py::TestGenerateMappingTaskGrid::test_aoi_where_limits_the_area_without_filtering_the_source_layer"
       ],
-      "hand_verified": "not verified: CI only (owner hand-smoke 2026-10-26 found the defect; the fix has not been re-run)"
+      "hand_verified": "not verified: CI only (owner hand-smoke 2026-10-26 found the defect; the fix has not been re-run)",
+    "hand_row": "R8"
   },
   {
       "id": "load-tabular-twice-adds-nothing",
@@ -1182,7 +1202,8 @@
       "guards": [
           "tests/test_load_tabular_twice_live.py::TestLoadTabularTwice::test_second_identical_load_adds_nothing_and_says_so"
       ],
-      "hand_verified": "not verified: CI only (owner hand-smoke 2026-10-26 found the defect; the fix has not been re-run)"
+      "hand_verified": "not verified: CI only (owner hand-smoke 2026-10-26 found the defect; the fix has not been re-run)",
+    "hand_row": "R4, R5"
   },
   {
       "id": "damage-severity-uses-absolute-change",
@@ -1195,7 +1216,8 @@
       "guards": [
           "tests/test_damage_direction_live.py::TestDamageDirection::test_the_district_that_lost_value_is_the_most_severe"
       ],
-      "hand_verified": "not verified: CI only (owner hand run 1.18.3 row D7 found the defect; the fix has not been re-run)"
+      "hand_verified": "not verified: CI only (owner hand run 1.18.3 row D7 found the defect; the fix has not been re-run)",
+    "hand_row": "N1, D7"
   },
   {
       "id": "gdacs-400-retry-and-plain-failure",
@@ -1209,7 +1231,8 @@
           "tests/test_hazard_monitoring_tools.py::TestGdacsFailureHandling::test_a_400_is_retried_once_with_explicit_parameters",
           "tests/test_hazard_monitoring_tools.py::TestGdacsFailureHandling::test_a_persistent_400_is_explained_not_quoted"
       ],
-      "hand_verified": "not verified: CI only (owner hand run 1.18.3 row A7 saw one HTTP 400; it did not repeat on the rerun)"
+      "hand_verified": "not verified: CI only (owner hand run 1.18.3 row A7 saw one HTTP 400; it did not repeat on the rerun)",
+    "hand_row": "A7 (the 400 did not repeat from the sandbox; only a live run can show it)"
   },
   {
       "id": "lat-lon-distance-guard",
@@ -1226,7 +1249,8 @@
           "tests/test_layer_checks_degrees.py::TestDegreesValueProblem::test_a_metre_sized_number_on_a_latlon_layer_is_refused_with_the_conversion",
           "tests/test_layer_checks_degrees.py::TestDegreesValueProblem::test_a_projected_layer_is_never_refused"
       ],
-      "hand_verified": "not verified: CI only (found by the self-audit round 2, PLAN-026)"
+      "hand_verified": "not verified: CI only (found by the self-audit round 2, PLAN-026)",
+    "hand_row": "N4, N6"
   },
   {
       "id": "nearest-feature-distance-in-metres",
@@ -1240,7 +1264,8 @@
           "tests/test_nearest_distance_metres_live.py::TestNearestInMetres::test_latlon_layers_get_distance_m_close_to_the_real_distance",
           "tests/test_nearest_distance_metres_live.py::TestNearestInMetres::test_a_metre_crs_is_left_alone"
       ],
-      "hand_verified": "not verified: CI only (found by the self-audit round 2, PLAN-026)"
+      "hand_verified": "not verified: CI only (found by the self-audit round 2, PLAN-026)",
+    "hand_row": "N3"
   },
   {
       "id": "damage-score-reads-its-own-run",
@@ -1254,7 +1279,8 @@
           "tests/test_free_zonal_prefix.py::TestFreeZonalPrefix::test_a_taken_prefix_moves_on",
           "tests/test_damage_direction_live.py::TestDamageDirection::test_a_second_run_does_not_read_the_first_runs_stale_field"
       ],
-      "hand_verified": "not verified: CI only (found by the self-audit round 2, PLAN-026)"
+      "hand_verified": "not verified: CI only (found by the self-audit round 2, PLAN-026)",
+    "hand_row": "N2"
   },
   {
       "id": "named-data-source-gets-its-own-tool",
@@ -1267,7 +1293,8 @@
       "guards": [
           "tests/test_task_matcher_named_tools.py::TestNamedDataSourceGivesNoTaskDirective::test_source_requests_are_not_matched_to_a_map_task"
       ],
-      "hand_verified": "not verified: CI only (owner hand run 1.18.3 rows A3 and A10 found the defect; the fix has not been re-run)"
+      "hand_verified": "not verified: CI only (owner hand run 1.18.3 rows A3 and A10 found the defect; the fix has not been re-run)",
+    "hand_row": "N7, A3, A10"
   },
   {
     "id": "gdacs-country-filter-reaches-the-live-path",
@@ -1281,7 +1308,8 @@
     "guards": [
       "tests/test_orchestrator_passes_all_arguments.py::TestNetworkPhaseCalls::test_every_network_phase_call_passes_every_declared_argument"
     ],
-    "hand_verified": "not verified: CI only (owner hand run 1.18.4 rows N7c and A7 found the defect; the fix has not been re-run)"
+    "hand_verified": "not verified: CI only (owner hand run 1.18.4 rows N7c and A7 found the defect; the fix has not been re-run)",
+    "hand_row": "P1"
   },
   {
     "id": "windows-path-escapes-are-repaired",
@@ -1295,7 +1323,8 @@
     "guards": [
       "tests/test_arg_repair.py::TestRepairWindowsPath::test_form_feed_and_backspace_are_turned_back_into_backslash_letters"
     ],
-    "hand_verified": "not verified: CI only (owner hand run 1.18.4 row D6 found the defect; the fix has not been re-run)"
+    "hand_verified": "not verified: CI only (owner hand run 1.18.4 row D6 found the defect; the fix has not been re-run)",
+    "hand_row": "P2"
   },
   {
     "id": "update-task-without-an-id-is-explained",
@@ -1308,7 +1337,8 @@
     "guards": [
       "tests/test_task_manager.py::TestUpdateTaskWithoutAnId::test_no_plan_gives_a_plain_message_not_none"
     ],
-    "hand_verified": "not verified: CI only (owner hand run 1.18.4 row N7c found the defect; the fix has not been re-run)"
+    "hand_verified": "not verified: CI only (owner hand run 1.18.4 row N7c found the defect; the fix has not been re-run)",
+    "hand_row": "none: no prompt reliably triggers it (a model sends a null id); covered by tests/test_task_manager.py"
   },
   {
     "id": "geocode-returns-the-place-bounding-box",
@@ -1321,7 +1351,8 @@
     "guards": [
       "tests/test_geocode_bbox.py::TestNominatimBbox::test_boundingbox_is_reordered_for_both_conventions"
     ],
-    "hand_verified": "not verified: CI only (owner hand run 1.18.4 rows A5, A6 and A13 found the gap; the fix has not been re-run)"
+    "hand_verified": "not verified: CI only (owner hand run 1.18.4 rows A5, A6 and A13 found the gap; the fix has not been re-run)",
+    "hand_row": "P3, P4, P5"
   },
   {
     "id": "sitrep-key-figures-come-from-the-data",
@@ -1336,7 +1367,67 @@
       "tests/test_layout_figures_guard.py::TestFigureGrounding::test_the_b8_figures_are_flagged_and_the_layer_figures_are_not",
       "tests/test_layout_figures_guard.py::TestSitrepLayoutMarksUnverifiedFigures::test_typed_figures_that_are_not_in_the_layer_are_marked_and_reported"
     ],
-    "hand_verified": "not verified: CI only (owner hand run 1.18.4 row B8 found the defect; the fix has not been re-run)"
+    "hand_verified": "not verified: CI only (owner hand run 1.18.4 row B8 found the defect; the fix has not been re-run)",
+    "hand_row": "B8"
+  },
+  {
+    "id": "damage-run-removes-its-working-columns",
+    "feature": "the damage score deletes the zonal working columns it created on the admin layer and never a column the user already had",
+    "issues": [],
+    "since": "1.18.6",
+    "sources": [
+      "src/cartogen_ai/core/agent/tools/analysis_tools.py"
+    ],
+    "guards": [
+      "tests/test_damage_direction_live.py::TestDamageDirection::test_a_first_run_leaves_no_zonal_columns_behind",
+      "tests/test_damage_direction_live.py::TestDamageDirection::test_the_working_zonal_columns_are_removed_but_the_users_own_column_is_kept"
+    ],
+    "hand_verified": "not verified: CI only (master list DEF-5; seen in the 1.18.4 run as extra columns on the admin layer)",
+    "hand_row": "N1, N2 (open the admin layer's field list after the run)"
+  },
+  {
+    "id": "empty-fetch-adds-no-layer",
+    "feature": "a UCDP, USGS, EONET or GDACS fetch that matches nothing adds no empty layer and says so",
+    "issues": [],
+    "since": "1.18.6",
+    "sources": [
+      "src/cartogen_ai/core/agent/tools/_layer_checks.py",
+      "src/cartogen_ai/core/agent/tools/event_data_tools.py",
+      "src/cartogen_ai/core/agent/tools/hazard_monitoring_tools.py"
+    ],
+    "guards": [
+      "tests/test_empty_fetch_live.py::TestEmptyFetchResult::test_says_no_layer_was_added_and_why_the_model_should_stop"
+    ],
+    "hand_verified": "not verified: CI only (owner hand run 1.18.4 row A10 left an empty UCDP layer)",
+    "hand_row": "P1 (GDACS for Yemen when there are none) and A10"
+  },
+  {
+    "id": "chat-nbsp-is-a-space",
+    "feature": "a model-written &nbsp; shows as a space in the chat, not as literal text",
+    "issues": [],
+    "since": "1.18.6",
+    "sources": [
+      "src/cartogen_ai/core/ui/chat_formatting.py"
+    ],
+    "guards": [
+      "tests/test_chat_formatting.py::TestModelBreaksAndComparisonSpans::test_a_model_written_nbsp_is_a_space_not_literal_text"
+    ],
+    "hand_verified": "not verified: CI only (owner hand run 1.18.4 row A10 showed the literal text)",
+    "hand_row": "A10"
+  },
+  {
+    "id": "access-gap-uses-the-named-speed-field",
+    "feature": "population_access_gap passes speed_field and direction_field to the service area, so a blocked or slowed network is the one measured",
+    "issues": [],
+    "since": "1.18.6",
+    "sources": [
+      "src/cartogen_ai/core/agent/tools/logistics_tools.py"
+    ],
+    "guards": [
+      "tests/test_logistics_tools.py::TestPopulationAccessGapEstimateFields::test_speed_and_direction_fields_reach_the_service_area"
+    ],
+    "hand_verified": "not verified: CI only (owner hand run 1.18.4 rows C5 and A6: the call had no speed field; the figure differed between runs)",
+    "hand_row": "C5, S3 (with the blocked bridge: the road-buffer figure is 994, not 1,028)"
   }
  ]
 }

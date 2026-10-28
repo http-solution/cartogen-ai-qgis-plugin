@@ -49,7 +49,7 @@ One list to follow up and plan from. It replaces the session task list (101 entr
 | ID | Task | Why | Who | Depends on | Size | Pri | Status | Source |
 |---|---|---|---|---|---|---|---|---|
 | HT-1 | Triage the 1.18.4 results into defects, write a failing test per defect, fix, and cut 1.18.5. | The loop that has produced 1.18.2, 1.18.3 and 1.18.4. | Claude | OWN-1, OWN-3 | M | P0 | In progress | release process |
-| HT-2 | Ledger traceability: add a hand_row (a row id or 'none: reason') to every 'not verified' ledger entry (27 now, 12 at the time of PLAN-022) and make a test fail when a new entry has neither. | The ledger is the contract; 'not verified' must say which hand row would verify it. | Claude | - | M | P2 | Not started | PLAN-022 N2 |
+| HT-2 | Ledger traceability: add a hand_row (a row id or 'none: reason') to every 'not verified' ledger entry (27 now, 12 at the time of PLAN-022) and make a test fail when a new entry has neither. | The ledger is the contract; 'not verified' must say which hand row would verify it. | Claude | - | M | P2 | Closed | PLAN-022 N2 |
 | HT-3 | Build eval rows for model tool choice (prompt, expected tool) and measure them: D3 (survey tool), D4 (presence-gap write), S5 (refuse a trigger with no threshold). Change prompts or descriptions only with a measured gain. | The router already offers the right tools; what the model picks has never been measured. | Claude | OWN-3 | M | P2 | Not started | 1.18.3 hand run, W-4 |
 | HT-4 | Verification debt, CI only today: Windows and macOS QGIS; large, messy, non-English and database-backed user data; numerical correctness of Processing outputs; delineate_watershed on a real DEM versus the engineer's report; a real Geofabrik extract and prompt-cache check. | Built and passing in CI, never run by a person. | Both | OWN-11, OWN-14 | L | P3 | Not started | W-5 to W-9 |
 | HT-5 | Re-check 'partly' ledger entries (5) and wave E1, DXF and Excel export and the 20 later routing additions by hand. | Only 21 algorithms were ever hand-tested. | Both | OWN-1 | M | P3 | Not started | W-2, W-3 |
@@ -63,7 +63,7 @@ One list to follow up and plan from. It replaces the session task list (101 entr
 | DEF-2 | Change-layer legend (D6): confirm blue-to-red with a transparent no-change area; fix if the screenshot shows otherwise. | Open since the 1.18.3 run. | Claude | OWN-2 | S | P2 | Blocked | 1.18.3 hand run D6 |
 | DEF-3 | Unrequested layers: an 'Incident' layer after GDACS (A7), a country layer after building footprints (A5). No tool in the code adds them; trace the plan that does. | Surprises the user; cause unknown. | Claude | OWN-3 | S | P2 | Blocked | 1.18.2 and 1.18.3 hand runs |
 | DEF-4 | C5 labels reported inverted: find which layer and labels. | Reported without detail. | Claude | OWN-3 | S | P2 | Blocked | 1.18.2 hand run |
-| DEF-5 | Zonal-statistics columns (chg_mean, chg2_mean...) stay on the admin layer after the damage tool runs; remove them or run on a copy. | Side effect on the user's layer; a file-based layer keeps them. | Claude | - | S | P2 | Not started | PLAN-026 class C |
+| DEF-5 | Zonal-statistics columns (chg_mean, chg2_mean...) stay on the admin layer after the damage tool runs; remove them or run on a copy. | Side effect on the user's layer; a file-based layer keeps them. | Claude | - | S | P2 | In progress | PLAN-026 class C |
 | DEF-6 | Nationwide 5 km task grid is refused above 5,000 cells: add a 'suggest a cell size' path. | Clear message today; a design choice. | Claude | OWN-6 | S | P3 | Decision needed | 1.18.2 hand run B1 |
 | DEF-7 | OSM Overpass road download answered HTTP 502 after 4 retries: consider a mirror fallback and a clearer message. | Server side; the fixtures covered it in the test. | Claude | - | S | P3 | Not started | 1.18.2 hand run C1 |
 | DEF-8 | Quiet-release clean-up: 24 unused noqa comments; the baseline of 504 broad-except handlers (none silent) recorded for review. | Lint hygiene. | Claude | - | S | P3 | Not started | PLAN-026 class G, H |
@@ -76,7 +76,7 @@ One list to follow up and plan from. It replaces the session task list (101 entr
 | DEF-15 | N4/N6: a blur of 1000 and a heatmap radius of 5000 on a lat/lon layer were not refused; the model reprojected to UTM (EPSG:32638) and ran in metres. Decide: is reprojecting and working in metres correct (then the runbook expectation is wrong), or must a bare metre value on a lat/lon layer be refused? | 1.18.4 class-A guard covers the direct tools; the model found another path. | You | - | XS | P2 | Closed | 1.18.4 smoke run 2026-10-27/28 |
 | DEF-16 | Runbook expectations to correct in the next package: D7 and S1 expect mean change 70/45 but damage_score has been normalised 0 to 1 since 1.18.4 (N1 already expects the ranking only); N5 layer name; R3 date bound cannot be tested before 2026-11-05; S5 refusal wording; A11 and C8 need the exact wording recorded. | Test-design faults, not tool defects. | Claude | - | S | P2 | In progress | 1.18.4 smoke run 2026-10-27/28 |
 | DEF-17 | Model-choice failures on Gemini flash-latest: A5, A6, C1, C3, C4, C6, D4, E2, S5. E2: compute_jiaf_preliminary left jf_pre_sev empty with two sectors; check the tool result itself carries the two open blockers and a severity-not-computed reason, so a weak model cannot drop them. | Separates model from tool; the tool must carry the message. | Claude | OWN-15 | M | P2 | Not started | 1.18.4 smoke run 2026-10-27/28 |
-| DEF-18 | C5: first run stopped by the loop guard (population_access_gap called 3 times with the same arguments) and the reachable figure differed between runs (1,028 vs 994). Find why identical calls are repeated and why the figure moves. | A figure that changes between identical runs cannot be trusted. | Claude | - | M | P1 | Not started | 1.18.4 smoke run 2026-10-27/28 |
+| DEF-18 | C5: first run stopped by the loop guard (population_access_gap called 3 times with the same arguments) and the reachable figure differed between runs (1,028 vs 994). Find why identical calls are repeated and why the figure moves. | A figure that changes between identical runs cannot be trusted. | Claude | - | M | P1 | In progress | 1.18.4 smoke run 2026-10-27/28 |
 | DEF-19 | Side effects: A10 added an empty 'UCDP Conflict Events - Yemen 2025' layer and printed a literal '&nbsp;'; A12 left hidden buffer_output and deletecolumn_output layers; A7/A9 loaded global GDACS/USGS layers for a Yemen request. | Unrequested layers (see DEF-3). | Claude | DEF-3 | S | P3 | In progress | 1.18.4 smoke run 2026-10-27/28 |
 
 ## D. Product roadmap (from the roadmap audit)
@@ -95,7 +95,7 @@ One list to follow up and plan from. It replaces the session task list (101 entr
 
 | ID | Task | Why | Who | Depends on | Size | Pri | Status | Source |
 |---|---|---|---|---|---|---|---|---|
-| HY-1 | Set the 14 stale plan statuses from their own logs; fold PLAN-020 into PLAN-021; close PLAN-024 to PLAN-026 when their hand rows pass; mark PLAN-019 done. | Status words no longer match the logs. | Claude | - | S | P2 | Not started | PLAN-022 N1 |
+| HY-1 | Set the 14 stale plan statuses from their own logs; fold PLAN-020 into PLAN-021; close PLAN-024 to PLAN-026 when their hand rows pass; mark PLAN-019 done. | Status words no longer match the logs. | Claude | - | S | P2 | In progress | PLAN-022 N1 |
 | HY-2 | Sweep IMPLEMENTATION_TRACKER.md (2,746 lines; duplicate sections 1.19 to 1.24; stale list at the top) and BUG_TRACKER.md. | The trackers are the planning source and are out of date. | Claude | - | M | P2 | Not started | PLAN-022 N3 |
 | HY-3 | CI and release hygiene: pin the Windows runner, check upload-artifact against the Node notice, add an optional status_note input to release.yml (releases cannot be edited from this session type), generate the README test count. | A release cannot say 'not hand-tested' without a manual edit. | Claude | - | S | P2 | Not started | PLAN-022 N4 |
 | HY-4 | Prune the 190-odd remote branches (merged and abandoned claude/* branches); keep the open ones. | 193 remote branches; it hides what is live. | Both | OWN-8 | S | P3 | Not started | repository state |
@@ -142,12 +142,12 @@ One list to follow up and plan from. It replaces the session task list (101 entr
 
 | Status | Rows |
 |---|---|
-| Not started | 36 |
+| Not started | 32 |
+| In progress | 12 |
 | Decision needed | 11 |
 | Waiting on you | 11 |
-| In progress | 9 |
 | Blocked | 5 |
-| Closed | 1 |
+| Closed | 2 |
 | Closed (record) | 1 |
 | **Total** | **74** |
 
@@ -178,3 +178,9 @@ Newest last. One line per status change; written by `tools/master_list.py set`.
 - 2026-10-28: DEF-9 In progress -> In progress. 1.18.5 collector copies plugin evidence and writes tools_called.txt; hand check: runbook row P6
 - 2026-10-28: OWN-1 Closed -> Waiting on you. Run the 1.18.5 package (cartogen_ai_live_smoke_1.18.5.zip): Section P first (6 rows), then Section N; return the whole results folder. Rerun the nine model-choice rows with the Claude provider (OWN-15)
 - 2026-10-28: DEF-14 Not started -> In progress. 2026-10-28 PLAN-028: key_figures_from reads figures from a layer; typed figures not found in the project data are marked on the layout and named in the reply. Awaiting merge; hand rerun of B8
+- 2026-10-28: HY-1 Not started -> In progress. 2026-10-28: 8 plans updated from their own logs and the GitHub release list (001 abandoned, 007/013/015/016/017 done, 020 abandoned, 021 in progress). Left as they are: 018 (no 1.18.0 release tag exists), 024-026 (close when hand rows pass), 002/003/005/006/008/009/014 (open items remain)
+- 2026-10-28: HT-2 Not started -> Closed. 2026-10-28: every 'not verified' ledger entry (32) now has a hand_row, and tests/test_feature_ledger.py fails for a new one without it. 'none: reason' is allowed where no person can check it
+- 2026-10-28: DEF-5 Not started -> In progress. 2026-10-28 PLAN-029: the damage run deletes the working columns it created; merged-pending; unreleased
+- 2026-10-28: DEF-19 In progress -> In progress. 2026-10-28 PLAN-029: no empty layer when a UCDP/USGS/EONET/GDACS fetch matches nothing; &nbsp; shown as a space. A12 hidden Processing layers still open (no cause without evidence)
+- 2026-10-28: DEF-18 Not started -> In progress. 2026-10-28 cause found in the C5/A6 evidence: population_access_gap had no speed_field/direction_field, so 'using speed_blocked' was ignored (1,028 = bridge passable, 994 = blocked). Now passed through (PLAN-029 item 4); unreleased. The loop-guard stop: the first call also carried no speed field; not reproduced
+- 2026-10-28: DEF-18 In progress -> In progress. 2026-10-28 correction: the 1,028 vs 994 gap is most likely the missing speed field (the C5 first call carried none), not proven. Fix stands on its own: population_access_gap now takes speed_field/direction_field (PLAN-029 item 4); unreachable by the loop-guard stop, not reproduced

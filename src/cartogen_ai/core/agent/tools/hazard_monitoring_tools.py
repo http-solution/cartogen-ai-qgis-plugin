@@ -33,6 +33,7 @@ from datetime import datetime, timezone
 from .registry import register_tool
 from ._paths import resolve_output_path
 from ._edit_session import EditError
+from ._layer_checks import empty_fetch_result
 from ....infrastructure.auth import CredentialManager
 from ....infrastructure.settings_keys import PROJECT_PROPERTY_FETCHED_AT
 from ...models.confidence import set_layer_confidence
@@ -428,6 +429,8 @@ def add_nasa_eonet_events_layer_main_thread_phase(fetch_result, layer_name="NASA
 
     created = False
     layer = _find_layer_by_name(layer_name)
+    if layer is None and not fetch_result.get("events"):
+        return empty_fetch_result(layer_name, "EONET events")
     if layer is None:
         layer = QgsVectorLayer(
             # event_id: same fix and same rationale as GDACS's identical field, added
@@ -615,6 +618,8 @@ def add_gdacs_disaster_alerts_layer_main_thread_phase(fetch_result, layer_name="
 
     created = False
     layer = _find_layer_by_name(layer_name)
+    if layer is None and not fetch_result.get("alerts"):
+        return empty_fetch_result(layer_name, "GDACS alerts")
     if layer is None:
         layer = QgsVectorLayer(
             # event_id (added 2026-09-24, live report: "buffer 5 km around active GDACS

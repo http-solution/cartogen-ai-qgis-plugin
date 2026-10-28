@@ -1,6 +1,6 @@
 # PLAN-007: release rc48 and its hand-test pass
 
-Status: in progress
+Status: done
 
 ## Goal
 Put everything merged since rc46 into one installable build (1.17.0-rc48) and one precise hand-test bundle, so a single pass by the owner replaces the never-run rc47 pass and covers wave E1 (PLAN-005), the export routing fixes, the DXF export and the spreadsheet export (PLAN-006). Nothing in rc47 or later has been hand-tested; this plan exists so the first real use of these changes happens in one bounded, recorded run.
@@ -23,3 +23,4 @@ Skip the release (do not run the workflow) or release a corrected rc49; the bump
 
 ## Status log
 - 2026-10-23: plan written with the bump (branch claude/rc48-prep). Version, metadata changelog, CHANGELOG, README, Help text and counts updated; bundle builder gained the 8 rc48 rows and a fixture for the polygonize row. The release workflow has not been run: it waits for the owner's go-ahead.
+- 2026-10-28: status set to done from this plan's own log and the GitHub release list (master list HY-1): the pre-release cartogen-ai-v1.17.0-rc48 exists on GitHub (published 2026-10-23). Hand-test findings continue in PLAN-008.

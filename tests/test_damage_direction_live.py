@@ -83,6 +83,29 @@ class TestDamageDirection(unittest.TestCase):
         by_unit = {u["unit"]: u for u in res["unit_results"]}
         self.assertGreater(by_unit["east"]["severity_score"], by_unit["west"]["severity_score"], res)
 
+    def test_the_working_zonal_columns_are_removed_but_the_users_own_column_is_kept(self):
+        # DEF-5: chg_mean / chg2_mean used to stay on the admin layer after every run. Only columns this run created may go: a column the user
+        # already had under the same name (here chg_mean) stays.
+        from cartogen_ai.core.agent.tools.analysis_tools import calculate_damage_exposure_severity
+        from qgis.core import QgsField
+        from qgis.PyQt.QtCore import QVariant
+        admin = QgsProject.instance().mapLayersByName("admin")[0]
+        admin.dataProvider().addAttributes([QgsField("chg_mean", QVariant.Double)])
+        admin.updateFields()
+        res = calculate_damage_exposure_severity("admin", "name", "before", "after", "footprints")
+        self.assertTrue(res.get("success"), res)
+        names = [f.name() for f in admin.fields()]
+        self.assertIn("chg_mean", names, "the user's own column must stay")
+        self.assertNotIn("chg2_mean", names, names)
+        self.assertEqual(res.get("temporary_fields_removed"), ["chg2_mean"], res)
+
+    def test_a_first_run_leaves_no_zonal_columns_behind(self):
+        from cartogen_ai.core.agent.tools.analysis_tools import calculate_damage_exposure_severity
+        res = calculate_damage_exposure_severity("admin", "name", "before", "after", "footprints")
+        self.assertTrue(res.get("success"), res)
+        admin = QgsProject.instance().mapLayersByName("admin")[0]
+        self.assertEqual([f.name() for f in admin.fields()], ["name"])
+
 
 if __name__ == "__main__":
     unittest.main()

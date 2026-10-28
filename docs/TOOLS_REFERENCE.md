@@ -464,6 +464,8 @@ Compute how many people, and what percentage of a population base, are BEYOND a 
 | `default_speed` | number | no | Default travel speed in km/h, used only when strategy='fastest'. Defaults to 50. |
 | `reach_geometry` | string | no | Which figure is the headline: 'concave_hull' (default), 'road_buffer' (people within reach_buffer_m of a reached road) or 'convex_hull' (an UPPER BOUND). All three are always reported in reach_figures. |
 | `reach_buffer_m` | number | no | Buffer distance in metres around the reached roads for the road-buffer figure. Defaults to 500. |
+| `speed_field` | string | no | Optional numeric field on road_network_layer giving per-segment speed in km/h, same meaning as in calculate_service_area. Pass it when the request names one (for example the speed_blocked field written by apply_network_barriers): without it, blocked or slowed roads are ignored and the people-beyond figure is wrong. Only affects routing when strategy='fastest'. |
+| `direction_field` | string | no | Optional one-way field on road_network_layer, same meaning as in calculate_service_area. |
 
 ### `score_route_incident_risk`
 

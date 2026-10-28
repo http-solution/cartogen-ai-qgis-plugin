@@ -897,6 +897,27 @@ def _free_zonal_prefix(layer, base):
     return prefix
 
 
+def _drop_zonal_helper_fields(layer, names):
+    """Removes the zonal-statistics columns a damage run created on the user's layer ('chg_mean', 'chg2_mean', 'hzd_mean'), once their values are
+    read, and returns the names removed. DEF-5 (PLAN-026 class C): they stayed on the admin layer after every run, a second set per run, and on a
+    file-based layer they were written into the file. Only columns this run created are passed in. Skipped (returns []) when the layer is being
+    edited or its provider cannot delete fields; the columns then stay, as before, and the caller says so."""
+    if not names or layer.isEditable():
+        return []
+    try:
+        from qgis.core import QgsVectorDataProvider
+        provider = layer.dataProvider()
+        if not provider.capabilities() & QgsVectorDataProvider.Capability.DeleteAttributes:
+            return []
+        indexes = [i for i in (layer.fields().indexFromName(n) for n in names) if i >= 0]
+        if not indexes or not provider.deleteAttributes(indexes):
+            return []
+        layer.updateFields()
+        return list(names)
+    except Exception:   # a clean-up must never fail the analysis that already succeeded
+        return []
+
+
 def _absolute_change_raster(change_raster):
     """In-memory (not added to the project) raster holding |change| for the damage score, or None if it cannot be built."""
     try:
@@ -1041,6 +1062,9 @@ def calculate_damage_exposure_severity(admin_layer, unit_name_field, raster_befo
             row["hazard_intensity"] = feat[hzd_field]
         rows.append(row)
 
+    helper_fields = [chg_field] + ([hzd_field] if intensity_raster is not None else [])
+    fields_removed = _drop_zonal_helper_fields(layer, helper_fields)
+
     indicators = ["change_magnitude"] + (["hazard_intensity"] if intensity_raster is not None else [])
     severity = _compute_severity_index(rows, indicators)
     if "error" in severity:
@@ -1098,6 +1122,11 @@ def calculate_damage_exposure_severity(admin_layer, unit_name_field, raster_befo
             result["output_field"] = output_field
             result["layer_name"] = admin_layer
             result["map_look"] = look_hint(admin_layer, "severity", output_field)
+    if fields_removed:
+        result["temporary_fields_removed"] = fields_removed
+    elif helper_fields:
+        result["temporary_fields_kept"] = (f"The working columns {', '.join(helper_fields)} (zonal means used for the score) could not be removed from "
+                                           f"'{admin_layer}' (it is being edited or its format cannot delete fields); they stay on the layer.")
     if _label_note(labels_changed):
         result["unit_label_note"] = _label_note(labels_changed)
     return result

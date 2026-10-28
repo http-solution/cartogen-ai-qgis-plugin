@@ -1,6 +1,6 @@
 # PLAN-013: release rc49 and its hand-test pass
 
-Status: in progress
+Status: done
 
 ## Goal
 Put everything merged since rc48 (PLAN-008 to PLAN-012 and the self-audit follow-ups) into one installable build (1.17.0-rc49) and one precise hand-test bundle, so a single pass by the owner replaces the unverified CI-only state of those changes. It also carries the evidence rows for the two rc48 findings that could not be reproduced (OI-128, OI-150).
@@ -26,3 +26,4 @@ Delete the pre-release (it does not affect `main`) or release a corrected rc50; 
 ## Status log
 - 2026-10-24: owner said go. Version, metadata changelog, CHANGELOG, README, Help text and counts updated (tools unchanged at 296; 4,803 offline tests, 689 skipped); bundle builder gained 9 rc49 rows and a MultiPoint fixture. The release workflow has not been run yet.
 - 2026-10-24: merged as #401 (51512e4). Release workflow run (offline gate green) and published the pre-release `cartogen-ai-v1.17.0-rc49`; zip SHA-256 6030b15c070fa3bbc5e98bda35b7e0c76e7ccd8e15affd8462ec2433ea0afd3e, downloaded and checked equal to the published SHA256.txt. Bundle built around exactly that file: 17 open-issue rows, 22 release rows (the 9 new rc49 rows, the 4 rc48 export rows that Failed or were Partial and are re-run, 5 older rows, 4 from the tool sheet) and 41 plain-language rows (including the 5 plain rows that Failed in rc48). It holds no .py files. Not uploaded anywhere. Waiting for the owner's run; every verdict goes in this log.
+- 2026-10-28: status set to done from this plan's own log and the GitHub release list (master list HY-1): the pre-release cartogen-ai-v1.17.0-rc49 exists on GitHub (published 2026-10-24); its log above records the hash check. Hand findings continue in PLAN-016.

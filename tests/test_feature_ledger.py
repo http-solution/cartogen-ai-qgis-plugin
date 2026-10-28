@@ -45,6 +45,17 @@ class TestFeatureLedger(unittest.TestCase):
         for entry in LEDGER:
             self.assertGreater(len(entry["hand_verified"]), 8, entry["id"])
 
+    def test_every_not_verified_entry_names_the_hand_row_that_would_verify_it(self):
+        """HT-2 (PLAN-022 N2): 'not verified' with nothing saying how it would be verified is how fixed things stay unverified for ever. hand_row is a
+        hand-test row id (or several), or 'none: <reason>' when no person can check it."""
+        for entry in LEDGER:
+            if not str(entry["hand_verified"]).startswith("not verified"):
+                continue
+            row = str(entry.get("hand_row") or "").strip()
+            self.assertTrue(row, f"{entry['id']}: 'not verified' needs a hand_row (a row id, or 'none: reason')")
+            if row.lower().startswith("none"):
+                self.assertGreater(len(row), 14, f"{entry['id']}: 'none' needs a reason")
+
 
 if __name__ == "__main__":
     unittest.main()

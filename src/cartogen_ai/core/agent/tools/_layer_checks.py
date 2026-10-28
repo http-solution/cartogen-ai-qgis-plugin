@@ -32,3 +32,12 @@ def degrees_value_problem(layer, value, label):
                 f"{number * 111:,.0f} km. Give {label} in degrees (0.01 is about 1.1 km, 0.001 about 110 m), or reproject the layer to a "
                 "projected CRS such as the local UTM zone and give metres.")
     return None
+
+
+def empty_fetch_result(layer_name, what, filters=None):
+    """The reply for a data fetch that matched nothing when no layer of that name exists yet: success, zero items, and NO layer. 1.18.4 smoke A10:
+    a UCDP request for a year with no events left an empty 'UCDP Conflict Events - Yemen 2025' layer in the project, one more unrequested layer (DEF-3).
+    A layer that already exists is still replaced as before, so re-running a fetch that now matches nothing empties it."""
+    return {"success": True, "layer_name": layer_name, "event_count": 0, "layer_added": False,
+            "message": f"No {what} matched{' (' + filters + ')' if filters else ''}, so no layer '{layer_name}' was added. Say so plainly; do not create an empty layer or retry with other filters unless asked."}
+

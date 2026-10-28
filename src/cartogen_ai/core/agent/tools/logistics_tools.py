@@ -3054,12 +3054,14 @@ def _style_reach_figures(figures, headline, facility_layer):
             "default_speed": {"type": "number", "description": "Default travel speed in km/h, used only when strategy='fastest'. Defaults to 50."},
             "reach_geometry": {"type": "string", "description": "Which figure is the headline: 'concave_hull' (default), 'road_buffer' (people within reach_buffer_m of a reached road) or 'convex_hull' (an UPPER BOUND). All three are always reported in reach_figures."},
             "reach_buffer_m": {"type": "number", "description": "Buffer distance in metres around the reached roads for the road-buffer figure. Defaults to 500."},
+            "speed_field": {"type": "string", "description": "Optional numeric field on road_network_layer giving per-segment speed in km/h, same meaning as in calculate_service_area. Pass it when the request names one (for example the speed_blocked field written by apply_network_barriers): without it, blocked or slowed roads are ignored and the people-beyond figure is wrong. Only affects routing when strategy='fastest'."},
+            "direction_field": {"type": "string", "description": "Optional one-way field on road_network_layer, same meaning as in calculate_service_area."},
         },
         "required": ["facility_layer", "road_network_layer", "population_raster_layer", "area_layer", "travel_cost"],
     },
 )
 def population_access_gap(facility_layer, road_network_layer, population_raster_layer, area_layer, travel_cost, strategy="shortest", default_speed=50,
-                          reach_geometry="concave_hull", reach_buffer_m=DEFAULT_SNAP_DISTANCE_M):
+                          reach_geometry="concave_hull", reach_buffer_m=DEFAULT_SNAP_DISTANCE_M, speed_field=None, direction_field=None):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
     reach_geometry = (reach_geometry or DEFAULT_REACH_GEOMETRY).lower()
@@ -3080,7 +3082,10 @@ def population_access_gap(facility_layer, road_network_layer, population_raster_
 
     # Reuses calculate_service_area exactly as a normal caller would -- same
     # validation, same per-facility hull-polygon layers added to the project.
-    service_result = calculate_service_area(facility_layer, road_network_layer, travel_cost, strategy, default_speed)
+    # speed_field and direction_field were not passed on until 1.18.6: a request "using speed_blocked" (1.18.4 smoke C5, A6) reached this tool with
+    # no way to name the field, so the bridge that apply_network_barriers had closed stayed passable and the figure was for the wrong network.
+    service_result = calculate_service_area(facility_layer, road_network_layer, travel_cost, strategy, default_speed,
+                                            speed_field=speed_field, direction_field=direction_field)
     if "error" in service_result:
         return service_result
 
