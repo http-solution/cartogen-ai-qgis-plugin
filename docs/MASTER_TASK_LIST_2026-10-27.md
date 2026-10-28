@@ -78,7 +78,7 @@ One list to follow up and plan from. It replaces the session task list (101 entr
 | DEF-17 | Model-choice failures on Gemini flash-latest: A5, A6, C1, C3, C4, C6, D4, E2, S5. E2: compute_jiaf_preliminary left jf_pre_sev empty with two sectors; check the tool result itself carries the two open blockers and a severity-not-computed reason, so a weak model cannot drop them. | Separates model from tool; the tool must carry the message. | Claude | OWN-15 | M | P2 | In progress | 1.18.4 smoke run 2026-10-27/28 |
 | DEF-18 | C5: first run stopped by the loop guard (population_access_gap called 3 times with the same arguments) and the reachable figure differed between runs (1,028 vs 994). Find why identical calls are repeated and why the figure moves. | A figure that changes between identical runs cannot be trusted. | Claude | - | M | P1 | In progress | 1.18.4 smoke run 2026-10-27/28 |
 | DEF-19 | Side effects: A10 added an empty 'UCDP Conflict Events - Yemen 2025' layer and printed a literal '&nbsp;'; A12 left hidden buffer_output and deletecolumn_output layers; A7/A9 loaded global GDACS/USGS layers for a Yemen request. | Unrequested layers (see DEF-3). | Claude | DEF-3 | S | P3 | In progress | 1.18.4 smoke run 2026-10-27/28 |
-| DEF-20 | add_layer_from_path drops 'sublayer' on every live call: the orchestrator's special-cased branch calls the function with the path, name and source label only, so a named layer of a GeoPackage is never opened. Found while measuring drift for PLAN-033; fix with a CI live test. | A documented argument that never arrives. | Claude | - | S | P2 | Not started | codebase analysis 2026-10-28 |
+| DEF-20 | add_layer_from_path drops 'sublayer' on every live call: the orchestrator's special-cased branch calls the function with the path, name and source label only, so a named layer of a GeoPackage is never opened. Found while measuring drift for PLAN-033; fix with a CI live test. | A documented argument that never arrives. | Claude | - | S | P2 | In progress | codebase analysis 2026-10-28 |
 
 ## D. Product roadmap (from the roadmap audit)
 
@@ -158,8 +158,8 @@ Source: the owner's analysis document of nine flagship QGIS AI plugins, checked 
 
 | Status | Rows |
 |---|---|
-| Not started | 37 |
-| In progress | 14 |
+| Not started | 36 |
+| In progress | 15 |
 | Decision needed | 13 |
 | Waiting on you | 11 |
 | Blocked | 5 |
@@ -207,3 +207,4 @@ Newest last. One line per status change; written by `tools/master_list.py set`.
 - 2026-10-28: OWN-5 Decision needed -> Decision needed. 2026-10-28: widened by LEAD-1 (positioning and order); answer there
 - 2026-10-28: LEAD-8 Decision needed -> Not started. PLAN-038 research done; owner confirmed interpretation; build starts with runner + Claude adapter
 - 2026-10-28: LEAD-8 Not started -> In progress. runner + Claude adapter built, CI-only; spike script tools/cli_bridge_spike.py waits for the owner (SPIKE-1)
+- 2026-10-28: DEF-20 Not started -> In progress. fixed in code (orchestrator forwards sublayer), offline test fails without the fix; CI-only until the hand row: open a named layer of the smoke GeoPackage

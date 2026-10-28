@@ -1458,6 +1458,22 @@
     ],
     "hand_verified": "not verified: CI only, against a stand-in process; never run against a real logged-in Claude CLI (PLAN-038 spike)",
     "hand_row": "SPIKE-1 (tools/cli_bridge_spike.py, PLAN-038)"
+  },
+  {
+    "id": "add-layer-from-path-forwards-sublayer",
+    "feature": "asking add_layer_from_path for one named layer of a multi-layer file (GeoPackage, FileGDB, KML, GPX, SpatiaLite) reaches the tool through the orchestrator, so that layer opens instead of the first one",
+    "issues": [],
+    "since": "1.18.6",
+    "sources": [
+      "src/cartogen_ai/core/agent/agent_orchestrator.py",
+      "src/cartogen_ai/core/agent/tools/vector_tools.py"
+    ],
+    "guards": [
+      "tests/test_add_layer_sublayer_through_orchestrator.py::TestSublayerReachesTheTool::test_sublayer_is_forwarded",
+      "tests/test_data_source_tools_live.py::TestDataSourceToolsLive::test_sublayer_picks_one_table_of_a_multi_layer_geopackage"
+    ],
+    "hand_verified": "not verified: CI only (found by code measurement for PLAN-033, DEF-20; never seen by a person)",
+    "hand_row": "DEF-20 hand row: ask for a named layer of the smoke GeoPackage and check it is the one that opens"
   }
  ]
 }

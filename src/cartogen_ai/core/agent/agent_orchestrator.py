@@ -1182,9 +1182,11 @@ class CartogenAi:
                 return {"error": f"Download failed: {e}"}
             try:
                 res = self._run_current_turn_on_main_thread(
-                    lambda a: add_layer_from_path(a["file_path"], a.get("layer_name"), a.get("source_label")),
+                    # sublayer was left out of this call until 2026-10-28 (DEF-20): the schema offered it and the tool honoured it, but
+                    # this branch never forwarded it, so a named layer of a GeoPackage always opened as the first one.
+                    lambda a: add_layer_from_path(a["file_path"], a.get("layer_name"), a.get("source_label"), a.get("sublayer")),
                     {"file_path": local_path, "layer_name": filtered_args.get("layer_name"),
-                     "source_label": file_path if is_temp else None},
+                     "source_label": file_path if is_temp else None, "sublayer": filtered_args.get("sublayer")},
                 )
             finally:
                 if is_temp:

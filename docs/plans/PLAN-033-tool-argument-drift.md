@@ -31,3 +31,4 @@ Each item is its own commit; revert it.
 
 ## Status log
 - 2026-10-28: plan written after measuring the drift; item 1 recorded as master list DEF-20. No code in this PR.
+- 2026-10-28: item 1 done (DEF-20): the orchestrator's `add_layer_from_path` branch now forwards `sublayer`. Test `tests/test_add_layer_sublayer_through_orchestrator.py` drives the real branch with the tool function replaced; it fails (both cases) with the fix removed and passes with it. The tool's own sublayer behaviour was already covered live. CI-only; no person has seen it. Items 2 to 4 not started.
