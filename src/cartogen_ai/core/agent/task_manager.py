@@ -150,6 +150,17 @@ class AgentTaskManager(QObject):
         if status_upper not in valid_statuses:
             return {"error": f"Invalid status '{status}'. Must be one of {valid_statuses}."}
 
+        # A model that never made a plan, or forgot the id, sends null: 1.18.4 smoke N7c showed the reply "Task ID 'None' not found" after a good GDACS
+        # fetch. With one open task the intent is unambiguous; otherwise say what is true instead of quoting "None".
+        if task_id is None or str(task_id).strip().lower() in ("", "none", "null"):
+            open_tasks = [t for t in self.tasks if t["status"] in ("TODO", "IN_PROGRESS", "PREVIEW_READY", "CONFIRMED")]
+            if len(open_tasks) == 1:
+                task_id = open_tasks[0]["id"]
+            elif not self.tasks:
+                return {"error": "There is no active plan, so there is no task to update. Carry on without update_task."}
+            else:
+                return {"error": "task_id is required when more than one task is open. Open task ids: " + ", ".join(t["id"] for t in open_tasks)}
+
         for task in self.tasks:
             if task["id"] == str(task_id):
                 task["status"] = status_upper
