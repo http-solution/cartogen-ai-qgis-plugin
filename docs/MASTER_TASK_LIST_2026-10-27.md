@@ -70,7 +70,7 @@ One list to follow up and plan from. It replaces the session task list (101 entr
 | DEF-9 | Evidence collector captured no log text in QGIS 4.2.3: log_cartogenai.txt and log_all.txt were empty for every row, so the tools each row called are not in the CSV. Cause not found (the signal connects; nothing arrives). Try the explicit overload messageReceived[str, str, Qgis.MessageLevel], and read tool calls from the plugin's own evidence folders (steps.jsonl) instead. | Every row's 'tools called' column is blank without it. | Claude | HT-6 | S | P1 | In progress | 1.18.4 smoke run 2026-10-27/28 |
 | DEF-10 | A13: Sentinel-2 STAC search not executed ('tool execution stopped', no scenes, no layer). Read evidence/A13 steps and the plugin_evidence folder to find the failing call; add a failing test. | 1.18.4 added the cloud filter; its first live run failed. | Claude | - | M | P1 | In progress | 1.18.4 smoke run 2026-10-27/28 |
 | DEF-11 | D6 (and S1): rasters not loaded and calculate_raster_change_detection 'could not find the layers' on both attempts, while .asc is on the loader's list. Find out whether the model never called add_layer_from_path or the tool rejected the file; read evidence/D6 and D6_retry. | Change-layer legend (DEF-2) cannot be judged until the rasters load. | Claude | - | M | P1 | In progress | 1.18.4 smoke run 2026-10-27/28 |
-| DEF-12 | B7: execute_pyqgis_script failed twice (missing argument, isolation worker crashed) before the dashboard retry worked. Reproduce with the dashboard prompt and fix the argument handling / worker crash. | A crashing script worker costs the user a turn and an empty reply. | Claude | - | M | P1 | Not started | 1.18.4 smoke run 2026-10-27/28 |
+| DEF-12 | B7: execute_pyqgis_script failed twice (missing argument, isolation worker crashed) before the dashboard retry worked. Reproduce with the dashboard prompt and fix the argument handling / worker crash. | A crashing script worker costs the user a turn and an empty reply. | Claude | - | M | P1 | In progress | 1.18.4 smoke run 2026-10-27/28 |
 | DEF-13 | N7c: update_task called with a null task id returns "Task ID 'None' not found" in the reply. Treat a missing id as 'the first open task' (as the auto-complete path already does) or return a plain message. | Visible error text after a successful GDACS layer. | Claude | - | XS | P3 | In progress | 1.18.4 smoke run 2026-10-27/28 |
 | DEF-14 | B8: the print layout's KEY FIGURES (120,000 / 85,000 / 45,000) are not in the layer (94,000 / 76,000 / 52,000): the model typed numbers into a deliverable. Decide the guard: figures in layout text must come from a layer field or a tool result, else the tool refuses or marks them unverified. | Invented numbers on a map product are the worst failure this tool can have. | Claude | - | M | P0 | In progress | 1.18.4 smoke run 2026-10-27/28 |
 | DEF-15 | N4/N6: a blur of 1000 and a heatmap radius of 5000 on a lat/lon layer were not refused; the model reprojected to UTM (EPSG:32638) and ran in metres. Decide: is reprojecting and working in metres correct (then the runbook expectation is wrong), or must a bare metre value on a lat/lon layer be refused? | 1.18.4 class-A guard covers the direct tools; the model found another path. | You | - | XS | P2 | Closed | 1.18.4 smoke run 2026-10-27/28 |
@@ -159,8 +159,8 @@ Source: the owner's analysis document of nine flagship QGIS AI plugins, checked 
 
 | Status | Rows |
 |---|---|
-| Not started | 36 |
-| In progress | 16 |
+| Not started | 35 |
+| In progress | 17 |
 | Decision needed | 13 |
 | Waiting on you | 11 |
 | Blocked | 5 |
@@ -215,3 +215,4 @@ Newest last. One line per status change; written by `tools/master_list.py set`.
 - 2026-10-28: LEAD-9 In progress -> In progress. slice 1 (CLI panel, groups) merged; slice 2 (rest of the window regrouped by purpose) in PR, CI-only; owner: look at the window
 - 2026-10-28: LEAD-9 In progress -> In progress. slices 1 and 2 merged; slice 3 (Test button for key-based providers) in PR, CI-only; owner: look at Settings, press Test and the CLI Check connection buttons
 - 2026-10-28: LEAD-8 In progress -> In progress. CLI program discovery fix (shorter GUI PATH), in PR, CI-only; owner: retry Check connection or paste the path from where/which
+- 2026-10-28: DEF-12 Not started -> In progress. worker no longer dies on print or non-JSON result; clearer missing-argument message; PR open, CI only; cause inferred, original crash never logged

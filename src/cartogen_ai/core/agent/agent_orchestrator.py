@@ -770,7 +770,13 @@ class CartogenAi:
             # dispatcher-thread paths no longer disagree (the model used to see a bare null on one of them).
             return tool_results.ensure_result(res)
         except TypeError as e:
-            return {"error": f"Invalid arguments for {name}: {e}", "error_class": type(e).__name__}
+            message = f"Invalid arguments for {name}: {e}"
+            if "required positional argument" in str(e):
+                # DEF-12: execute_pyqgis_script arrived with no `script` and the model saw only Python's wording. An argument that is
+                # absent is most often a reply cut off at the length limit while writing a long value, so say so.
+                message += (" -- a required argument was not sent. If your last reply was cut off while writing a long value, "
+                            "send a shorter one, or use a dedicated tool for this task.")
+            return {"error": message, "error_class": type(e).__name__}
         except Exception as e:
             return {"error": f"Tool {name} failed: {e}", "error_class": type(e).__name__}
 

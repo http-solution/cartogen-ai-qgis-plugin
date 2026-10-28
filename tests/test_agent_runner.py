@@ -66,6 +66,13 @@ class TestToolArgumentShapeValidation(unittest.TestCase):
         self.assertIn("error", res)
         self.assertIn("Invalid tool arguments", res["error"])
 
+    def test_a_missing_required_argument_says_so_and_hints_at_a_cut_off_reply(self):
+        # DEF-12 (B7): execute_pyqgis_script arrived with no `script`; the model saw only Python's "missing 1 required positional argument".
+        res = self._agent()._real_execute_tool("execute_pyqgis_script", "{}")
+        self.assertIn("Invalid arguments for execute_pyqgis_script", res["error"])
+        self.assertIn("'script'", res["error"])
+        self.assertIn("cut off", res["error"])
+
     def test_real_execute_tool_still_accepts_a_real_dict(self):
         agent = self._agent()
         # A real, working tool call must be completely unaffected by the new check.
