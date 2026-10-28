@@ -452,6 +452,62 @@ def _export_layout(layout, output_path, dpi):
     return None
 
 
+def _numeric_columns(max_features=50000):
+    """[[numbers]] - one list per numeric attribute field of every vector layer in the project (up to max_features features each)."""
+    from qgis.core import QgsProject, QgsVectorLayer
+    columns = []
+    for layer in QgsProject.instance().mapLayers().values():
+        if not isinstance(layer, QgsVectorLayer):
+            continue
+        names = [f.name() for f in layer.fields() if f.isNumeric()]
+        cols = {n: [] for n in names}
+        for i, feature in enumerate(layer.getFeatures()):
+            if i >= max_features:
+                break
+            for n in names:
+                value = feature[n]
+                if isinstance(value, (int, float)):
+                    cols[n].append(value)
+        columns.extend(cols.values())
+    return columns
+
+
+def _figures_from_layer(spec):
+    """(key_figures, error) for key_figures_from = {layer_name, label_field, value_field, top_n?, order?}. The numbers come from the layer, so
+    they cannot drift from it (1.18.4 smoke B8: a model typed 120,000 / 85,000 / 45,000 after reading only field names; the layer held
+    94,000 / 76,000 / 52,000)."""
+    from . import layout_style
+    if not isinstance(spec, dict):
+        return None, "key_figures_from must be an object with layer_name, label_field and value_field."
+    layer = _find_layer_by_name(str(spec.get("layer_name") or ""))
+    if layer is None:
+        return None, f"key_figures_from: layer '{spec.get('layer_name')}' not found."
+    names = [f.name() for f in layer.fields()]
+    for key in ("label_field", "value_field"):
+        if spec.get(key) not in names:
+            return None, f"key_figures_from: {key} '{spec.get(key)}' is not a field of '{layer.name()}'. Fields: {', '.join(names)}."
+    if not layer.fields().field(spec["value_field"]).isNumeric():
+        return None, f"key_figures_from: value_field '{spec['value_field']}' is not numeric."
+    rows = [(f[spec["label_field"]], f[spec["value_field"]]) for f in layer.getFeatures()]
+    figures = layout_style.figures_from_rows(rows, spec.get("top_n", 3), spec.get("order", "highest"))
+    if not figures:
+        return None, f"key_figures_from: '{layer.name()}' has no numeric values in '{spec['value_field']}'."
+    source = f"layer {layer.name()}, field {spec['value_field']}"
+    for figure in figures:
+        figure["source"] = source
+    return figures, None
+
+
+def _merge_figures_from_layer(key_figures, key_figures_from):
+    """(key_figures, error): the layer-derived figures first, then any typed ones."""
+    if not key_figures_from:
+        return key_figures, None
+    from_layer, problem = _figures_from_layer(key_figures_from)
+    if problem:
+        return key_figures, problem
+    return from_layer + [f for f in (key_figures or []) if isinstance(f, dict)], None
+
+
 def _prepare_template(template, body_text, zoom_to_layer, key_figures, sources):
     """Template-specific inputs (sitrep / access_map) plus the JIAF disclosure line.
     Returns (template, body_text, zoom_to_layer, sitrep_args, sitrep_warning)."""
@@ -469,7 +525,18 @@ def _prepare_template(template, body_text, zoom_to_layer, key_figures, sources):
                               "Do not fill it with unverified content: pass the figures from the analysis results.")
         # Built at the point the label box size is known (below), so that a long summary is shortened and the sources and the
         # handling note are not: plain truncation would cut exactly the end of the text, where they sit.
-        sitrep_args = (body_text, key_figures, sources, layout_style.access_reading_guide(visible))
+        unverified = []
+        try:
+            pool = layout_style.build_number_pool(_numeric_columns())
+            unverified = layout_style.unverified_figure_labels(key_figures, pool)
+        except Exception as exc:   # checking is best-effort; a layout is still made, but the reply says the figures were not checked
+            sitrep_warning = (sitrep_warning + " " if sitrep_warning else "") + f"The key figures could not be checked against the project data ({exc})."
+        if unverified:
+            sitrep_warning = (sitrep_warning + " " if sitrep_warning else "") + (
+                f"These key figures were not found in any project layer and are marked {layout_style.UNVERIFIED_FIGURE_MARK} on the layout: "
+                f"{', '.join(unverified)}. Take figures from the data with key_figures_from, or from a tool result that is also written to a layer field; "
+                "never type a figure from memory.")
+        sitrep_args = (body_text, key_figures, sources, layout_style.access_reading_guide(visible), unverified)
         body_text = "sitrep"
     if template == "access_map":
         from . import layout_style
@@ -566,13 +633,14 @@ def _remember_profile(layout, profile, name=None):
             "zoom_to_layer": {"type": "string", "description": "Name of a layer to fit the map to its full extent before capturing it, e.g. the national boundary layer for a full-country sitrep map. Omit to use whatever extent the canvas currently shows."},
             "template": {"type": "string", "description": "'standard' (default), 'access_map' or 'sitrep'. 'access_map': for the result of a service-area / facility-access analysis. Fits the map to the reach layer when zoom_to_layer is omitted, lists the reach polygon, access points and cost-graded roads first in the legend, and (when body_text is empty) adds a short 'how to read this map' guide for the layers present. 'sitrep': a one-page situation report; body_text is the situation summary, key_figures and sources fill the KEY FIGURES and SOURCES sections, and a standing handling note (estimates, no exact locations of people or sensitive sites) and the preparation date are always added."},
             "key_figures": {"type": "array", "items": {"type": "object", "properties": {"label": {"type": "string"}, "value": {"type": "string"}, "source": {"type": "string"}}, "required": ["label", "value"]}, "description": "For template='sitrep': up to 8 headline figures, each copied from a tool result (never estimated or remembered), e.g. {label: 'People within 1 hour of a clinic', value: '412,000 (estimate)', source: 'population_access_gap'}."},
+            "key_figures_from": {"type": "object", "properties": {"layer_name": {"type": "string"}, "label_field": {"type": "string"}, "value_field": {"type": "string"}, "top_n": {"type": "integer"}, "order": {"type": "string", "description": "'highest' (default) or 'lowest'"}}, "required": ["layer_name", "label_field", "value_field"], "description": "For template='sitrep': take the headline figures straight from a layer, e.g. {layer_name: 'admin_units', label_field: 'ADM2_EN', value_field: 'people_in_need', top_n: 3}. The numbers are read from the layer, so they cannot be mistyped; prefer this over typing figures. Any typed key_figures whose number is not found in a project layer (a value, or a total, minimum, maximum, mean or count of a numeric field) is marked 'not found in the project data' on the layout and listed in the reply."},
             "sources": {"type": "array", "items": {"type": "string"}, "description": "For template='sitrep': the data sources behind the figures, e.g. ['OCHA COD-AB 2024', 'WorldPop 2020']."},
             "include_inset_map": {"type": "boolean", "description": "Add a small locator/inset map (zoomed out ~6x from the main map, same center) showing the main map's location within its wider region. Defaults to true."},
         },
         "required": ["title"],
     },
 )
-def create_print_layout(title: str, page_orientation: str | None = None, output_path: str = "", dpi: int | None = None, body_text: str = "", zoom_to_layer: str = "", include_inset_map: bool = True, template: str = "standard", key_figures=None, sources=None, confirmed: bool = False, preset: str | None = None, output_format: str = "pdf", page_size: str | None = None, profile: str | None = None):
+def create_print_layout(title: str, page_orientation: str | None = None, output_path: str = "", dpi: int | None = None, body_text: str = "", zoom_to_layer: str = "", include_inset_map: bool = True, template: str = "standard", key_figures=None, sources=None, key_figures_from=None, confirmed: bool = False, preset: str | None = None, output_format: str = "pdf", page_size: str | None = None, profile: str | None = None):
     requested_output = output_path
     output_path = resolve_output_path(output_path)   # rc22 smoke N3/N8/N9: anchor relative paths to the project (see _paths.py)
     if not QGIS_AVAILABLE:
@@ -580,7 +648,7 @@ def create_print_layout(title: str, page_orientation: str | None = None, output_
     request, early = _early_export_checks(title, output_path, requested_output, confirmed, {
         "title": title, "page_orientation": page_orientation, "dpi": dpi, "body_text": body_text, "zoom_to_layer": zoom_to_layer,
         "include_inset_map": include_inset_map, "template": template, "key_figures": key_figures, "sources": sources,
-        "preset": preset, "output_format": output_format, "page_size": page_size, "profile": profile})
+        "key_figures_from": key_figures_from, "preset": preset, "output_format": output_format, "page_size": page_size, "profile": profile})
     if early:
         return early
     output_path, dpi, page_size, page_orientation = request["output_path"], request["dpi"], request["page_size"], request["page_orientation"]
@@ -591,6 +659,9 @@ def create_print_layout(title: str, page_orientation: str | None = None, output_
     try:
         requested = str(template or "").lower()
         template = requested if requested in ("access_map", "sitrep") else "standard"
+        key_figures, problem = _merge_figures_from_layer(key_figures, key_figures_from)
+        if problem:
+            return {"error": problem}
         template, body_text, zoom_to_layer, sitrep_args, sitrep_warning = _prepare_template(
             template, body_text, zoom_to_layer, key_figures, sources)
         target_layer = None
@@ -770,8 +841,9 @@ def create_print_layout(title: str, page_orientation: str | None = None, output_
             body_label = QgsLayoutItemLabel(layout)
             if sitrep_args is not None:
                 from . import layout_style
-                summary, figures, srcs, guide = sitrep_args
-                body_label.setText(layout_style.sitrep_body(summary, figures, srcs, guide, max_chars=_text_budget(col_w, body_h)))
+                summary, figures, srcs, guide, unverified_labels = sitrep_args
+                body_label.setText(layout_style.sitrep_body(summary, figures, srcs, guide, max_chars=_text_budget(col_w, body_h),
+                                                            unverified_labels=unverified_labels))
             else:
                 body_label.setText(_fit_text_to_box(body_text, col_w, body_h))
             layout.addLayoutItem(body_label)

@@ -110,10 +110,12 @@ class TestSitrepTemplate(unittest.TestCase):
             sources=["OCHA COD-AB", "WorldPop 2020"])
         self.assertTrue(res.get("success"), res)
         self.assertEqual(res["template"], "sitrep")
-        self.assertNotIn("sitrep_warning", res)
+        # 1.18.5+ (PLAN-028): the typed 412,000 is in no project layer (the layer has only a name field), so it is printed with the "not
+        # found in the project data" marker and named in the warning; every section is still there.
+        self.assertIn("People in need", res["sitrep_warning"])
         layout = QgsProject.instance().layoutManager().layoutByName(res["layout_name"])
         text = layout.itemById("BODY_TEXT").text()
-        for part in ("SITUATION", "KEY FIGURES", "412,000 (estimate)", "SOURCES", "WorldPop 2020", "HANDLING"):
+        for part in ("SITUATION", "KEY FIGURES", "412,000 (estimate)", "SOURCES", "WorldPop 2020", "HANDLING", "[not found in the project data]"):
             self.assertIn(part, text)
         self.assertGreater(os.path.getsize(out), 1000)
 
