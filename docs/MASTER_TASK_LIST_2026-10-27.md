@@ -152,19 +152,20 @@ Source: the owner's analysis document of nine flagship QGIS AI plugins, checked 
 | LEAD-5 | Public, reproducible benchmark from the smoke fixtures: machine-checkable cases, a headless runner, a scoring definition written first, a per-provider table on a public page. Extends HT-3. | A number beats an adjective in a directory listing; the fixtures and expected answers already exist. | Claude | LEAD-1, HT-3 | L | P2 | Not started | codebase analysis 2026-10-28 |
 | LEAD-6 | Directory listing pack and adoption material: metadata and tags checked against the directory rules, screenshots from the fixtures, a two-minute demo, worked examples per tool family, a fair comparison page, monthly download/rating record, two pilot teams. | Visibility, not features, is the current limit (OWN-12 still open; fewer than ten stars). | Both | LEAD-1, OWN-12 | M | P1 | Not started | codebase analysis 2026-10-28 |
 | LEAD-7 | Structural debt after LEAD-4: split the largest modules (agent_orchestrator, analysis_tools, vector_tools, layout_tools), burn down the 504 broad-except baseline with a ratchet test, typed result shapes for one tool family. Plan to be written when LEAD-4 lands. | Reviewers notice size and broad excepts first; it does not cause wrong answers the way dropped arguments do, so it follows LEAD-4. | Claude | LEAD-4 | XL | P3 | Not started | codebase analysis 2026-10-28 |
+| LEAD-8 | CLI bridge providers (PLAN-038): run the plugin on a local Claude Code, Codex or Gemini CLI login with no API key, tools and gates stay in the plugin. Starts with a spike on the Claude Code adapter. | Closes the no-key gap and widens who can try the plugin; priority raised by the owner 2026-10-28. | Claude | LEAD-1 | L | P1 | Decision needed | owner request 2026-10-28 |
 
 ## Counts by status
 
 | Status | Rows |
 |---|---|
 | Not started | 37 |
-| Decision needed | 13 |
+| Decision needed | 14 |
 | In progress | 13 |
 | Waiting on you | 11 |
 | Blocked | 5 |
 | Closed | 2 |
 | Closed (record) | 1 |
-| **Total** | **82** |
+| **Total** | **83** |
 
 ## How to keep it current
 
