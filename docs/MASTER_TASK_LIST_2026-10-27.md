@@ -49,7 +49,7 @@ One list to follow up and plan from. It replaces the session task list (101 entr
 | ID | Task | Why | Who | Depends on | Size | Pri | Status | Source |
 |---|---|---|---|---|---|---|---|---|
 | HT-1 | Triage the 1.18.4 results into defects, write a failing test per defect, fix, and cut 1.18.5. | The loop that has produced 1.18.2, 1.18.3 and 1.18.4. | Claude | OWN-1, OWN-3 | M | P0 | In progress | release process |
-| HT-2 | Ledger traceability: add a hand_row (a row id or 'none: reason') to every 'not verified' ledger entry (27 now, 12 at the time of PLAN-022) and make a test fail when a new entry has neither. | The ledger is the contract; 'not verified' must say which hand row would verify it. | Claude | - | M | P2 | Not started | PLAN-022 N2 |
+| HT-2 | Ledger traceability: add a hand_row (a row id or 'none: reason') to every 'not verified' ledger entry (27 now, 12 at the time of PLAN-022) and make a test fail when a new entry has neither. | The ledger is the contract; 'not verified' must say which hand row would verify it. | Claude | - | M | P2 | Closed | PLAN-022 N2 |
 | HT-3 | Build eval rows for model tool choice (prompt, expected tool) and measure them: D3 (survey tool), D4 (presence-gap write), S5 (refuse a trigger with no threshold). Change prompts or descriptions only with a measured gain. | The router already offers the right tools; what the model picks has never been measured. | Claude | OWN-3 | M | P2 | Not started | 1.18.3 hand run, W-4 |
 | HT-4 | Verification debt, CI only today: Windows and macOS QGIS; large, messy, non-English and database-backed user data; numerical correctness of Processing outputs; delineate_watershed on a real DEM versus the engineer's report; a real Geofabrik extract and prompt-cache check. | Built and passing in CI, never run by a person. | Both | OWN-11, OWN-14 | L | P3 | Not started | W-5 to W-9 |
 | HT-5 | Re-check 'partly' ledger entries (5) and wave E1, DXF and Excel export and the 20 later routing additions by hand. | Only 21 algorithms were ever hand-tested. | Both | OWN-1 | M | P3 | Not started | W-2, W-3 |
@@ -95,7 +95,7 @@ One list to follow up and plan from. It replaces the session task list (101 entr
 
 | ID | Task | Why | Who | Depends on | Size | Pri | Status | Source |
 |---|---|---|---|---|---|---|---|---|
-| HY-1 | Set the 14 stale plan statuses from their own logs; fold PLAN-020 into PLAN-021; close PLAN-024 to PLAN-026 when their hand rows pass; mark PLAN-019 done. | Status words no longer match the logs. | Claude | - | S | P2 | Not started | PLAN-022 N1 |
+| HY-1 | Set the 14 stale plan statuses from their own logs; fold PLAN-020 into PLAN-021; close PLAN-024 to PLAN-026 when their hand rows pass; mark PLAN-019 done. | Status words no longer match the logs. | Claude | - | S | P2 | In progress | PLAN-022 N1 |
 | HY-2 | Sweep IMPLEMENTATION_TRACKER.md (2,746 lines; duplicate sections 1.19 to 1.24; stale list at the top) and BUG_TRACKER.md. | The trackers are the planning source and are out of date. | Claude | - | M | P2 | Not started | PLAN-022 N3 |
 | HY-3 | CI and release hygiene: pin the Windows runner, check upload-artifact against the Node notice, add an optional status_note input to release.yml (releases cannot be edited from this session type), generate the README test count. | A release cannot say 'not hand-tested' without a manual edit. | Claude | - | S | P2 | Not started | PLAN-022 N4 |
 | HY-4 | Prune the 190-odd remote branches (merged and abandoned claude/* branches); keep the open ones. | 193 remote branches; it hides what is live. | Both | OWN-8 | S | P3 | Not started | repository state |
@@ -142,12 +142,12 @@ One list to follow up and plan from. It replaces the session task list (101 entr
 
 | Status | Rows |
 |---|---|
-| Not started | 36 |
+| Not started | 34 |
 | Decision needed | 11 |
 | Waiting on you | 11 |
-| In progress | 9 |
+| In progress | 10 |
 | Blocked | 5 |
-| Closed | 1 |
+| Closed | 2 |
 | Closed (record) | 1 |
 | **Total** | **74** |
 
@@ -178,3 +178,5 @@ Newest last. One line per status change; written by `tools/master_list.py set`.
 - 2026-10-28: DEF-9 In progress -> In progress. 1.18.5 collector copies plugin evidence and writes tools_called.txt; hand check: runbook row P6
 - 2026-10-28: OWN-1 Closed -> Waiting on you. Run the 1.18.5 package (cartogen_ai_live_smoke_1.18.5.zip): Section P first (6 rows), then Section N; return the whole results folder. Rerun the nine model-choice rows with the Claude provider (OWN-15)
 - 2026-10-28: DEF-14 Not started -> In progress. 2026-10-28 PLAN-028: key_figures_from reads figures from a layer; typed figures not found in the project data are marked on the layout and named in the reply. Awaiting merge; hand rerun of B8
+- 2026-10-28: HY-1 Not started -> In progress. 2026-10-28: 8 plans updated from their own logs and the GitHub release list (001 abandoned, 007/013/015/016/017 done, 020 abandoned, 021 in progress). Left as they are: 018 (no 1.18.0 release tag exists), 024-026 (close when hand rows pass), 002/003/005/006/008/009/014 (open items remain)
+- 2026-10-28: HT-2 Not started -> Closed. 2026-10-28: every 'not verified' ledger entry (32) now has a hand_row, and tests/test_feature_ledger.py fails for a new one without it. 'none: reason' is allowed where no person can check it

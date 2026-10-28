@@ -1,6 +1,6 @@
 # PLAN-015: release rc50 and its hand-test pass
 
-Status: in progress
+Status: done
 
 ## Goal
 Put everything merged since rc49 (PLAN-014: credits, No data class, layout checks, page sizes, export presets, map profiles with branding, sign-off and COD wording, the footer fit) into one installable pre-release (1.17.0-rc50) and add its hand-test rows to the bundle, so one pass by the owner replaces the CI-only state of those changes.
@@ -22,3 +22,4 @@ Delete the pre-release (it does not affect `main`) or release a corrected rc51; 
 
 ## Status log
 - 2026-10-24: owner said go. Version, metadata changelog, CHANGELOG, README, Help text and counts updated (tools unchanged at 296; 4,908 offline tests, 723 skipped); the bundle builder gained 7 P14 rows and the `districts_gaps` fixture. The release workflow has not been run yet.
+- 2026-10-28: status set to done from this plan's own log and the GitHub release list (master list HY-1): the pre-release cartogen-ai-v1.17.0-rc50 exists on GitHub (published 2026-10-24). Hand findings are in PLAN-016.

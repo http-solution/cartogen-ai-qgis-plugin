@@ -1,6 +1,6 @@
 # PLAN-001: verify the open issues on rc47
 
-Status: in progress
+Status: abandoned
 
 ## Goal
 Close every open issue that rc47 has fixed, with evidence, and turn the rest into either a decision for the owner or a new, specific defect. Today 28 issues are open
@@ -23,3 +23,4 @@ Not applicable (test campaign).
 
 ## Status log
 - 2026-10-23: plan created with the combined bundle (PR for this plan). Nothing run yet.
+- 2026-10-28: status set to abandoned from this plan's own log and the GitHub release list (master list HY-1): superseded: the open-issue verification moved into PLAN-021 (all open issues and hand-run findings), which carried the combined bundle forward. Nothing in this plan was run.

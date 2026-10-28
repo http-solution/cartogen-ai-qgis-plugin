@@ -1,6 +1,6 @@
 # PLAN-020: legend cut off in exports, footer "may not fit" warning, precise bundle README
 
-Status: planned
+Status: abandoned
 
 ## Goal
 Three findings from the owner's hand run of the 1.18.0 precise test (2026-10-25, `4_RESULTS.csv` plus the three exported PDFs): (1) the legend frame cuts its entries off at the bottom in every exported layout; (2) `create_print_layout` warns that the footer text "may not fit" on layouts whose exported PDF shows the full text; (3) the precise hand-test bundle has no "Updating an existing install" section and its OI-224 row expects version 1.16.1. After this: an exported legend is never cut mid-entry (or says plainly that it dropped entries), the footer warning appears only when the text really does not fit, and the bundle's instructions match the bundle.
@@ -36,3 +36,4 @@ Revert the pull request. Geometry is computed when a layout is created; layouts 
 - 2026-10-25: plan written after the owner's 1.18.0 precise hand run. No code changed. Findings 1 and 2 need a diagnostic live test first (measure the legend content height against its frame; print the footer's needed and available height) so the cause is read from CI output, not guessed.
 - 2026-10-25: plan revised the same day after the owner objected that each hand test costs time and money. The legend cause was read from the owner's returned layout file (fixed frame, automatic resizing off); the first version of this plan asked for a diagnostic CI test and a hand re-run. Now: one pull request, one build, the footer numbers recorded by the plugin itself, and a model-free script for the one remaining hand check.
 - 2026-10-25: folded into PLAN-021 work package B (legend, footer, names) and G (bundle README and the model-free check). This plan stays as the record of how the causes were found; the work is tracked in PLAN-021.
+- 2026-10-28: status set to abandoned from this plan's own log and the GitHub release list (master list HY-1): folded into PLAN-021 work packages B and G as its own last log line says; kept as the record of how the legend and footer causes were found.
