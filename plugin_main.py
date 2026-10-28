@@ -335,11 +335,11 @@ class CartogenAi:
         self.toolbar_action = None
 
     def _get_agent(self):
-        from cartogen_ai.infrastructure.auth import CredentialManager
+        from cartogen_ai.infrastructure.auth import CredentialManager, credential_fingerprint
         settings = QgsSettings()
         provider = settings.value("cartogen_ai/provider", "openrouter")
         key = CredentialManager.get_credential(provider)
-        agent_hash = f"{provider}_{key}"
+        agent_hash = credential_fingerprint(provider, key)
 
         if self._agent is None or getattr(self, "_agent_key", None) != agent_hash:
             try:

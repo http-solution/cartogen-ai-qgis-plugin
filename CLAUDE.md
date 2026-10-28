@@ -23,7 +23,7 @@ step, no compiled artifacts beyond the release zip.
     map-representation planner.
   - `core/*.py` leaf modules (`net.py`, `logger.py`, `cancel_signal.py`, `model_selector.py`, `tool_operations.py`, `exceptions.py`) sit below the agent and must not import it, the tools or the UI. The old `core/agent/cancel_signal.py`, `model_selector.py` and `tool_operations.py` paths are aliases to the same module objects. `tests/test_import_architecture.py` enforces the import direction and bans import cycles; its two allowlists may only shrink (PLAN-040).
   - `core/logger.py` — structured, metadata-only logging (`log_event`); never log raw prompts,
-    responses, tool arguments/results, or coordinates. `core/exceptions.py` — exception hierarchy.
+    responses, tool arguments/results, or coordinates.
   - `infrastructure/` — `auth.py` (credentials: QGIS Auth Manager or session memory ONLY, never
     plaintext `QgsSettings`), `deps.py`, `settings_keys.py`, and `providers/` (the 5 LLM clients:
     OpenRouter, Gemini, OpenAI, Claude, Ollama, plus a `cartogen.py` stub for a planned hosted

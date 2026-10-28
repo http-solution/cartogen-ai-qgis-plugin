@@ -4,6 +4,7 @@ Uses QGIS native QgsAuthManager (encrypted keyring storage). When it is unavaila
 the session; a new key is never written to QgsSettings in plaintext (older plaintext keys are only read and migrated, see below).
 """
 
+import hashlib
 from typing import ClassVar
 
 try:
@@ -34,6 +35,15 @@ def _store_auth_config(auth_mgr, config, had_existing_id):
         or getattr(auth_mgr, "saveAuthenticationConfig", None)
     return bool(save_fn and save_fn(config))
 
+
+
+def credential_fingerprint(provider, key):
+    """Opaque digest of provider + key, used only to notice that either changed.
+
+    plugin_main used to keep f"{provider}_{key}" -- the raw API key -- in an attribute named `_agent_key`/`agent_hash`, so the
+    secret sat in a second long-lived string (visible in any debugger, repr or crash dump). A SHA-256 hex digest answers the same
+    "did it change?" question without holding the key."""
+    return hashlib.sha256(f"{provider}\0{key or ''}".encode()).hexdigest()
 
 
 class CredentialManager:
