@@ -1442,6 +1442,22 @@
     ],
     "hand_verified": "not verified: CI only (owner hand run 1.18.4 row E2: the reply asking for the confirmation named neither the blockers nor the empty severity)",
     "hand_row": "E2"
+  },
+  {
+    "id": "cli-bridge-runner-and-claude-adapter",
+    "feature": "a Claude Code CLI client (not yet selectable in Settings) that runs the user's own `claude -p` login as a text model with all CLI tools off, a size/time/cancel-limited subprocess runner, and a strict tool-call parser that rejects unknown tools instead of guessing",
+    "issues": [],
+    "since": "1.18.6",
+    "sources": [
+      "src/cartogen_ai/infrastructure/providers/cli_bridge.py"
+    ],
+    "guards": [
+      "tests/test_cli_bridge_runner.py::TestRunCli::test_timeout_kills_the_process",
+      "tests/test_cli_bridge_adapters.py::TestClaudeArgv::test_exact_command_line_switches_every_tool_off",
+      "tests/test_cli_bridge_adapters.py::TestParseReply::test_unknown_tool_is_an_error_not_a_guess"
+    ],
+    "hand_verified": "not verified: CI only, against a stand-in process; never run against a real logged-in Claude CLI (PLAN-038 spike)",
+    "hand_row": "SPIKE-1 (tools/cli_bridge_spike.py, PLAN-038)"
   }
  ]
 }
