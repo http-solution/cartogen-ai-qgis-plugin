@@ -28,7 +28,7 @@ One list to follow up and plan from. It replaces the session task list (101 entr
 
 | ID | Task | Why | Who | Depends on | Size | Pri | Status | Source |
 |---|---|---|---|---|---|---|---|---|
-| OWN-1 | Install 1.18.4 and run Section N of the 1.18.4 test package (8 checks, about 15 minutes); then the rest as time allows. Save the CartogenAI log and a screenshot per row. | Hand-verifies the fixes of PRs 449, 452-456 (damage score, distances in degrees, wrong task card, IPC names, GDACS). Nothing from 1.18.2 to 1.18.4 is hand-verified yet except the three 1.18.2 checks. | You | - | S | P0 | Closed | 1.18.4 test package, TEST_RUNBOOK.md |
+| OWN-1 | Install 1.18.4 and run Section N of the 1.18.4 test package (8 checks, about 15 minutes); then the rest as time allows. Save the CartogenAI log and a screenshot per row. | Hand-verifies the fixes of PRs 449, 452-456 (damage score, distances in degrees, wrong task card, IPC names, GDACS). Nothing from 1.18.2 to 1.18.4 is hand-verified yet except the three 1.18.2 checks. | You | - | S | P0 | Waiting on you | 1.18.4 test package, TEST_RUNBOOK.md |
 | OWN-2 | Send the screenshot of the change-layer legend (row D6: is it blue-to-red, is the no-change area transparent?). | The colour stops are correct in code; without the picture the fault cannot be located. | You | - | XS | P2 | Waiting on you | 1.18.3 hand run D6 |
 | OWN-3 | For the rows that failed without a found cause, send the per-prompt Log Messages text: unrequested layers (A5 country layer, A7 Incident layer), C5 inverted labels, D3, D4, S5. | Last two runs' logs held only the verdict line; the causes of these rows are unknown. | You | OWN-1 | S | P1 | Waiting on you | 1.18.3 hand run |
 | OWN-4 | Run the 1.18.1-bundle rows V3 to V8 so issues #362 (V4, V5, V6) and #380 (V3, V7, V8) can be closed or fixed. | The only two open GitHub issues; waiting since 2026-10-23. | You | - | S | P1 | Waiting on you | PLAN-021, PLAN-022 N0 |
@@ -144,10 +144,10 @@ One list to follow up and plan from. It replaces the session task list (101 entr
 |---|---|
 | Not started | 37 |
 | Decision needed | 11 |
-| Waiting on you | 10 |
+| Waiting on you | 11 |
 | In progress | 8 |
 | Blocked | 5 |
-| Closed | 2 |
+| Closed | 1 |
 | Closed (record) | 1 |
 | **Total** | **74** |
 
@@ -170,3 +170,10 @@ Newest last. One line per status change; written by `tools/master_list.py set`.
 - 2026-10-28: DEF-15 Decision needed -> Closed. 2026-10-28 not a defect: N6 evidence shows the degrees guard fired (5000 degrees is about 555,000 km); the model then reprojected to UTM and worked in metres. Runbook expectation was wrong
 - 2026-10-28: DEF-16 Not started -> In progress. 2026-10-28 also: C6 demand points sit about 5 km off the roads (default snap 2000 m; model retried with a larger one) - fixture note, not a tool fault
 - 2026-10-28: DEF-19 Not started -> In progress. 2026-10-28 root cause of the global GDACS layer (A7, N7c): the orchestrator dropped the country argument; fixed in PLAN-027 with a guard that checks every *_network_phase call. USGS has no country concept (needs bbox, see geocode bbox)
+- 2026-10-28: HT-1 In progress -> In progress. 1.18.5 published 2026-10-28 (tag cartogen-ai-v1.18.5, not pre-release); agent-edition package sent; next: owner run of Section P and Section N
+- 2026-10-28: DEF-11 In progress -> In progress. Fixed in 1.18.5 (path escapes); needs hand rerun: runbook row P2
+- 2026-10-28: DEF-13 In progress -> In progress. Fixed in 1.18.5; no hand row (hard to trigger)
+- 2026-10-28: DEF-10 In progress -> In progress. 1.18.5 geocode bbox; hand rerun: runbook rows P3 to P5
+- 2026-10-28: DEF-19 In progress -> In progress. GDACS country fixed in 1.18.5; hand rerun: runbook row P1
+- 2026-10-28: DEF-9 In progress -> In progress. 1.18.5 collector copies plugin evidence and writes tools_called.txt; hand check: runbook row P6
+- 2026-10-28: OWN-1 Closed -> Waiting on you. Run the 1.18.5 package (cartogen_ai_live_smoke_1.18.5.zip): Section P first (6 rows), then Section N; return the whole results folder. Rerun the nine model-choice rows with the Claude provider (OWN-15)
