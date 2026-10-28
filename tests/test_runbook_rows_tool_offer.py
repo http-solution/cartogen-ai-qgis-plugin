@@ -15,10 +15,10 @@ ROWS = {
            ["apply_network_barriers"]),
     "C3": ("which facilities in hospitals_grid_fixture are within 1 hour of origin_fixture, using speed_blocked", ["classify_facilities_by_access"]),
     "C4": ("travel times from origin_fixture to hospitals_grid_fixture using speed_blocked", ["travel_time_matrix"]),
-    "C6": (f"Load hub_candidates_fixture.geojson and demand_points_fixture.geojson from {F}, then which 2 of the hub_candidates_fixture sites "
-           "should be hubs to serve demand_points_fixture, weighted by people", ["add_layer_from_path"]),
-    "D4": (f"compare needs in admin_units_fixture (people_in_need, displaced, water_gap; unit field ADM2_PCODE) with {F}\\3w_fixture.csv "
-           "(admin column admin_pcode, organization column organization), write the result to presence_gap", ["calculate_presence_gap"]),
+    "C6": ((f"Load hub_candidates_fixture.geojson and demand_points_fixture.geojson from {F}, then which 2 of the hub_candidates_fixture sites "
+            "should be hubs to serve demand_points_fixture, weighted by people"), ["add_layer_from_path"]),
+    "D4": ((f"compare needs in admin_units_fixture (people_in_need, displaced, water_gap; unit field ADM2_PCODE) with {F}\\3w_fixture.csv "
+            "(admin column admin_pcode, organization column organization), write the result to presence_gap"), ["calculate_presence_gap"]),
     "E2": ("compute the preliminary PiN and severity from the JIAF file, join to admin_units_fixture by P-code", ["compute_jiaf_preliminary"]),
     "S5": ("set up a forecast trigger for flooding with no threshold", ["evaluate_forecast_trigger"]),
 }
