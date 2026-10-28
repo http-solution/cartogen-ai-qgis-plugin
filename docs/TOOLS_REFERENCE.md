@@ -1122,7 +1122,7 @@ Search the live web using Gemini's native Google Search grounding for real-time,
 
 ### `geocode_and_enrich` _(network-only)_
 
-Geocode a SINGLE address/place name into lat/lon via Nominatim API. For multiple locations in one request, use geocode_batch instead -- one call per place will run out of tool-call steps before finishing a long list.
+Geocode a SINGLE address/place name into lat/lon via Nominatim API; the result also carries the place's bounding box (bbox_south_west_north_east and bbox_west_south_east_north) for tools that take an area. For multiple locations in one request, use geocode_batch instead -- one call per place will run out of tool-call steps before finishing a long list.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|

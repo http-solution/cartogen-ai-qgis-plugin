@@ -1268,6 +1268,60 @@
           "tests/test_task_matcher_named_tools.py::TestNamedDataSourceGivesNoTaskDirective::test_source_requests_are_not_matched_to_a_map_task"
       ],
       "hand_verified": "not verified: CI only (owner hand run 1.18.3 rows A3 and A10 found the defect; the fix has not been re-run)"
+  },
+  {
+    "id": "gdacs-country-filter-reaches-the-live-path",
+    "feature": "a GDACS request that names a country returns only that country's alerts through the agent's own tool path",
+    "issues": [],
+    "since": "1.18.5",
+    "sources": [
+      "src/cartogen_ai/core/agent/agent_orchestrator.py",
+      "src/cartogen_ai/core/agent/tools/hazard_monitoring_tools.py"
+    ],
+    "guards": [
+      "tests/test_orchestrator_passes_all_arguments.py::TestNetworkPhaseCalls::test_every_network_phase_call_passes_every_declared_argument"
+    ],
+    "hand_verified": "not verified: CI only (owner hand run 1.18.4 rows N7c and A7 found the defect; the fix has not been re-run)"
+  },
+  {
+    "id": "windows-path-escapes-are-repaired",
+    "feature": "a Windows path whose backslash escapes were eaten by JSON decoding reaches the tool intact",
+    "issues": [],
+    "since": "1.18.5",
+    "sources": [
+      "src/cartogen_ai/core/agent/arg_repair.py",
+      "src/cartogen_ai/core/agent/agent_orchestrator.py"
+    ],
+    "guards": [
+      "tests/test_arg_repair.py::TestRepairWindowsPath::test_form_feed_and_backspace_are_turned_back_into_backslash_letters"
+    ],
+    "hand_verified": "not verified: CI only (owner hand run 1.18.4 row D6 found the defect; the fix has not been re-run)"
+  },
+  {
+    "id": "update-task-without-an-id-is-explained",
+    "feature": "update_task with a missing id updates the one open task or says there is no plan, never a Task ID None message",
+    "issues": [],
+    "since": "1.18.5",
+    "sources": [
+      "src/cartogen_ai/core/agent/task_manager.py"
+    ],
+    "guards": [
+      "tests/test_task_manager.py::TestUpdateTaskWithoutAnId::test_no_plan_gives_a_plain_message_not_none"
+    ],
+    "hand_verified": "not verified: CI only (owner hand run 1.18.4 row N7c found the defect; the fix has not been re-run)"
+  },
+  {
+    "id": "geocode-returns-the-place-bounding-box",
+    "feature": "geocode_and_enrich and geocode_batch return the place's bounding box in both coordinate orders",
+    "issues": [],
+    "since": "1.18.5",
+    "sources": [
+      "src/cartogen_ai/core/agent/tools/system_tools.py"
+    ],
+    "guards": [
+      "tests/test_geocode_bbox.py::TestNominatimBbox::test_boundingbox_is_reordered_for_both_conventions"
+    ],
+    "hand_verified": "not verified: CI only (owner hand run 1.18.4 rows A5, A6 and A13 found the gap; the fix has not been re-run)"
   }
  ]
 }

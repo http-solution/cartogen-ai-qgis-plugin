@@ -77,6 +77,28 @@ class TestFormattedTaskContextSurfacesPendingConfirmation(unittest.TestCase):
         self.assertIn("do not describe it as done without actually calling it", ctx)
 
 
+class TestUpdateTaskWithoutAnId(unittest.TestCase):
+    """1.18.4 smoke N7c: the model called update_task with a null id after a good fetch and the reply said "Task ID 'None' not found"."""
+
+    def test_no_plan_gives_a_plain_message_not_none(self):
+        res = AgentTaskManager().update_task(None, "DONE")
+        self.assertIn("no active plan", res["error"])
+        self.assertNotIn("None", res["error"])
+
+    def test_one_open_task_is_updated(self):
+        tm = AgentTaskManager()
+        tm.create_plan("Plan", ["Only step"])
+        self.assertTrue(tm.update_task("None", "DONE", "ok")["success"])
+        self.assertEqual(tm.tasks[0]["status"], "DONE")
+
+    def test_several_open_tasks_ask_for_the_id(self):
+        tm = AgentTaskManager()
+        tm.create_plan("Plan", ["A", "B"])
+        res = tm.update_task(None, "DONE")
+        self.assertIn("task_id is required", res["error"])
+        self.assertEqual([t["status"] for t in tm.tasks], ["TODO", "TODO"])
+
+
 if __name__ == "__main__":
     unittest.main()
 

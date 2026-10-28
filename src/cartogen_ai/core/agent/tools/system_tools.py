@@ -500,6 +500,20 @@ _GEOCODE_BATCH_DELAY_SECONDS = 1.0  # Nominatim's usage policy caps requests at 
 _GEOCODE_BATCH_MAX = 25
 
 
+def _nominatim_bbox(item):
+    """The place's own bounding box from a Nominatim hit, in the two orders the tools use, or {} when the hit has none.
+
+    Why: in the 1.18.4 smoke run (A5, A6, A13) the model had a point for "Aden" but no area, so it asked the user for a bounding box or went looking
+    for a boundary layer instead of searching; the STAC and footprint tools take a bbox. Nominatim sends boundingbox as [south, north, west, east]."""
+    raw = item.get("boundingbox")
+    try:
+        south, north, west, east = (float(v) for v in raw)
+    except (TypeError, ValueError):
+        return {}
+    return {"bbox_south_west_north_east": [south, west, north, east], "bbox_west_south_east_north": [west, south, east, north],
+            "bbox_note": "The place's own extent from OpenStreetMap, in degrees (EPSG:4326). Use the order the tool you call expects."}
+
+
 def _geocode_one(location_name: str):
     """Single-location Nominatim lookup, shared by geocode_and_enrich and
     geocode_batch. Cached -- repeated lookups of the same place name within a
@@ -527,6 +541,7 @@ def _geocode_one(location_name: str):
                     "lat": float(data[0]['lat']),
                     "lon": float(data[0]['lon'])
                 }
+                result.update(_nominatim_bbox(data[0]))
                 _GEOCODE_CACHE.set(location_name, result)
                 return result
             return {"error": "Location not found."}
@@ -534,7 +549,7 @@ def _geocode_one(location_name: str):
         return {"error": str(e)}
 
 
-@register_tool("geocode_and_enrich", "Geocode a SINGLE address/place name into lat/lon via Nominatim API. For multiple locations in one request, use geocode_batch instead -- one call per place will run out of tool-call steps before finishing a long list.", {"type": "object", "properties": {"location_name": {"type": "string"}}, "required": ["location_name"]})
+@register_tool("geocode_and_enrich", "Geocode a SINGLE address/place name into lat/lon via Nominatim API; the result also carries the place's bounding box (bbox_south_west_north_east and bbox_west_south_east_north) for tools that take an area. For multiple locations in one request, use geocode_batch instead -- one call per place will run out of tool-call steps before finishing a long list.", {"type": "object", "properties": {"location_name": {"type": "string"}}, "required": ["location_name"]})
 def geocode_and_enrich(location_name: str):
     return _geocode_one(location_name)
 

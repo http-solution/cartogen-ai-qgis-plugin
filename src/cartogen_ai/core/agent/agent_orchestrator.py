@@ -45,7 +45,7 @@ from .tools import TOOL_REGISTRY, TOOLS_SCHEMA
 from .tools._snapshot_registry import get_snapshot_fn
 from .tools.task_tools import bind_agent_context
 from .tools.transaction_tools import bind_transaction_log
-from . import api_trace, evidence, look_followup, step_runner, tool_operations, tool_result as tool_results
+from . import api_trace, arg_repair, evidence, look_followup, step_runner, tool_operations, tool_result as tool_results
 from ..models.transactions import TurnTransactionLog
 from ..models.plan_gate import PlanValidationGate
 from ..models import egress_gate
@@ -684,7 +684,7 @@ class CartogenAi:
                 break
 
         # Strip unadvertised arguments (prevents model self-approval via injected parameters)
-        filtered_args = {k: v for k, v in args.items() if k in schema_props}
+        filtered_args = arg_repair.repair_path_arguments({k: v for k, v in args.items() if k in schema_props})
         if user_confirmed and _accepts_confirmed(func):
             filtered_args["confirmed"] = True
 
@@ -1171,7 +1171,7 @@ class CartogenAi:
 
         # Same dispatcher-level schema enforcement as _real_execute_tool
         schema_props = self._get_schema_props(name)
-        filtered_args = {k: v for k, v in args.items() if k in schema_props}
+        filtered_args = arg_repair.repair_path_arguments({k: v for k, v in args.items() if k in schema_props})
 
         if name == "add_layer_from_path":
             from .tools.vector_tools import _prefetch_url_to_temp, add_layer_from_path
@@ -1319,6 +1319,9 @@ class CartogenAi:
             )
             fetch_result = fetch_gdacs_disaster_alerts_network_phase(
                 filtered_args.get("bbox"), filtered_args.get("min_alert_level", "Orange"),
+                # country was dropped here, so a "Yemen" request fetched the whole world (1.18.4 smoke N7c and A7: 86 alerts, none in Yemen);
+                # the function itself has filtered by country since 2026-09-15, but this two-phase path never passed it on.
+                filtered_args.get("country"),
             )
             res = self._run_current_turn_on_main_thread(
                 lambda a: add_gdacs_disaster_alerts_layer_main_thread_phase(a["fetch_result"], a["layer_name"]),
