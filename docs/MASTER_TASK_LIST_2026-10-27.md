@@ -213,3 +213,4 @@ Newest last. One line per status change; written by `tools/master_list.py set`.
 - 2026-10-28: LEAD-8 In progress -> In progress. runner + Claude, Codex and Gemini adapters built, CI-only; spike (tools/cli_bridge_spike.py --cli claude|codex|gemini) waits for the owner (SPIKE-1); Settings wiring waits for the spike
 - 2026-10-28: LEAD-8 In progress -> In progress. adapters wired into Settings behind an opt-in box (off by default), CI-only; owner: tick the box, reopen Settings, run the spike (SPIKE-1); Settings 'Test connection' and hand-test rows not done
 - 2026-10-28: LEAD-9 In progress -> In progress. slice 1 (CLI panel, groups) merged; slice 2 (rest of the window regrouped by purpose) in PR, CI-only; owner: look at the window
+- 2026-10-28: LEAD-9 In progress -> In progress. slices 1 and 2 merged; slice 3 (Test button for key-based providers) in PR, CI-only; owner: look at Settings, press Test and the CLI Check connection buttons

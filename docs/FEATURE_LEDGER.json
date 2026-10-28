@@ -1519,6 +1519,24 @@
     ],
     "hand_verified": "not verified: CI only (nobody has looked at the regrouped window)",
     "hand_row": "SPIKE-1 (open Settings and read the sections; open and close the two groups)"
+  },
+  {
+    "id": "settings-api-provider-test-button",
+    "feature": "each key-based provider page in Settings has a Test button that, using the key typed in the form (not saved), lists the models and asks the chosen model one tiny question, then says whether the key, the quota, the network or the model is the problem; a success marks the provider verified and fills the model box",
+    "issues": [],
+    "since": "1.18.6",
+    "sources": [
+      "src/cartogen_ai/infrastructure/providers/provider_check.py",
+      "src/cartogen_ai/core/ui/settings_dialog.py"
+    ],
+    "guards": [
+      "tests/test_provider_check.py::TestCheckProvider::test_a_bad_openrouter_key_is_caught_by_the_question_because_the_list_is_public",
+      "tests/test_provider_check.py::TestClassify::test_the_projects_own_error_texts",
+      "tests/test_provider_check.py::TestDialogWiring::test_the_test_button_uses_what_is_typed_and_saves_nothing",
+      "tests/test_api_test_button_live.py::TestApiTestButton::test_pressing_test_uses_the_typed_key_and_the_chosen_model_and_saves_nothing"
+    ],
+    "hand_verified": "not verified: CI only (no provider account or key in the sandbox; no real provider has been called)",
+    "hand_row": "SPIKE-1 (press Test on OpenRouter and Gemini with a good key, a bad key and no key)"
   }
  ]
 }
