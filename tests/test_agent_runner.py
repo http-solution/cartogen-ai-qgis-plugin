@@ -107,11 +107,11 @@ class TestAddLayerFromPathTwoPhaseSourceLabel(unittest.TestCase):
     def test_url_download_passes_original_url_as_source_label(self):
         url = "https://example.org/districts.geojson"
         add_layer = self._dispatch(url, ("/tmp/tmp_2kgn_72.geojson", True))
-        add_layer.assert_called_once_with("/tmp/tmp_2kgn_72.geojson", None, url)
+        add_layer.assert_called_once_with("/tmp/tmp_2kgn_72.geojson", None, url, None)
 
     def test_local_path_passes_no_source_label(self):
         add_layer = self._dispatch("/data/districts.geojson", ("/data/districts.geojson", False))
-        add_layer.assert_called_once_with("/data/districts.geojson", None, None)
+        add_layer.assert_called_once_with("/data/districts.geojson", None, None, None)
 
 
 class _FakeClient:
