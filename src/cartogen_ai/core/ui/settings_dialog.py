@@ -5,7 +5,7 @@ from qgis.PyQt.QtCore import pyqtSignal, Qt
 from qgis.PyQt.QtWidgets import (
     QDialog, QVBoxLayout, QLabel, QMessageBox, QApplication,
     QLineEdit, QComboBox, QFormLayout, QDialogButtonBox, QStackedWidget, QWidget, QCheckBox, QHBoxLayout, QPushButton, QSpinBox,
-    QScrollArea, QFrame, QButtonGroup,
+    QScrollArea, QFrame, QButtonGroup, QToolButton,
 )
 from qgis.core import QgsSettings
 
@@ -261,6 +261,7 @@ class CartogenAiSettingsDialog(QDialog):
         self._cli_status_labels = {}
         self._cli_buttons = {}
         self._cli_checking = set()
+        self._collapsibles = []
         self._key_edits = {}
         self._model_combos = {}
         self._cached_model_lists = {}
@@ -557,7 +558,16 @@ class CartogenAiSettingsDialog(QDialog):
 
         self._rebuild_keys_summary()
 
-        layout.addWidget(self._section_header("03", "What gets kept and shown"))
+        # PLAN-039 slice 2: the old "03 What gets kept and shown" mixed privacy, behaviour, print-layout and diagnostic settings, and put
+        # the cloud data protection gate (the most consequential switch here) below the print-layout colour. Widgets are still built where
+        # they always were; each goes into the column of the section it belongs to, and the sections are laid out in order below.
+        privacy_gate_col = QVBoxLayout()
+        privacy_keep_col = QVBoxLayout()
+        behaviour_col = QVBoxLayout()
+        experimental_col = QVBoxLayout()
+        layouts_col = QVBoxLayout()
+        diag_col = QVBoxLayout()
+        layout_form = QFormLayout()
 
         # S2: opt-in, default OFF -- chat history used to always be written
         # into the project (.qgz) file with no way to turn it off. A project
@@ -567,7 +577,7 @@ class CartogenAiSettingsDialog(QDialog):
         # notes) along with the map without the user ever choosing that.
         self.auto_open_dock_checkbox = QCheckBox("Open the Cartogen AI panel when QGIS starts")
         self.auto_open_dock_checkbox.setChecked(bool(self.settings.value(AUTO_OPEN_DOCK_KEY, True, type=bool)))
-        layout.addWidget(self.auto_open_dock_checkbox)
+        behaviour_col.addWidget(self.auto_open_dock_checkbox)
 
         self.persist_history_checkbox = QCheckBox("Save the conversation in the project file")
         self.persist_history_checkbox.setChecked(
@@ -580,7 +590,7 @@ class CartogenAiSettingsDialog(QDialog):
             "this off for projects that discuss sensitive material. Turning it off does not remove what is "
             "already saved; use 'Clear Saved Chat' in the Memory window for that."
         )
-        layout.addWidget(self.persist_history_checkbox)
+        privacy_keep_col.addWidget(self.persist_history_checkbox)
 
         # GDPR review finding F6 (docs/GDPR_COMPLIANCE_REVIEW.docx): project-scoped
         # memory notes had no equivalent opt-in at all -- always written to a sidecar
@@ -596,7 +606,7 @@ class CartogenAiSettingsDialog(QDialog):
             "files may be shared, emailed, or committed elsewhere -- the notes travel with them. "
             "Turning this off does not remove notes already saved from before this was disabled."
         )
-        layout.addWidget(self.persist_project_memory_checkbox)
+        privacy_keep_col.addWidget(self.persist_project_memory_checkbox)
 
         self.evidence_checkbox = QCheckBox("Save an evidence folder for each request (testing and review)")
         self.evidence_checkbox.setChecked(bool(self.settings.value(SETTINGS_EVIDENCE_ENABLED, False, type=bool)))
@@ -606,7 +616,7 @@ class CartogenAiSettingsDialog(QDialog):
             "layers created, the final reply, a map-canvas screenshot and copies of any files written, with SHA-256 hashes. "
             "Unlike the logs, this includes raw values such as coordinates and attribute data, so do not share the folder "
             "without checking it. Nothing is uploaded. Off by default.")
-        layout.addWidget(self.evidence_checkbox)
+        diag_col.addWidget(self.evidence_checkbox)
 
         self.api_trace_checkbox = QCheckBox("Record every model request and reply to a local folder (diagnostics)")
         self.api_trace_checkbox.setChecked(bool(self.settings.value(SETTINGS_API_TRACE_ENABLED, False, type=bool)))
@@ -616,7 +626,7 @@ class CartogenAiSettingsDialog(QDialog):
             "the messages sent, the tool names offered, the reply and the token usage. It holds RAW text, including layer and field "
             "names, attribute values and tool results, so check the folder before you share it. Nothing is uploaded. "
             "Off by default. Use tools/summarize_api_trace.py to read it.")
-        layout.addWidget(self.api_trace_checkbox)
+        diag_col.addWidget(self.api_trace_checkbox)
 
         # Roadmap feature per docs/archive/PROMPT_REFINEMENT_LAYER_SPEC.md -- opt-in,
         # default OFF (§9: the spec's own honest cost tradeoff in §8 means
@@ -632,7 +642,7 @@ class CartogenAiSettingsDialog(QDialog):
             "API call per refined message (roughly 300-650 tokens, see "
             "docs/archive/API_COST_OPTIMIZATION_REVIEW.md and docs/archive/PROMPT_REFINEMENT_LAYER_SPEC.md §8)."
         )
-        layout.addWidget(self.prompt_refinement_checkbox)
+        behaviour_col.addWidget(self.prompt_refinement_checkbox)
 
         # Default ON, unlike the checkbox above: this one costs nothing (it
         # renders text that has already been composed locally) and exists so
@@ -649,7 +659,7 @@ class CartogenAiSettingsDialog(QDialog):
             "behalf and what each attached file will be read as -- with the reasoning behind "
             "it, before anything reaches the API. No extra API call. On by default."
         )
-        layout.addWidget(self.prompt_preview_checkbox)
+        behaviour_col.addWidget(self.prompt_preview_checkbox)
 
         # IMPLEMENTATION_TRACKER.md §1.5, option (b), narrow experiment -- opt-in, default OFF.
         # Same "don't silently change every user's cost/friction profile" reasoning as the
@@ -668,7 +678,7 @@ class CartogenAiSettingsDialog(QDialog):
             "addition (IMPLEMENTATION_TRACKER.md §1.5) that adds a small amount of extra prompt "
             "content on every turn, whether or not the current request needs it."
         )
-        layout.addWidget(self.project_inspector_checkbox)
+        experimental_col.addWidget(self.project_inspector_checkbox)
 
         # IMPLEMENTATION_TRACKER.md §1.6, option (b), narrow experiment -- opt-in, default OFF.
         # Same "don't silently change every user's cost/friction profile" reasoning as the
@@ -688,7 +698,7 @@ class CartogenAiSettingsDialog(QDialog):
             "exactly the operation types that already carry the most real-world consequence if "
             "wrong, at the cost of one extra tool call before the first one of them each turn."
         )
-        layout.addWidget(self.plan_validation_gate_checkbox)
+        experimental_col.addWidget(self.plan_validation_gate_checkbox)
 
         # rc7 smoke test F10/F22: limits that keep one request's cost and download size in the user's hands.
         limits_form = QFormLayout()
@@ -714,10 +724,10 @@ class CartogenAiSettingsDialog(QDialog):
         self.layout_masthead_edit.setToolTip(
             "Title-bar colour on exported print layouts, as #rrggbb. Empty or invalid = the default slate. "
             "Light colours automatically get dark title text.")
-        limits_form.addRow("Print layout title colour:", self.layout_masthead_edit)
+        layout_form.addRow("Print layout title colour:", self.layout_masthead_edit)
         self.layout_disclaimer_checkbox = QCheckBox("Add a boundary / data-sensitivity line to the footer of print layouts")
         self.layout_disclaimer_checkbox.setChecked(bool(self.settings.value(LAYOUT_DISCLAIMER_ENABLED_KEY, True, type=bool)))
-        limits_form.addRow("Layout disclaimer:", self.layout_disclaimer_checkbox)
+        layout_form.addRow("Layout disclaimer:", self.layout_disclaimer_checkbox)
         self.layout_disclaimer_edit = QLineEdit()
         self.layout_disclaimer_edit.setMaxLength(300)
         self.layout_disclaimer_edit.setPlaceholderText("empty = the standard Cartogen AI disclaimer; enter your organisation's wording here")
@@ -725,7 +735,7 @@ class CartogenAiSettingsDialog(QDialog):
         self.layout_disclaimer_edit.setToolTip(
             "The exact boundary and data-sensitivity wording your organisation requires on a published map. "
             "Empty uses the standard Cartogen AI disclaimer (about four lines). Keep your own to a few lines: the footer grows to fit, taking height from the bottom of the map, but the space on the page is limited.")
-        limits_form.addRow("Disclaimer wording:", self.layout_disclaimer_edit)
+        layout_form.addRow("Disclaimer wording:", self.layout_disclaimer_edit)
         self.local_data_ask_spin = QSpinBox()
         self.local_data_ask_spin.setRange(0, 100_000)
         self.local_data_ask_spin.setSuffix(" MB")
@@ -735,7 +745,8 @@ class CartogenAiSettingsDialog(QDialog):
             "Downloads larger than this (or of unknown size, or on a metered connection) ask you first. "
             "Default 50 MB; 'always ask' asks for every download.")
         limits_form.addRow("Ask before downloads larger than:", self.local_data_ask_spin)
-        layout.addLayout(limits_form)
+        behaviour_col.addLayout(limits_form)
+        layouts_col.addLayout(layout_form)
 
         # Cloud-provider egress gate (docs/OLLAMA_ENFORCEMENT_GATE_SCOPE_2026-09-24.md) -- OFF by
         # default. A safeguard against ACCIDENTS: the setting lives in this user's own QgsSettings,
@@ -758,7 +769,7 @@ class CartogenAiSettingsDialog(QDialog):
             "bypass it. See SECURITY.md, 'DPIA determination and deployment constraints'."
         )
         egress_form.addRow("Cloud data protection:", self.egress_gate_mode_combo)
-        layout.addLayout(egress_form)
+        privacy_gate_col.addLayout(egress_form)
 
         # Decision 1 of docs/OLLAMA_ENFORCEMENT_GATE_SCOPE_2026-09-24.md §7's six deployment
         # decisions, recorded 2026-09-28: the code default stays Off (reversible, no surprise
@@ -775,13 +786,13 @@ class CartogenAiSettingsDialog(QDialog):
         )
         egress_recommendation.setWordWrap(True)
         egress_recommendation.setStyleSheet("color: gray; font-size: 11px;")
-        layout.addWidget(egress_recommendation)
+        privacy_gate_col.addWidget(egress_recommendation)
 
         # #93: what the setting does NOT hide, stated where the setting is.
         schema_disclosure = QLabel(SCHEMA_DISCLOSURE)
         schema_disclosure.setWordWrap(True)
         schema_disclosure.setStyleSheet("color: gray; font-size: 11px;")
-        layout.addWidget(schema_disclosure)
+        privacy_gate_col.addWidget(schema_disclosure)
 
         self.egress_gate_strict_checkbox = QCheckBox(
             "Treat layers with no sensitivity tag as protected"
@@ -795,9 +806,22 @@ class CartogenAiSettingsDialog(QDialog):
             "classified before the cloud assistant can work with it. Off by default -- without "
             "it, a layer you forgot to tag is NOT protected."
         )
-        layout.addWidget(self.egress_gate_strict_checkbox)
+        privacy_gate_col.addWidget(self.egress_gate_strict_checkbox)
 
-        layout.addWidget(self._section_header("04", "Who the assistant writes for"))
+        layout.addWidget(self._section_header("03", "Privacy and data protection"))
+        layout.addWidget(self._section_note(
+            "What may leave this machine, and what is saved into files that can be shared. Settings here are the ones to review first."))
+        layout.addLayout(privacy_gate_col)
+        layout.addLayout(privacy_keep_col)
+
+        layout.addWidget(self._section_header("04", "How the assistant works"))
+        layout.addWidget(self._section_note("Prompts, limits and downloads. The experimental options are off by default."))
+        layout.addLayout(behaviour_col)
+        layout.addWidget(self._collapsible(
+            "Experimental options", experimental_col,
+            expanded=self.project_inspector_checkbox.isChecked() or self.plan_validation_gate_checkbox.isChecked()))
+
+        layout.addWidget(self._section_header("05", "Who the assistant writes for"))
 
         profile_form = QFormLayout()
         self.user_profile_combo = QComboBox()
@@ -823,6 +847,17 @@ class CartogenAiSettingsDialog(QDialog):
         )
         self.edit_onboarding_profile_btn.clicked.connect(self._open_onboarding_profile)
         layout.addWidget(self.edit_onboarding_profile_btn)
+
+        layout.addWidget(self._section_header("06", "Print layouts"))
+        layout.addWidget(self._section_note("How exported maps look and what their footer says."))
+        layout.addLayout(layouts_col)
+
+        layout.addWidget(self._section_header("07", "Diagnostics"))
+        layout.addWidget(self._section_note(
+            "For testing and support. These write raw request data to local folders; nothing is uploaded."))
+        layout.addWidget(self._collapsible(
+            "Diagnostic recording", diag_col,
+            expanded=self.evidence_checkbox.isChecked() or self.api_trace_checkbox.isChecked()))
 
         self.fetch_status_label = QLabel("Model lists refresh automatically when you leave an API key field.")
         self.fetch_status_label.setObjectName("secondaryLabel")
@@ -878,6 +913,40 @@ QPushButton#settingsCancelButton {{
 """)
 
         self.update_fields()
+
+    def _section_note(self, text):
+        """A one-line, grey description under a section heading, saying what the section governs."""
+        note = QLabel(text)
+        note.setWordWrap(True)
+        note.setStyleSheet("color: gray; font-size: 11px;")
+        return note
+
+    def _collapsible(self, title, content_layout, expanded=False):
+        """A heading with a show/hide arrow above `content_layout`. It opens by itself when anything inside is already switched on, so a
+        setting that is in effect is never hidden. Everything inside stays a normal attribute, so Save reads it whether open or not."""
+        holder = QWidget()
+        holder_layout = QVBoxLayout(holder)
+        holder_layout.setContentsMargins(0, 0, 0, 0)
+        toggle = QToolButton()
+        toggle.setText(title)
+        toggle.setCheckable(True)
+        toggle.setChecked(expanded)
+        toggle.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+        toggle.setArrowType(Qt.ArrowType.DownArrow if expanded else Qt.ArrowType.RightArrow)
+        toggle.setStyleSheet("QToolButton { border: none; font-weight: 600; font-size: 12px; }")
+        body = QWidget()
+        body.setLayout(content_layout)
+        body.setVisible(expanded)
+
+        def on_toggled(on):
+            body.setVisible(on)
+            toggle.setArrowType(Qt.ArrowType.DownArrow if on else Qt.ArrowType.RightArrow)
+
+        toggle.toggled.connect(on_toggled)
+        holder_layout.addWidget(toggle)
+        holder_layout.addWidget(body)
+        self._collapsibles.append((title, toggle, body))
+        return holder
 
     def _section_header(self, number, title):
         """Visual design proposal, 2026-09-16 (adapted from Settings Window.pdf's option 1c):
