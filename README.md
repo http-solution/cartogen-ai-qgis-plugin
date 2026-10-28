@@ -20,14 +20,14 @@
   <a href="https://cartogenai.com"><img src="https://img.shields.io/badge/website-cartogenai.com-0b6efd" alt="Website"></a>
 </p>
 
-**Community edition · Version 1.18.4 · GNU GPL v2 · QGIS 4.2–4.99 · [cartogenai.com](https://cartogenai.com)**
+**Community edition · Version 1.18.5 · GNU GPL v2 · QGIS 4.2–4.99 · [cartogenai.com](https://cartogenai.com)**
 
 Cartogen AI is built for GIS analysts, humanitarian teams, researchers, and anyone who
 needs to move from a question to a reproducible spatial result without leaving QGIS.
 The agent exposes its plan, tool calls, progress, and errors instead of returning a
 black-box answer.
 
-> **Project status (2026-10-26):** active Community edition, currently at **1.18.4**, a patch on 1.18.3, 1.18.2, 1.18.1 and 1.18.0 (the sum of the 1.17.0 release candidates 42 to 52 since 1.16.3). Neither has passed a full hand test; see the hand-testing line below.
+> **Project status (2026-10-26):** active Community edition, currently at **1.18.5**, a patch on 1.18.4, 1.18.3, 1.18.2, 1.18.1 and 1.18.0 (the sum of the 1.17.0 release candidates 42 to 52 since 1.16.3). Neither has passed a full hand test; see the hand-testing line below.
 > - **Tests:** 5,062 automated tests run offline, 0 failures (767 skipped there: the live-QGIS tests and those needing optional libraries). The QGIS ones run in CI (the `qgis-live-tests` job, QGIS 4.2.2) together with ruff, mypy and a release-zip check.
 > - **Hand testing:** rc44 to rc46 were hand-tested in desktop QGIS 4.2.3 (tool sweep: 65 of 83 rows Pass, 1 Fail, the rest Partial or Skip; 21 of 21 priority algorithms Pass); the plain-language algorithm test (385 prompts) has **not** been run. rc48 was hand-tested on 2026-10-24 (52 of 87 rows Pass, 18 Partial, 16 Fail, 1 Skip; results in [docs/HAND_TEST_RESULTS_rc48_2026-10-24.md](docs/HAND_TEST_RESULTS_rc48_2026-10-24.md)); the changes from rc49 to 1.18.0 are CI-checked only (a partial rc50 run covered 20 of its 87 rows) until the v2 hand test (a layout check script that costs no API money, plus nine rows; [docs/LEAN_HAND_TEST_PROTOCOL.md](docs/LEAN_HAND_TEST_PROTOCOL.md)) is run.
 > - **Open issues (2):** #362 and #380. Their code is merged and green in CI; they stay open for hand rows that depend on what the model answers. Everything else from the audit and smoke-test lists is closed, each with its evidence in a comment (several on CI evidence only, which the comment says). Per-issue status: [docs/OPEN_ISSUES_STATUS_2026-10-25_v2.md](docs/OPEN_ISSUES_STATUS_2026-10-25_v2.md).
@@ -79,6 +79,18 @@ black-box answer.
   a restricted execution sandbox for model-generated PyQGIS scripts, fail-closed
   read-only SQL enforcement, an SSRF guard on fetched URLs, and a destructive-action
   confirmation gate the model cannot self-approve.
+
+## What's new in 1.18.5
+
+Built on 1.18.4. Offline tests and the QGIS 4.2.2 live checks in CI pass; **not hand-tested** in desktop QGIS unless an item says so. Full list: the `v1.18.5` block in [metadata.txt](metadata.txt) and [CHANGELOG.md](CHANGELOG.md).
+
+- GDACS alerts are limited to the country you name: fetch_gdacs_disaster_alerts has filtered by country since September, but the agent's own call path never passed the country on, so a request for Yemen fetched 86 alerts from around the world (1.18.4 smoke N7c and A7). The country is now passed. A new test reads the agent code and fails if any two-phase fetch call leaves out an argument the tool declares.
+- Windows paths with single backslashes work: A model that writes C:\data\fixtures\before.asc with single backslashes lost the characters after \f and \b to JSON decoding, so the tool looked for a file that does not exist and the reply told the user to add the raster by hand (1.18.4 smoke D6). Control characters in a drive path are turned back into backslash and letter before any tool runs.
+- A geocoded place brings its bounding box: geocode_and_enrich and geocode_batch now return the place's own extent in both coordinate orders. The model had a point for Aden but no area, then asked the user for a bounding box or searched for boundary layers instead of calling the satellite-scene and building tools (1.18.4 smoke A5, A6 and A13).
+- update_task without an id: update_task with a missing id updated nothing and printed "Task ID 'None' not found" after a good fetch. It now updates the one open task, says plainly that there is no plan, or asks for the id when several are open.
+- Evidence collector for hand tests: tools/collect_evidence.py is now in the repository: after each row it saves the log, screenshots, layer table and the plugin's own evidence folders and lists the tools called. In the first real run the log files were empty; that is not yet explained and the change that tries to fix it is not verified in QGIS.
+- Known and open: The model typed key figures into a print layout that are not in the layer (B8); the elevation-profile print item sometimes renders empty in CI (#379); the cause of a script-worker crash (B7), a changed population figure between identical runs (C5) and an empty severity in the JIAF preliminary (E2) is not found because the matching evidence was missing.
+- Not hand-tested: Everything above is checked by the offline suite and, for the QGIS parts, by CI on QGIS 4.2.2; none of it has been hand-tested in desktop QGIS.
 
 ## What's new in 1.18.4
 

@@ -7,6 +7,7 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 | Version | Date | Summary |
 |---|---|---|
+| [1.18.5](#v1-18-5) | 2026-10-28 | **Patch release 1.18.5.** No breaking changes -- requires QGIS 4.2+. Fixes from the owner's live smoke run of 1.18.4, found by reading the plugin's own evidence folders: a GDACS request that names a country now returns only that country, Windows paths typed with single backslashes reach the tool intact, a geocoded place carries its bounding box, and update_task no longer answers 'Task ID None not found'. |
 | [1.18.4](#v1-18-4) | 2026-10-27 | **Patch release 1.18.4.** No breaking changes -- requires QGIS 4.2+. Fixes from the owner's hand run of 1.18.3 and a second self-audit: the damage score no longer ranks the most damaged district last, distances typed for a latitude/longitude layer are no longer read as degrees, a request that names a data source is no longer sent to a Map task, the IPC import names the area behind each problem, and a GDACS error is explained and retried. CI-checked, not hand-tested. |
 | [1.18.3](#v1-18-3) | 2026-10-26 | **Patch release 1.18.3.** No breaking changes -- requires QGIS 4.2+. Fixes from the owner's 2026-10-26 hand run of 1.18.2: a satellite search that can be limited by cloud cover, a route-risk buffer in real metres, a CSV with no coordinates that loads as a table, a task grid for one area without filtering the layer, clearer chat text, and a percent mode for forecast probabilities. The three 1.18.2 checks passed by hand; the fixes below are CI-checked, not hand-tested. |
 | [1.18.2](#v1-18-2) | 2026-10-26 | **Patch release 1.18.2.** No breaking changes -- requires QGIS 4.2+. Every tool is now called once in real QGIS by a test, and what that found is fixed: a tool given a layer of the wrong kind answers with a message instead of failing, one tool no longer hangs on a vector layer, one overlay no longer crashes, and boundary downloads that redirect to another site (HDX) work again. CI-checked, not hand-tested. |
@@ -100,6 +101,19 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 The detailed narrative entries below are unchanged -- this table is purely an additive index on
 top of them.
+
+<a id="v1-18-5"></a>
+## [1.18.5] — 2026-10-28 — Patch release 1.18.5: No breaking changes -- requires QGIS 4.2+. Fixes from the owner's live smoke run of 1.18.4, found by reading the plugin's own evidence folders: a GDACS request that names a country now returns only that country, Windows paths typed with single backslashes reach the tool intact, a geocoded place carries its bounding box, and update_task no longer answers 'Task ID None not found'.
+
+No breaking changes; QGIS 4.2+. Everything since 1.18.4:
+
+- GDACS alerts are limited to the country you name: fetch_gdacs_disaster_alerts has filtered by country since September, but the agent's own call path never passed the country on, so a request for Yemen fetched 86 alerts from around the world (1.18.4 smoke N7c and A7). The country is now passed. A new test reads the agent code and fails if any two-phase fetch call leaves out an argument the tool declares.
+- Windows paths with single backslashes work: A model that writes C:\data\fixtures\before.asc with single backslashes lost the characters after \f and \b to JSON decoding, so the tool looked for a file that does not exist and the reply told the user to add the raster by hand (1.18.4 smoke D6). Control characters in a drive path are turned back into backslash and letter before any tool runs.
+- A geocoded place brings its bounding box: geocode_and_enrich and geocode_batch now return the place's own extent in both coordinate orders. The model had a point for Aden but no area, then asked the user for a bounding box or searched for boundary layers instead of calling the satellite-scene and building tools (1.18.4 smoke A5, A6 and A13).
+- update_task without an id: update_task with a missing id updated nothing and printed "Task ID 'None' not found" after a good fetch. It now updates the one open task, says plainly that there is no plan, or asks for the id when several are open.
+- Evidence collector for hand tests: tools/collect_evidence.py is now in the repository: after each row it saves the log, screenshots, layer table and the plugin's own evidence folders and lists the tools called. In the first real run the log files were empty; that is not yet explained and the change that tries to fix it is not verified in QGIS.
+- Known and open: The model typed key figures into a print layout that are not in the layer (B8); the elevation-profile print item sometimes renders empty in CI (#379); the cause of a script-worker crash (B7), a changed population figure between identical runs (C5) and an empty severity in the JIAF preliminary (E2) is not found because the matching evidence was missing.
+- Not hand-tested: Everything above is checked by the offline suite and, for the QGIS parts, by CI on QGIS 4.2.2; none of it has been hand-tested in desktop QGIS.
 
 <a id="v1-18-4"></a>
 ## [1.18.4] — 2026-10-27 — Patch release 1.18.4: No breaking changes -- requires QGIS 4.2+. Fixes from the owner's hand run of 1.18.3 and a second self-audit: the damage score no longer ranks the most damaged district last, distances typed for a latitude/longitude layer are no longer read as degrees, a request that names a data source is no longer sent to a Map task, the IPC import names the area behind each problem, and a GDACS error is explained and retried. CI-checked, not hand-tested.

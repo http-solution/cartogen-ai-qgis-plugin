@@ -8,18 +8,18 @@ metadata changelog, CHANGELOG.md, README and this module agree). Checklist: CONT
 releases listed in NEW_MARK_VERSIONS.
 """
 
-WHATS_NEW_VERSION = "1.18.4"
-NEW_MARK_VERSIONS = ("1.18.3", "1.18.4")
+WHATS_NEW_VERSION = "1.18.5"
+NEW_MARK_VERSIONS = ("1.18.4", "1.18.5")
 
 # Headline items of the current version (the full list is the metadata.txt changelog block and CHANGELOG.md).
 WHATS_NEW_ITEMS = [
-    ('Damage score ranks the most damaged district first', "calculate_damage_exposure_severity took the average of the SIGNED change (after minus before), so a district that lost value had the lowest number and scored 0 while unchanged districts scored 1. It now averages the size of the change. A second run on the same layer also read the first run's old column (QGIS wrote the new one as chg_mean_2); each run now reads the column it just made."),
-    ('Distances in degrees are caught', 'find_nearest_features said its distance was in metres but wrote degrees for a latitude/longitude layer; it now also adds distance_m in real metres. The blur tool (radius, grid cell), hotspot_analysis, simplify_geometry and interpolate_surface accepted 1000 on such a layer and used it as 1000 degrees; a value of 1 degree or more is now refused with the conversion (0.01 is about 1.1 km).'),
-    ('A named data source gets its own tool', "A request such as 'search HDX for health facilities datasets' or 'conflict events from UCDP' matched a 'Map health facilities' or 'Map conflict events' task whose tools could not do it, and a confirmation card for the wrong task appeared. Naming UCDP, GDACS, USGS, EONET, FIRMS or FTS, or searching datasets, now gives no task directive."),
-    ('IPC import names the area', 'import_humanitarian_table reported problem rows by number only; each issue now carries the area (P-code or name), and admin1_name, admin2_name, adm1_name and adm2_name columns are recognised as the area name.'),
-    ('Clearer errors', 'obfuscate_sensitive_points given a plain table says it has no geometry and how to load points. A GDACS HTTP 400 is retried once with the documented query parameters, and any GDACS failure names the site and the kind of failure without quoting the raw error.'),
-    ('Known and open', 'The elevation-profile print item sometimes renders empty in CI (#379); the cause is not found. In the 1.18.3 hand run the model did not call the survey tool (D3), exported instead of writing the field (D4) and planned an analysis instead of refusing a trigger with no threshold (S5); the tool router already offers those tools, so these are model choices. The change-layer legend (D6) needs a screenshot. Issues #362 and #380 stay open for their hand rows.'),
-    ('Not hand-tested', 'Everything above is checked by the offline suite and, for the QGIS parts, by CI on QGIS 4.2.2; none of it has been hand-tested in desktop QGIS.')
+    ('GDACS alerts are limited to the country you name', "fetch_gdacs_disaster_alerts has filtered by country since September, but the agent's own call path never passed the country on, so a request for Yemen fetched 86 alerts from around the world (1.18.4 smoke N7c and A7). The country is now passed. A new test reads the agent code and fails if any two-phase fetch call leaves out an argument the tool declares."),
+    ('Windows paths with single backslashes work', 'A model that writes C:\\data\\fixtures\\before.asc with single backslashes lost the characters after \\f and \\b to JSON decoding, so the tool looked for a file that does not exist and the reply told the user to add the raster by hand (1.18.4 smoke D6). Control characters in a drive path are turned back into backslash and letter before any tool runs.'),
+    ('A geocoded place brings its bounding box', "geocode_and_enrich and geocode_batch now return the place's own extent in both coordinate orders. The model had a point for Aden but no area, then asked the user for a bounding box or searched for boundary layers instead of calling the satellite-scene and building tools (1.18.4 smoke A5, A6 and A13)."),
+    ('update_task without an id', 'update_task with a missing id updated nothing and printed "Task ID \'None\' not found" after a good fetch. It now updates the one open task, says plainly that there is no plan, or asks for the id when several are open.'),
+    ('Evidence collector for hand tests', "tools/collect_evidence.py is now in the repository: after each row it saves the log, screenshots, layer table and the plugin's own evidence folders and lists the tools called. In the first real run the log files were empty; that is not yet explained and the change that tries to fix it is not verified in QGIS."),
+    ('Known and open', 'The model typed key figures into a print layout that are not in the layer (B8); the elevation-profile print item sometimes renders empty in CI (#379); the cause of a script-worker crash (B7), a changed population figure between identical runs (C5) and an empty severity in the JIAF preliminary (E2) is not found because the matching evidence was missing.'),
+    ('Not hand-tested', 'Everything above is checked by the offline suite and, for the QGIS parts, by CI on QGIS 4.2.2; none of it has been hand-tested in desktop QGIS.'),
 ]
 
 HUMANITARIAN_WORKFLOWS = [('1. Rapid crisis and base mapping',
