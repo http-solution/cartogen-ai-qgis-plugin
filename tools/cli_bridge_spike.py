@@ -1,7 +1,7 @@
-"""PLAN-038 spike: run the Claude CLI bridge against your own logged-in `claude` and write down what happened.
+"""PLAN-038 spike: run a CLI bridge (Claude Code or Codex) against your own logged-in CLI and write down what happened.
 
-Run on the machine where you use Claude Code (it must already be signed in):
-    python tools/cli_bridge_spike.py [--model sonnet] [--exe claude] [--out spike_report.md]
+Run on the machine where you use the CLI (it must already be signed in):
+    python tools/cli_bridge_spike.py [--cli claude|codex] [--model sonnet] [--exe claude] [--out spike_report.md]
 
 It sends three tiny requests through the same code the plugin will use, with two fake tools, and records latency, whether a tool call
 came back in the right shape, and whether the CLI tried to act on its own. It touches no QGIS project and no files besides the report.
@@ -32,16 +32,18 @@ CASES = [
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--exe", default="claude")
+    ap.add_argument("--cli", choices=("claude", "codex"), default="claude")
+    ap.add_argument("--exe", default=None, help="path or name of the CLI (default: the CLI name)")
     ap.add_argument("--model", default=None)
     ap.add_argument("--out", default="spike_report.md")
     args = ap.parse_args()
-    exe = cb.find_executable(args.exe)
-    lines = ["# CLI bridge spike report (Claude Code)", "", f"- executable: {exe or 'NOT FOUND'}", f"- model flag: {args.model or '(CLI default)'}", ""]
+    client_class = cb.CodexCliClient if args.cli == "codex" else cb.ClaudeCliClient
+    exe = cb.find_executable(args.exe or client_class.default_exe)
+    lines = [f"# CLI bridge spike report ({client_class.label})", "", f"- executable: {exe or 'NOT FOUND'}", f"- model flag: {args.model or '(CLI default)'}", ""]
     if not exe:
-        lines.append("The claude executable was not found; nothing was run.")
+        lines.append("The CLI executable was not found; nothing was run.")
     else:
-        client = cb.ClaudeCliClient(executable=exe, model=args.model)
+        client = client_class(executable=exe, model=args.model)
         lines += ["| case | seconds | expected | got | tokens (in/out) | note |", "|---|---|---|---|---|---|"]
         for name, messages, expect in CASES:
             t0 = time.monotonic()
@@ -57,7 +59,7 @@ def main():
             if name == "uses a tool result" and "412" not in (msg.get("content") or ""):
                 note += "; answer did not use the tool result"
             lines.append(f"| {name} | {secs:.1f} | {expect} | {got}{' OK' if got == expect else ' MISMATCH'} | {use.get('input_tokens')}/{use.get('output_tokens')} | {note} |")
-    lines += ["", "Also note by hand: did any file appear in the current folder, did the CLI ask for a permission, did it open a browser?"]
+    lines += ["", "Also note by hand: did any file appear in the current folder, did the CLI ask for a permission, did it open a browser? (Codex: a run where it ran a command is reported as an error by design.)"]
     with open(args.out, "w", encoding="utf-8") as fh:
         fh.write("\n".join(lines) + "\n")
     print("\n".join(lines))
