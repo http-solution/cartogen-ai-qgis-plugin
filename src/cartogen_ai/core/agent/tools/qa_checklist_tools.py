@@ -241,3 +241,10 @@ def generate_map_product_qa_checklist(layer_name, layout_name=None, output_path=
         }
 
     return {"success": True, "layer_name": layer_name, "categories": categories}
+
+
+# Supplies the map_qa check to the dataset status model, which may not import the tools (PLAN-040); looked up at call time so patches apply.
+from ...models import dataset_status as _dataset_status  # noqa: E402
+
+_dataset_status.register_check_runner(
+    "map_qa", lambda layer_name, layout_name=None: generate_map_product_qa_checklist(layer_name, layout_name=layout_name))

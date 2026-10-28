@@ -35,14 +35,7 @@ FORBIDDEN = {
 }
 
 # Edges that still break a rule. Remove a line when the edge is fixed; the test fails if a listed edge is gone.
-KNOWN_VIOLATIONS = {
-    # a model reaching into tool modules (deferred imports): dataset_status should receive what it needs instead of calling the tools
-    ("core.models.dataset_status", "core.agent.tools.qa_checklist_tools"),
-    ("core.models.dataset_status", "core.agent.tools.vector_tools"),
-    # the chunked-iteration helper lives with the tools although validators use it; needs a neutral home
-    ("core.validators.pcode_validation", "core.agent.tools._chunked"),
-    ("core.validators.schema_contracts", "core.agent.tools._chunked"),
-}
+KNOWN_VIOLATIONS = set()
 
 # Modules that take part in an import cycle only through imports made inside functions (lazy imports). No module may join a cycle, and a
 # module that leaves one must be removed from this set. Stage 2 of the plan removes the styling cluster.
@@ -52,8 +45,6 @@ KNOWN_CYCLIC_MODULES = {
     "core.agent.tools.logistics_tools", "core.agent.tools.multimodal_remote_sensing", "core.agent.tools.output_style",
     "core.agent.tools.raster_tools", "core.agent.tools.styling_tools", "core.agent.tools.table_importers",
     "core.agent.tools.vector_tools",
-    "core.agent.provenance", "core.agent.tools.dataset_status_tools", "core.agent.tools.provenance_tools",
-    "core.agent.tools.qa_checklist_tools", "core.models.dataset_status",
     "core.agent.agent_orchestrator", "core.agent.prompts", "core.agent.tools", "core.agent.tools.data_export_tools",
 }
 
@@ -114,6 +105,24 @@ class TestImportArchitecture(unittest.TestCase):
         self.assertIs(old_selector, model_selector)
         self.assertIs(old_ops, tool_operations)
         self.assertIs(sys.modules["cartogen_ai.core.agent.cancel_signal"], cancel_signal)
+
+
+class TestCheckRunnersAreRegisteredByTheTools(unittest.TestCase):
+    def test_importing_the_tools_registers_the_checks_the_model_cannot_import(self):
+        from cartogen_ai.core.agent.tools import qa_checklist_tools, vector_tools  # noqa: F401
+        from cartogen_ai.core.models import dataset_status
+        self.assertIn("geometry_validity", dataset_status._CHECK_RUNNERS)
+        self.assertIn("map_qa", dataset_status._CHECK_RUNNERS)
+
+    def test_a_missing_runner_is_reported_not_raised(self):
+        from unittest import mock
+
+        from cartogen_ai.core.models import dataset_status
+        layer = mock.Mock()
+        with mock.patch.dict(dataset_status._CHECK_RUNNERS, {}, clear=True):
+            passed, detail = dataset_status._run_automated_check("geometry_validity", layer)
+        self.assertFalse(passed)
+        self.assertIn("not loaded", detail["error"])
 
 
 if __name__ == "__main__":

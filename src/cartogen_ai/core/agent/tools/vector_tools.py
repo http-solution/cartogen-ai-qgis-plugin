@@ -2512,3 +2512,10 @@ def obfuscate_sensitive_points(layer_name, method, radius=None, cell_size=None, 
         if unmatched_count:
             result["unmatched_points_skipped"] = unmatched_count
     return result
+
+
+# Supplies the geometry_validity check to the dataset status model, which may not import the tools (PLAN-040). The lambda looks
+# diagnose_topology up when called so tests that patch it here still work.
+from ...models import dataset_status as _dataset_status  # noqa: E402
+
+_dataset_status.register_check_runner("geometry_validity", lambda layer_name: diagnose_topology(layer_name))  # noqa: PLW0108 (late lookup so patches apply)
