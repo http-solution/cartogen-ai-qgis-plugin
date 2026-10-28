@@ -1328,16 +1328,20 @@
   },
   {
     "id": "update-task-without-an-id-is-explained",
-    "feature": "update_task with a missing id updates the one open task or says there is no plan, never a Task ID None message",
+    "feature": "update_task with a missing or null id updates the one open task, or says there is no plan, or that every task is already finished, or asks for the id; a missing status is explained; never a Task ID None message or a Python error",
     "issues": [],
     "since": "1.18.5",
     "sources": [
-      "src/cartogen_ai/core/agent/task_manager.py"
+      "src/cartogen_ai/core/agent/task_manager.py",
+      "src/cartogen_ai/core/agent/tools/task_tools.py"
     ],
     "guards": [
-      "tests/test_task_manager.py::TestUpdateTaskWithoutAnId::test_no_plan_gives_a_plain_message_not_none"
+      "tests/test_task_manager.py::TestUpdateTaskWithoutAnId::test_no_plan_gives_a_plain_message_not_none",
+      "tests/test_task_manager.py::TestUpdateTaskWithoutAnId::test_a_finished_plan_says_so_instead_of_listing_no_open_ids",
+      "tests/test_task_manager.py::TestUpdateTaskWithoutAnId::test_a_missing_status_is_explained_not_raised",
+      "tests/test_task_manager.py::TestUpdateTaskWithoutAnId::test_the_tool_treats_an_omitted_id_like_a_null_one"
     ],
-    "hand_verified": "not verified: CI only (owner hand run 1.18.4 row N7c found the defect; the fix has not been re-run)",
+    "hand_verified": "not verified: CI only (owner hand run 1.18.4 row N7c found the defect; the 1.18.5 fix and the 2026-10-28 audit fixes have not been re-run by a person)",
     "hand_row": "none: no prompt reliably triggers it (a model sends a null id); covered by tests/test_task_manager.py"
   },
   {
@@ -1557,6 +1561,24 @@
     ],
     "hand_verified": "not verified: CI only (cause found by reading the code and reproducing the old behaviour with a stand-in QGIS module; the original crash in the owner's 1.18.4 run was never logged, so it is not proven to be this one)",
     "hand_row": "DEF-12 hand row: ask for 'make a situation dashboard titled Aden test' (runbook B7) and check no worker crash and no empty reply"
+  },
+  {
+    "id": "change-detection-accepts-raster-files",
+    "feature": "calculate_raster_change_detection accepts a raster layer's name, the file of an already loaded raster, or an existing raster file (loaded on the spot, and the reply says so), because the D6 prompt names files rather than layers; an unknown value gets an error that says what to send",
+    "issues": [],
+    "since": "1.18.6",
+    "sources": [
+      "src/cartogen_ai/core/agent/tools/raster_tools.py",
+      "src/cartogen_ai/core/agent/tools/multimodal_remote_sensing.py"
+    ],
+    "guards": [
+      "tests/test_raster_reference_resolution.py::TestResolve::test_an_existing_file_not_in_the_project_is_loaded_and_the_note_says_so",
+      "tests/test_raster_reference_resolution.py::TestResolve::test_the_file_of_a_loaded_layer_finds_that_layer_without_loading_again",
+      "tests/test_raster_reference_resolution.py::TestResolve::test_a_bare_name_that_is_not_a_layer_is_never_treated_as_a_file",
+      "tests/test_change_detection_by_path_live.py::TestChangeDetectionByPath::test_file_paths_load_the_rasters_and_make_the_change_layer"
+    ],
+    "hand_verified": "not verified: CI only (cause found by reading the tool: it looked up layer names only, so a file path, even one repaired by the 1.18.5 backslash fix, could never be found; the live test has never run, nobody has run D6 by hand)",
+    "hand_row": "P2 and D6 in the runbook: 'load before_fixture.asc and after_fixture.asc from <F>, then show the change between after_fixture and before_fixture'"
   },
   {
     "id": "scene-search-gets-area-and-dates",

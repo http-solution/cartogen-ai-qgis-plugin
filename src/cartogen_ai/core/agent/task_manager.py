@@ -145,7 +145,9 @@ class AgentTaskManager(QObject):
 
     def update_task(self, task_id: str, status: str, result: str = "", rationale: str = "", code_snippet: str = "", tool_name: str = "") -> dict:
         """Updates status of a specific task in the plan."""
-        status_upper = status.upper()
+        if not isinstance(status, str) or not status.strip():
+            return {"error": "status is required: one of TODO, IN_PROGRESS, PREVIEW_READY, CONFIRMED, DONE, FAILED."}
+        status_upper = status.strip().upper()
         valid_statuses = ("TODO", "IN_PROGRESS", "PREVIEW_READY", "CONFIRMED", "DONE", "FAILED")
         if status_upper not in valid_statuses:
             return {"error": f"Invalid status '{status}'. Must be one of {valid_statuses}."}
@@ -158,6 +160,9 @@ class AgentTaskManager(QObject):
                 task_id = open_tasks[0]["id"]
             elif not self.tasks:
                 return {"error": "There is no active plan, so there is no task to update. Carry on without update_task."}
+            elif not open_tasks:
+                # Every task is already DONE or FAILED. The branch below used to answer "more than one task is open. Open task ids: " with an empty list.
+                return {"error": "Every task in the plan is already finished, so there is nothing to update. Carry on without update_task."}
             else:
                 return {"error": "task_id is required when more than one task is open. Open task ids: " + ", ".join(t["id"] for t in open_tasks)}
 
