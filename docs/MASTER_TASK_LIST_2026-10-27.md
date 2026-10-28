@@ -28,7 +28,7 @@ One list to follow up and plan from. It replaces the session task list (101 entr
 
 | ID | Task | Why | Who | Depends on | Size | Pri | Status | Source |
 |---|---|---|---|---|---|---|---|---|
-| OWN-1 | Install 1.18.4 and run Section N of the 1.18.4 test package (8 checks, about 15 minutes); then the rest as time allows. Save the CartogenAI log and a screenshot per row. | Hand-verifies the fixes of PRs 449, 452-456 (damage score, distances in degrees, wrong task card, IPC names, GDACS). Nothing from 1.18.2 to 1.18.4 is hand-verified yet except the three 1.18.2 checks. | You | - | S | P0 | Waiting on you | 1.18.4 test package, TEST_RUNBOOK.md |
+| OWN-1 | Install 1.18.4 and run Section N of the 1.18.4 test package (8 checks, about 15 minutes); then the rest as time allows. Save the CartogenAI log and a screenshot per row. | Hand-verifies the fixes of PRs 449, 452-456 (damage score, distances in degrees, wrong task card, IPC names, GDACS). Nothing from 1.18.2 to 1.18.4 is hand-verified yet except the three 1.18.2 checks. | You | - | S | P0 | Closed | 1.18.4 test package, TEST_RUNBOOK.md |
 | OWN-2 | Send the screenshot of the change-layer legend (row D6: is it blue-to-red, is the no-change area transparent?). | The colour stops are correct in code; without the picture the fault cannot be located. | You | - | XS | P2 | Waiting on you | 1.18.3 hand run D6 |
 | OWN-3 | For the rows that failed without a found cause, send the per-prompt Log Messages text: unrequested layers (A5 country layer, A7 Incident layer), C5 inverted labels, D3, D4, S5. | Last two runs' logs held only the verdict line; the causes of these rows are unknown. | You | OWN-1 | S | P1 | Waiting on you | 1.18.3 hand run |
 | OWN-4 | Run the 1.18.1-bundle rows V3 to V8 so issues #362 (V4, V5, V6) and #380 (V3, V7, V8) can be closed or fixed. | The only two open GitHub issues; waiting since 2026-10-23. | You | - | S | P1 | Waiting on you | PLAN-021, PLAN-022 N0 |
@@ -42,17 +42,18 @@ One list to follow up and plan from. It replaces the session task list (101 entr
 | OWN-12 | Upload to plugins.qgis.org if wanted (needs your login) and unpublish the old GitHub Pages site (replaced by the wiki). | Only you can do either. | You | - | XS | P3 | Waiting on you | PLAN-019, STATUS_DONE_VS_TESTED |
 | OWN-13 | Close the open secret-scanning alert in repository settings (CI gitleaks passes on every push). | Repository setting only you can change. | You | - | XS | P3 | Waiting on you | STATUS_DONE_VS_TESTED |
 | OWN-14 | Provide real-data samples when the matching release approaches: case-count file (R2), a DEM site and the engineer's report (R4), a depot and orders sample (R5), parcels and a store list (R6). | Known-answer tests and hand rows need real inputs. | You | - | M | P3 | Waiting on you | PLAN-023 Q7 to Q11 |
+| OWN-15 | Re-run the nine model-choice rows (A5, A6, C1, C3, C4, C6, D4, E2, S5) with the Claude provider, and send the 40 MB evidence folder (needed for DEF-10, DEF-11, DEF-12). | The runbook's own method for telling a model problem from a tool problem. | You | - | S | P1 | Waiting on you | 1.18.4 smoke run 2026-10-27/28 |
 
 ## B. Verification and hand-test follow-up
 
 | ID | Task | Why | Who | Depends on | Size | Pri | Status | Source |
 |---|---|---|---|---|---|---|---|---|
-| HT-1 | Triage the 1.18.4 results into defects, write a failing test per defect, fix, and cut 1.18.5. | The loop that has produced 1.18.2, 1.18.3 and 1.18.4. | Claude | OWN-1, OWN-3 | M | P0 | Waiting on you | release process |
+| HT-1 | Triage the 1.18.4 results into defects, write a failing test per defect, fix, and cut 1.18.5. | The loop that has produced 1.18.2, 1.18.3 and 1.18.4. | Claude | OWN-1, OWN-3 | M | P0 | In progress | release process |
 | HT-2 | Ledger traceability: add a hand_row (a row id or 'none: reason') to every 'not verified' ledger entry (27 now, 12 at the time of PLAN-022) and make a test fail when a new entry has neither. | The ledger is the contract; 'not verified' must say which hand row would verify it. | Claude | - | M | P2 | Not started | PLAN-022 N2 |
 | HT-3 | Build eval rows for model tool choice (prompt, expected tool) and measure them: D3 (survey tool), D4 (presence-gap write), S5 (refuse a trigger with no threshold). Change prompts or descriptions only with a measured gain. | The router already offers the right tools; what the model picks has never been measured. | Claude | OWN-3 | M | P2 | Not started | 1.18.3 hand run, W-4 |
 | HT-4 | Verification debt, CI only today: Windows and macOS QGIS; large, messy, non-English and database-backed user data; numerical correctness of Processing outputs; delineate_watershed on a real DEM versus the engineer's report; a real Geofabrik extract and prompt-cache check. | Built and passing in CI, never run by a person. | Both | OWN-11, OWN-14 | L | P3 | Not started | W-5 to W-9 |
 | HT-5 | Re-check 'partly' ledger entries (5) and wave E1, DXF and Excel export and the 20 later routing additions by hand. | Only 21 algorithms were ever hand-tested. | Both | OWN-1 | M | P3 | Not started | W-2, W-3 |
-| HT-6 | Prove tools/collect_evidence.py in a real QGIS 4.2 session (written without QGIS, never run) and fix what breaks; then add it to the repo with a live test. | The agent-edition smoke package depends on it for logs, screenshots and layer tables; until run, evidence may fall back to manual capture. | Claude | OWN-1 | S | P1 | Not started | smoke package 2026-10-27 |
+| HT-6 | Prove tools/collect_evidence.py in a real QGIS 4.2 session (written without QGIS, never run) and fix what breaks; then add it to the repo with a live test. | The agent-edition smoke package depends on it for logs, screenshots and layer tables; until run, evidence may fall back to manual capture. | Claude | OWN-1 | S | P1 | In progress | smoke package 2026-10-27 |
 
 ## C. Open defects and observations
 
@@ -66,6 +67,17 @@ One list to follow up and plan from. It replaces the session task list (101 entr
 | DEF-6 | Nationwide 5 km task grid is refused above 5,000 cells: add a 'suggest a cell size' path. | Clear message today; a design choice. | Claude | OWN-6 | S | P3 | Decision needed | 1.18.2 hand run B1 |
 | DEF-7 | OSM Overpass road download answered HTTP 502 after 4 retries: consider a mirror fallback and a clearer message. | Server side; the fixtures covered it in the test. | Claude | - | S | P3 | Not started | 1.18.2 hand run C1 |
 | DEF-8 | Quiet-release clean-up: 24 unused noqa comments; the baseline of 504 broad-except handlers (none silent) recorded for review. | Lint hygiene. | Claude | - | S | P3 | Not started | PLAN-026 class G, H |
+| DEF-9 | Evidence collector captured no log text in QGIS 4.2.3: log_cartogenai.txt and log_all.txt were empty for every row, so the tools each row called are not in the CSV. Cause not found (the signal connects; nothing arrives). Try the explicit overload messageReceived[str, str, Qgis.MessageLevel], and read tool calls from the plugin's own evidence folders (steps.jsonl) instead. | Every row's 'tools called' column is blank without it. | Claude | HT-6 | S | P1 | Not started | 1.18.4 smoke run 2026-10-27/28 |
+| DEF-10 | A13: Sentinel-2 STAC search not executed ('tool execution stopped', no scenes, no layer). Read evidence/A13 steps and the plugin_evidence folder to find the failing call; add a failing test. | 1.18.4 added the cloud filter; its first live run failed. | Claude | - | M | P1 | Not started | 1.18.4 smoke run 2026-10-27/28 |
+| DEF-11 | D6 (and S1): rasters not loaded and calculate_raster_change_detection 'could not find the layers' on both attempts, while .asc is on the loader's list. Find out whether the model never called add_layer_from_path or the tool rejected the file; read evidence/D6 and D6_retry. | Change-layer legend (DEF-2) cannot be judged until the rasters load. | Claude | - | M | P1 | Not started | 1.18.4 smoke run 2026-10-27/28 |
+| DEF-12 | B7: execute_pyqgis_script failed twice (missing argument, isolation worker crashed) before the dashboard retry worked. Reproduce with the dashboard prompt and fix the argument handling / worker crash. | A crashing script worker costs the user a turn and an empty reply. | Claude | - | M | P1 | Not started | 1.18.4 smoke run 2026-10-27/28 |
+| DEF-13 | N7c: update_task called with a null task id returns "Task ID 'None' not found" in the reply. Treat a missing id as 'the first open task' (as the auto-complete path already does) or return a plain message. | Visible error text after a successful GDACS layer. | Claude | - | XS | P3 | Not started | 1.18.4 smoke run 2026-10-27/28 |
+| DEF-14 | B8: the print layout's KEY FIGURES (120,000 / 85,000 / 45,000) are not in the layer (94,000 / 76,000 / 52,000): the model typed numbers into a deliverable. Decide the guard: figures in layout text must come from a layer field or a tool result, else the tool refuses or marks them unverified. | Invented numbers on a map product are the worst failure this tool can have. | Claude | - | M | P0 | Not started | 1.18.4 smoke run 2026-10-27/28 |
+| DEF-15 | N4/N6: a blur of 1000 and a heatmap radius of 5000 on a lat/lon layer were not refused; the model reprojected to UTM (EPSG:32638) and ran in metres. Decide: is reprojecting and working in metres correct (then the runbook expectation is wrong), or must a bare metre value on a lat/lon layer be refused? | 1.18.4 class-A guard covers the direct tools; the model found another path. | You | - | XS | P2 | Decision needed | 1.18.4 smoke run 2026-10-27/28 |
+| DEF-16 | Runbook expectations to correct in the next package: D7 and S1 expect mean change 70/45 but damage_score has been normalised 0 to 1 since 1.18.4 (N1 already expects the ranking only); N5 layer name; R3 date bound cannot be tested before 2026-11-05; S5 refusal wording; A11 and C8 need the exact wording recorded. | Test-design faults, not tool defects. | Claude | - | S | P2 | Not started | 1.18.4 smoke run 2026-10-27/28 |
+| DEF-17 | Model-choice failures on Gemini flash-latest: A5, A6, C1, C3, C4, C6, D4, E2, S5. E2: compute_jiaf_preliminary left jf_pre_sev empty with two sectors; check the tool result itself carries the two open blockers and a severity-not-computed reason, so a weak model cannot drop them. | Separates model from tool; the tool must carry the message. | Claude | OWN-15 | M | P2 | Not started | 1.18.4 smoke run 2026-10-27/28 |
+| DEF-18 | C5: first run stopped by the loop guard (population_access_gap called 3 times with the same arguments) and the reachable figure differed between runs (1,028 vs 994). Find why identical calls are repeated and why the figure moves. | A figure that changes between identical runs cannot be trusted. | Claude | - | M | P1 | Not started | 1.18.4 smoke run 2026-10-27/28 |
+| DEF-19 | Side effects: A10 added an empty 'UCDP Conflict Events - Yemen 2025' layer and printed a literal '&nbsp;'; A12 left hidden buffer_output and deletecolumn_output layers; A7/A9 loaded global GDACS/USGS layers for a Yemen request. | Unrequested layers (see DEF-3). | Claude | DEF-3 | S | P3 | Not started | 1.18.4 smoke run 2026-10-27/28 |
 
 ## D. Product roadmap (from the roadmap audit)
 
@@ -130,12 +142,14 @@ One list to follow up and plan from. It replaces the session task list (101 entr
 
 | Status | Rows |
 |---|---|
-| Not started | 34 |
-| Decision needed | 11 |
-| Waiting on you | 11 |
+| Not started | 43 |
+| Decision needed | 12 |
+| Waiting on you | 10 |
 | Blocked | 5 |
+| In progress | 2 |
+| Closed | 1 |
 | Closed (record) | 1 |
-| **Total** | **62** |
+| **Total** | **74** |
 
 ## How to keep it current
 
@@ -146,3 +160,6 @@ Edit the status column when a row changes; add a dated line to the plan or issue
 Newest last. One line per status change; written by `tools/master_list.py set`.
 - 2026-10-27: OWN-1 Waiting on you -> Waiting on you. 2026-10-27: use the agent-edition package cartogen_ai_live_smoke_1.18.4.zip (AGENT_INSTRUCTIONS.md, 61 rows, shapefile/GPKG/GeoTIFF copies, collect_evidence.py); return the whole results folder zipped
 - 2026-10-27: OWN-2 Waiting on you -> Waiting on you. 2026-10-27: the smoke package asks for a close legend screenshot at row D6
+- 2026-10-28: OWN-1 Waiting on you -> Closed. Results received 2026-10-28: 66 rows, 44 PASS, 19 FAIL, 1 SKIP (A4 network), 2 UNVERIFIED (A11, C8); Gemini flash-latest, QGIS 4.2.3. Triage in DEF-9 to DEF-19
+- 2026-10-28: HT-1 Waiting on you -> In progress. 1.18.4 results triaged 2026-10-28; defects DEF-9 to DEF-19; waiting on the 40 MB evidence folder (OWN-15)
+- 2026-10-28: HT-6 Not started -> In progress. First real run 2026-10-28 on QGIS 4.2.3: screenshots, layer tables and project state worked; log capture was empty (DEF-9)
