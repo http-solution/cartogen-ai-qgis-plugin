@@ -22,7 +22,7 @@ step, no compiled artifacts beyond the release zip.
     refiner/router/task runner, transaction/confidence models, schema/P-code validation, and the
     map-representation planner.
   - `core/logger.py` — structured, metadata-only logging (`log_event`); never log raw prompts,
-    responses, tool arguments/results, or coordinates. `core/exceptions.py` — exception hierarchy.
+    responses, tool arguments/results, or coordinates.
   - `infrastructure/` — `auth.py` (credentials: QGIS Auth Manager or session memory ONLY, never
     plaintext `QgsSettings`), `deps.py`, `settings_keys.py`, and `providers/` (the 5 LLM clients:
     OpenRouter, Gemini, OpenAI, Claude, Ollama, plus a `cartogen.py` stub for a planned hosted

@@ -65,3 +65,4 @@ Each stage is one squash-merged PR; revert it. No stored data format changes.
 
 ## Status log
 - 2026-10-28: audit done and this plan written (status stays planned: no code moved, waiting on the owner to choose stages) at the owner's request; `tools/structure_audit.py` added so the numbers can be re-run. No code moved. Waiting on the owner's answers above.
+- 2026-10-28: audit-fixes PR: plugin_main no longer keeps the raw API key as its agent-change marker (SHA-256 fingerprint via auth.credential_fingerprint); dead core/exceptions.py (no production importer) removed. CI-only.

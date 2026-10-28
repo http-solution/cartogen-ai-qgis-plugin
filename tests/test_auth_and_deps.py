@@ -292,6 +292,17 @@ class TestAuthSystemDiagnostic(unittest.TestCase):
         self.assertEqual(message, "")
 
 
+class CredentialFingerprintTests(unittest.TestCase):
+    def test_fingerprint_hides_key_and_tracks_changes(self):
+        from cartogen_ai.infrastructure.auth import credential_fingerprint
+        a = credential_fingerprint("openai", "sk-secret-123")
+        self.assertNotIn("sk-secret-123", a)
+        self.assertEqual(a, credential_fingerprint("openai", "sk-secret-123"))
+        self.assertNotEqual(a, credential_fingerprint("openai", "sk-other"))
+        self.assertNotEqual(a, credential_fingerprint("claude", "sk-secret-123"))
+        self.assertEqual(len(credential_fingerprint("ollama", None)), 64)
+
+
 if __name__ == "__main__":
     unittest.main()
 
