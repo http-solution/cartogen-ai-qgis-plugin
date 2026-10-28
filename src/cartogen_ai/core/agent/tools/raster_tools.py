@@ -69,6 +69,62 @@ def _find_layer_by_name(name):
     return layers[0]
 
 
+def _norm_path(path):
+    return os.path.normcase(os.path.normpath(str(path).split("|")[0]))
+
+
+def resolve_raster_reference(value, find_by_name, loaded_layers, load_file):
+    """(layer, note) for what a raster argument names, or (None, None).
+
+    DEF-11 (1.18.4 hand run D6, "load before_fixture.asc and after_fixture.asc from <F>, then show the change"): the model passed the FILE
+    PATHS straight to a tool that only looked up layer names, so nothing was found and the rasters were never loaded. Tried in order: a loaded
+    layer of that name; a loaded layer whose source is that file; an existing raster file, loaded now (the note says so, so the reply can tell
+    the user); a loaded layer named like the file without its extension. `find_by_name(text)`, `loaded_layers()` and `load_file(path)` are
+    injected so this is testable without QGIS."""
+    text = os.path.expandvars(os.path.expanduser(str(value or "").strip().strip("\"'").strip()))
+    if not text:
+        return None, None
+    layer = find_by_name(text)
+    if layer is not None:
+        return layer, None
+    is_path = any(sep in text for sep in ("/", "\\")) or bool(os.path.splitext(text)[1])
+    if is_path:
+        target = _norm_path(text)
+        for candidate in loaded_layers():
+            with contextlib.suppress(Exception):
+                if _norm_path(candidate.source()) == target:
+                    return candidate, None
+        if os.path.isfile(text):
+            loaded = load_file(text)
+            if loaded is not None:
+                return loaded, f"'{text}' was not in the project, so it was loaded as layer '{loaded.name()}'."
+        stem = os.path.splitext(os.path.basename(text))[0]
+        if stem and stem != text:
+            layer = find_by_name(stem)
+            if layer is not None:
+                return layer, None
+    return None, None
+
+
+def _load_raster_file(path):
+    """Adds a raster file to the project and returns its layer, or None when it is not a readable raster."""
+    from .vector_tools import RASTER_EXTENSIONS
+    if os.path.splitext(path)[1].lower() not in RASTER_EXTENSIONS:
+        return None
+    layer = QgsRasterLayer(path, os.path.splitext(os.path.basename(path))[0] or "raster")
+    if not layer.isValid():
+        return None
+    QgsProject.instance().addMapLayer(layer)
+    return layer
+
+
+def _find_raster_argument(value):
+    """The raster layer a tool argument refers to (name, loaded file path, or a raster file to load), as (layer, note)."""
+    if not QGIS_AVAILABLE:
+        return None, None
+    return resolve_raster_reference(value, _find_layer_by_name, lambda: list(QgsProject.instance().mapLayers().values()), _load_raster_file)
+
+
 def _temp_raster_path(suffix=".tif"):
     fd, path = tempfile.mkstemp(suffix=suffix)
     os.close(fd)

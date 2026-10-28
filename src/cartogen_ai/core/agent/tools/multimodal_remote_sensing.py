@@ -162,13 +162,16 @@ def calculate_raster_change_detection(raster_before: str, raster_after: str, ali
         return {"error": "QGIS not available"}
 
     try:
-        from .raster_tools import _find_layer_by_name, _grid_or_error, _run_raster_and_add
-        r1 = _find_layer_by_name(raster_before)
-        r2 = _find_layer_by_name(raster_after)
+        from .raster_tools import _find_raster_argument, _grid_or_error, _run_raster_and_add
+        # DEF-11: accepts a layer name, the file of a loaded raster, or a raster file to load (the D6 prompt names files, not layers).
+        r1, note_before = _find_raster_argument(raster_before)
+        r2, note_after = _find_raster_argument(raster_after)
         if r1 is None:
-            return {"error": f"Layer '{raster_before}' not found"}
+            return {"error": f"Layer '{raster_before}' not found. Give the name of a raster layer in the project, or the path of a raster file."}
         if r2 is None:
-            return {"error": f"Layer '{raster_after}' not found"}
+            return {"error": f"Layer '{raster_after}' not found. Give the name of a raster layer in the project, or the path of a raster file."}
+        loaded_notes = [n for n in (note_before, note_after) if n]
+        raster_before, raster_after = r1.name(), r2.name()
         used, grid_error, align_note = _grid_or_error([r2, r1], align_to_first, resampling)
         if grid_error:
             return {"error": grid_error}
@@ -189,6 +192,8 @@ def calculate_raster_change_detection(raster_before: str, raster_after: str, ali
         )
         if isinstance(result, dict) and result.get("success") and align_note:
             result["alignment"] = align_note
+        if isinstance(result, dict) and result.get("success") and loaded_notes:
+            result["loaded"] = " ".join(loaded_notes)
         if isinstance(result, dict) and result.get("success"):
             with contextlib.suppress(Exception):
                 from qgis.core import QgsProject
