@@ -630,6 +630,13 @@ def compute_jiaf_preliminary(file_path, input_format="auto", sheet_name=None, pr
             "code_snippet": f"# Add/update fields {names} on '{layer_name}' for {report['matched']} matched areas",
             "rationale": f"Data Mutation Preview: write PRELIMINARY JIAF figures to {names} of layer '{layer_name}' ({report['matched']} of {report['layer_features']} areas match).",
             "message": f"Confirmation required before adding fields to '{layer_name}'.", "join": report,
+            # 1.18.4 smoke E2: the confirmation card carried none of this, so the reply that asked for the confirmation named neither the standing
+            # statement nor the two open validation blockers, nor that jf_pre_sev would be empty. Every JIAF result carries them, the preview too.
+            "statement": result["statement"], "stage": result["stage"], "validation_blockers": result["validation_blockers"],
+            "coverage": result["coverage"],
+            "severity_note": (f"jf_pre_sev will be EMPTY for {result['coverage']['units_with_incomplete_severity']} of {result['units']} areas: their preliminary "
+                              "severity depends on sectors the file does not report (never shown as phase 1). Say so, and give the two validation blockers.")
+                             if result["coverage"]["units_with_incomplete_severity"] else None,
         }
     try:
         with edit_command(layer, "Cartogen AI: preliminary JIAF figures") as owned:

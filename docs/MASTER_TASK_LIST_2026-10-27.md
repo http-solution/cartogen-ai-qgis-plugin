@@ -75,7 +75,7 @@ One list to follow up and plan from. It replaces the session task list (101 entr
 | DEF-14 | B8: the print layout's KEY FIGURES (120,000 / 85,000 / 45,000) are not in the layer (94,000 / 76,000 / 52,000): the model typed numbers into a deliverable. Decide the guard: figures in layout text must come from a layer field or a tool result, else the tool refuses or marks them unverified. | Invented numbers on a map product are the worst failure this tool can have. | Claude | - | M | P0 | In progress | 1.18.4 smoke run 2026-10-27/28 |
 | DEF-15 | N4/N6: a blur of 1000 and a heatmap radius of 5000 on a lat/lon layer were not refused; the model reprojected to UTM (EPSG:32638) and ran in metres. Decide: is reprojecting and working in metres correct (then the runbook expectation is wrong), or must a bare metre value on a lat/lon layer be refused? | 1.18.4 class-A guard covers the direct tools; the model found another path. | You | - | XS | P2 | Closed | 1.18.4 smoke run 2026-10-27/28 |
 | DEF-16 | Runbook expectations to correct in the next package: D7 and S1 expect mean change 70/45 but damage_score has been normalised 0 to 1 since 1.18.4 (N1 already expects the ranking only); N5 layer name; R3 date bound cannot be tested before 2026-11-05; S5 refusal wording; A11 and C8 need the exact wording recorded. | Test-design faults, not tool defects. | Claude | - | S | P2 | In progress | 1.18.4 smoke run 2026-10-27/28 |
-| DEF-17 | Model-choice failures on Gemini flash-latest: A5, A6, C1, C3, C4, C6, D4, E2, S5. E2: compute_jiaf_preliminary left jf_pre_sev empty with two sectors; check the tool result itself carries the two open blockers and a severity-not-computed reason, so a weak model cannot drop them. | Separates model from tool; the tool must carry the message. | Claude | OWN-15 | M | P2 | Not started | 1.18.4 smoke run 2026-10-27/28 |
+| DEF-17 | Model-choice failures on Gemini flash-latest: A5, A6, C1, C3, C4, C6, D4, E2, S5. E2: compute_jiaf_preliminary left jf_pre_sev empty with two sectors; check the tool result itself carries the two open blockers and a severity-not-computed reason, so a weak model cannot drop them. | Separates model from tool; the tool must carry the message. | Claude | OWN-15 | M | P2 | In progress | 1.18.4 smoke run 2026-10-27/28 |
 | DEF-18 | C5: first run stopped by the loop guard (population_access_gap called 3 times with the same arguments) and the reachable figure differed between runs (1,028 vs 994). Find why identical calls are repeated and why the figure moves. | A figure that changes between identical runs cannot be trusted. | Claude | - | M | P1 | In progress | 1.18.4 smoke run 2026-10-27/28 |
 | DEF-19 | Side effects: A10 added an empty 'UCDP Conflict Events - Yemen 2025' layer and printed a literal '&nbsp;'; A12 left hidden buffer_output and deletecolumn_output layers; A7/A9 loaded global GDACS/USGS layers for a Yemen request. | Unrequested layers (see DEF-3). | Claude | DEF-3 | S | P3 | In progress | 1.18.4 smoke run 2026-10-27/28 |
 
@@ -142,8 +142,8 @@ One list to follow up and plan from. It replaces the session task list (101 entr
 
 | Status | Rows |
 |---|---|
-| Not started | 32 |
-| In progress | 12 |
+| Not started | 31 |
+| In progress | 13 |
 | Decision needed | 11 |
 | Waiting on you | 11 |
 | Blocked | 5 |
@@ -184,3 +184,4 @@ Newest last. One line per status change; written by `tools/master_list.py set`.
 - 2026-10-28: DEF-19 In progress -> In progress. 2026-10-28 PLAN-029: no empty layer when a UCDP/USGS/EONET/GDACS fetch matches nothing; &nbsp; shown as a space. A12 hidden Processing layers still open (no cause without evidence)
 - 2026-10-28: DEF-18 Not started -> In progress. 2026-10-28 cause found in the C5/A6 evidence: population_access_gap had no speed_field/direction_field, so 'using speed_blocked' was ignored (1,028 = bridge passable, 994 = blocked). Now passed through (PLAN-029 item 4); unreleased. The loop-guard stop: the first call also carried no speed field; not reproduced
 - 2026-10-28: DEF-18 In progress -> In progress. 2026-10-28 correction: the 1,028 vs 994 gap is most likely the missing speed field (the C5 first call carried none), not proven. Fix stands on its own: population_access_gap now takes speed_field/direction_field (PLAN-029 item 4); unreachable by the loop-guard stop, not reproduced
+- 2026-10-28: DEF-17 Not started -> In progress. 2026-10-28 E2 read from the evidence: the tool result carried the blockers; its write PREVIEW did not, nor that jf_pre_sev would be empty (2 of 8 sectors is by design). The preview now carries both (PLAN-029 item 5). The other eight model-choice rows still need the Claude-provider rerun (OWN-15)
