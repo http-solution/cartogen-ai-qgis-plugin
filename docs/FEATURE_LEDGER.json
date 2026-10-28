@@ -1445,7 +1445,7 @@
   },
   {
     "id": "cli-bridge-runner-and-claude-adapter",
-    "feature": "a Claude Code and a Codex CLI client (not yet selectable in Settings) that runs the user's own `claude -p` or `codex exec` login as a text model (Claude: all CLI tools off; Codex: read-only sandbox and any run that acts on its own is rejected), a size/time/cancel-limited subprocess runner, and a strict tool-call parser that rejects unknown tools instead of guessing",
+    "feature": "a Claude Code, a Codex and a Gemini CLI client (not yet selectable in Settings) that runs the user's own `claude -p`, `codex exec` or `gemini -p` login as a text model (Claude: all CLI tools off; Codex and Gemini: read-only mode and any run that acts on its own is rejected), a size/time/cancel-limited subprocess runner, and a strict tool-call parser that rejects unknown tools instead of guessing",
     "issues": [],
     "since": "1.18.6",
     "sources": [
@@ -1456,7 +1456,9 @@
       "tests/test_cli_bridge_adapters.py::TestClaudeArgv::test_exact_command_line_switches_every_tool_off",
       "tests/test_cli_bridge_adapters.py::TestParseReply::test_unknown_tool_is_an_error_not_a_guess",
       "tests/test_cli_bridge_adapters.py::TestCodexArgv::test_exact_command_line",
-      "tests/test_cli_bridge_adapters.py::TestParseCodexEvents::test_acting_on_its_own_is_rejected"
+      "tests/test_cli_bridge_adapters.py::TestParseCodexEvents::test_acting_on_its_own_is_rejected",
+      "tests/test_cli_bridge_adapters.py::TestGeminiArgv::test_exact_command_line",
+      "tests/test_cli_bridge_adapters.py::TestParseGeminiResult::test_tool_calls_in_the_stats_are_rejected"
     ],
     "hand_verified": "not verified: CI only, against a stand-in process; never run against a real logged-in Claude CLI (PLAN-038 spike)",
     "hand_row": "SPIKE-1 (tools/cli_bridge_spike.py, PLAN-038)"
