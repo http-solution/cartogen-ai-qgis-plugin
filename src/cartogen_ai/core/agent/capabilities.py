@@ -54,6 +54,9 @@ _TABLE = (
     ("rank", r"\brank\w*\b|\blargest to smallest\b", ("field_statistics",), ("run_query",)),
     ("filter_select", r"\b(filter|select|only)\b.{0,50}\b(governorates?|districts?|admin|where)\b", ("select_by_attribute",), ()),
     ("extent", r"\b(bounding box|bbox|study area)\b", ("get_layer_extent",), ()),
+    # 1.18.4 hand run A13 ("find Sentinel-2 scenes over Aden ..."): the router offered the scene search but not geocode_and_enrich, the only
+    # tool that turns a place name into the area the search needs, so the model looked for a tool and stopped (DEF-10).
+    ("satellite_scenes", r"\b(sentinel[- ]?2|satellite (scenes?|imagery|images?)|stac)\b", ("search_stac_satellite_imagery", "geocode_and_enrich"), ()),
     ("point_from_coordinates", r"\bcoordinates?\b|\b\d{1,2}\.\d+\s*°?\s*[ns]\b", ("add_point_layer",), ()),
     ("zoom", r"\bzoom\b", ("zoom_to_layer",), ()),
     ("export", r"\b(export|save (it |them |the \w+ )?as|write (it |them )?to (a |the )?(file|geopackage|csv|shapefile))\b", ("export_layer", "export_to_csv"), ()),
@@ -152,7 +155,7 @@ _PLAIN_NAMES = {
     "length": "length", "centroids": "centroids", "labels": "labels", "graduated_style": "graduated colour style",
     "categorized_style": "categorised colour style", "slope": "slope", "elevation_download": "elevation (DEM) download",
     "contours": "contour lines", "population_data": "population data / exposure", "pcode_check": "P-code validation", "split_lines": "split lines by zones", "walking_access": "walking / travel access",
-    "rank": "rank", "filter_select": "filter / select", "extent": "bounding box", "point_from_coordinates": "point from coordinates",
+    "rank": "rank", "filter_select": "filter / select", "extent": "bounding box", "satellite_scenes": "satellite scene search", "point_from_coordinates": "point from coordinates",
     "zoom": "zoom", "export": "export", "report_numbers": "report totals",
 }
 
