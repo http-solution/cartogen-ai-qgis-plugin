@@ -7,7 +7,7 @@ from .base import (
     extract_openai_style_usage, format_http_error, key_in_use_note, format_request_exception,
     HTTPError, RequestException,
 )
-from ...core.agent.model_selector import filter_chat_model_ids
+from ...core.model_selector import filter_chat_model_ids
 
 
 def list_models(api_key=None):

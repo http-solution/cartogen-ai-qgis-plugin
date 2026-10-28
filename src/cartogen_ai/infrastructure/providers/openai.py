@@ -6,7 +6,7 @@ from .base import (
     extract_openai_style_usage, format_http_error, key_in_use_note, format_request_exception, freshen_query,
     HTTPError,
 )
-from ...core.agent.model_selector import filter_chat_model_ids
+from ...core.model_selector import filter_chat_model_ids
 from ._search_cache import TTLCache
 
 _SEARCH_CACHE = TTLCache(ttl_seconds=1800)
