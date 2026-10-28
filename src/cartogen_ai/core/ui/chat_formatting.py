@@ -112,6 +112,7 @@ def _linkify_output_paths(text):
 # a backslash or a caret are touched.
 _LATEX_SPAN = re.compile(r"\$([^$\n]{1,80}?)\$")
 _MODEL_BR = re.compile(r"<br\s*/?>", re.IGNORECASE)
+_MODEL_NBSP = re.compile(r"&nbsp;", re.IGNORECASE)   # 1.18.4 smoke A10: the model wrote "&nbsp;" and the chat showed it as text
 _COMPARISON_SPAN = re.compile(r"^\s*(?:<=|>=|<|>|=)\s*(?:\d[\d.,]*%?)?\s*$")
 _LATEX_SYMBOLS = {
     r"\leq": "\u2264", r"\le": "\u2264", r"\geq": "\u2265", r"\ge": "\u2265", r"\neq": "\u2260",
@@ -196,6 +197,7 @@ def render_markdown(text, colors=None):
     # 2. Escape remaining HTML-sensitive characters. A line break the model wrote as <br> (it does so inside table cells and bullets)
     # is kept as a break: 1.18.2 hand test A4 showed the literal "<br>" in a facility list because escaping turned it into text.
     text = _MODEL_BR.sub("\x01BR\x01", text)
+    text = _MODEL_NBSP.sub(" ", text)
     text = text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\x01BR\x01", "<br>")
 
     # 3. Block-level formatting. Index-based (not a plain for-line loop) so

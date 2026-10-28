@@ -22,6 +22,7 @@ from datetime import datetime, timedelta, timezone
 
 from .registry import register_tool
 from ._edit_session import EditError
+from ._layer_checks import empty_fetch_result
 from ...models.confidence import set_layer_confidence
 from ._urllib_retry import urlopen_with_retry
 from ...net import build_request as _net_build_request
@@ -116,6 +117,8 @@ def add_usgs_earthquakes_layer_main_thread_phase(fetch_result, layer_name="USGS 
         return {"success": True, "event_count": len(fetch_result.get("events", []))}
     created = False
     layer = _find_layer_by_name(layer_name)
+    if layer is None and not fetch_result.get("events"):
+        return empty_fetch_result(layer_name, "earthquakes")
     if layer is None:
         layer = QgsVectorLayer(
             "Point?crs=EPSG:4326&field=event_id:string(40)&field=title:string(255)&field=category:string(30)"
@@ -281,6 +284,8 @@ def add_ucdp_conflict_events_layer_main_thread_phase(fetch_result, layer_name="U
         return {"success": True, "event_count": len(fetch_result.get("events", []))}
     created = False
     layer = _find_layer_by_name(layer_name)
+    if layer is None and not fetch_result.get("events"):
+        return empty_fetch_result(layer_name, "UCDP events")
     if layer is None:
         layer = QgsVectorLayer(
             "Point?crs=EPSG:4326&field=event_id:string(40)&field=date:string(12)&field=country:string(80)&field=adm_1:string(120)"

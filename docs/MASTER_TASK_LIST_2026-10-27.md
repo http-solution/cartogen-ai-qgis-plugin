@@ -63,7 +63,7 @@ One list to follow up and plan from. It replaces the session task list (101 entr
 | DEF-2 | Change-layer legend (D6): confirm blue-to-red with a transparent no-change area; fix if the screenshot shows otherwise. | Open since the 1.18.3 run. | Claude | OWN-2 | S | P2 | Blocked | 1.18.3 hand run D6 |
 | DEF-3 | Unrequested layers: an 'Incident' layer after GDACS (A7), a country layer after building footprints (A5). No tool in the code adds them; trace the plan that does. | Surprises the user; cause unknown. | Claude | OWN-3 | S | P2 | Blocked | 1.18.2 and 1.18.3 hand runs |
 | DEF-4 | C5 labels reported inverted: find which layer and labels. | Reported without detail. | Claude | OWN-3 | S | P2 | Blocked | 1.18.2 hand run |
-| DEF-5 | Zonal-statistics columns (chg_mean, chg2_mean...) stay on the admin layer after the damage tool runs; remove them or run on a copy. | Side effect on the user's layer; a file-based layer keeps them. | Claude | - | S | P2 | Not started | PLAN-026 class C |
+| DEF-5 | Zonal-statistics columns (chg_mean, chg2_mean...) stay on the admin layer after the damage tool runs; remove them or run on a copy. | Side effect on the user's layer; a file-based layer keeps them. | Claude | - | S | P2 | In progress | PLAN-026 class C |
 | DEF-6 | Nationwide 5 km task grid is refused above 5,000 cells: add a 'suggest a cell size' path. | Clear message today; a design choice. | Claude | OWN-6 | S | P3 | Decision needed | 1.18.2 hand run B1 |
 | DEF-7 | OSM Overpass road download answered HTTP 502 after 4 retries: consider a mirror fallback and a clearer message. | Server side; the fixtures covered it in the test. | Claude | - | S | P3 | Not started | 1.18.2 hand run C1 |
 | DEF-8 | Quiet-release clean-up: 24 unused noqa comments; the baseline of 504 broad-except handlers (none silent) recorded for review. | Lint hygiene. | Claude | - | S | P3 | Not started | PLAN-026 class G, H |
@@ -142,10 +142,10 @@ One list to follow up and plan from. It replaces the session task list (101 entr
 
 | Status | Rows |
 |---|---|
-| Not started | 34 |
+| Not started | 33 |
 | Decision needed | 11 |
+| In progress | 11 |
 | Waiting on you | 11 |
-| In progress | 10 |
 | Blocked | 5 |
 | Closed | 2 |
 | Closed (record) | 1 |
@@ -180,3 +180,5 @@ Newest last. One line per status change; written by `tools/master_list.py set`.
 - 2026-10-28: DEF-14 Not started -> In progress. 2026-10-28 PLAN-028: key_figures_from reads figures from a layer; typed figures not found in the project data are marked on the layout and named in the reply. Awaiting merge; hand rerun of B8
 - 2026-10-28: HY-1 Not started -> In progress. 2026-10-28: 8 plans updated from their own logs and the GitHub release list (001 abandoned, 007/013/015/016/017 done, 020 abandoned, 021 in progress). Left as they are: 018 (no 1.18.0 release tag exists), 024-026 (close when hand rows pass), 002/003/005/006/008/009/014 (open items remain)
 - 2026-10-28: HT-2 Not started -> Closed. 2026-10-28: every 'not verified' ledger entry (32) now has a hand_row, and tests/test_feature_ledger.py fails for a new one without it. 'none: reason' is allowed where no person can check it
+- 2026-10-28: DEF-5 Not started -> In progress. 2026-10-28 PLAN-029: the damage run deletes the working columns it created; merged-pending; unreleased
+- 2026-10-28: DEF-19 In progress -> In progress. 2026-10-28 PLAN-029: no empty layer when a UCDP/USGS/EONET/GDACS fetch matches nothing; &nbsp; shown as a space. A12 hidden Processing layers still open (no cause without evidence)

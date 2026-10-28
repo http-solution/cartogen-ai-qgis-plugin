@@ -156,6 +156,11 @@ class TestModelBreaksAndComparisonSpans(unittest.TestCase):
         self.assertNotIn("&lt;br", out)
         self.assertIn("&lt;b&gt;x&lt;/b&gt;", out)
 
+    def test_a_model_written_nbsp_is_a_space_not_literal_text(self):
+        out = render_markdown("Events&nbsp;in&nbsp;Yemen &amp; more")
+        self.assertIn("Events in Yemen", out)
+        self.assertNotIn("nbsp", out)
+
     def test_br_inside_a_table_cell(self):
         out = render_markdown("| a | b |\n|---|---|\n| x<br>y | z |")
         self.assertIn("x<br>y</td>", out)
