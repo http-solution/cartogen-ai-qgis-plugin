@@ -19,7 +19,7 @@ GUI thread (a worker, tests) nothing is pumped: the loop just runs. Pure Python 
 the cancel check and the progress report are all injectable, which is how the offline tests exercise it."""
 import time
 
-from .. import cancel_signal
+from ... import cancel_signal
 from ._background_processing import AnalysisCancelledError, QGIS_AVAILABLE, _on_gui_thread
 
 if QGIS_AVAILABLE:

@@ -77,7 +77,7 @@ def _quota_will_not_clear(response):
 def _user_stopped():
     """True once the user pressed Stop: a request that was dropped for that reason must not be retried."""
     try:
-        from ...core.agent import cancel_signal
+        from ...core import cancel_signal
         return cancel_signal.is_cancelled()
     except Exception:
         return False

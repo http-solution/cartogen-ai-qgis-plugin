@@ -27,7 +27,7 @@ import threading
 import time
 
 from ...logger import log_event
-from .. import cancel_signal
+from ... import cancel_signal
 
 try:
     from qgis.core import (

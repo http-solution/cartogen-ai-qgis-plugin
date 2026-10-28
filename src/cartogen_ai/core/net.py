@@ -313,7 +313,7 @@ def _qgis_hop(method, url, header_items, data, timeout):
     stop_poll.setInterval(250)
 
     def _abort_if_stopped():
-        from .agent import cancel_signal
+        from . import cancel_signal
         if cancel_signal.is_cancelled():
             stop_state["stopped"] = True
             stop_poll.stop()

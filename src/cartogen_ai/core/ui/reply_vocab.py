@@ -132,7 +132,7 @@ def _writes_data(tool_name):
     if any(part in name for part in _PRESENTATION_TOOL_PARTS):
         return False
     try:
-        from ..agent import tool_operations
+        from .. import tool_operations
         return tool_operations.get_tool_operation_type(tool_name) in (tool_operations.CREATE, tool_operations.MODIFY)
     except Exception:
         return False

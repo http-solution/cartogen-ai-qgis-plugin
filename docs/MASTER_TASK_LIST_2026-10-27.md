@@ -138,7 +138,7 @@ One list to follow up and plan from. It replaces the session task list (101 entr
 | AR-3 | task_matcher keyword normalisation favours short task definitions (partly mitigated in 1.18.1 and 1.18.4). | Routing fairness. | Claude | - | M | P3 | Not started | tracker 1.8 |
 | AR-4 | Chunked k-means for very large rasters; further GUI-thread offloading. | Guard shipped, chunking not. | Claude | - | M | P3 | Not started | A14, A15 |
 | AR-5 | Recorded as scoped and not recommended: vector memory stores, constrained decoding libraries, RestrictedPython, Presidio egress scan, semantic router. | Keep the record so they are not rediscovered. | You | - | - | - | Closed (record) | W-49 |
-| AR-6 | Whole-code-base structure audit and staged reorganisation (PLAN-040): import cycle of 30 tool modules, 20 copies of one helper, unenforced layering, unused exception hierarchy. Stages 0 to 6 proposed; moving tool files into subpackages is not recommended. | You asked to reorganise everything; the audit says where the real problems are and what each fix costs. | You | - | M | P2 | Decision needed | owner request 2026-10-28, PLAN-040 |
+| AR-6 | Whole-code-base structure audit and staged reorganisation (PLAN-040): import cycle of 30 tool modules, 20 copies of one helper, unenforced layering, unused exception hierarchy. Stages 0 to 6 proposed; moving tool files into subpackages is not recommended. | You asked to reorganise everything; the audit says where the real problems are and what each fix costs. | You | - | M | P2 | In progress | owner request 2026-10-28, PLAN-040 |
 
 ## I. Leadership plan (from the 2026-10-28 codebase analysis)
 
@@ -161,8 +161,8 @@ Source: the owner's analysis document of nine flagship QGIS AI plugins, checked 
 | Status | Rows |
 |---|---|
 | Not started | 35 |
-| In progress | 17 |
-| Decision needed | 14 |
+| In progress | 18 |
+| Decision needed | 13 |
 | Waiting on you | 11 |
 | Blocked | 5 |
 | Closed | 2 |
@@ -223,3 +223,4 @@ Newest last. One line per status change; written by `tools/master_list.py set`.
 - 2026-10-28: DEF-17 In progress -> In progress. A5/A6 router gap fixed (place lookup not offered); other 7 rows already offered their tools so need the Claude rerun OWN-15 + eval HT-3; PR open, CI only
 - 2026-10-28: DEF-16 In progress -> In progress. expectations checked against fixtures and tool wording; S5/R3/N5/A11/C8 corrected, D7/N1 verified; rev2 package built; stays open until the corrected runbook is used in a real run; record docs/RUNBOOK_EXPECTATION_CHECKS_2026-10-28.md
 - 2026-10-28: AR-6 added (Decision needed). Whole-code-base audit done (PLAN-040, tools/structure_audit.py); no code moved; owner to confirm the intended import direction and pick stages
+- 2026-10-28: AR-6 Decision needed -> In progress. stage 0 guard test + stage 3a (3 leaf modules moved below the agent) built, violations 17 -> 4; stage 1 rejected (583 test patches); stages 2, 4, 5, 6 open
