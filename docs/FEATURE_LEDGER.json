@@ -1322,6 +1322,21 @@
       "tests/test_geocode_bbox.py::TestNominatimBbox::test_boundingbox_is_reordered_for_both_conventions"
     ],
     "hand_verified": "not verified: CI only (owner hand run 1.18.4 rows A5, A6 and A13 found the gap; the fix has not been re-run)"
+  },
+  {
+    "id": "sitrep-key-figures-come-from-the-data",
+    "feature": "a sitrep layout's key figures are read from a layer (key_figures_from) or, when typed, are marked when their number is not in the project data",
+    "issues": [],
+    "since": "1.18.6",
+    "sources": [
+      "src/cartogen_ai/core/agent/tools/layout_tools.py",
+      "src/cartogen_ai/core/agent/tools/layout_style.py"
+    ],
+    "guards": [
+      "tests/test_layout_figures_guard.py::TestFigureGrounding::test_the_b8_figures_are_flagged_and_the_layer_figures_are_not",
+      "tests/test_layout_figures_guard.py::TestSitrepLayoutMarksUnverifiedFigures::test_typed_figures_that_are_not_in_the_layer_are_marked_and_reported"
+    ],
+    "hand_verified": "not verified: CI only (owner hand run 1.18.4 row B8 found the defect; the fix has not been re-run)"
   }
  ]
 }

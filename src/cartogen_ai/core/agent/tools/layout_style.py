@@ -20,6 +20,7 @@ is reported as a warning and the layout is still produced.
 import contextlib
 import datetime
 import os
+import re
 
 from ...disclaimer_text import LAYOUT_DISCLAIMER
 from .routing_style import ACCESS_STYLES
@@ -104,6 +105,67 @@ def normalise_key_figures(key_figures):
     return out
 
 
+UNVERIFIED_FIGURE_MARK = "[not found in the project data]"
+_NUMBER = re.compile(r"-?\d[\d,]*(?:\.\d+)?")
+MAX_POOL_VALUES = 200000
+
+
+def parse_figure_number(text):
+    """(value, decimals) for the first number in a figure such as '94,000', '83.15 percent' or '1.2 million USD', else None. Pure. A unit word
+    after the number is ignored here on purpose: the check below only asks whether the NUMBER exists in the data."""
+    match = _NUMBER.search(str(text or ""))
+    if not match:
+        return None
+    raw = match.group(0).replace(",", "")
+    try:
+        value = float(raw)
+    except ValueError:
+        return None
+    return value, (len(raw.split(".")[1]) if "." in raw else 0)
+
+
+def build_number_pool(columns):
+    """The numbers a figure may legitimately be copied from: every value of every numeric attribute column, plus each column's count, sum,
+    minimum, maximum and mean (headline figures are usually totals). `columns` is an iterable of lists of numbers. Pure; capped at
+    MAX_POOL_VALUES distinct values so a huge layer cannot stall a layout."""
+    pool = set()
+    for values in columns:
+        numbers = [float(v) for v in values if isinstance(v, (int, float)) and not isinstance(v, bool) and v == v]
+        if not numbers:
+            continue
+        pool.update(numbers[:MAX_POOL_VALUES])
+        pool.update((float(len(numbers)), sum(numbers), min(numbers), max(numbers), sum(numbers) / len(numbers)))
+    return pool
+
+
+def figure_is_grounded(value_text, pool):
+    """True when the number in `value_text` equals a number in `pool` at the precision it was written with ('94,000' needs 94000, '83.15'
+    needs 83.15 to two places). Text with no number cannot be checked and counts as grounded. Pure."""
+    parsed = parse_figure_number(value_text)
+    if parsed is None:
+        return True
+    value, decimals = parsed
+    return any(abs(round(candidate, decimals) - value) < 1e-9 for candidate in pool)
+
+
+def unverified_figure_labels(key_figures, pool):
+    """Labels of the typed key figures whose number is not in `pool`. Pure."""
+    return [label for label, value, _source in normalise_key_figures(key_figures) if not figure_is_grounded(value, pool)]
+
+
+def figures_from_rows(rows, top_n=3, order="highest"):
+    """Key figures taken straight from data. `rows` is [(label, number)]; returns up to `top_n` {label, value} dicts, largest first (or smallest
+    first when order is 'lowest'), values formatted with thousands separators and two decimals only when the number has a fraction. Pure.
+    The number is never typed by a model, so it cannot drift from the layer."""
+    clean = [(str(label), float(v)) for label, v in rows if isinstance(v, (int, float)) and not isinstance(v, bool) and v == v]
+    clean.sort(key=lambda r: r[1], reverse=str(order).lower() != "lowest")
+    out = []
+    for label, number in clean[:max(1, min(int(top_n or 3), SITREP_MAX_FIGURES))]:
+        text = f"{number:,.0f}" if number == int(number) else f"{number:,.2f}"
+        out.append({"label": label, "value": text})
+    return out
+
+
 def _shorten(text, limit):
     """text cut to at most `limit` characters on a word boundary with an ellipsis; '' when limit is too small to be useful. Pure."""
     if len(text) <= limit:
@@ -113,7 +175,7 @@ def _shorten(text, limit):
     return text[:limit - 1].rsplit(" ", 1)[0].rstrip(",;: ") + "\u2026"
 
 
-def sitrep_body(summary="", key_figures=None, sources=None, reading_guide="", today=None, max_chars=None):
+def sitrep_body(summary="", key_figures=None, sources=None, reading_guide="", today=None, max_chars=None, unverified_labels=()):
     """The text panel of the `sitrep` template: SITUATION, KEY FIGURES, HOW TO READ THIS MAP, SOURCES, HANDLING, in that order, leaving out
     any section that has no content. Pure. HANDLING and the preparation date are always present; nothing else is added on the caller's
     behalf.
@@ -125,6 +187,7 @@ def sitrep_body(summary="", key_figures=None, sources=None, reading_guide="", to
     figures = list(normalise_key_figures(key_figures))
     guide = str(reading_guide or "").strip()
     src = [str(x).strip() for x in (sources or []) if str(x).strip()]
+    flagged = set(unverified_labels or ())
     handling = "HANDLING\n" + SITREP_HANDLING + " " + prepared_stamp(today) + "."
     sources_part = "SOURCES\n" + "; ".join(src) if src else ""
 
@@ -133,7 +196,8 @@ def sitrep_body(summary="", key_figures=None, sources=None, reading_guide="", to
         if summary_text:
             parts.append("SITUATION\n" + summary_text)
         if figs:
-            lines = [f"- {label}: {value}" + (f" ({source})" if source else "") for label, value, source in figs]
+            lines = [f"- {label}: {value}" + (f" ({source})" if source else "") + (f" {UNVERIFIED_FIGURE_MARK}" if label in flagged else "")
+                     for label, value, source in figs]
             parts.append("KEY FIGURES\n" + "\n".join(lines))
         if guide_text:
             parts.append("HOW TO READ THIS MAP\n" + guide_text)
