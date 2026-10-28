@@ -1502,6 +1502,23 @@
     ],
     "hand_verified": "not verified: CI only (live QGIS dialog and agent construction; no CLI has been run through Settings and nobody has looked at the dialog)",
     "hand_row": "SPIKE-1 (tick the box, reopen Settings, pick a CLI, send one message)"
+  },
+  {
+    "id": "settings-sections-by-purpose",
+    "feature": "the Settings window groups settings by what they govern (privacy and data protection first, then how the assistant works, who it writes for, print layouts, diagnostics), keeps experimental and diagnostic options in groups that open themselves when anything inside is on, and every moved setting still saves and reloads",
+    "issues": [],
+    "since": "1.18.6",
+    "sources": [
+      "src/cartogen_ai/core/ui/settings_dialog.py"
+    ],
+    "guards": [
+      "tests/test_settings_sections.py::TestSections::test_sections_are_numbered_in_order_with_the_agreed_titles",
+      "tests/test_settings_sections.py::TestSections::test_each_setting_is_placed_in_its_sections_column",
+      "tests/test_settings_sections.py::TestSections::test_every_saved_setting_is_still_written_on_accept",
+      "tests/test_settings_sections_live.py::TestSettingsSections::test_every_moved_setting_saves_and_reloads"
+    ],
+    "hand_verified": "not verified: CI only (nobody has looked at the regrouped window)",
+    "hand_row": "SPIKE-1 (open Settings and read the sections; open and close the two groups)"
   }
  ]
 }
