@@ -77,13 +77,21 @@ class TestWiring(unittest.TestCase):
         for cls in ("ClaudeCliClient", "CodexCliClient", "GeminiCliClient"):
             self.assertIn(cls, text)
 
-    def test_the_dialog_adds_cli_entries_only_while_the_switch_is_on(self):
+    def test_the_dialog_always_lists_the_cli_entries_but_gates_their_pills_on_the_acknowledgement(self):
         text = _text("core", "ui", "settings_dialog.py")
-        self.assertIn("self._providers = PROVIDERS + (_CLI_PROVIDERS if cli_providers_enabled() else [])", text)
+        self.assertIn("self._providers = PROVIDERS + _CLI_PROVIDERS", text)
+        self.assertIn('btn.setEnabled(self.experimental_cli_checkbox.isChecked())', text)
         self.assertRegex(text, r'PROVIDERS = \[e for e in _ALL_PROVIDERS if e\["value"\] in ENABLED_PROVIDERS\]')
         entries = self._cli_entries()
         self.assertEqual([e["value"] for e in entries], list(sk.CLI_PROVIDERS))
-        self.assertTrue(all(e["key_storage"] == "setting" for e in entries))
+        self.assertTrue(all(e["key_storage"] == "setting" and e["group"] == "cli" for e in entries))
+
+    def test_every_provider_belongs_to_a_known_group(self):
+        consts = self._module_constants()
+        groups = set(consts["_GROUP_TITLES"])
+        self.assertEqual(groups, {"hosted", "local", "cli"})
+        self.assertTrue(set(consts["_GROUP_OF"].values()) <= groups)
+        self.assertEqual(consts["_GROUP_OF"]["ollama"], "local")
 
     def test_the_program_path_is_saved_as_a_plain_setting_not_a_credential(self):
         text = _text("core", "ui", "settings_dialog.py")
