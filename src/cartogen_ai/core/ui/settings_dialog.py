@@ -1007,11 +1007,10 @@ QPushButton#settingsCancelButton {{
     @staticmethod
     def _cli_quick_status(provider, program_text):
         """A one-line status that needs no subprocess: is the program on this computer? (Signed in or not only the check button knows.)"""
-        program = _cli_status.program_for(provider, program_text)
-        path = _cli_status.cb.find_executable(program)
+        path = _cli_status.locate(provider, program_text)
         if path:
             return f"Program found: {path}. Press Check connection to confirm you are signed in."
-        return f"Program '{program}' not found. {_cli_status.install_hint(provider)}"
+        return _cli_status.not_found_message(provider, program_text)
 
     def _cli_form_values(self, provider):
         program = self._key_edits[provider].text().strip()

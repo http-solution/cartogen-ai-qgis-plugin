@@ -46,20 +46,86 @@ class CliBridgeError(Exception):
     """A CLI could not be run or its output could not be used. The message is safe to show the user (no prompt content)."""
 
 
-def find_executable(name_or_path):
-    """Resolves a configured path or a bare command name to a real file, or None. Never invokes a shell."""
-    if not name_or_path:
+def _extra_bin_dirs():
+    """Folders where npm, Homebrew, Volta, nvm, bun, pnpm or scoop put CLIs. A QGIS started from a desktop icon or Finder has a
+    shorter PATH than the user's terminal, so `shutil.which("codex")` fails there even though the terminal finds it (user report,
+    2026-10-28: Codex installed, Settings said 'program not found'). Only existing directories are returned."""
+    home = os.path.expanduser("~")
+    dirs = []
+    if os.name == "nt":
+        appdata = os.environ.get("APPDATA") or os.path.join(home, "AppData", "Roaming")
+        local = os.environ.get("LOCALAPPDATA") or os.path.join(home, "AppData", "Local")
+        dirs += [os.path.join(appdata, "npm"), os.path.join(home, ".local", "bin"), os.path.join(home, ".bun", "bin"),
+                 os.path.join(local, "Volta", "bin"), os.path.join(local, "pnpm"), os.path.join(home, "scoop", "shims"),
+                 os.path.join(os.environ.get("PROGRAMFILES", r"C:\Program Files"), "nodejs")]
+        nvm = os.environ.get("NVM_SYMLINK")
+        if nvm:
+            dirs.append(nvm)
+    else:
+        dirs += [os.path.join(home, ".local", "bin"), "/usr/local/bin", "/opt/homebrew/bin", os.path.join(home, ".npm-global", "bin"),
+                 os.path.join(home, ".volta", "bin"), os.path.join(home, ".bun", "bin"), os.path.join(home, ".claude", "local")]
+        nvm_root = os.path.join(home, ".nvm", "versions", "node")
+        with contextlib.suppress(OSError):
+            dirs += [os.path.join(nvm_root, v, "bin") for v in sorted(os.listdir(nvm_root), reverse=True)]
+    seen, out = set(), []
+    for d in dirs:
+        if d and d not in seen and os.path.isdir(d):
+            seen.add(d)
+            out.append(d)
+    return out
+
+
+def _clean_path_text(text):
+    return os.path.expandvars(os.path.expanduser((text or "").strip().strip("\"'").strip()))
+
+
+def _with_pathext(path):
+    """npm writes `codex` (a shell script Windows cannot run) next to `codex.cmd`; a path pasted without the ending means the .cmd/.exe."""
+    if os.path.splitext(path)[1]:
         return None
-    candidate = shutil.which(name_or_path)
-    if candidate:
-        return candidate
-    return name_or_path if os.path.isfile(name_or_path) else None
+    for ext in os.environ.get("PATHEXT", ".COM;.EXE;.BAT;.CMD").split(";"):
+        if ext and os.path.isfile(path + ext):
+            return path + ext
+    return None
+
+
+def find_executable(name_or_path):
+    """Resolves a configured path or a bare command name to a real file, or None. Never invokes a shell.
+
+    Tolerates what people paste: surrounding quotes or spaces, ~ and %VAR%, and on Windows a path without its .cmd/.exe ending.
+    A bare name is looked for on PATH first, then in the usual install folders (see `_extra_bin_dirs`).
+    """
+    text = _clean_path_text(name_or_path)
+    if not text or os.path.isdir(text):
+        return None
+    if os.sep in text or (os.altsep and os.altsep in text):
+        if os.path.isfile(text):
+            return text
+        return _with_pathext(text) if os.name == "nt" else None
+    found = shutil.which(text)
+    if found:
+        return found
+    extra = os.pathsep.join(_extra_bin_dirs())
+    return shutil.which(text, path=extra) if extra else None
+
+
+def find_in_folder(folder, name):
+    """When the program field holds a folder, the program is <name> inside it."""
+    folder = _clean_path_text(folder)
+    if not (folder and os.path.isdir(folder)):
+        return None
+    return shutil.which(name, path=folder)
 
 
 def scrubbed_environment(base=None):
     env = dict(os.environ if base is None else base)
     for key in SCRUBBED_ENV:
         env.pop(key, None)
+    # Node-based CLIs are launcher scripts that need `node` on PATH; add the usual folders after the existing PATH.
+    have = env.get("PATH", "").split(os.pathsep)
+    extra = [d for d in _extra_bin_dirs() if d not in have]
+    if extra:
+        env["PATH"] = os.pathsep.join([p for p in [env.get("PATH", ""), *extra] if p])
     return env
 
 
@@ -358,7 +424,7 @@ class _CliClient(BaseAiProvider):
         raise NotImplementedError
 
     def complete(self, messages, tools=None, max_tokens=None):  # max_tokens unused: the CLIs have no output-token flag
-        exe = find_executable(self.executable)
+        exe = find_executable(self.executable) or find_in_folder(self.executable, self.default_exe)
         if not exe:
             return {"error": f"{self.label} not found. Install it and sign in, or set its path in Settings."}
         self._emit_status(f"Using {self.label}" + (f": {self.model}" if self.model else ""))
