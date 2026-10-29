@@ -253,6 +253,43 @@ _READS_METADATA = re.compile(r"\b(show|display|read|view|see|what(?:'s| is| are)
 _WRITES_METADATA = re.compile(r"\b(creat\w*|writ\w*|produc\w*|generat\w*|export\w*|develop\w*|sidecar|provenance|standard\w*|record)\b")
 
 
+def _is_weak_match(query, best, top):
+    """True when the best task must not steer the model, i.e. the verdict is "below confidence floor": no directive, the message goes as typed.
+
+    The guards are tried in the order they used to run inline in classify(); each one that asks another module is wrapped on its own so a
+    failure there skips only that guard, as before."""
+    lowered = (query or "").lower()
+    # An access/drive-time request whose best task is NOT led by calculate_service_area is a wrong match, and a wrong directive is
+    # worse than none (rc10 smoke test: "Calculate a one-hour driving service area from the point ..." matched 21.23 "Calculate
+    # area and density" at 0.42 and the model went on to fetch a population raster, estimate exposure and export a CSV nobody
+    # asked for). Treat it like a below-floor match: no directive, the message is sent as typed.
+    if _ACCESS_TIME_LANGUAGE.search(lowered) and (best.get("tools") or [None])[0] != "calculate_service_area":
+        return True
+    if top < CONFIDENT_SCORE:
+        return True
+    # "Calculate soil erosion risk" matched "Map erosion" (tools: load a file, style it) and "Create thiessen polygons around the health
+    # facilities" matched "Map health facilities": a task that can only show data cannot do a computation an approved Processing
+    # algorithm can (core/agent/algorithm_topics.py). No directive then; the message goes as typed and the router offers the algorithm tools.
+    with contextlib.suppress(Exception):
+        from .algorithm_topics import computation_request
+        if computation_request(query, best.get("tools")):
+            return True
+    # rc48 hand test (#380): a strong algorithm match the task does not carry means the task directive would steer the model away from it
+    # ("Sort the districts by population" matched "Map population distribution"). Same verdict as a below-floor match: no directive.
+    with contextlib.suppress(Exception):
+        from .algorithm_topics import algorithm_outranks_task
+        if algorithm_outranks_task(query, best.get("id"), top, best.get("text", "")):
+            return True
+    # rc45 smoke run, check I4: "make a chart of population by district" matched "Map population distribution" (WorldPop fetch, zonal
+    # statistics, styling) and the model was sent after a map nobody asked for. A request that names a chart is answered by the chart tools.
+    if _ASKS_FOR_CHART.search(lowered) and not any("chart" in t or "dashboard" in t for t in best.get("tools") or ()):
+        return True
+    # In a long request one shared word is a coincidence, whatever it scores: a task with a two-word keyword list scores 0.33-0.5 on
+    # a single hit. rc17 hand test R4: a raster colour-ramp request shared one word with a data-standards task. A long request needs
+    # two distinct hits; a short one ("a dashboard of displacement by district") may be matched on one.
+    return len(_tokens(query)) > _SINGLE_HIT_MAX_TOKENS and len(_tokens(query) & set(best.get("kw") or ())) < 2
+
+
 def classify(query):
     """Full local verdict for a query.
 
@@ -295,40 +332,7 @@ def classify(query):
             if "calculate_service_area" in e.get("tools", []):
                 best, top = e, s
                 break
-    # An access/drive-time request whose best task is NOT led by calculate_service_area is a wrong match, and a wrong directive is
-    # worse than none (rc10 smoke test: "Calculate a one-hour driving service area from the point ..." matched 21.23 "Calculate
-    # area and density" at 0.42 and the model went on to fetch a population raster, estimate exposure and export a CSV nobody
-    # asked for). Treat it like a below-floor match: no directive, the message is sent as typed.
-    if _ACCESS_TIME_LANGUAGE.search((query or "").lower()) and (best.get("tools") or [None])[0] != "calculate_service_area":
-        return {"matches": ms, "best": best, "score": top,
-                "ambiguous": True, "reason": "below confidence floor"}
-    if top < CONFIDENT_SCORE:
-        return {"matches": ms, "best": best, "score": top,
-                "ambiguous": True, "reason": "below confidence floor"}
-    # "Calculate soil erosion risk" matched "Map erosion" (tools: load a file, style it) and "Create thiessen polygons around the health
-    # facilities" matched "Map health facilities": a task that can only show data cannot do a computation an approved Processing
-    # algorithm can (core/agent/algorithm_topics.py). No directive then; the message goes as typed and the router offers the algorithm tools.
-    with contextlib.suppress(Exception):
-        from .algorithm_topics import computation_request
-        if computation_request(query, best.get("tools")):
-            return {"matches": ms, "best": best, "score": top,
-                    "ambiguous": True, "reason": "below confidence floor"}
-    # rc48 hand test (#380): a strong algorithm match the task does not carry means the task directive would steer the model away from it
-    # ("Sort the districts by population" matched "Map population distribution"). Same verdict as a below-floor match: no directive.
-    with contextlib.suppress(Exception):
-        from .algorithm_topics import algorithm_outranks_task
-        if algorithm_outranks_task(query, best.get("id"), top, best.get("text", "")):
-            return {"matches": ms, "best": best, "score": top,
-                    "ambiguous": True, "reason": "below confidence floor"}
-    # rc45 smoke run, check I4: "make a chart of population by district" matched "Map population distribution" (WorldPop fetch, zonal
-    # statistics, styling) and the model was sent after a map nobody asked for. A request that names a chart is answered by the chart tools.
-    if _ASKS_FOR_CHART.search((query or "").lower()) and not any("chart" in t or "dashboard" in t for t in best.get("tools") or ()):
-        return {"matches": ms, "best": best, "score": top,
-                "ambiguous": True, "reason": "below confidence floor"}
-    # In a long request one shared word is a coincidence, whatever it scores: a task with a two-word keyword list scores 0.33-0.5 on
-    # a single hit. rc17 hand test R4: a raster colour-ramp request shared one word with a data-standards task. A long request needs
-    # two distinct hits; a short one ("a dashboard of displacement by district") may be matched on one.
-    if len(_tokens(query)) > _SINGLE_HIT_MAX_TOKENS and len(_tokens(query) & set(best.get("kw") or ())) < 2:
+    if _is_weak_match(query, best, top):
         return {"matches": ms, "best": best, "score": top,
                 "ambiguous": True, "reason": "below confidence floor"}
     if len(ms) > 1:
