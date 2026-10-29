@@ -42,6 +42,47 @@ _DIRECTION_KEYWORDS = {
 }
 
 
+def _skewness(values: list[float], mean_val: float) -> float:
+    """Population skewness; 0.0 for five values or fewer or a constant series (too little to say anything)."""
+    n = len(values)
+    if n <= 5:
+        return 0.0
+    variance = sum((x - mean_val) ** 2 for x in values) / n
+    stddev = variance ** 0.5
+    if stddev > 0:
+        return sum((x - mean_val) ** 3 for x in values) / (n * (stddev ** 3))
+    return 0.0
+
+
+def _distribution_label(skewness: float) -> str:
+    if abs(skewness) < 0.5:
+        return "normal"
+    if skewness > 1.2:
+        return "right_skewed"
+    if skewness < -1.2:
+        return "left_skewed"
+    return "uniform"
+
+
+def _numeric_semantic_type(name_lower: str, numeric_values: list[float], min_val: float, max_val: float) -> str:
+    # Directional check (0 - 360 bearing)
+    if any(k in name_lower for k in _DIRECTION_KEYWORDS) and min_val >= 0 and max_val <= 360:
+        return "directional"
+    # Rate / Percentage check
+    if any(k in name_lower for k in _RATE_KEYWORDS) or (min_val >= 0 and max_val <= 1.0001) or (min_val >= 0 and max_val <= 100.0001 and any(not v.is_integer() for v in numeric_values)):
+        return "rate_percentage"
+    # Raw count check. Bug found in a code-review pass (2026-09-20): the previous
+    # `all(v.is_integer() for v in numeric_values if v >= 0)` is a vacuous-truth trap -- a
+    # field with ONLY negative values (e.g. elevation deltas -1.5, -2.3) filters to an empty
+    # generator, and Python's all() on an empty iterable is True, so it was misclassified as
+    # "positive_quantity" despite being entirely negative. Requiring min_val >= 0 up front
+    # (already computed above) and checking is_integer() over the full, unfiltered
+    # numeric_values makes this an honest "every value is a non-negative integer" check.
+    if any(k in name_lower for k in _COUNT_KEYWORDS) or (min_val >= 0 and all(v.is_integer() for v in numeric_values)):
+        return "positive_quantity"
+    return "positive_quantity" if min_val >= 0 else "nominal"
+
+
 def _classify_field_semantics(name: str, values: list[Any], field_type_name: str) -> FieldSemanticProfile:
     """Classifies a field into nominal, quantity, rate, datetime, or status based on values and nomenclature."""
     name_lower = name.lower()
@@ -72,11 +113,7 @@ def _classify_field_semantics(name: str, values: list[Any], field_type_name: str
 
     if not is_numeric:
         # Categorical / Status
-        if any(k in name_lower for k in _STATUS_KEYWORDS) or (distinct_count <= 8 and distinct_count > 1):
-            sem_type = "ordered_status" if any(k in name_lower for k in _STATUS_KEYWORDS) else "nominal"
-        else:
-            sem_type = "nominal"
-
+        sem_type = "ordered_status" if any(k in name_lower for k in _STATUS_KEYWORDS) else "nominal"
         return FieldSemanticProfile(
             name=name,
             semantic_type=sem_type,
@@ -90,50 +127,15 @@ def _classify_field_semantics(name: str, values: list[Any], field_type_name: str
     min_val = min(numeric_values)
     max_val = max(numeric_values)
     mean_val = sum(numeric_values) / len(numeric_values)
-    n = len(numeric_values)
-
-    skewness = 0.0
-    if n > 5:
-        variance = sum((x - mean_val) ** 2 for x in numeric_values) / n
-        stddev = variance ** 0.5
-        if stddev > 0:
-            skewness = sum((x - mean_val) ** 3 for x in numeric_values) / (n * (stddev ** 3))
-
-    # Distribution classification
-    if abs(skewness) < 0.5:
-        dist = "normal"
-    elif skewness > 1.2:
-        dist = "right_skewed"
-    elif skewness < -1.2:
-        dist = "left_skewed"
-    else:
-        dist = "uniform"
-
-    # Directional check (0 - 360 bearing)
-    if any(k in name_lower for k in _DIRECTION_KEYWORDS) and min_val >= 0 and max_val <= 360:
-        sem_type = "directional"
-    # Rate / Percentage check
-    elif any(k in name_lower for k in _RATE_KEYWORDS) or (min_val >= 0 and max_val <= 1.0001) or (min_val >= 0 and max_val <= 100.0001 and any(not v.is_integer() for v in numeric_values)):
-        sem_type = "rate_percentage"
-    # Raw count check. Bug found in a code-review pass (2026-09-20): the previous
-    # `all(v.is_integer() for v in numeric_values if v >= 0)` is a vacuous-truth trap -- a
-    # field with ONLY negative values (e.g. elevation deltas -1.5, -2.3) filters to an empty
-    # generator, and Python's all() on an empty iterable is True, so it was misclassified as
-    # "positive_quantity" despite being entirely negative. Requiring min_val >= 0 up front
-    # (already computed above) and checking is_integer() over the full, unfiltered
-    # numeric_values makes this an honest "every value is a non-negative integer" check.
-    elif any(k in name_lower for k in _COUNT_KEYWORDS) or (min_val >= 0 and all(v.is_integer() for v in numeric_values)):
-        sem_type = "positive_quantity"
-    else:
-        sem_type = "positive_quantity" if min_val >= 0 else "nominal"
+    skewness = _skewness(numeric_values, mean_val)
 
     return FieldSemanticProfile(
         name=name,
-        semantic_type=sem_type,
+        semantic_type=_numeric_semantic_type(name_lower, numeric_values, min_val, max_val),
         distinct_count=distinct_count,
         missing_percent=missing_pct,
         is_numeric=True,
-        distribution=dist,
+        distribution=_distribution_label(skewness),
         min_value=min_val,
         max_value=max_val,
         mean_value=mean_val,
