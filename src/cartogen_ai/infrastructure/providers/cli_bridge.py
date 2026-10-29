@@ -354,6 +354,16 @@ def claude_argv(executable, system_prompt_file, model=None):
     return argv
 
 
+def _stderr_tail(err, limit=300):
+    """The end of a CLI's own error output, on one line, for the message shown to the user. Before this the exit-status errors dropped
+    stderr entirely, so a Codex failure read only "exited with status 1" (user report 2026-10-29) with no way to see why."""
+    text = " ".join((err or "").split())
+    return (" CLI said: " + text[-limit:]) if text else ""
+
+
+_LOGIN_WORDS = ("oauth", "authenticate", "log in", "login", "sign in", "unauthorized", "401")
+
+
 def parse_claude_result(stdout):
     """Reads Claude Code's `--output-format json` result. Returns (text, usage_dict_or_None, model_or_None)."""
     try:
@@ -365,7 +375,10 @@ def parse_claude_result(stdout):
     if not isinstance(data, dict):
         raise CliBridgeError("The Claude CLI returned an unexpected result.")
     if data.get("is_error"):
-        raise CliBridgeError("The Claude CLI reported an error: " + str(data.get("result") or data.get("subtype") or "unknown")[:300])
+        detail = str(data.get("result") or data.get("subtype") or "unknown")[:300]
+        hint = " Sign in again in a terminal (`claude auth login`, or `/login` inside `claude`), then retry." if any(
+            w in detail.lower() for w in _LOGIN_WORDS) else ""
+        raise CliBridgeError("The Claude CLI reported an error: " + detail + hint)
     text = data.get("result")
     if not isinstance(text, str):
         raise CliBridgeError("The Claude CLI result had no text.")
@@ -456,10 +469,10 @@ class ClaudeCliClient(_CliClient):
         system_file = os.path.join(workdir, "system.txt")
         with open(system_file, "w", encoding="utf-8") as fh:
             fh.write(system_text)
-        code, out, _err = run_cli(claude_argv(exe, system_file, self.model), prompt, timeout=self.timeout,
-                                  cancel_event=self.cancel_event, cwd=workdir)
+        code, out, err = run_cli(claude_argv(exe, system_file, self.model), prompt, timeout=self.timeout,
+                                 cancel_event=self.cancel_event, cwd=workdir)
         if code != 0 and not out.strip():
-            raise CliBridgeError(f"The Claude CLI exited with status {code}. Is it signed in (`claude` once, then /login)?")
+            raise CliBridgeError(f"The Claude CLI exited with status {code}. Is it signed in (`claude` once, then /login)?" + _stderr_tail(err))
         return parse_claude_result(out)
 
 
@@ -532,11 +545,17 @@ class CodexCliClient(_CliClient):
 
     def _invoke(self, exe, system_text, prompt, workdir):
         # Codex has no system-prompt slot, so the instructions lead the single stdin prompt.
-        code, out, _err = run_cli(codex_argv(exe, self.model), system_text + "\n\n" + prompt, timeout=self.timeout,
-                                  cancel_event=self.cancel_event, cwd=workdir)
+        code, out, err = run_cli(codex_argv(exe, self.model), system_text + "\n\n" + prompt, timeout=self.timeout,
+                                 cancel_event=self.cancel_event, cwd=workdir)
         if code != 0 and not out.strip():
-            raise CliBridgeError(f"The Codex CLI exited with status {code}. Is it signed in (`codex login`)?")
-        return parse_codex_events(out)
+            raise CliBridgeError(f"The Codex CLI exited with status {code}. Is it signed in (`codex login`)?" + _stderr_tail(err))
+        try:
+            return parse_codex_events(out)
+        except CliBridgeError as e:
+            # A non-zero exit with unusable stdout is almost always a rejected flag or a login problem, which Codex says on stderr.
+            if code != 0:
+                raise CliBridgeError(str(e) + _stderr_tail(err)) from e
+            raise
 
 
 # ---------------------------------------------------------------------------------------------------------------------------------
@@ -617,8 +636,9 @@ class GeminiCliClient(_CliClient):
 
     def _invoke(self, exe, system_text, prompt, workdir):
         # No system-prompt slot: the instructions lead the single stdin prompt.
-        code, out, _err = run_cli(gemini_argv(exe, self.model), system_text + "\n\n" + prompt, timeout=self.timeout,
-                                  cancel_event=self.cancel_event, cwd=workdir)
+        code, out, err = run_cli(gemini_argv(exe, self.model), system_text + "\n\n" + prompt, timeout=self.timeout,
+                                 cancel_event=self.cancel_event, cwd=workdir)
         if code != 0 and not out.strip():
-            raise CliBridgeError(f"The Gemini CLI exited with status {code}. Is it signed in (run `gemini` once and choose Login with Google)?")
+            raise CliBridgeError(f"The Gemini CLI exited with status {code}. Is it signed in (run `gemini` once and choose Login with Google)?"
+                                 + _stderr_tail(err))
         return parse_gemini_result(out)

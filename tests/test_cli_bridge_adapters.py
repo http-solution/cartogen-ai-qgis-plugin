@@ -357,5 +357,47 @@ class TestGeminiCliClient(unittest.TestCase):
             self.assertIn(key, cb.SCRUBBED_ENV)
 
 
+
+class TestCliFailuresShowTheCliOwnReason(unittest.TestCase):
+    """User report 2026-10-29: Codex "completely not working" and every failure read only "exited with status N"."""
+
+    MSGS = ({"role": "user", "content": "hi"},)
+
+    def _complete(self, client, exe, code, out, err):
+        with patch.object(cb, "find_executable", return_value=exe), patch.object(cb, "run_cli", return_value=(code, out, err)):
+            return client.complete(list(self.MSGS), TOOLS)
+
+    def test_codex_exit_error_carries_stderr(self):
+        r = self._complete(cb.CodexCliClient(), "/bin/codex", 2, "", "error: unexpected argument '--ignore-rules'\n")
+        self.assertIn("status 2", r["error"])
+        self.assertIn("unexpected argument '--ignore-rules'", r["error"])
+
+    def test_codex_unusable_stdout_with_failing_exit_carries_stderr(self):
+        r = self._complete(cb.CodexCliClient(), "/bin/codex", 1, "garbage", "not logged in")
+        self.assertIn("did not return JSON events", r["error"])
+        self.assertIn("not logged in", r["error"])
+
+    def test_claude_and_gemini_exit_errors_carry_stderr(self):
+        for client, exe in ((cb.ClaudeCliClient(), "/bin/claude"), (cb.GeminiCliClient(), "/bin/gemini")):
+            r = self._complete(client, exe, 1, "", "boom reason")
+            self.assertIn("boom reason", r["error"])
+
+    def test_stderr_tail_is_one_line_and_capped(self):
+        tail = cb._stderr_tail("a\n" * 1000)
+        self.assertNotIn("\n", tail)
+        self.assertLessEqual(len(tail), 300 + len(" CLI said: "))
+        self.assertEqual(cb._stderr_tail(""), "")
+
+    def test_expired_claude_login_gets_a_sign_in_hint(self):
+        out = '{"type":"result","is_error":true,"result":"Failed to authenticate: OAuth session expired and could not be refreshed"}'
+        r = self._complete(cb.ClaudeCliClient(), "/bin/claude", 1, out, "")
+        self.assertIn("claude auth login", r["error"])
+
+    def test_other_claude_errors_get_no_sign_in_hint(self):
+        out = '{"type":"result","is_error":true,"result":"Max turns reached"}'
+        r = self._complete(cb.ClaudeCliClient(), "/bin/claude", 0, out, "")
+        self.assertNotIn("auth login", r["error"])
+
+
 if __name__ == "__main__":
     unittest.main()
