@@ -67,6 +67,15 @@ class TestDiscovery(unittest.TestCase):
         self.assertEqual(result["path"], self.exe)
 
 
+class TestCodexStandaloneInstallFolder(unittest.TestCase):
+    def test_codex_own_windows_installer_folder_is_searched(self):
+        with tempfile.TemporaryDirectory() as local:
+            folder = os.path.join(local, "Programs", "OpenAI", "Codex", "bin")
+            os.makedirs(folder)
+            with mock.patch.dict(os.environ, {"LOCALAPPDATA": local}), mock.patch.object(cb.os, "name", "nt"):
+                self.assertIn(folder, cb._extra_bin_dirs())
+
+
 class TestWindowsExtension(unittest.TestCase):
     def test_path_without_extension_gains_cmd(self):
         with tempfile.TemporaryDirectory() as d:

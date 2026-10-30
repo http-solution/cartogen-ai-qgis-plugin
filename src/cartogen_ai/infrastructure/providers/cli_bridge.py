@@ -57,6 +57,9 @@ def _extra_bin_dirs():
         local = os.environ.get("LOCALAPPDATA") or os.path.join(home, "AppData", "Local")
         dirs += [os.path.join(appdata, "npm"), os.path.join(home, ".local", "bin"), os.path.join(home, ".bun", "bin"),
                  os.path.join(local, "Volta", "bin"), os.path.join(local, "pnpm"), os.path.join(home, "scoop", "shims"),
+                 # Codex's own Windows installer, not npm (user report 2026-10-30: `Get-Command codex` gave this folder and Cartogen
+                 # said "Codex CLI not found" because it was in none of the folders above).
+                 os.path.join(local, "Programs", "OpenAI", "Codex", "bin"),
                  os.path.join(os.environ.get("PROGRAMFILES", r"C:\Program Files"), "nodejs")]
         nvm = os.environ.get("NVM_SYMLINK")
         if nvm:
