@@ -1607,6 +1607,22 @@
     "hand_row": "SPIKE-1 (open Connections with Codex installed only on the terminal PATH; it should be found; press Browse... on a page)"
   },
   {
+    "id": "medical-wording-offers-facility-tools",
+    "feature": "a request for 'medical services', 'healthcare', 'health centres', 'dispensaries' or 'pharmacies' in a place offers the OpenStreetMap download and the geocoders, as 'hospitals', 'clinics' and 'health facilities' already did, so the assistant does not answer that its tools cannot list health facilities",
+    "issues": [],
+    "since": "1.18.6",
+    "sources": [
+      "src/cartogen_ai/core/services/tool_router.py"
+    ],
+    "guards": [
+      "tests/test_tool_router_basics.py::TestMedicalWordingOffersTheFacilityTools::test_each_wording_offers_the_osm_tool",
+      "tests/test_tool_router_basics.py::TestMedicalWordingOffersTheFacilityTools::test_the_geocoders_are_offered_for_a_medical_service_request",
+      "tests/test_tool_router_basics.py::TestEveryAliasStillOffersItsOwnTool::test_each_alias_phrase_offers_the_tool_it_belongs_to"
+    ],
+    "hand_verified": "not verified: CI only (the router is deterministic and tested; whether the model then calls the tool and Overpass answers has not been run)",
+    "hand_row": "SPIKE-1 (ask 'list medical service in Al Maharah' with a boundary layer loaded; the OSM download should run)"
+  },
+  {
     "id": "script-worker-survives-print-and-odd-results",
     "feature": "execute_pyqgis_script: a script that prints, or returns a set, a date or another value JSON cannot hold, gets a normal reply from the isolation worker (its printed text comes back as `printed`; odd values become text) instead of a crashed worker; a call missing its required `script` says which argument is missing and that a cut-off reply is the usual cause",
     "issues": [],

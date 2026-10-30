@@ -478,17 +478,22 @@ _TOOL_ALIASES = {
     'undo_last_operation': [
         'undo', 'undo the last', 'revert the last', 'take that back', 'roll back', 'go back to before', 'undo that', 'undo what you just did',
     ],
+    # Other ways to ask for the same places ("list medical service in Al Maharah", owner's chat 2026-10-30, was answered "the available
+    # tools cannot retrieve health-facility listings" because none of these tools was offered for that wording).
     "geocode_and_enrich": [
         "hospital", "hospitals", "clinic", "clinics", "health facilit",
+        "medical", "healthcare", "health care", "health service", "health centre", "health center", "dispensar",
         "geocode", "find the location of", "where is",
     ],
     "geocode_batch": [
         "hospital", "hospitals", "clinic", "clinics", "health facilit",
+        "medical", "healthcare", "health care", "health service", "health centre", "health center", "dispensar",
         "geocode", "list of locations", "multiple locations",
     ],
     "ingest_osm_features": [
         "hospital", "hospitals", "clinic", "clinics", "health facilit",
-        "health facilities", "doctors", "pharmacy", "osm data",
+        "medical", "healthcare", "health care", "health service", "health centre", "health center", "dispensar",
+        "health facilities", "doctors", "pharmacy", "pharmacies", "osm data",
         "download facilities", "fetch facilities", "osm features",
         "infrastructure", "schools", "road network", "highways",
         "osm", "amenities", "amenity",
