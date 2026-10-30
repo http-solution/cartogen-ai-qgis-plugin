@@ -40,7 +40,7 @@ class TestCliProviderSettings(unittest.TestCase):
         from cartogen_ai.core.ui.connections_dialog import CartogenAiConnectionsDialog
         return CartogenAiConnectionsDialog()
 
-    def test_off_by_default_cli_pages_are_listed_but_cannot_be_used_and_a_saved_cli_provider_falls_back(self):
+    def test_off_by_default_cli_pages_are_listed_and_a_saved_cli_provider_falls_back(self):
         from cartogen_ai.infrastructure.settings_keys import DEFAULT_PROVIDER, SETTINGS_PROVIDER, normalize_provider
         QgsSettings().setValue(SETTINGS_PROVIDER, "claude_cli")
         self.assertEqual(normalize_provider("claude_cli"), DEFAULT_PROVIDER)
@@ -48,23 +48,20 @@ class TestCliProviderSettings(unittest.TestCase):
         self.assertFalse(dialog.experimental_cli_checkbox.isChecked())
         for p in ("claude_cli", "codex_cli"):
             self.assertIn(p, dialog._key_edits)
-            self.assertFalse(dialog._use_buttons[p].isEnabled(), p)
         self.assertEqual(dialog._active_provider, DEFAULT_PROVIDER)
 
-    def test_ticking_the_acknowledgement_enables_the_use_buttons_without_reopening_and_save_writes_a_plain_setting(self):
+    def test_a_cli_chosen_after_consent_is_saved_as_a_plain_setting_and_survives_reopening(self):
         from cartogen_ai.infrastructure.auth import CredentialManager
         from cartogen_ai.infrastructure.settings_keys import (
             DEFAULT_PROVIDER, SETTINGS_CLAUDE_CLI_MODEL, SETTINGS_PROVIDER, cli_path_setting_key, normalize_provider,
         )
         dialog = self._dialog()
         dialog.experimental_cli_checkbox.setChecked(True)
-        for p in ("claude_cli", "codex_cli"):
-            self.assertTrue(dialog._use_buttons[p].isEnabled(), p)
         self.assertEqual(dialog._key_edits["claude_cli"].text(), "claude")  # the default program name
         dialog._key_edits["claude_cli"].setText("/opt/tools/claude")
         dialog.connection_list.setCurrentItem(dialog._row_items["claude_cli"])
         self.assertEqual(dialog._active_provider, DEFAULT_PROVIDER, "looking at a page must not change the connection in use")
-        dialog._use_buttons["claude_cli"].click()
+        dialog._use_provider("claude_cli")  # what the guided setup does at its last step (tests/test_connections_window_live.py)
         self.assertEqual(dialog._active_provider, "claude_cli")
         dialog._model_combos["claude_cli"].setCurrentText("sonnet")
         dialog.accept()
@@ -85,11 +82,10 @@ class TestCliProviderSettings(unittest.TestCase):
         from cartogen_ai.infrastructure.settings_keys import DEFAULT_PROVIDER
         dialog = self._dialog()
         dialog.experimental_cli_checkbox.setChecked(True)
-        dialog._use_buttons["codex_cli"].click()
+        dialog._use_provider("codex_cli")
         self.assertEqual(dialog._active_provider, "codex_cli")
         dialog.experimental_cli_checkbox.setChecked(False)
         self.assertEqual(dialog._active_provider, DEFAULT_PROVIDER)
-        self.assertFalse(dialog._use_buttons["codex_cli"].isEnabled())
         self.assertEqual(dialog.provider_stack.currentIndex(), dialog._page_index[DEFAULT_PROVIDER])
         self.assertTrue(dialog._row_items[DEFAULT_PROVIDER].isSelected())
 

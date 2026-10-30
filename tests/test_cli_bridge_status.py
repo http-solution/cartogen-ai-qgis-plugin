@@ -1,6 +1,7 @@
 """PLAN-039: what Settings shows about a CLI provider (program found, version, signed in, how to sign in). Uses the Python interpreter as a
 stand-in program for the real subprocess paths and mocks the model call; no vendor CLI is involved (CI-only evidence)."""
 import sys
+import types
 import unittest
 from unittest.mock import MagicMock, patch
 
@@ -119,6 +120,49 @@ class TestDetectAll(unittest.TestCase):
         self.assertFalse(st.usable({**base, "found": False, "state": "yes"}))
 
 
+class TestGuidedSetup(unittest.TestCase):
+    BASE = types.MappingProxyType({"provider": "codex_cli", "label": "Codex CLI", "found": True, "path": "/x", "version": "v", "problem": "",
+                                   "note": ""})
+
+    def step(self, **kw):
+        verified = kw.pop("verified", False)
+        active = kw.pop("active", False)
+        return st.setup_step({**self.BASE, **kw}, verified=verified, active=active)
+
+    def test_each_state_has_its_next_step(self):
+        self.assertEqual(st.setup_step(None)["kind"], "looking")
+        self.assertEqual(self.step(found=False, state="missing")["kind"], "install")
+        self.assertEqual(self.step(state="no")["kind"], "signin")
+        self.assertEqual(self.step(state="yes")["kind"], "verify")
+        self.assertEqual(self.step(state="likely")["kind"], "verify")
+        self.assertEqual(self.step(state="unknown")["kind"], "verify")
+        self.assertEqual(self.step(state="yes", verified=True)["kind"], "ready")
+        self.assertEqual(self.step(state="yes", verified=True, active=True)["kind"], "in_use")
+
+    def test_the_install_step_gives_a_command_for_each_os_and_never_runs_it(self):
+        for provider in ("claude_cli", "codex_cli"):
+            for platform in ("win32", "darwin", "linux"):
+                commands = st.install_commands(provider, platform)
+                self.assertTrue(commands and all(isinstance(c, str) and c for c in commands), (provider, platform))
+        self.assertIn("install.ps1", st.install_commands("claude_cli", "win32")[0])
+        self.assertEqual(st.install_commands("codex_cli", "darwin")[0], "brew install --cask codex")
+        step = st.setup_step({**self.BASE, "found": False, "state": "missing"}, platform="linux")
+        self.assertEqual(step["command"], "npm install -g @openai/codex")
+        self.assertIn(step["command"], step["detail"])
+
+    def test_the_consent_text_names_the_vendor_and_says_the_conversation_leaves_the_machine(self):
+        text = st.consent_text("claude_cli")
+        self.assertIn("Anthropic", text)
+        self.assertIn("conversation", text)
+        self.assertIn("never sees or stores your login", text)
+        self.assertIn("OpenAI", st.consent_text("codex_cli"))
+
+    def test_claude_signs_in_with_its_own_auth_login(self):
+        self.assertEqual(st.signin_command("claude_cli", configured="claude"), "claude auth login")
+        self.assertEqual(st.terminal_command("claude_cli", "/usr/bin/claude", "linux", which={"xterm": "/usr/bin/xterm"}.get),
+                         ["/usr/bin/xterm", "-e", "/usr/bin/claude", "auth", "login"])
+
+
 class TestStage(unittest.TestCase):
     def test_which_step_failed(self):
         self.assertEqual(st.stage_of("Claude Code CLI not found. Install it"), "install")
@@ -167,7 +211,7 @@ class TestTerminalCommand(unittest.TestCase):
     def test_macos(self):
         argv = st.terminal_command("claude_cli", "/usr/local/bin/claude", "darwin")
         self.assertEqual(argv[:2], ["osascript", "-e"])
-        self.assertIn('do script "/usr/local/bin/claude"', argv[2])
+        self.assertIn('do script "/usr/local/bin/claude auth login"', argv[2])
 
     def test_linux_uses_the_first_terminal_found(self):
         which = {"konsole": "/usr/bin/konsole", "xterm": "/usr/bin/xterm"}.get
@@ -218,7 +262,7 @@ class TestOpenSignin(unittest.TestCase):
 class TestSigninCommandText(unittest.TestCase):
     def test_text(self):
         self.assertEqual(st.signin_command("codex_cli", configured="codex"), "codex login")
-        self.assertEqual(st.signin_command("claude_cli", "/x/claude"), "/x/claude")
+        self.assertEqual(st.signin_command("claude_cli", "/x/claude"), "/x/claude auth login")
         self.assertTrue(st.known("codex_cli"))
         self.assertFalse(st.known("gemini_cli"))
         self.assertFalse(st.known("openrouter"))

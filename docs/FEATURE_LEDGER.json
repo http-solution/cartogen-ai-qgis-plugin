@@ -1484,7 +1484,7 @@
   },
   {
     "id": "cli-providers-opt-in-settings",
-    "feature": "the experimental CLI providers (Claude Code, Codex) sit under their own heading in the Connections window and can be chosen only after the user ticks an acknowledgement box that is off by default (the rows and their Use buttons are disabled until then, with no reopening); each has a status line and Check connection / Sign in buttons; the program path is saved as a plain setting, the agent builds the matching client, the Stop button ends the CLI process, and with the box off a saved CLI provider falls back to the default",
+    "feature": "the experimental CLI providers (Claude Code, Codex) sit under their own heading in the Connections window and can be chosen only after the user agrees to a consent question (asked the first time a CLI is connected; the saved 'Allow CLI logins' setting is off by default); each has a status line and Check connection / Sign in buttons; the program path is saved as a plain setting, the agent builds the matching client, the Stop button ends the CLI process, and with the box off a saved CLI provider falls back to the default",
     "issues": [],
     "since": "1.18.6",
     "sources": [
@@ -1500,9 +1500,9 @@
       "tests/test_cli_discovery.py::TestDiscovery::test_bare_name_found_in_usual_install_folder_when_path_is_short",
       "tests/test_cli_discovery.py::TestDiscovery::test_child_path_gains_install_folders_without_dropping_keys_scrub",
       "tests/test_cli_bridge_status.py::TestCheckConnection::test_an_error_keeps_its_stage",
-      "tests/test_cli_provider_settings_live.py::TestCliProviderSettings::test_ticking_the_acknowledgement_enables_the_use_buttons_without_reopening_and_save_writes_a_plain_setting",
+      "tests/test_cli_provider_settings_live.py::TestCliProviderSettings::test_a_cli_chosen_after_consent_is_saved_as_a_plain_setting_and_survives_reopening",
       "tests/test_cli_provider_settings.py::TestOptIn::test_without_the_switch_a_saved_cli_provider_falls_back",
-      "tests/test_cli_provider_settings.py::TestWiring::test_the_dialog_always_lists_the_cli_entries_but_gates_choosing_them_on_the_acknowledgement",
+      "tests/test_cli_provider_settings.py::TestWiring::test_the_dialog_always_lists_the_cli_entries_but_asks_for_consent_before_choosing_one",
       "tests/test_cli_provider_settings.py::TestStopButton::test_default_cancel_follows_the_agents_stop_signal",
       "tests/test_cli_provider_settings_live.py::TestCliProviderSettings::test_the_agent_builds_the_matching_client_from_the_saved_settings"
     ],
@@ -1546,7 +1546,7 @@
   },
   {
     "id": "connections-window",
-    "feature": "the model connection (hosted API keys, Ollama, a signed-in CLI) and the NASA FIRMS key are set up in their own Connections window, opened from Plugins > Cartogen AI > Connections... or from Settings: a plain list of every connection (each group heading once) with a status mark and an in-use tag on the left, the selected connection's page on the right, and looking at a page never changes the connection in use until Use this connection and OK; Settings only shows which connection is in use and never writes it; when the window opens it looks for the Claude Code and Codex CLIs already installed and signed in (version and sign-in status commands only, no model call) and writes the result on each CLI page and in the list mark, never switching to a CLI by itself and with Use this connection enabled only after the CLI acknowledgement box is ticked",
+    "feature": "the model connection (hosted API keys, Ollama, a signed-in CLI) and the NASA FIRMS key are set up in their own Connections window, opened from Plugins > Cartogen AI > Connections... or from Settings: a plain list of every connection (each group heading once) with a status mark and an in-use tag on the left, the selected connection's page on the right, and looking at a page never changes the connection in use until Use this connection and OK; Settings only shows which connection is in use and never writes it; when the window opens it looks for the Claude Code and Codex CLIs already installed and signed in (version and sign-in status commands only, no model call) and writes the result on each CLI page and in the list mark; each CLI page has one button that is the next step of a guided setup (copy the install command, sign in in a terminal and wait for it, connect with one test question, use), each step after the first asking the user's consent once, and nothing switches by itself",
     "issues": [],
     "since": "1.18.6",
     "sources": [
@@ -1565,9 +1565,14 @@
       "tests/test_connections_window_live.py::TestConnectionsWindow::test_a_typed_key_changes_the_row_mark_and_ok_saves_the_key_the_choice_and_the_model",
       "tests/test_connections_window_live.py::TestConnectionsWindow::test_settings_ok_does_not_overwrite_the_connection_chosen_in_the_connections_window",
       "tests/test_connections_window_live.py::TestConnectionsWindow::test_detection_is_written_on_each_cli_page_and_never_switches_the_connection",
-      "tests/test_connections_window_live.py::TestConnectionsWindow::test_using_a_cli_needs_the_acknowledgement_and_then_makes_it_the_connection_in_use",
+      "tests/test_connections_window_live.py::TestConnectionsWindow::test_connect_asks_consent_then_tests_and_then_uses_the_cli_by_itself",
       "tests/test_cli_bridge_status.py::TestSigninStatus::test_codex_logged_in_reads_the_owners_real_wording",
       "tests/test_cli_bridge_status.py::TestDetectAll::test_no_model_is_asked_anything_while_detecting",
+      "tests/test_cli_bridge_status.py::TestGuidedSetup::test_each_state_has_its_next_step",
+      "tests/test_cli_bridge_status.py::TestGuidedSetup::test_the_install_step_gives_a_command_for_each_os_and_never_runs_it",
+      "tests/test_connections_window.py::TestDetection::test_the_guided_setup_only_runs_after_the_user_pressed_the_button_and_agreed",
+      "tests/test_connections_window_live.py::TestConnectionsWindow::test_signing_in_opens_the_terminal_waits_notices_the_login_and_connects",
+      "tests/test_connections_window_live.py::TestConnectionsWindow::test_declining_the_consent_does_nothing",
       "tests/test_connections_window.py::TestDetection::test_detection_never_switches_the_connection_by_itself"
     ],
     "hand_verified": "not verified: CI only (nobody has opened the window; the layout has never been looked at)",
