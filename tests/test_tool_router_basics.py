@@ -206,6 +206,25 @@ class TestEveryAliasStillOffersItsOwnTool(unittest.TestCase):
         self.assertEqual(lost, [], "\n".join(lost))
 
 
+class TestMedicalWordingOffersTheFacilityTools(unittest.TestCase):
+    """The owner's chat (2026-10-30): "list medical service in Al Maharah" was answered "the available tools cannot retrieve health-facility
+    listings", because ingest_osm_features and the geocoders were not among the tools offered for that wording (only "hospital", "clinic" and
+    "health facilities" routed to them). The model told the truth about the tools it was given."""
+
+    PHRASES = ("list medical service in Al Maharah", "medical services in Al Maharah", "healthcare centres near Mukalla",
+               "show health centers in Taiz", "dispensaries in Taiz", "where are the pharmacies in Sana'a")
+
+    def test_each_wording_offers_the_osm_tool(self):
+        router = ToolRouter(TOOLS_SCHEMA)
+        for phrase in self.PHRASES:
+            names = {t["function"]["name"] for t in router.filter_relevant_tools(phrase)}
+            self.assertIn("ingest_osm_features", names, phrase)
+
+    def test_the_geocoders_are_offered_for_a_medical_service_request(self):
+        names = {t["function"]["name"] for t in ToolRouter(TOOLS_SCHEMA).filter_relevant_tools("list medical service in Al Maharah")}
+        self.assertTrue({"geocode_and_enrich", "geocode_batch"} <= names)
+
+
 class TestConfiguredTopK(unittest.TestCase):
     def test_default_outside_qgis_and_pie_chart_still_routed(self):
         from cartogen_ai.core.services.tool_router import DEFAULT_TOP_K, configured_top_k
