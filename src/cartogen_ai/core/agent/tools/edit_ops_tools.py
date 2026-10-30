@@ -58,7 +58,12 @@ def _finish(out, owned):
     "condition in the data source's own syntax, such as \"population\" > 1000. Statements, comments and semicolons are refused. "
     "clear=true removes the filter. The data is not changed.",
     {"type": "object", "properties": {"layer_name": {"type": "string"}, "filter": {"type": "string"},
-                                      "clear": {"type": "boolean"}}, "required": ["layer_name"]})
+                                      "clear": {"type": "boolean"}}, "required": ["layer_name"]},
+    keywords=[
+        "definition query", "set a filter on", "set the filter on", "layer filter", "set the layer filter", "clear the filter",
+        "remove the filter", "clear the layer filter", "provider filter", "subset string",
+    ],
+)
 def set_layer_filter(layer_name, filter=None, clear=False):  # noqa: A002 - the parameter name is the tool's public argument
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
@@ -87,7 +92,12 @@ def set_layer_filter(layer_name, filter=None, clear=False):  # noqa: A002 - the 
     "centre. Changes geometry: a preview with the exact count is shown for confirmation first.",
     {"type": "object", "properties": {**_SELECTOR, "move_x": {"type": "number"}, "move_y": {"type": "number"},
                                       "rotate_degrees": {"type": "number"}, "scale_factor": {"type": "number"}},
-     "required": ["layer_name"]})
+     "required": ["layer_name"]},
+    keywords=[
+        "move the features", "move the selected features", "shift the features", "rotate the selected", "rotate the features by",
+        "scale the features", "scale the selected", "enlarge the features", "shrink the features", "nudge the features",
+    ],
+)
 def transform_features(layer_name, expression=None, only_selected=False, move_x=None, move_y=None, rotate_degrees=None,
                        scale_factor=None, confirmed=False):
     if not QGIS_AVAILABLE:
@@ -140,7 +150,12 @@ def transform_features(layer_name, expression=None, only_selected=False, move_x=
     "merge_features",
     "Merge (union) several features of a layer into one: those matching an expression or the selected ones. The first feature keeps its "
     "attributes and gets the combined geometry; the others are deleted. Needs at least two features. Destructive: a preview is shown first.",
-    {"type": "object", "properties": _SELECTOR, "required": ["layer_name"]})
+    {"type": "object", "properties": _SELECTOR, "required": ["layer_name"]},
+    keywords=[
+        "merge the selected features", "merge the features", "merge these features", "union the selected",
+        "combine the selected features", "merge features into one", "merge the two features", "merge the selected polygons",
+    ],
+)
 def merge_features(layer_name, expression=None, only_selected=False, confirmed=False):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
@@ -183,7 +198,12 @@ def merge_features(layer_name, expression=None, only_selected=False, confirmed=F
     "Cut features of a polygon or line layer along a line given as WKT (LINESTRING(x1 y1, x2 y2, ...)) in the layer's CRS or in the CRS "
     "given. Splits the features matching an expression or the selected ones that the line crosses. Changes data: a preview is shown first.",
     {"type": "object", "properties": {**_SELECTOR, "line_wkt": {"type": "string"}, "crs": {"type": "string", "description": "e.g. EPSG:4326"}},
-     "required": ["layer_name", "line_wkt"]})
+     "required": ["layer_name", "line_wkt"]},
+    keywords=[
+        "split the polygon", "split the feature", "split the features", "split the selected", "cut the polygon",
+        "cut the feature", "split features by a line", "split along a line", "split the parcel",
+    ],
+)
 def split_features_by_line(layer_name, line_wkt, expression=None, only_selected=False, crs=None, confirmed=False):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
@@ -255,7 +275,11 @@ def _undo_stack(layer_name, action):
     "undo_manual_edit",
     "Undo the last edit step on a layer that is in edit mode (the layer's own undo history, including edits made by hand). Use "
     "undo_last_operation for assistant operations on a layer not in edit mode.",
-    {"type": "object", "properties": {"layer_name": {"type": "string"}}, "required": ["layer_name"]})
+    {"type": "object", "properties": {"layer_name": {"type": "string"}}, "required": ["layer_name"]},
+    keywords=[
+        "undo my edit", "undo the last edit", "undo my last edit", "undo the manual edit", "undo edit",
+    ],
+)
 def undo_manual_edit(layer_name):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
@@ -272,7 +296,11 @@ def undo_manual_edit(layer_name):
 @register_tool(
     "redo_manual_edit",
     "Redo the last undone edit step on a layer that is in edit mode.",
-    {"type": "object", "properties": {"layer_name": {"type": "string"}}, "required": ["layer_name"]})
+    {"type": "object", "properties": {"layer_name": {"type": "string"}}, "required": ["layer_name"]},
+    keywords=[
+        "redo the edit", "redo my edit", "redo the last edit", "redo the manual edit", "redo edit",
+    ],
+)
 def redo_manual_edit(layer_name):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
@@ -291,7 +319,13 @@ def redo_manual_edit(layer_name):
     "Change the data type of a field to string, integer, long or double, converting the values. Values that cannot be converted become "
     "NULL and numbers lose their fraction when going to integer: the preview says how many. The field moves to the end of the table.",
     {"type": "object", "properties": {"layer_name": {"type": "string"}, "field": {"type": "string"}, "new_type": {"type": "string"}},
-     "required": ["layer_name", "field", "new_type"]})
+     "required": ["layer_name", "field", "new_type"]},
+    keywords=[
+        "change the field type", "change the type of the field", "change the data type", "convert the field to",
+        "convert the column to", "change the column type", "make the field an integer", "make the field a number",
+        "make the field a text",
+    ],
+)
 def change_field_type(layer_name, field, new_type, confirmed=False):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
@@ -345,7 +379,12 @@ def change_field_type(layer_name, field, new_type, confirmed=False):
     "Start editing a layer, save its edits, or discard them (action: start, save or discard). Discarding unsaved edits is destructive "
     "and needs confirmation.",
     {"type": "object", "properties": {"layer_name": {"type": "string"}, "action": {"type": "string", "description": "start, save or discard"}},
-     "required": ["layer_name", "action"]})
+     "required": ["layer_name", "action"]},
+    keywords=[
+        "start editing", "toggle editing", "stop editing", "save the edits", "save my edits", "save layer edits",
+        "discard the edits", "discard my edits", "discard the changes", "enter edit mode", "leave edit mode",
+    ],
+)
 def set_layer_editing(layer_name, action, confirmed=False):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}

@@ -242,6 +242,11 @@ def search_fact_checks_network_phase(query, days=60, max_results=15, sources=Non
         },
         "required": ["query"],
     },
+    keywords=[
+        "fact check", "fact-check", "fact checked", "debunk", "debunked", "is this true", "is it true", "really from",
+        "old video", "old footage", "fake news", "misinformation", "disinformation", "hoax", "rumour", "rumor", "verify this",
+        "verify the video", "verify the claim", "فتبينوا", "تحقق من",
+    ],
 )
 def search_fact_checks(query, days=60, max_results=15, sources=None):
     return search_fact_checks_network_phase(query, days, max_results, sources)

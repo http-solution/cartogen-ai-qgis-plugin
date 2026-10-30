@@ -88,7 +88,12 @@ def _group(root, name):
     "create_layer_group",
     "Create a layer group in the layer tree (optionally inside another group) and optionally move layers into it.",
     {"type": "object", "properties": {"group_name": {"type": "string"}, "layer_names": {"type": "array", "items": {"type": "string"}},
-                                      "parent_group": {"type": "string"}}, "required": ["group_name"]})
+                                      "parent_group": {"type": "string"}}, "required": ["group_name"]},
+    keywords=[
+        "create a group", "new group", "make a group", "create a layer group", "group the layers", "put the layers in a group",
+        "put these layers in a group", "layer group",
+    ],
+)
 def create_layer_group(group_name, layer_names=None, parent_group=None):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
@@ -128,7 +133,11 @@ def _move_into(root, group, layer_names):
     "move_layers_to_group",
     "Move existing layers into an existing layer group.",
     {"type": "object", "properties": {"group_name": {"type": "string"}, "layer_names": {"type": "array", "items": {"type": "string"}}},
-     "required": ["group_name", "layer_names"]})
+     "required": ["group_name", "layer_names"]},
+    keywords=[
+        "move the layer into the group", "move layers into the group", "add the layer to the group", "move to the group",
+    ],
+)
 def move_layers_to_group(group_name, layer_names):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
@@ -146,7 +155,12 @@ def move_layers_to_group(group_name, layer_names):
     "set_group_options",
     "Show or hide a whole layer group, collapse or expand it, and/or make its layers mutually exclusive (only one visible at a time).",
     {"type": "object", "properties": {"group_name": {"type": "string"}, "visible": {"type": "boolean"}, "expanded": {"type": "boolean"},
-                                      "mutually_exclusive": {"type": "boolean"}}, "required": ["group_name"]})
+                                      "mutually_exclusive": {"type": "boolean"}}, "required": ["group_name"]},
+    keywords=[
+        "hide the group", "show the group", "collapse the group", "expand the group", "turn off the group", "turn on the group",
+        "mutually exclusive", "check the whole group", "uncheck the group",
+    ],
+)
 def set_group_options(group_name, visible=None, expanded=None, mutually_exclusive=None):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
@@ -175,7 +189,12 @@ def set_group_options(group_name, visible=None, expanded=None, mutually_exclusiv
     "(default EPSG:4326), centre on a point [x, y] in crs, and/or rotate the map in degrees. Several can be combined.",
     {"type": "object", "properties": {"scale": {"type": "string"}, "extent": {"type": "array", "items": {"type": "number"}},
                                       "center": {"type": "array", "items": {"type": "number"}}, "crs": {"type": "string"},
-                                      "rotation": {"type": "number"}}, "required": []})
+                                      "rotation": {"type": "number"}}, "required": []},
+    keywords=[
+        "zoom to scale", "set the scale", "scale of 1:", "zoom to 1:", "to 1:", "rotate the map", "map rotation", "pan to",
+        "pan the map", "centre the map", "center the map", "zoom to the extent", "zoom to coordinates", "zoom to this extent",
+    ],
+)
 def set_map_view(scale=None, extent=None, center=None, crs=None, rotation=None):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
@@ -234,7 +253,12 @@ def set_map_view(scale=None, extent=None, center=None, crs=None, rotation=None):
 @register_tool(
     "set_project_crs",
     "Set the project (map) CRS, for example EPSG:3857. Layers are reprojected on the fly for display; no layer data is changed.",
-    {"type": "object", "properties": {"crs": {"type": "string"}}, "required": ["crs"]})
+    {"type": "object", "properties": {"crs": {"type": "string"}}, "required": ["crs"]},
+    keywords=[
+        "set the project crs", "project crs", "change the project crs", "set the map crs", "change the map projection",
+        "project projection", "set the project projection",
+    ],
+)
 def set_project_crs(crs):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
@@ -252,7 +276,12 @@ def set_project_crs(crs):
     "Tell QGIS what CRS a layer's coordinates are ALREADY in ('Assign projection'). This does NOT move or reproject the data: choosing "
     "the wrong CRS places the layer in the wrong location. Use only when the layer's CRS is missing or known to be wrong. A preview "
     "is shown for confirmation first.",
-    {"type": "object", "properties": {"layer_name": {"type": "string"}, "crs": {"type": "string"}}, "required": ["layer_name", "crs"]})
+    {"type": "object", "properties": {"layer_name": {"type": "string"}, "crs": {"type": "string"}}, "required": ["layer_name", "crs"]},
+    keywords=[
+        "assign projection", "assign the crs", "assign crs", "layer has no crs", "wrong crs on the layer", "set the layer crs",
+        "set the crs of the layer", "define the crs",
+    ],
+)
 def assign_layer_crs(layer_name, crs, confirmed=False):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
@@ -287,7 +316,12 @@ def _bookmark_manager():
     "or of the current map view when neither is given.",
     {"type": "object", "properties": {"name": {"type": "string"}, "layer_name": {"type": "string"},
                                       "extent": {"type": "array", "items": {"type": "number"}}, "crs": {"type": "string"}},
-     "required": ["name"]})
+     "required": ["name"]},
+    keywords=[
+        "create a bookmark", "add a bookmark", "save a bookmark", "bookmark this", "bookmark the view", "new bookmark",
+        "save this view",
+    ],
+)
 def create_bookmark(name, layer_name=None, extent=None, crs=None):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
@@ -326,7 +360,11 @@ def create_bookmark(name, layer_name=None, extent=None, crs=None):
 @register_tool(
     "list_bookmarks",
     "List the spatial bookmarks saved in the project. Read-only.",
-    {"type": "object", "properties": {}, "required": []})
+    {"type": "object", "properties": {}, "required": []},
+    keywords=[
+        "list the bookmarks", "list bookmarks", "show the bookmarks", "my bookmarks", "what bookmarks",
+    ],
+)
 def list_bookmarks():
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
@@ -337,7 +375,11 @@ def list_bookmarks():
 @register_tool(
     "go_to_bookmark",
     "Zoom the map to a saved spatial bookmark by name.",
-    {"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]})
+    {"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]},
+    keywords=[
+        "go to the bookmark", "go to bookmark", "zoom to the bookmark", "jump to the bookmark", "open the bookmark",
+    ],
+)
 def go_to_bookmark(name):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
@@ -361,7 +403,12 @@ def go_to_bookmark(name):
 @register_tool(
     "set_project_properties",
     "Set the project title and/or project variables (a {name: value} object usable as @name in expressions).",
-    {"type": "object", "properties": {"title": {"type": "string"}, "variables": {"type": "object"}}, "required": []})
+    {"type": "object", "properties": {"title": {"type": "string"}, "variables": {"type": "object"}}, "required": []},
+    keywords=[
+        "project title", "set the project title", "rename the project", "project variable", "set a project variable",
+        "project properties",
+    ],
+)
 def set_project_properties(title=None, variables=None):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
@@ -386,7 +433,12 @@ def set_project_properties(title=None, variables=None):
     "kilometres, and for exactly two points the bearing in degrees. With close_polygon=true the points are a polygon and its area "
     "in square metres and hectares is returned too.",
     {"type": "object", "properties": {"points": {"type": "array", "items": {"type": "array", "items": {"type": "number"}}},
-                                      "crs": {"type": "string"}, "close_polygon": {"type": "boolean"}}, "required": ["points"]})
+                                      "crs": {"type": "string"}, "close_polygon": {"type": "boolean"}}, "required": ["points"]},
+    keywords=[
+        "measure the distance", "measure distance", "how far is", "distance between", "measure the length", "measure the area",
+        "bearing between", "measure between", "what is the distance",
+    ],
+)
 def measure_distance(points, crs=None, close_polygon=False):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}

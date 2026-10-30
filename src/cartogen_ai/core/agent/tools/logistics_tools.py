@@ -2836,6 +2836,27 @@ def _with_access_legs(result, destinations, network, max_features=5000):
         },
         "required": ["origin_layer", "facility_layer", "road_network_layer", "travel_cost"],
     },
+    # Real live report, 2026-09-16: a "Health facilities beyond one hour's travel <coords>"
+    # request -- no place names in the query, no facility layer already in the project --
+    # spent its whole tool-call budget on execute_pyqgis_script hunting for a local data file
+    # on disk and probing the plugin's own internals, never once calling geocode_and_enrich/
+    # geocode_batch, even though an earlier turn with the same underlying task DID use them
+    # successfully. Root cause not fully instrumented (which tools were actually in that turn's
+    # active_tools isn't logged), but is strongly implicated by the scoring itself: neither
+    # tool's own description ("Geocode a SINGLE address/place name into lat/lon...") shares any
+    # vocabulary with "health facilities beyond one hour's travel", so with no query text to
+    # match on, both tools score at or near 0 against a name query -- an easy loss against ~175
+    # other registered tools within a top_k=40 cutoff, especially since "health"/"facilit*" /
+    # "travel"/"hour" naturally score highly for several OTHER, unrelated tools instead. These
+    # aliases give both geocode tools a fighting chance of being visible on exactly the kind of
+    # query that most needs them: naming real-world facilities (hospitals, clinics) with no
+    # existing coordinate data to start from.
+    # rc40 hand test OI-80: "which facilities are beyond N hours by road" ran travel_time_matrix and never produced the green/red
+    # access layer, because nothing in the request pointed at classify_facilities_by_access. Phrases only; no bare "beyond"/"within".
+    keywords=[
+        "beyond one hour", "beyond an hour", "beyond 1 hour", "beyond 30 minutes", "by road", "outside the service area",
+        "within reach of", "out of reach", "cannot be reached within", "not reachable within",
+    ],
 )
 def classify_facilities_by_access(origin_layer, facility_layer, road_network_layer, travel_cost,
                                   strategy="shortest", default_speed=50, speed_field=None,
@@ -3059,6 +3080,9 @@ def _style_reach_figures(figures, headline, facility_layer):
         },
         "required": ["facility_layer", "road_network_layer", "population_raster_layer", "area_layer", "travel_cost"],
     },
+    keywords=[
+        "cash assistance", "voucher assistance", "cash and voucher", "cva feasib", "cva viable",
+    ],
 )
 def population_access_gap(facility_layer, road_network_layer, population_raster_layer, area_layer, travel_cost, strategy="shortest", default_speed=50,
                           reach_geometry="concave_hull", reach_buffer_m=DEFAULT_SNAP_DISTANCE_M, speed_field=None, direction_field=None):
@@ -3208,6 +3232,9 @@ def population_access_gap(facility_layer, road_network_layer, population_raster_
         },
         "required": ["route_layer", "incident_layer", "buffer_distance"],
     },
+    keywords=[
+        "risky", "dangerous route", "safe route", "route safety", "safe to travel", "safe to drive",
+    ],
 )
 def score_route_incident_risk(route_layer, incident_layer, buffer_distance, date_field=None, days_back=None, weight_field=None):
     if not QGIS_AVAILABLE:

@@ -135,6 +135,13 @@ def bbox_orders(west, south, east, north):
     "bbox_west_south_east_north for the STAC search. Pass layer_name='canvas' for the current map view.",
     {"type": "object", "properties": {"layer_name": {"type": "string", "description": "A layer name, or 'canvas' for the current map view."}},
      "required": ["layer_name"]},
+    # Plain-language styling requests share no words with the style tools' names ("make the clinics stand out",
+    # "colour the districts by how many people live there"); measured before this entry: several got no style tool at all.
+    keywords=[
+        "extent", "bounding box", "bbox", "wgs84", "in degrees", "lat/lon", "search_stac_satellite_imagery",
+        "fetch_building_footprints", "fetch_osm_features", "fetch_worldpop_population", "sentinel", "satellite scenes",
+        "building footprints", "inside it",
+    ],
 )
 def get_layer_extent(layer_name):
     if not QGIS_AVAILABLE:
@@ -177,7 +184,12 @@ def _model_view_entry(entry, layer):
         return entry
 
 
-@register_tool("get_attributes", "Get list of field/attribute names for a layer.", {"type": "object", "properties": {"layer_name": {"type": "string"}}, "required": ["layer_name"]})
+@register_tool("get_attributes", "Get list of field/attribute names for a layer.", {"type": "object", "properties": {"layer_name": {"type": "string"}}, "required": ["layer_name"]},
+    keywords=[
+        "list the fields", "what fields", "show the fields", "field names", "column names", "list the columns", "which columns",
+        "what attributes", "list the attributes",
+    ],
+)
 def get_attributes(layer_name):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
@@ -189,7 +201,12 @@ def get_attributes(layer_name):
     return list(layer.fields().names())
 
 
-@register_tool("run_query", "Filter layer features using a QGIS expression.", {"type": "object", "properties": {"layer_name": {"type": "string"}, "expression": {"type": "string"}}, "required": ["layer_name", "expression"]})
+@register_tool("run_query", "Filter layer features using a QGIS expression.", {"type": "object", "properties": {"layer_name": {"type": "string"}, "expression": {"type": "string"}}, "required": ["layer_name", "expression"]},
+    keywords=[
+        "filter the layer", "filter layer", "filter by expression", "show only the features", "show only features",
+        "only the features where", "subset of the layer",
+    ],
+)
 def run_query(layer_name, expression):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
@@ -242,6 +259,10 @@ def run_query(layer_name, expression):
         },
         "required": ["layer_name", "distance"],
     },
+    keywords=[
+        "buffer", "buffers", "distance around", "within a distance of", "area around", "zone around", "radius around",
+        "ring around",
+    ],
 )
 def buffer_analysis(layer_name, distance, only_selected=False, output_name=None):
     if not QGIS_AVAILABLE:
@@ -327,7 +348,14 @@ def buffer_analysis(layer_name, distance, only_selected=False, output_name=None)
         return {"error": f"Buffer analysis failed: {e}"}
 
 
-@register_tool("highlight_features", "Select features in a layer matching expression.", {"type": "object", "properties": {"layer_name": {"type": "string"}, "expression": {"type": "string"}}, "required": ["layer_name", "expression"]})
+@register_tool("highlight_features", "Select features in a layer matching expression.", {"type": "object", "properties": {"layer_name": {"type": "string"}, "expression": {"type": "string"}}, "required": ["layer_name", "expression"]},
+    keywords=[
+        "select by expression", "select features where", "select the features where", "select all features where",
+        "select where", "districts where", "points where", "roads where", "features where", "records where", " is over ",
+        " is greater than ", " is less than ", " is more than ", " is above ", " is below ", "highlight the features",
+        "highlight features",
+    ],
+)
 def highlight_features(layer_name, expression):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
@@ -347,7 +375,12 @@ def highlight_features(layer_name, expression):
     return {"success": True, "count": count}
 
 
-@register_tool("remove_layer", "Remove layer from QGIS project. Destructive action requiring UI confirmation.", {"type": "object", "properties": {"layer_name": {"type": "string"}}, "required": ["layer_name"]})
+@register_tool("remove_layer", "Remove layer from QGIS project. Destructive action requiring UI confirmation.", {"type": "object", "properties": {"layer_name": {"type": "string"}}, "required": ["layer_name"]},
+    keywords=[
+        "remove the layer", "delete the layer", "remove layer", "delete layer", "drop the layer", "get rid of the layer",
+        "take the layer off", "close the layer",
+    ],
+)
 def remove_layer(layer_name: str, confirmed: bool = False):
     if not confirmed:
         return {
@@ -371,7 +404,11 @@ def remove_layer(layer_name: str, confirmed: bool = False):
     return {"success": True, "message": f"Removed layer '{layer_name}'"}
 
 
-@register_tool("rename_layer", "Rename layer in QGIS project.", {"type": "object", "properties": {"old_name": {"type": "string"}, "new_name": {"type": "string"}}, "required": ["old_name", "new_name"]})
+@register_tool("rename_layer", "Rename layer in QGIS project.", {"type": "object", "properties": {"old_name": {"type": "string"}, "new_name": {"type": "string"}}, "required": ["old_name", "new_name"]},
+    keywords=[
+        "rename the layer", "rename layer", "change the name of the layer", "call the layer", "name the layer",
+    ],
+)
 def rename_layer(old_name, new_name):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
@@ -408,7 +445,12 @@ def _extent_to_canvas_crs(canvas, extent, source_crs):
         return None
 
 
-@register_tool("zoom_to_layer", "Zoom canvas to extent of layer.", {"type": "object", "properties": {"layer_name": {"type": "string"}}, "required": ["layer_name"]})
+@register_tool("zoom_to_layer", "Zoom canvas to extent of layer.", {"type": "object", "properties": {"layer_name": {"type": "string"}}, "required": ["layer_name"]},
+    keywords=[
+        "zoom to the layer", "zoom to layer", "zoom to the extent of", "zoom in on the layer", "show me the layer",
+        "center the map on the layer", "fit the map to", "zoom to all",
+    ],
+)
 def zoom_to_layer(layer_name):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
@@ -426,7 +468,13 @@ def zoom_to_layer(layer_name):
     return {"success": True, "message": f"Zoomed to '{layer_name}'"}
 
 
-@register_tool("toggle_visibility", "Show or hide a layer in layer tree.", {"type": "object", "properties": {"layer_name": {"type": "string"}, "visible": {"type": "boolean"}}, "required": ["layer_name"]})
+@register_tool("toggle_visibility", "Show or hide a layer in layer tree.", {"type": "object", "properties": {"layer_name": {"type": "string"}, "visible": {"type": "boolean"}}, "required": ["layer_name"]},
+    keywords=[
+        "hide the layer", "show the layer", "turn off the layer", "turn on the layer", "make the layer visible",
+        "make the layer invisible", "switch off the layer", "switch on the layer", "untick the layer", "tick the layer",
+        "hide it", "unhide",
+    ],
+)
 def toggle_visibility(layer_name, visible=True):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
@@ -689,7 +737,20 @@ def _other_sublayers_note(layer):
             f"the first was opened. Ask for another by name (sublayer=...) if you meant a different one.")
 
 
-@register_tool("add_layer_from_path", "Load vector or raster file from a local path or remote URL (e.g. a GeoJSON download link).", {"type": "object", "properties": {"file_path": {"type": "string"}, "layer_name": {"type": "string"}, "sublayer": {"type": "string", "description": "name of ONE layer/table inside a multi-layer file (GeoPackage, FileGDB, KML, GPX, SpatiaLite); omit to open the first and be told what else the file holds"}}, "required": ["file_path"]})
+@register_tool("add_layer_from_path", "Load vector or raster file from a local path or remote URL (e.g. a GeoJSON download link).", {"type": "object", "properties": {"file_path": {"type": "string"}, "layer_name": {"type": "string"}, "sublayer": {"type": "string", "description": "name of ONE layer/table inside a multi-layer file (GeoPackage, FileGDB, KML, GPX, SpatiaLite); omit to open the first and be told what else the file holds"}}, "required": ["file_path"]},
+    # QGIS-vocabulary audit 2026-10-14 (docs/QGIS_COVERAGE_GAP_ANALYSIS_2026-10-14.md): the foundation tools had NO alias at all and were found
+    # only through accidental word overlap with their names and descriptions, which is what broke in rc23. Plain phrases, as people say them.
+    keywords=[
+        "add the shapefile", "add a shapefile", "add the geopackage", "import the gpx", "import the kml", "import the geojson",
+        "import the file", "import the shapefile", "open the file", "load the file", "open the shapefile", "load the shapefile",
+        "add the raster", "load the raster", "add the dem", "open the geotiff", "load the geojson", "add the geojson",
+        "add the gpx", "add the kml", "add this file", "load this file", ".shp", ".gpkg", ".geojson", ".tif", ".kml", ".gpx",
+        "from this url", "from the url", "download link", "create layer for", "add a layer", "add layer", "load a layer",
+        "load layer", "open a layer", "zipped shapefile", "zip file", "zipped file", "open the zip", "load the zip", ".zip",
+        ".kmz", "kmz file", "table from the geopackage", "table of the geopackage", "layer from the geopackage",
+        "layer inside the geopackage", "one layer of the file",
+    ],
+)
 def add_layer_from_path(file_path, layer_name=None, source_label=None, sublayer=None):
     """source_label is the original URL when agent_orchestrator.py has already downloaded
     it and file_path is the local temp copy. Without it, the default layer name and
@@ -1142,6 +1203,10 @@ def load_tabular_data_as_layer(file_path, layer_name=None, x_field=None, y_field
         },
         "required": ["layer_name"],
     },
+    keywords=[
+        "put the names", "show the names", "names on the map", "write the names", "name next to", "label each",
+        "show the name of each",
+    ],
 )
 def apply_labels(layer_name, target_field=None, expression=None, font_size=10, priority=5):
     if not QGIS_AVAILABLE:
@@ -1242,7 +1307,11 @@ def apply_labels(layer_name, target_field=None, expression=None, font_size=10, p
     }
 
 
-@register_tool("clip_layer", "Clip vector layer by mask layer.", {"type": "object", "properties": {"input_layer": {"type": "string"}, "mask_layer": {"type": "string"}}, "required": ["input_layer", "mask_layer"]})
+@register_tool("clip_layer", "Clip vector layer by mask layer.", {"type": "object", "properties": {"input_layer": {"type": "string"}, "mask_layer": {"type": "string"}}, "required": ["input_layer", "mask_layer"]},
+    keywords=[
+        "clip the", "clip layer", "cut the layer to", "crop the layer", "clip to the boundary", "clip by the boundary",
+    ],
+)
 def clip_layer(input_layer, mask_layer):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
@@ -1264,7 +1333,11 @@ def clip_layer(input_layer, mask_layer):
     return res
 
 
-@register_tool("intersect_layers", "Intersection of two vector layers.", {"type": "object", "properties": {"layer1": {"type": "string"}, "layer2": {"type": "string"}}, "required": ["layer1", "layer2"]})
+@register_tool("intersect_layers", "Intersection of two vector layers.", {"type": "object", "properties": {"layer1": {"type": "string"}, "layer2": {"type": "string"}}, "required": ["layer1", "layer2"]},
+    keywords=[
+        "intersect the", "intersection of", "where the two layers overlap", "overlap of the", "common area of",
+    ],
+)
 def intersect_layers(layer1, layer2):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
@@ -1286,7 +1359,11 @@ def intersect_layers(layer1, layer2):
     return res
 
 
-@register_tool("union_layers", "Geometric union of two vector layers.", {"type": "object", "properties": {"layer1": {"type": "string"}, "layer2": {"type": "string"}}, "required": ["layer1", "layer2"]})
+@register_tool("union_layers", "Geometric union of two vector layers.", {"type": "object", "properties": {"layer1": {"type": "string"}, "layer2": {"type": "string"}}, "required": ["layer1", "layer2"]},
+    keywords=[
+        "union of", "union the", "overlay union",
+    ],
+)
 def union_layers(layer1, layer2):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
@@ -1322,6 +1399,9 @@ def union_layers(layer1, layer2):
         },
         "required": ["input_layer", "overlay_layer"],
     },
+    keywords=[
+        "difference of", "difference between the layers", "erase the", "cut out the", "subtract the", "everything outside",
+    ],
 )
 def difference_layers(input_layer, overlay_layer, symmetric=False):
     if not QGIS_AVAILABLE:
@@ -1352,6 +1432,9 @@ def difference_layers(input_layer, overlay_layer, symmetric=False):
     "polygon containing all of them. Useful for catchment/coverage-area style analysis (e.g. the "
     "outer boundary of a set of service points).",
     {"type": "object", "properties": {"layer_name": {"type": "string"}}, "required": ["layer_name"]},
+    keywords=[
+        "convex hull", "smallest polygon around", "outline around the points", "hull of the",
+    ],
 )
 def convex_hull(layer_name):
     if not QGIS_AVAILABLE:
@@ -1533,6 +1616,9 @@ def convert_to_singlepart(layer_name):
         },
         "required": ["layer_name", "tolerance"],
     },
+    keywords=[
+        "simplify", "generalize", "generalise", "reduce the vertices", "reduce the number of vertices", "reduce detail",
+    ],
 )
 def simplify_geometry(layer_name, tolerance):
     if not QGIS_AVAILABLE:
@@ -1593,6 +1679,10 @@ def _compute_field_statistics(values):
         },
         "required": ["layer_name", "field"],
     },
+    keywords=[
+        "statistics of the", "statistics for the", "summary statistics", "basic statistics", "mean of the", "average of the",
+        "sum of the", "minimum of", "maximum of", "unique values", "how many unique", "min and max",
+    ],
 )
 def field_statistics(layer_name, field):
     if not QGIS_AVAILABLE:
@@ -1642,6 +1732,11 @@ _SELECT_METHODS = {"new": 0, "add": 1, "remove": 2, "intersect": 3}
         },
         "required": ["target_layer", "reference_layer"],
     },
+    keywords=[
+        "select by location", "select the points inside", "select points inside", "select features inside",
+        "select features within", "select the features within", "select the features that intersect",
+        "select features that intersect", "select the ones inside", "intersecting the",
+    ],
 )
 def select_by_location(target_layer, reference_layer, predicate="intersects", method="new"):
     if not QGIS_AVAILABLE:
@@ -1675,6 +1770,10 @@ def select_by_location(target_layer, reference_layer, predicate="intersects", me
     "Invert the current feature selection on a layer -- previously unselected features become "
     "selected and vice versa.",
     {"type": "object", "properties": {"layer_name": {"type": "string"}}, "required": ["layer_name"]},
+    keywords=[
+        "invert the selection", "invert selection", "reverse the selection", "select the opposite", "select everything else",
+        "select the rest",
+    ],
 )
 def invert_selection(layer_name):
     if not QGIS_AVAILABLE:
@@ -1689,7 +1788,11 @@ def invert_selection(layer_name):
         return {"error": f"invert_selection failed: {e}"}
 
 
-@register_tool("dissolve_layer", "Dissolve vector features optionally grouped by field.", {"type": "object", "properties": {"layer_name": {"type": "string"}, "field": {"type": "string"}}, "required": ["layer_name"]})
+@register_tool("dissolve_layer", "Dissolve vector features optionally grouped by field.", {"type": "object", "properties": {"layer_name": {"type": "string"}, "field": {"type": "string"}}, "required": ["layer_name"]},
+    keywords=[
+        "dissolve", "merge the polygons by", "aggregate the polygons", "combine the polygons by",
+    ],
+)
 def dissolve_layer(layer_name, field=None):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
@@ -1704,7 +1807,12 @@ def dissolve_layer(layer_name, field=None):
     return _run_and_add("native:dissolve", params, f"{layer_name}_dissolved")
 
 
-@register_tool("merge_layers", "Merge multiple vector layers into one.", {"type": "object", "properties": {"layer_names_list": {"type": "array", "items": {"type": "string"}}}, "required": ["layer_names_list"]})
+@register_tool("merge_layers", "Merge multiple vector layers into one.", {"type": "object", "properties": {"layer_names_list": {"type": "array", "items": {"type": "string"}}}, "required": ["layer_names_list"]},
+    keywords=[
+        "merge the", "merge layers", "merge these layers", "combine the layers", "combine layers", "append the layers",
+        "put the layers together",
+    ],
+)
 def merge_layers(layer_names_list):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
@@ -1723,7 +1831,12 @@ def merge_layers(layer_names_list):
     )
 
 
-@register_tool("spatial_join", "Join attributes from one layer to another by spatial location.", {"type": "object", "properties": {"target_layer": {"type": "string"}, "join_layer": {"type": "string"}}, "required": ["target_layer", "join_layer"]})
+@register_tool("spatial_join", "Join attributes from one layer to another by spatial location.", {"type": "object", "properties": {"target_layer": {"type": "string"}, "join_layer": {"type": "string"}}, "required": ["target_layer", "join_layer"]},
+    keywords=[
+        "spatial join", "join by location", "join based on location", "join the attributes by location",
+        "which polygon each point", "assign the district to each", "tag each point with",
+    ],
+)
 def spatial_join(target_layer, join_layer):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
@@ -1771,6 +1884,10 @@ def spatial_join(target_layer, join_layer):
         },
         "required": ["target_layer", "join_layer"],
     },
+    keywords=[
+        "join the table", "join a table", "join the csv", "join by field", "join by attribute", "attribute join", "join on the",
+        "join the spreadsheet", "add the columns from", "table join",
+    ],
 )
 def join_by_attribute(target_layer, join_layer, target_field=None, join_field=None):
     if not QGIS_AVAILABLE:
@@ -1971,7 +2088,11 @@ def calculate_length(layer_name, confirmed: bool = False):
     return _add_calculated_field(layer, "length_m", value_fn=_si_measure_fn(layer, "length"))
 
 
-@register_tool("centroid", "Generate centroid points for polygon layer.", {"type": "object", "properties": {"layer_name": {"type": "string"}}, "required": ["layer_name"]})
+@register_tool("centroid", "Generate centroid points for polygon layer.", {"type": "object", "properties": {"layer_name": {"type": "string"}}, "required": ["layer_name"]},
+    keywords=[
+        "centroid", "centroids", "center point of", "centre point of", "middle point of",
+    ],
+)
 def centroid(layer_name):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
@@ -1985,7 +2106,12 @@ def centroid(layer_name):
     )
 
 
-@register_tool("reproject_layer", "Reproject layer to target CRS code (e.g. 'EPSG:4326').", {"type": "object", "properties": {"layer_name": {"type": "string"}, "crs_code": {"type": "string"}}, "required": ["layer_name", "crs_code"]})
+@register_tool("reproject_layer", "Reproject layer to target CRS code (e.g. 'EPSG:4326').", {"type": "object", "properties": {"layer_name": {"type": "string"}, "crs_code": {"type": "string"}}, "required": ["layer_name", "crs_code"]},
+    keywords=[
+        "reproject", "re-project", "change the projection", "transform the layer to", "convert the layer to epsg", "to utm",
+        "to epsg", "change the crs of the layer to", "convert to utm",
+    ],
+)
 def reproject_layer(layer_name, crs_code):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
@@ -2002,7 +2128,12 @@ def reproject_layer(layer_name, crs_code):
     )
 
 
-@register_tool("fix_geometries", "Fix invalid geometries in vector layer.", {"type": "object", "properties": {"layer_name": {"type": "string"}}, "required": ["layer_name"]})
+@register_tool("fix_geometries", "Fix invalid geometries in vector layer.", {"type": "object", "properties": {"layer_name": {"type": "string"}}, "required": ["layer_name"]},
+    keywords=[
+        "fix geometries", "fix invalid", "repair the geometries", "repair invalid", "invalid geometries",
+        "make the geometries valid", "fix the geometry errors",
+    ],
+)
 def fix_geometries(layer_name):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
@@ -2016,7 +2147,12 @@ def fix_geometries(layer_name):
     )
 
 
-@register_tool("select_by_attribute", "Select features matching specific field value.", {"type": "object", "properties": {"layer_name": {"type": "string"}, "field": {"type": "string"}, "value": {"type": "string"}}, "required": ["layer_name", "field", "value"]})
+@register_tool("select_by_attribute", "Select features matching specific field value.", {"type": "object", "properties": {"layer_name": {"type": "string"}, "field": {"type": "string"}, "value": {"type": "string"}}, "required": ["layer_name", "field", "value"]},
+    keywords=[
+        "select the features named", "select features named", "select the district named", "select by name",
+        "select by attribute", "select the feature with", "select the districts named",
+    ],
+)
 def select_by_attribute(layer_name, field, value):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
@@ -2033,7 +2169,13 @@ def select_by_attribute(layer_name, field, value):
     return {"success": True, "count": layer.selectedFeatureCount(), "layer_name": layer_name, "expression": expr}
 
 
-@register_tool("field_calculator", "Calculate or add field using QGIS expression. Destructive action requiring UI confirmation.", {"type": "object", "properties": {"layer_name": {"type": "string"}, "new_field": {"type": "string"}, "expression": {"type": "string"}}, "required": ["layer_name", "new_field", "expression"]})
+@register_tool("field_calculator", "Calculate or add field using QGIS expression. Destructive action requiring UI confirmation.", {"type": "object", "properties": {"layer_name": {"type": "string"}, "new_field": {"type": "string"}, "expression": {"type": "string"}}, "required": ["layer_name", "new_field", "expression"]},
+    keywords=[
+        "calculate a field", "calculate the field", "add a field", "new field", "field calculator", "update the field",
+        "fill the field", "set the field", "calculate a new field", "with an expression", "using an expression",
+        "from an expression", "compute a field", "add a column", "new column",
+    ],
+)
 def field_calculator(layer_name, new_field, expression, confirmed: bool = False):
     if not confirmed:
         return {
@@ -2054,7 +2196,11 @@ def field_calculator(layer_name, new_field, expression, confirmed: bool = False)
     return _add_calculated_field(layer, new_field, expression)
 
 
-@register_tool("get_feature_count", "Get total feature count in a layer.", {"type": "object", "properties": {"layer_name": {"type": "string"}}, "required": ["layer_name"]})
+@register_tool("get_feature_count", "Get total feature count in a layer.", {"type": "object", "properties": {"layer_name": {"type": "string"}}, "required": ["layer_name"]},
+    keywords=[
+        "how many features", "feature count", "count the features", "number of features", "how many records", "how many rows",
+    ],
+)
 def get_feature_count(layer_name):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
@@ -2064,7 +2210,11 @@ def get_feature_count(layer_name):
     return {"layer_name": layer_name, "feature_count": layer.featureCount()}
 
 
-@register_tool("open_attribute_table", "Open attribute table GUI for layer.", {"type": "object", "properties": {"layer_name": {"type": "string"}}, "required": ["layer_name"]})
+@register_tool("open_attribute_table", "Open attribute table GUI for layer.", {"type": "object", "properties": {"layer_name": {"type": "string"}}, "required": ["layer_name"]},
+    keywords=[
+        "open the attribute table", "show the attribute table", "attribute table of", "open the table",
+    ],
+)
 def open_attribute_table(layer_name):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
@@ -2092,6 +2242,10 @@ def open_attribute_table(layer_name):
         },
         "required": ["layer_name"],
     },
+    keywords=[
+        "zoom to the feature", "zoom to feature", "zoom to the district", "zoom to the selected", "zoom to selection",
+        "zoom to the selection", "zoom to where", "zoom to the city of",
+    ],
 )
 def zoom_to_feature(layer_name, feature_id=None, expression=None):
     if not QGIS_AVAILABLE:
@@ -2148,7 +2302,12 @@ def zoom_to_feature(layer_name, feature_id=None, expression=None):
     return {"success": True, "layer_name": layer_name, "feature_id": fid}
 
 
-@register_tool("get_crs", "Get CRS authid, description, and units for layer.", {"type": "object", "properties": {"layer_name": {"type": "string"}}, "required": ["layer_name"]})
+@register_tool("get_crs", "Get CRS authid, description, and units for layer.", {"type": "object", "properties": {"layer_name": {"type": "string"}}, "required": ["layer_name"]},
+    keywords=[
+        "what crs", "which crs", "what is the crs", "what projection", "which projection", "what coordinate system",
+        "which coordinate system", "crs of the layer",
+    ],
+)
 def get_crs(layer_name):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}

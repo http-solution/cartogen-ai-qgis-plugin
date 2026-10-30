@@ -926,6 +926,10 @@ def add_hdx_admin_boundaries_layer_main_thread_phase(fetch_result: dict) -> dict
         },
         "required": ["iso3"],
     },
+    keywords=[
+        "adm0", "adm1", "adm2", "adm3", "adm4", "adm5", "admin boundar", "administrative boundar", "admin level", "governorate",
+        "province boundar", "district boundar", "p-code", "pcode", "cod-ab",
+    ],
 )
 def fetch_hdx_admin_boundaries(iso3: str, admin_level: str = "ADM1", allow_large_download: bool = False):
     """Combines both phases inline for standalone/direct callers; agent_orchestrator.py's
@@ -1262,7 +1266,14 @@ def fetch_building_footprints(country_name, bbox, max_features=5000, allow_large
     return final
 
 
-@register_tool("fetch_geoboundaries", "Download administrative boundaries from geoBoundaries API. A file larger than the user's download-size setting is not fetched until the user agrees: then call again with allow_large_download=true.", {"type": "object", "properties": {"iso3": {"type": "string"}, "admin_level": {"type": "string"}, "allow_large_download": {"type": "boolean", "description": "Set true ONLY after the user agreed to a download above their size threshold."}}, "required": ["iso3", "admin_level"]})
+@register_tool("fetch_geoboundaries", "Download administrative boundaries from geoBoundaries API. A file larger than the user's download-size setting is not fetched until the user agrees: then call again with allow_large_download=true.", {"type": "object", "properties": {"iso3": {"type": "string"}, "admin_level": {"type": "string"}, "allow_large_download": {"type": "boolean", "description": "Set true ONLY after the user agreed to a download above their size threshold."}}, "required": ["iso3", "admin_level"]},
+    # rc41 hand test: "create layer for Jordan ADM1" selected neither boundary tool (no shared words), so the model said no boundary fetcher was
+    # "active in this tool configuration" without trying. ADM codes and the usual names for the levels are the way people ask for these.
+    keywords=[
+        "adm0", "adm1", "adm2", "adm3", "adm4", "adm5", "admin boundar", "administrative boundar", "admin level", "governorate",
+        "province boundar", "district boundar", "region boundar", "country boundar", "state boundar",
+    ],
+)
 def fetch_geoboundaries(iso3: str, admin_level: str = "ADM1", allow_large_download: bool = False):
     """Queries geoBoundaries API for ISO3 country code and ADM level. Does both
     phases inline for standalone/direct callers; agent_orchestrator.py's two-phase dispatch

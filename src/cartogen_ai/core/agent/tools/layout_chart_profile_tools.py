@@ -183,7 +183,13 @@ def _make_series(name, x_expression, y_expression):
         "layout_name": {"type": "string"}, "layer_name": {"type": "string"}, "chart_type": {"type": "string"}, "x_field": {"type": "string"},
         "y_field": {"type": "string"}, "x_mm": {"type": "number"}, "y_mm": {"type": "number"}, "width_mm": {"type": "number"},
         "height_mm": {"type": "number"}, "item_id": {"type": "string"}},
-     "required": ["layout_name", "layer_name", "x_field", "y_field"]})
+     "required": ["layout_name", "layer_name", "x_field", "y_field"]},
+    keywords=[
+        "charts linked to maps", "chart linked to the map", "charts linked to the map", "chart linked to maps",
+        "chart in the layout", "add a chart", "bar chart in the layout", "pie chart in the layout", "line chart in the layout",
+        "chart item", "chart on the layout", "chart to the layout", "chart to the print",
+    ],
+)
 def add_layout_chart(layout_name, layer_name, x_field, y_field, chart_type="bar", x_mm=None, y_mm=None, width_mm=120, height_mm=80, item_id=None):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
@@ -253,7 +259,12 @@ def add_layout_chart(layout_name, layer_name, x_field, y_field, chart_type="bar"
         "start_y": {"type": "number"}, "end_x": {"type": "number"}, "end_y": {"type": "number"}, "x_mm": {"type": "number"},
         "y_mm": {"type": "number"}, "width_mm": {"type": "number"}, "height_mm": {"type": "number"}, "item_id": {"type": "string"},
         "along_layer": {"type": "string"}},
-     "required": ["layout_name", "layer_names"]})
+     "required": ["layout_name", "layer_names"]},
+    keywords=[
+        "elevation profile in the layout", "add an elevation profile", "elevation profile to the layout", "profile item",
+        "elevation profile along", "terrain profile in the layout", "cross section in the layout",
+    ],
+)
 def add_layout_elevation_profile(layout_name, layer_names, start_x=None, start_y=None, end_x=None, end_y=None, x_mm=None, y_mm=None, width_mm=180,
                                  height_mm=70, item_id=None, along_layer=None):
     if not QGIS_AVAILABLE:

@@ -159,6 +159,12 @@ _MAKERS = {"label": _make_label, "picture": _make_picture, "shape": _make_shape,
         "fields": {"type": "array", "items": {"type": "string"}, "description": "For a table: the columns to show."},
         "max_rows": {"type": "integer", "description": "For a table: rows to show (default 10, at most 200)."},
     }, "required": ["layout_name", "kind"]},
+    keywords=[
+        "add a picture to the layout", "add a logo to the layout", "add an image to the layout", "add a logo to the map",
+        "add a text box", "add a label to the layout", "add a shape to the layout", "add a rectangle to the layout",
+        "add an arrow", "add a table to the layout", "add an attribute table", "put a logo", "insert a picture", "insert a logo",
+        "layout item",
+    ],
 )
 def add_layout_item(layout_name, kind, item_id=None, x_mm=None, y_mm=None, width_mm=None, height_mm=None, text=None, font_size=None,
                     font_color=None, picture_path=None, shape=None, fill_color=None, outline_color=None, outline_width_mm=None,
@@ -219,6 +225,11 @@ def _finish_table(layout, table, geometry, item_id, layout_name):
         "x_mm": {"type": "number"}, "y_mm": {"type": "number"}, "width_mm": {"type": "number"}, "height_mm": {"type": "number"},
         "rotation": {"type": "number"}, "frame": {"type": "boolean"}, "remove": {"type": "boolean"},
     }, "required": ["layout_name", "item_id"]},
+    keywords=[
+        "move the legend", "move the scale bar", "move the north arrow", "move the title", "resize the legend", "resize the map",
+        "make the map bigger", "make the map smaller", "rotate the item", "remove the item from the layout",
+        "delete the item from the layout", "remove the legend", "remove the north arrow", "remove the scale bar",
+    ],
 )
 def edit_layout_item(layout_name, item_id, x_mm=None, y_mm=None, width_mm=None, height_mm=None, rotation=None, frame=None, remove=None):
     if not QGIS_AVAILABLE:
@@ -300,6 +311,11 @@ def _target_rectangle(options, map_item):
         "extent_layer": {"type": "string"}, "bbox": {"type": "array", "items": {"type": "number"}},
         "lock_layers": {"type": "boolean"}, "map_theme": {"type": "string"},
     }, "required": ["layout_name"]},
+    keywords=[
+        "set the map scale", "scale of the layout map", "layout map scale", "zoom the layout map", "layout extent",
+        "change the map extent in the layout", "rotate the layout map", "lock the layers", "freeze the layers",
+        "map in the layout to", "layout to 1:",
+    ],
 )
 def set_layout_map(layout_name, map_item_id=None, scale=None, rotation=None, extent_layer=None, bbox=None, lock_layers=None, map_theme=None):
     if not QGIS_AVAILABLE:
@@ -347,6 +363,11 @@ def set_layout_map(layout_name, map_item_id=None, scale=None, rotation=None, ext
         "layout_name": {"type": "string"}, "size": {"type": "string"}, "orientation": {"type": "string"},
         "pages": {"type": "integer"},
     }, "required": ["layout_name"]},
+    keywords=[
+        "page size", "change the page size", "paper size", "a3 page", "a4 page", "a5 page", "a2 page", "a1 page", "a0 page",
+        "letter page", "portrait layout", "landscape layout", "add a page", "second page", "two pages", "several pages",
+        "multi-page",
+    ],
 )
 def set_layout_page(layout_name, size=None, orientation=None, pages=None):
     if not QGIS_AVAILABLE:
@@ -400,6 +421,10 @@ def _orient(wh, orientation):
     "project. Replacing an existing file needs confirmation.",
     {"type": "object", "properties": {"layout_name": {"type": "string"}, "output_path": {"type": "string", "description": "Ends in .qpt"}},
      "required": ["layout_name", "output_path"]},
+    keywords=[
+        "save the layout as a template", "save layout template", "layout template", "save as a template", "export the template",
+        ".qpt",
+    ],
 )
 def save_layout_template(layout_name, output_path, confirmed=False):
     if not QGIS_AVAILABLE:
@@ -432,6 +457,10 @@ def save_layout_template(layout_name, output_path, confirmed=False):
     "must not be taken. A template that contains an HTML frame is refused (it would run web content).",
     {"type": "object", "properties": {"template_path": {"type": "string"}, "new_layout_name": {"type": "string"}},
      "required": ["template_path", "new_layout_name"]},
+    keywords=[
+        "load a layout template", "load the template", "new layout from a template", "open the template",
+        "layout from a template", "use the template",
+    ],
 )
 def load_layout_template(template_path, new_layout_name):
     if not QGIS_AVAILABLE:
@@ -481,6 +510,12 @@ def load_layout_template(template_path, new_layout_name):
                                       "purpose": {"type": "string", "description": "'publication' only when the user says the file will be shared outside the team; omit for drafts"},
                                       "override_reason": {"type": "string", "description": "with purpose='publication': the USER's stated reason for exporting despite problems. Never invent one; ask."}},
      "required": ["layout_name", "output_path"]},
+    keywords=[
+        "export the layout", "export layout", "export the layout as svg", "layout to svg", "save the layout as pdf",
+        "save the layout as png", "export the existing layout", "export layout to", "map as a pdf", "map as pdf", "map as a png",
+        "map as an image", "map as a jpg", "map to pdf", "pdf of the map", "pdf of the layout", "pdf copy of the map",
+        "printable map", "print the layout to",
+    ],
 )
 def export_layout(layout_name, output_path, dpi=None, world_file=False, geopdf=False, purpose=None, override_reason=None, confirmed=False,
                   preset=None, output_format="pdf"):

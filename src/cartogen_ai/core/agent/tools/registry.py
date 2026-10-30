@@ -43,7 +43,7 @@ def register_tool(name, description, parameters, keywords=()):
     :param description: High-level description of what the tool does.
     :param parameters: JSON schema dictionary of input parameters.
     :param keywords: lower-case phrases users say for this tool that share no word with its name or description; the router scores them
-        like the curated aliases in tool_router._TOOL_ALIASES (a phrase may be in either place, not both).
+        ("concept:<name>" pulls in a shared group from core/services/routing_concepts.json). Keep the why-comment above the list.
     """
     def decorator(func):
         TOOL_REGISTRY[name] = _refuse_wrong_layer_kind(name, func)

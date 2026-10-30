@@ -207,6 +207,11 @@ def _raster_sums(cells_metric, raster_layer, metric):
         },
         "required": ["aoi_layer"],
     },
+    # Remote mapping tasks (see tools/task_grid_tools.py). No bare "grid" or "tasks": they appear in unrelated requests.
+    keywords=[
+        "tasking manager", "mapping task", "task grid", "mapswipe", "remote mapping", "crowd mapping", "mapathon",
+        "split the area into", "divide the area into",
+    ],
 )
 def generate_mapping_task_grid(aoi_layer, cell_size_m=2000, priority_points_layer=None, population_raster_layer=None,
                                output_layer_name="mapping_tasks", export_geojson_path=None, aoi_where=None):

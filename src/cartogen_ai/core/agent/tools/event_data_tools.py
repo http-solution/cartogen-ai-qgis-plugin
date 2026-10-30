@@ -161,6 +161,9 @@ def add_usgs_earthquakes_layer_main_thread_phase(fetch_result, layer_name="USGS 
         },
         "required": [],
     },
+    keywords=[
+        "earthquake", "quake", "seismic", "magnitude", "tremor", "aftershock", "usgs",
+    ],
 )
 def fetch_usgs_earthquakes(bbox=None, days=7, min_magnitude=4.5, max_events=1000, layer_name="USGS Earthquakes"):
     return add_usgs_earthquakes_layer_main_thread_phase(
@@ -334,6 +337,10 @@ def add_ucdp_conflict_events_layer_main_thread_phase(fetch_result, layer_name="U
         },
         "required": [],
     },
+    keywords=[
+        "conflict event", "armed conflict", "political violence", "organised violence", "organized violence", "ucdp",
+        "fatalities", "battle", "killed in", "violence against civilians", "conflict", "war",
+    ],
 )
 def fetch_ucdp_conflict_events(country=None, bbox=None, start_date=None, end_date=None, min_deaths=0, max_events=1000,
                                layer_name="UCDP Conflict Events"):

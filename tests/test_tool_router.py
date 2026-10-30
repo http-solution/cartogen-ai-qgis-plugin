@@ -21,9 +21,8 @@ class TestToolAliasesNoDuplicateKeys(unittest.TestCase):
         source = inspect.getsource(tool_router_module)
         tree = ast.parse(source)
         for node in ast.walk(tree):
-            if isinstance(node, ast.Assign) and any(
-                isinstance(t, ast.Name) and t.id == "_TOOL_ALIASES" for t in node.targets
-            ):
+            targets = node.targets if isinstance(node, ast.Assign) else [node.target] if isinstance(node, ast.AnnAssign) else []
+            if any(isinstance(t, ast.Name) and t.id == "_TOOL_ALIASES" for t in targets):
                 keys = [k.value for k in node.value.keys]
                 duplicates = {k for k in keys if keys.count(k) > 1}
                 self.assertEqual(duplicates, set(), f"Duplicate _TOOL_ALIASES key(s): {duplicates}")

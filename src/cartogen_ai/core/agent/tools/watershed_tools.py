@@ -136,7 +136,13 @@ def _find_dem(name, lon, lat):
         "radius_km": {"type": "number", "description": "Half-width of the window read around the outlet (default 8, at most 15)."},
         "snap_distance_m": {"type": "number", "description": "How far the outlet may move onto the derived channel (default 300)."},
         "layer_prefix": {"type": "string", "description": "Prefix for the new layers (default 'Watershed')."}},
-     "required": []})
+     "required": []},
+    keywords=[
+        "watershed", "catchment", "drainage basin", "basin area", "delineate the basin", "flow path", "stream length",
+        "time of concentration", "peak flow", "peak discharge", "tc ", "rational method", "return period", "pour point",
+        "upstream area", "contributing area",
+    ],
+)
 def delineate_watershed(location=None, lat=None, lon=None, dem_layer=None, return_period_years=None, radius_km=8, snap_distance_m=300,
                         layer_prefix="Watershed"):
     if not QGIS_AVAILABLE:

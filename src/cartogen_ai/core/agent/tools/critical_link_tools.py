@@ -243,6 +243,10 @@ def _build_load_layer(network, output_layer_name, load_by_edge, pts):
         },
         "required": ["road_network_layer", "origins_layer"],
     },
+    keywords=[
+        "critical link", "critical links", "bottleneck", "bottlenecks", "single point of failure", "which roads matter most",
+        "which road is most important", "roads the routes depend on", "route dependence",
+    ],
 )
 def analyze_critical_links(road_network_layer, origins_layer, destinations_layer=None, strategy="shortest", default_speed=50,
                            speed_field=None, direction_field=None, value_forward="yes", value_backward="-1", value_both="no",

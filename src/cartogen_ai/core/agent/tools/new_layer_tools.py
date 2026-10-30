@@ -28,7 +28,11 @@ def _added(layer, kind, note):
 @register_tool(
     "add_point_cloud_layer",
     "Add a point cloud (.las, .laz, .copc.laz, or an EPT dataset's ept.json) from a local file as a layer. Read-only: the file is not changed.",
-    {"type": "object", "properties": {"file_path": {"type": "string"}, "layer_name": {"type": "string"}}, "required": ["file_path"]})
+    {"type": "object", "properties": {"file_path": {"type": "string"}, "layer_name": {"type": "string"}}, "required": ["file_path"]},
+    keywords=[
+        "point cloud", "lidar", "las file", "laz file", "copc", "load the point cloud", "add the point cloud",
+    ],
+)
 def add_point_cloud_layer(file_path, layer_name=None):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
@@ -56,7 +60,11 @@ def add_point_cloud_layer(file_path, layer_name=None):
     "add_vector_tile_layer",
     "Add a vector tile layer: an https XYZ service URL containing {z}/{x}/{y}, or a local .mbtiles / .vtpk file. Only https URLs are accepted.",
     {"type": "object", "properties": {"source": {"type": "string"}, "layer_name": {"type": "string"}, "min_zoom": {"type": "integer"},
-                                      "max_zoom": {"type": "integer"}}, "required": ["source"]})
+                                      "max_zoom": {"type": "integer"}}, "required": ["source"]},
+    keywords=[
+        "vector tile", "vector tiles", "mbtiles", "vtpk", "mvt layer", "add the vector tile",
+    ],
+)
 def add_vector_tile_layer(source, layer_name=None, min_zoom=0, max_zoom=14):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
@@ -74,7 +82,11 @@ def add_vector_tile_layer(source, layer_name=None, min_zoom=0, max_zoom=14):
 @register_tool(
     "add_3d_tiles_layer",
     "Add a 3D Tiles tileset (a tileset.json, local or https) as a tiled scene layer. Only https URLs are accepted.",
-    {"type": "object", "properties": {"source": {"type": "string"}, "layer_name": {"type": "string"}}, "required": ["source"]})
+    {"type": "object", "properties": {"source": {"type": "string"}, "layer_name": {"type": "string"}}, "required": ["source"]},
+    keywords=[
+        "3d tiles", "3d tile", "tileset.json", "cesium tiles", "tiled scene", "photogrammetry mesh tiles",
+    ],
+)
 def add_3d_tiles_layer(source, layer_name=None):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}

@@ -198,11 +198,15 @@ class TestEveryAliasStillOffersItsOwnTool(unittest.TestCase):
         router = ToolRouter(TOOLS_SCHEMA)
         known = {t["function"]["name"] for t in TOOLS_SCHEMA}
         lost = []
-        for tool, phrases in tool_router._TOOL_ALIASES.items():
+        checked = 0
+        for tool in tool_router.routing_phrase_tools():
             if tool not in known:
                 continue
+            phrases = tool_router.routing_phrases(tool)
+            checked += len(phrases)
             lost.extend(f"{tool}: {phrase!r}" for phrase in phrases
                         if tool not in {t["function"]["name"] for t in router.filter_relevant_tools(phrase)})
+        self.assertGreater(checked, 1500, "the phrase set shrank or is not being read")   # 2105 when the aliases moved into the tools
         self.assertEqual(lost, [], "\n".join(lost))
 
 

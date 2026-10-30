@@ -205,6 +205,11 @@ def describe_rule(value_key, threshold, comparison, unit_key, date_key, as_of, l
         },
         "required": ["layer_name", "value_field", "threshold"],
     },
+    # Anticipatory action (see tools/trigger_tools.py). No bare "forecast" or "trigger": forecast_trend and unrelated queries use them.
+    keywords=[
+        "anticipatory action", "forecast-based financing", "forecast based financing", "trigger threshold", "trigger model",
+        "trigger protocol", "activation threshold", "lead time", "early action", "pre-arranged financing",
+    ],
 )
 def evaluate_forecast_trigger(layer_name, value_field, threshold=None, comparison=">=", unit_field=None, date_field=None,
                               lead_days=None, as_of=None, probability_field=None, min_probability=None, min_exceedances=1,

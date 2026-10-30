@@ -193,6 +193,11 @@ def _layer(name):
         },
         "required": ["layer_name", "criteria"],
     },
+    # Multi-criteria ranking and survey aggregation (see tools/mcda_tools.py, tools/survey_tools.py). No bare "rank", "weights" or "survey".
+    keywords=[
+        "multi-criteria", "multicriteria", "mcda", "weighted ranking", "rank the districts", "rank districts",
+        "prioritise areas", "prioritize areas", "prioritisation", "prioritization", "weight sensitivity", "rank stability",
+    ],
 )
 def calculate_mcda_ranking(layer_name, criteria, unit_name_field=None, top_k=None, perturbation=0.2, trials=DEFAULT_TRIALS,
                            seed=None, output_prefix=None, confirmed: bool = False):

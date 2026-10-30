@@ -339,6 +339,9 @@ def _compute_severity_index(rows, indicators, weights=None, invert_indicators=No
         },
         "required": ["layer_name", "indicator_fields", "unit_name_field"],
     },
+    keywords=[
+        "worst", "priority", "rank the districts", "how bad", "most affected", "needs index", "prioritize",
+    ],
 )
 def calculate_severity_index(layer_name, indicator_fields, unit_name_field, weights=None, invert_indicators=None, output_field=None, confirmed: bool = False):
     if not QGIS_AVAILABLE:
@@ -496,6 +499,9 @@ def _write_presence_gap_status_to_layer(layer, rows, gap_units, covered_units, u
         },
         "required": ["layer_name", "indicator_fields", "unit_name_field", "presence_file_path", "presence_admin_field", "presence_org_field"],
     },
+    keywords=[
+        "underserved", "understaffed", "under-resourced", "who's helping", "who is helping", "operational gap", "coverage gap",
+    ],
 )
 def calculate_presence_gap(layer_name, indicator_fields, unit_name_field, presence_file_path, presence_admin_field, presence_org_field,
                             weights=None, invert_indicators=None, high_severity_classes=None, low_presence_threshold=1,
@@ -1214,6 +1220,10 @@ def forecast_trend(layer_name, date_field, value_field, periods_ahead=3, group_b
         },
         "required": ["point_layer", "date_field", "zone_layer", "zone_name_field"],
     },
+    keywords=[
+        "getting worse", "getting more dangerous", "more dangerous", "worsening", "improving", "increasing risk", "escalating",
+        "on the rise",
+    ],
 )
 def analyze_incident_trend(point_layer, date_field, zone_layer, zone_name_field, period_days=30, periods_ahead=1):
     if not QGIS_AVAILABLE:

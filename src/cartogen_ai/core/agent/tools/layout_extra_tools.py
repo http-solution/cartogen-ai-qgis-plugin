@@ -40,7 +40,12 @@ def _mm(value):
         "color": {"type": "string"}, "width_mm": {"type": "number"},
         "inset_box": {"type": "object", "properties": {"x_mm": {"type": "number"}, "y_mm": {"type": "number"},
                                                        "width_mm": {"type": "number"}, "height_mm": {"type": "number"}}}},
-     "required": ["layout_name"]})
+     "required": ["layout_name"]},
+    keywords=[
+        "overview map", "locator map", "inset map", "add an inset", "add a locator", "overview inset", "location map",
+        "mini map", "small map showing where", "show where the map is",
+    ],
+)
 def add_overview_map(layout_name, overview_map_id=None, extent_map_id="MAP_MAIN", color=None, width_mm=None, inset_box=None):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
@@ -103,7 +108,12 @@ def add_overview_map(layout_name, overview_map_id=None, extent_map_id="MAP_MAIN"
         "layout_name": {"type": "string"},
         "guides": {"type": "array", "items": {"type": "object", "properties": {"orientation": {"type": "string"}, "position_mm": {"type": "number"}}}},
         "clear_guides": {"type": "boolean"}, "grid_mm": {"type": "number"}, "snap_to_grid": {"type": "boolean"}, "snap_to_guides": {"type": "boolean"}},
-     "required": ["layout_name"]})
+     "required": ["layout_name"]},
+    keywords=[
+        "layout guides", "add a guide", "add guides", "guide at", "snapping grid", "layout grid", "grid spacing", "snap to grid",
+        "snap to guides",
+    ],
+)
 def set_layout_guides_grid(layout_name, guides=None, clear_guides=None, grid_mm=None, snap_to_grid=None, snap_to_guides=None):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
@@ -143,7 +153,12 @@ def set_layout_guides_grid(layout_name, guides=None, clear_guides=None, grid_mm=
         "layout_name": {"type": "string"}, "coverage_layer": {"type": "string"}, "page_name_field": {"type": "string"},
         "sort_field": {"type": "string"}, "filter_expression": {"type": "string"}, "hide_coverage": {"type": "boolean"},
         "margin_percent": {"type": "number"}, "scaling": {"type": "string"}, "map_item_id": {"type": "string"}, "disable": {"type": "boolean"}},
-     "required": ["layout_name"]})
+     "required": ["layout_name"]},
+    keywords=[
+        "set up an atlas", "make an atlas", "create an atlas", "atlas of", "one page per feature", "one page per district",
+        "page per district", "atlas coverage", "report with one page per", "atlas layout",
+    ],
+)
 def set_layout_atlas(layout_name, coverage_layer=None, page_name_field=None, sort_field=None, filter_expression=None, hide_coverage=None,
                      margin_percent=None, scaling=None, map_item_id=None, disable=False):
     if not QGIS_AVAILABLE:

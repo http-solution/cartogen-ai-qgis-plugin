@@ -29,7 +29,12 @@ def _layer(name):
     {"type": "object", "properties": {
         "layer_name": {"type": "string"}, "enabled": {"type": "boolean"}, "mode": {"type": "string"}, "band": {"type": "integer"},
         "z_offset": {"type": "number"}, "z_scale": {"type": "number"}, "clamping": {"type": "string"}, "extrusion": {"type": "number"}},
-     "required": ["layer_name"]})
+     "required": ["layer_name"]},
+    keywords=[
+        "layer elevation", "elevation settings", "enable elevation", "turn on elevation", "elevation of the layer",
+        "layer z offset", "z scale", "extrude the layer", "extrusion", "altitude clamping", "elevation properties",
+    ],
+)
 def set_layer_elevation(layer_name, enabled=None, mode=None, band=None, z_offset=None, z_scale=None, clamping=None, extrusion=None):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
@@ -84,7 +89,12 @@ def set_layer_elevation(layer_name, enabled=None, mode=None, band=None, z_offset
     "Set the project's terrain used by elevation profiles and 3D views: source 'flat' (optional offset) or 'dem' (a raster layer, optional offset "
     "and scale). Stored in the project; nothing is written to the data.",
     {"type": "object", "properties": {"source": {"type": "string"}, "layer_name": {"type": "string"}, "offset": {"type": "number"},
-                                      "scale": {"type": "number"}}, "required": ["source"]})
+                                      "scale": {"type": "number"}}, "required": ["source"]},
+    keywords=[
+        "project terrain", "set the terrain", "terrain from the dem", "terrain elevation", "flat terrain", "terrain provider",
+        "use the dem as terrain",
+    ],
+)
 def set_project_terrain(source, layer_name=None, offset=None, scale=None):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}

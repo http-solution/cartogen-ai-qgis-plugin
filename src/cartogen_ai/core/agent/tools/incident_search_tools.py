@@ -399,6 +399,12 @@ def add_incident_reports_layer_main_thread_phase(fetch_result, layer_name="Incid
         },
         "required": [],
     },
+    keywords=[
+        "incident", "incidents", "incident report", "what happened", "security situation", "recent events", "reliable source",
+        "check the internet", "latest news", "disaster and conflict", "hazards and conflict", "situation in",
+        "incidents from the news", "from the news", "news incidents", "major incidents", "incidents in the news", "news reports",
+        "reported in the news", "list the incidents", "incidents on the map", "put the incidents on the map",
+    ],
 )
 def find_incident_reports(country=None, bbox=None, days=30, sources=None, max_reports=200, layer_name="Incident reports"):
     return add_incident_reports_layer_main_thread_phase(

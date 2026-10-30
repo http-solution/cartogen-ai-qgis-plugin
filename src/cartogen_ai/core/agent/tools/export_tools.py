@@ -310,7 +310,14 @@ def _export_raster_layer(layer, layer_name, format, output_path, confirmed):  # 
     return {"success": True, "output_path": output_path, "format": "GeoTIFF", "layer_name": layer_name}
 
 
-@register_tool("export_layer", "Export a layer to a file: a vector layer to ESRI Shapefile, GeoJSON, GPKG or KML; a raster layer to GeoTIFF (format 'tif'). A relative output_path is anchored to the project folder; the reply's output_path is the real location.", {"type": "object", "properties": {"layer_name": {"type": "string"}, "format": {"type": "string"}, "output_path": {"type": "string"}, "only_selected": {"type": "boolean"}}, "required": ["layer_name", "format"]})
+@register_tool("export_layer", "Export a layer to a file: a vector layer to ESRI Shapefile, GeoJSON, GPKG or KML; a raster layer to GeoTIFF (format 'tif'). A relative output_path is anchored to the project folder; the reply's output_path is the real location.", {"type": "object", "properties": {"layer_name": {"type": "string"}, "format": {"type": "string"}, "output_path": {"type": "string"}, "only_selected": {"type": "boolean"}}, "required": ["layer_name", "format"]},
+    keywords=[
+        "to a geopackage", "to a shapefile", "as a geopackage", "as a shapefile", "to a kml", "as a kml", "to a geojson",
+        "as a geojson", "export the layer", "export layer", "save the layer as", "save layer as", "save as shapefile",
+        "save as geojson", "save as geopackage", "export to shapefile", "export to geojson", "export to geopackage",
+        "export to gpkg", "export to kml", "export the selected", "export only the selected", "write the layer to a file",
+    ],
+)
 def export_layer(layer_name, format, output_path=None, only_selected=None, confirmed=False):  # noqa: A002 -- `format` is the tool's model-facing argument name
     output_path = resolve_output_path(output_path)   # rc22 smoke N3/N8/N9: anchor relative paths to the project (see _paths.py)
     layer = _find_layer_by_name(layer_name)
@@ -402,7 +409,12 @@ def _vector_layers_for_export(layer_names, label):
                "output_path is optional -- omit it to save under the project's data/20_processed folder (or the QGIS profile folder if the "
                "project is not saved yet); a relative path is anchored to the project folder and the reply's output_path is the real location. "
                "At most 20 layers per file. Replacing an existing file asks the user first.",
-               {"type": "object", "properties": {"layer_names": {"type": "array", "items": {"type": "string"}}, "output_path": {"type": "string"}}, "required": ["layer_names"]})
+               {"type": "object", "properties": {"layer_names": {"type": "array", "items": {"type": "string"}}, "output_path": {"type": "string"}}, "required": ["layer_names"]},
+    keywords=[
+        "dxf", "autocad", "cad file", "cad software", "cad format", "for cad", "to cad", "into cad", "civil 3d", "microstation",
+        "draftsman", "engineers can open", "engineer can open",
+    ],
+)
 def export_layers_to_dxf(layer_names, output_path=None, confirmed=False):
     """native:dxfexport behind the same path anchoring, overwrite preview and sensitivity warning as export_layer.
 
@@ -452,7 +464,13 @@ def export_layers_to_dxf(layer_names, output_path=None, confirmed=False):
                "output_path is optional -- omit it to save under the project's data/20_processed folder (or the QGIS profile folder if the "
                "project is not saved yet); a relative path is anchored to the project folder and the reply's output_path is the real location. "
                "At most 20 layers per file. Replacing an existing file asks the user first.",
-               {"type": "object", "properties": {"layer_names": {"type": "array", "items": {"type": "string"}}, "output_path": {"type": "string"}}, "required": ["layer_names"]})
+               {"type": "object", "properties": {"layer_names": {"type": "array", "items": {"type": "string"}}, "output_path": {"type": "string"}}, "required": ["layer_names"]},
+    keywords=[
+        "excel", "xlsx", ".ods", "libreoffice", "open document spreadsheet", "to a spreadsheet", "as a spreadsheet",
+        "into a spreadsheet", "spreadsheet file", "spreadsheet of the", "export to a spreadsheet", "export the table to excel",
+        "one sheet per layer",
+    ],
+)
 def export_layers_to_spreadsheet(layer_names, output_path=None, confirmed=False):
     """native:exporttospreadsheet behind the same path anchoring, overwrite preview and sensitivity warning as export_layer.
 
@@ -639,7 +657,12 @@ def _derive_csv_path(layer, output_path):
                "If features are selected on the layer, only selected features are exported by default. "
                "Point layers get X and Y columns (in the layer's CRS) instead of a WKT column unless "
                "wkt_geometry is true; the file is UTF-8 with a BOM so Excel shows non-ASCII names correctly.",
-               {"type": "object", "properties": {"layer_name": {"type": "string"}, "output_path": {"type": "string"}, "only_selected": {"type": "boolean"}, "wkt_geometry": {"type": "boolean", "description": "Point layers only: write a WKT geometry column instead of X/Y columns."}}, "required": ["layer_name"]})
+               {"type": "object", "properties": {"layer_name": {"type": "string"}, "output_path": {"type": "string"}, "only_selected": {"type": "boolean"}, "wkt_geometry": {"type": "boolean", "description": "Point layers only: write a WKT geometry column instead of X/Y columns."}}, "required": ["layer_name"]},
+    keywords=[
+        "export to csv", "export the table", "save as csv", "save to csv", "export the attribute table", "write a csv",
+        "as a csv file",
+    ],
+)
 def export_to_csv(layer_name, output_path=None, only_selected=None, wkt_geometry=False, confirmed=False):
     output_path = resolve_output_path(output_path)   # rc22 smoke N3/N8/N9: anchor relative paths to the project (see _paths.py)
     layer = _find_layer_by_name(layer_name)
@@ -2245,6 +2268,9 @@ def _load_backdrop(layer_name, tmp_files, size_warnings):
         },
         "required": ["layers"],
     },
+    keywords=[
+        "interactive map", "send to donors", "share with", "web map", "donor briefing", "for stakeholders",
+    ],
 )
 def generate_html_dashboard(layers, title=None, output_path=None, basemap=None, backdrop_layer=None):
     output_path = resolve_output_path(output_path)   # rc22 smoke N3/N8/N9: anchor relative paths to the project (see _paths.py)
@@ -2580,6 +2606,12 @@ def _temporal_subset_expression(start_field, end_field, frame_date_iso):
         },
         "required": ["layer_name", "start_field"],
     },
+    # Integration audit 2026-10-16: this tool had no aliases, so "animate the layer over time" offered it before the temporal tools of package B
+    # existed and stopped offering it once set_layer_temporal / set_project_time_range took the "time" and "layer" word matches.
+    keywords=[
+        "animate", "animation", "animated", "time lapse", "timelapse", "time-lapse", "frames over time", "temporal animation",
+        "over time as frames",
+    ],
 )
 def export_temporal_animation_frames(layer_name, start_field, end_field=None, category_field=None, output_dir=None, step_days=30):
     if not QGIS_AVAILABLE:

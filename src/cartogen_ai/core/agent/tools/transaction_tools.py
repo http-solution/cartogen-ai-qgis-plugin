@@ -34,6 +34,10 @@ def bind_transaction_log(transaction_log):
     "undo_last_operation. Use this before undo_last_operation to see what's actually available "
     "to undo. Also lists undoable calls from the last few earlier messages (marked earlier_turn).",
     {"type": "object", "properties": {}, "required": []},
+    keywords=[
+        "what did you change", "what have you changed", "what did you do", "what have you done", "show the history",
+        "processing history", "show the log of changes", "list the changes you made", "history of changes",
+    ],
 )
 def get_turn_transaction_log():
     if _BOUND["log"] is None:
@@ -66,6 +70,10 @@ def get_turn_transaction_log():
         },
         "required": [],
     },
+    keywords=[
+        "undo", "undo the last", "revert the last", "take that back", "roll back", "go back to before", "undo that",
+        "undo what you just did",
+    ],
 )
 def undo_last_operation(confirmed: bool = False):
     if _BOUND["log"] is None:

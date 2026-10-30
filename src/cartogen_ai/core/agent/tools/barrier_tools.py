@@ -194,6 +194,11 @@ def _affected_layer(network, hit, mode, speed_field, name):
         },
         "required": ["road_network_layer", "barrier_layer"],
     },
+    # Road barriers (see tools/barrier_tools.py). No bare "bridge" or "closed": they would boost this tool on unrelated queries.
+    keywords=[
+        "destroyed bridge", "damaged bridge", "blocked road", "road closure", "closed road", "flooded road", "checkpoint",
+        "barrier", "impassable", "avoid the", "cut off road",
+    ],
 )
 def apply_network_barriers(road_network_layer, barrier_layer, buffer_m=50, mode="block", penalty_factor=0.25,
                            speed_field=None, output_field="barrier_speed"):

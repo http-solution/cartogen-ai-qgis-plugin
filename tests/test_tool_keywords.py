@@ -15,12 +15,24 @@ class TestToolKeywords(unittest.TestCase):
         for name, words in TOOL_KEYWORDS.items():
             self.assertIn(name, registered)
             for word in expand_phrases(words):
-                self.assertEqual(word, word.lower().strip(), f"{name}: {word!r}")
+                # lower-case only: a deliberate leading or trailing space (" is over ") makes the phrase match whole words
+                self.assertEqual(word, word.lower(), f"{name}: {word!r}")
+                self.assertTrue(word.strip(), f"{name}: an empty phrase")
 
     def test_a_phrase_is_declared_in_one_place_only(self):
         for name, words in TOOL_KEYWORDS.items():
             both = set(expand_phrases(words)) & set(expand_phrases(_TOOL_ALIASES.get(name, ())))
             self.assertEqual(both, set(), f"{name} has the same phrase in tool_router._TOOL_ALIASES and in its own keywords")
+
+    def test_no_tool_is_registered_twice(self):
+        """The registry keeps one keyword tuple per name, so a second registration of the same name would silently replace the first's
+        phrases (the same mistake the old duplicate-key test guarded in the central dict)."""
+        names = [t["function"]["name"] for t in TOOLS_SCHEMA]
+        self.assertEqual(sorted({n for n in names if names.count(n) > 1}), [])
+
+    def test_the_curated_phrase_count_has_not_shrunk(self):
+        total = sum(len(tool_router.routing_phrases(n)) for n in tool_router.routing_phrase_tools())
+        self.assertGreaterEqual(total, 2105)   # the count when the central dict was moved into the tools; raise it, never lower it
 
     def test_keywords_are_not_sent_to_the_model(self):
         for tool in TOOLS_SCHEMA:
