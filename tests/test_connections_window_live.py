@@ -1,6 +1,7 @@
 """PLAN-041, real QGIS (CI live job; written without a QGIS install, so CI's first run is its first execution): the Connections window
 builds, lists every connection with a status mark, keeps 'look at a page' separate from 'use this connection', saves keys and the
 choice, and Settings opens it. Nothing here calls a provider or a CLI."""
+import threading
 import unittest
 
 try:
@@ -88,6 +89,50 @@ class TestConnectionsWindow(unittest.TestCase):
         self.assertTrue(dialog.firms_row.text().startswith("●"))
         dialog.accept()
         self.assertEqual(CredentialManager.get_credential("firms"), "firms-key-9999")
+
+    RESULTS = (
+        {"provider": "claude_cli", "label": "Claude Code CLI", "found": False, "path": "", "version": "", "problem": "not found",
+         "state": "missing", "note": ""},
+        {"provider": "codex_cli", "label": "Codex CLI", "found": True, "path": "/bin/codex", "version": "codex-cli 0.165.0", "problem": "",
+         "state": "yes", "note": "Logged in using ChatGPT"},
+        {"provider": "gemini_cli", "label": "Gemini CLI", "found": True, "path": "/bin/gemini", "version": "0.9", "problem": "",
+         "state": "no", "note": ""},
+    )
+
+    def _detecting_dialog(self):
+        from unittest.mock import patch
+
+        from cartogen_ai.infrastructure.providers import cli_bridge_status
+        with patch.object(cli_bridge_status, "detect_all", return_value=list(self.RESULTS)):
+            dialog = self._dialog()
+            for t in threading.enumerate():
+                if t is not threading.current_thread() and t.daemon:
+                    t.join(timeout=5)
+        dialog._on_detected(list(self.RESULTS))  # the queued signal would arrive through the event loop; apply it directly
+        return dialog
+
+    def test_detected_clis_are_listed_and_a_signed_in_one_is_offered_but_never_switched_to_by_itself(self):
+        from cartogen_ai.infrastructure.settings_keys import DEFAULT_PROVIDER
+        dialog = self._detecting_dialog()
+        self.assertIn("not found", dialog._detect_labels["claude_cli"].text())
+        self.assertIn("Codex CLI: found (codex-cli 0.165.0), signed in", dialog._detect_labels["codex_cli"].text())
+        self.assertIn("not signed in", dialog._detect_labels["gemini_cli"].text())
+        self.assertEqual(dialog._active_provider, DEFAULT_PROVIDER, "detection must not change the connection in use")
+        self.assertFalse(dialog._detect_use_buttons["codex_cli"].isHidden())
+        self.assertTrue(dialog._detect_use_buttons["claude_cli"].isHidden())
+        self.assertTrue(dialog._detect_use_buttons["gemini_cli"].isHidden(), "a CLI that is not signed in is not offered")
+
+    def test_using_a_detected_cli_needs_the_acknowledgement_and_then_makes_it_the_connection_in_use(self):
+        dialog = self._detecting_dialog()
+        self.assertIn("tick the box", dialog._detect_labels["codex_cli"].text())
+        self.assertFalse(dialog._detect_use_buttons["codex_cli"].isEnabled())
+        dialog.experimental_cli_checkbox.setChecked(True)
+        self.assertNotIn("tick the box", dialog._detect_labels["codex_cli"].text())
+        self.assertTrue(dialog._detect_use_buttons["codex_cli"].isEnabled())
+        dialog._detect_use_buttons["codex_cli"].click()
+        self.assertEqual(dialog._active_provider, "codex_cli")
+        self.assertEqual(dialog.provider_stack.currentIndex(), dialog._page_index["codex_cli"])
+        self.assertTrue(dialog._detect_use_buttons["codex_cli"].isHidden(), "no Use button for the connection already in use")
 
     def test_settings_shows_the_connection_in_use_and_no_longer_has_the_connection_widgets(self):
         from cartogen_ai.core.ui.settings_dialog import CartogenAiSettingsDialog

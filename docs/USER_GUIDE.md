@@ -53,6 +53,11 @@ what's new/available stays easy to find without having to go looking for it.
    automatically, based on the request's wording and length. (Ollama always uses
    whatever model you pick; local models aren't a cost concern the auto-router needs
    to optimize for.)
+   When the window opens it also looks for the Claude Code, Codex and Gemini programs on your
+   computer and shows, under **Found on this computer**, which are installed and whether you
+   are signed in. This asks no model anything. A signed-in one gets a **Use** button (after you
+   tick the box under "Your own CLI login"); nothing is switched for you, because a CLI sends
+   your conversation to that vendor.
 5. Press **Use this connection** and then OK. You can switch providers anytime from the small
    dropdown in the dock header without reopening the window. A mark beside each connection in
    the list shows whether it has a key or program set (●), has been checked this session (✓),

@@ -33,6 +33,83 @@ class TestDetect(unittest.TestCase):
         self.assertEqual(info["problem"], "timed out")
 
 
+class TestSigninStatus(unittest.TestCase):
+    """Detecting a signed-in CLI without asking a model anything (no tokens). run_cli is mocked, so nothing real is started."""
+
+    def _status(self, provider, code, out="", err=""):
+        with patch.object(cb, "run_cli", return_value=(code, out, err)) as run:
+            return st.signin_status(provider, "/bin/x"), run
+
+    def test_codex_logged_in_reads_the_owners_real_wording(self):
+        result, run = self._status("codex_cli", 0, "Logged in using ChatGPT\n")
+        self.assertEqual(result["state"], "yes")
+        self.assertEqual(run.call_args.args[0], ["/bin/x", "login", "status"])
+
+    def test_codex_not_logged_in(self):
+        self.assertEqual(self._status("codex_cli", 1, "Not logged in\n")[0]["state"], "no")
+
+    def test_codex_unreadable_output_is_unknown_not_a_guess(self):
+        self.assertEqual(self._status("codex_cli", 2, "something else")[0]["state"], "unknown")
+
+    def test_claude_reads_the_logged_in_flag(self):
+        yes, run = self._status("claude_cli", 0, '{"loggedIn": true, "authMethod": "claude.ai", "email": "a@b.c"}')
+        self.assertEqual(yes["state"], "yes")
+        self.assertEqual(run.call_args.args[0], ["/bin/x", "auth", "status"])
+        self.assertNotIn("a@b.c", yes["note"], "the account e-mail must not be copied into the window")
+        self.assertEqual(self._status("claude_cli", 1, '{"loggedIn": false}')[0]["state"], "no")
+
+    def test_claude_with_no_status_command_is_unknown(self):
+        self.assertEqual(self._status("claude_cli", 1, "", "error: unknown command 'auth'")[0]["state"], "unknown")
+
+    def test_gemini_is_likely_only_when_a_saved_login_file_exists_and_it_is_never_read(self):
+        import os
+        import tempfile
+        with tempfile.TemporaryDirectory() as home, patch.dict(os.environ, {"HOME": home, "USERPROFILE": home}):
+            self.assertEqual(st.signin_status("gemini_cli", "/bin/x")["state"], "unknown")
+            os.makedirs(os.path.join(home, ".gemini"))
+            with open(os.path.join(home, ".gemini", "oauth_creds.json"), "w") as f:
+                f.write("SECRET-TOKEN")
+            result = st.signin_status("gemini_cli", "/bin/x")
+        self.assertEqual(result["state"], "likely")
+        self.assertNotIn("SECRET-TOKEN", str(result))
+
+    def test_a_program_that_fails_to_run_is_unknown_not_raised(self):
+        with patch.object(cb, "run_cli", side_effect=cb.CliBridgeError("timed out")):
+            self.assertEqual(st.signin_status("codex_cli", "/bin/x")["state"], "unknown")
+
+
+class TestDetectAll(unittest.TestCase):
+    def test_reports_every_cli_in_a_fixed_order_with_missing_ones_marked(self):
+        def fake_detect(provider, configured=""):
+            if provider == "codex_cli":
+                return {"found": True, "path": "/bin/codex", "version": "codex-cli 0.165.0", "problem": ""}
+            return {"found": False, "path": "", "version": "", "problem": "not found"}
+        with patch.object(st, "detect", side_effect=fake_detect), \
+             patch.object(st, "signin_status", return_value={"state": "yes", "note": "Logged in using ChatGPT"}):
+            result = st.detect_all({})
+        self.assertEqual([e["provider"] for e in result], ["claude_cli", "codex_cli", "gemini_cli"])
+        by = {e["provider"]: e for e in result}
+        self.assertEqual(by["claude_cli"]["state"], "missing")
+        self.assertEqual(by["codex_cli"]["state"], "yes")
+        self.assertEqual(st.describe(by["codex_cli"]), "Codex CLI: found (codex-cli 0.165.0), signed in")
+        self.assertEqual(st.describe(by["claude_cli"]), "Claude Code CLI: not found on this computer")
+
+    def test_no_model_is_asked_anything_while_detecting(self):
+        with patch.object(st, "detect", return_value={"found": True, "path": "/bin/x", "version": "v", "problem": ""}), \
+             patch.object(st, "signin_status", return_value={"state": "unknown", "note": ""}), \
+             patch.object(cb.ClaudeCliClient, "complete") as claude, patch.object(cb.CodexCliClient, "complete") as codex, \
+             patch.object(cb.GeminiCliClient, "complete") as gemini:
+            st.detect_all({})
+        for client in (claude, codex, gemini):
+            client.assert_not_called()
+
+    def test_only_a_signed_in_cli_is_offered_for_use(self):
+        base = {"label": "X", "found": True, "path": "/p", "version": "", "problem": "", "note": ""}
+        for state, expected in (("yes", True), ("likely", True), ("no", False), ("unknown", False), ("missing", False)):
+            self.assertEqual(st.usable({**base, "state": state}), expected, state)
+        self.assertFalse(st.usable({**base, "found": False, "state": "yes"}))
+
+
 class TestStage(unittest.TestCase):
     def test_which_step_failed(self):
         self.assertEqual(st.stage_of("Claude Code CLI not found. Install it"), "install")

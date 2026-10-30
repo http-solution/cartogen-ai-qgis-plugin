@@ -1547,7 +1547,7 @@
   },
   {
     "id": "connections-window",
-    "feature": "the model connection (hosted API keys, Ollama, a signed-in CLI) and the NASA FIRMS key are set up in their own Connections window, opened from Plugins > Cartogen AI > Connections... or from Settings: a list of every connection with a status mark and an in-use tag on the left, the selected connection's page on the right, and looking at a page never changes the connection in use until Use this connection and OK; Settings only shows which connection is in use and never writes it",
+    "feature": "the model connection (hosted API keys, Ollama, a signed-in CLI) and the NASA FIRMS key are set up in their own Connections window, opened from Plugins > Cartogen AI > Connections... or from Settings: a list of every connection with a status mark and an in-use tag on the left, the selected connection's page on the right, and looking at a page never changes the connection in use until Use this connection and OK; Settings only shows which connection is in use and never writes it; when the window opens it looks for the Claude Code, Codex and Gemini CLIs already installed and signed in (version and sign-in status commands only, no model call) and offers a Use button for a signed-in one, never switching to it by itself and only after the CLI acknowledgement box is ticked",
     "issues": [],
     "since": "1.18.6",
     "sources": [
@@ -1564,7 +1564,12 @@
       "tests/test_settings_sections.py::TestSections::test_the_connection_settings_left_for_the_connections_window",
       "tests/test_connections_window_live.py::TestConnectionsWindow::test_looking_at_a_page_changes_the_page_but_not_the_connection_in_use",
       "tests/test_connections_window_live.py::TestConnectionsWindow::test_a_typed_key_changes_the_row_mark_and_ok_saves_the_key_the_choice_and_the_model",
-      "tests/test_connections_window_live.py::TestConnectionsWindow::test_settings_ok_does_not_overwrite_the_connection_chosen_in_the_connections_window"
+      "tests/test_connections_window_live.py::TestConnectionsWindow::test_settings_ok_does_not_overwrite_the_connection_chosen_in_the_connections_window",
+      "tests/test_connections_window_live.py::TestConnectionsWindow::test_detected_clis_are_listed_and_a_signed_in_one_is_offered_but_never_switched_to_by_itself",
+      "tests/test_connections_window_live.py::TestConnectionsWindow::test_using_a_detected_cli_needs_the_acknowledgement_and_then_makes_it_the_connection_in_use",
+      "tests/test_cli_bridge_status.py::TestSigninStatus::test_codex_logged_in_reads_the_owners_real_wording",
+      "tests/test_cli_bridge_status.py::TestDetectAll::test_no_model_is_asked_anything_while_detecting",
+      "tests/test_connections_window.py::TestDetection::test_detection_never_switches_the_connection_by_itself"
     ],
     "hand_verified": "not verified: CI only (nobody has opened the window; the layout has never been looked at)",
     "hand_row": "SPIKE-1 (open Plugins > Cartogen AI > Connections..., look at each page, press Use this connection, OK, and check the panel dropdown)"

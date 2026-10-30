@@ -60,6 +60,7 @@ def _extra_bin_dirs():
                  # Codex's own Windows installer, not npm (user report 2026-10-30: `Get-Command codex` gave this folder and Cartogen
                  # said "Codex CLI not found" because it was in none of the folders above).
                  os.path.join(local, "Programs", "OpenAI", "Codex", "bin"),
+                 os.path.join(local, "Microsoft", "WinGet", "Links"),  # where winget puts the shims of the CLIs it installs
                  os.path.join(os.environ.get("PROGRAMFILES", r"C:\Program Files"), "nodejs")]
         nvm = os.environ.get("NVM_SYMLINK")
         if nvm:

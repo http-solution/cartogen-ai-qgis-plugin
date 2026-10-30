@@ -4,6 +4,7 @@ is the program there, which version, is the user signed in, and how do they sign
 Status: UNVERIFIED against a real signed-in CLI, like cli_bridge.py. `--version` is assumed to exist on all three CLIs (it is
 conventional; not read in their docs for each). The terminal launch is untested on every platform: it is attempted only when the program
 path is made of plain characters, and otherwise the caller shows the command for the user to run themselves."""
+import json
 import os
 import re
 import shutil
@@ -22,6 +23,7 @@ _SPECS = {
 DEFAULT_PROGRAM = {"claude_cli": "claude", "codex_cli": "codex", "gemini_cli": "gemini"}
 _PLAIN_PATH = re.compile(r"^[A-Za-z0-9_./\\:+-]+$")  # no spaces, quotes or shell characters: safe to hand to a terminal launcher
 CHECK_PROMPT = "Reply with the single word: ok"
+LABELS = {"claude_cli": "Claude Code CLI", "codex_cli": "Codex CLI", "gemini_cli": "Gemini CLI"}
 
 
 def install_hint(provider):
@@ -69,6 +71,75 @@ def detect(provider, configured="", timeout=15):
     if code != 0 and not first:
         return {"found": True, "path": path, "version": "", "problem": f"'{os.path.basename(path)} --version' exited with status {code}."}
     return {"found": True, "path": path, "version": first[:80], "problem": ""}
+
+
+def signin_status(provider, path, timeout=15):
+    """Is the user signed in to this CLI? Asks the program itself, with no model call and no tokens. Returns {'state', 'note'} where state
+    is 'yes', 'no', 'likely' or 'unknown'; never raises.
+
+    UNVERIFIED except the Codex 'logged in' case (`codex login status` printed "Logged in using ChatGPT" on the owner's machine,
+    2026-10-30). `claude auth status` and the Gemini file check are from the CLIs' public behaviour, not run here; when the answer cannot
+    be read the state is 'unknown' rather than a guess, and Check connection stays the one test that proves the login works."""
+    try:
+        if provider == "codex_cli":
+            code, out, err = cb.run_cli([path, "login", "status"], "", timeout=timeout, max_output_bytes=64 * 1024)
+            text = " ".join((out or err or "").split())
+            low = text.lower()
+            if "not logged in" in low or "logged out" in low:
+                return {"state": "no", "note": text[:120]}
+            if code == 0 and "logged in" in low:
+                return {"state": "yes", "note": text[:120]}
+            return {"state": "unknown", "note": text[:120]}
+        if provider == "claude_cli":
+            code, out, err = cb.run_cli([path, "auth", "status"], "", timeout=timeout, max_output_bytes=64 * 1024)
+            try:
+                data = json.loads(out)
+            except ValueError:
+                data = None
+            if isinstance(data, dict) and isinstance(data.get("loggedIn"), bool):
+                method = str(data.get("authMethod") or "").strip()
+                return {"state": "yes" if data["loggedIn"] else "no", "note": f"sign-in method: {method}" if method else ""}
+            low = " ".join((out or err or "").split()).lower()
+            if "not logged in" in low or "not signed in" in low:
+                return {"state": "no", "note": ""}
+            return {"state": "unknown", "note": ""}
+        if provider == "gemini_cli":
+            # The Gemini CLI has no status command; its Google sign-in is saved under ~/.gemini. Existence only, the file is never read.
+            saved = os.path.isfile(os.path.join(os.path.expanduser("~"), ".gemini", "oauth_creds.json"))
+            return {"state": "likely" if saved else "unknown", "note": "a saved Google login was found" if saved else ""}
+    except cb.CliBridgeError as e:
+        return {"state": "unknown", "note": str(e)[:120]}
+    return {"state": "unknown", "note": ""}
+
+
+def detect_all(configured=None):
+    """Looks for every CLI provider on this computer: program found, version, and whether the user is signed in. `configured` maps a
+    provider to the program text from the form (blank = the default name). Runs `--version` and a sign-in status command per CLI found;
+    no model call, nothing sent anywhere. Returns a list of dicts in a fixed order."""
+    configured = configured or {}
+    out = []
+    for provider in _SPECS:
+        info = detect(provider, configured.get(provider, ""))
+        sign = signin_status(provider, info["path"]) if info["found"] else {"state": "missing", "note": ""}
+        out.append({"provider": provider, "label": LABELS[provider], "found": info["found"], "path": info["path"],
+                    "version": info["version"], "problem": info["problem"], "state": sign["state"], "note": sign["note"]})
+    return out
+
+
+_STATE_TEXT = {"yes": "signed in", "likely": "probably signed in", "no": "not signed in", "unknown": "sign-in not confirmed"}
+
+
+def describe(entry):
+    """One line for the 'Found on this computer' list."""
+    if not entry["found"]:
+        return f"{entry['label']}: not found on this computer"
+    version = f" ({entry['version']})" if entry["version"] else ""
+    return f"{entry['label']}: found{version}, {_STATE_TEXT.get(entry['state'], 'sign-in not confirmed')}"
+
+
+def usable(entry):
+    """Worth offering a 'Use' button: the program is there and a sign-in was found (or is likely)."""
+    return bool(entry["found"]) and entry["state"] in ("yes", "likely")
 
 
 def stage_of(error_text):
