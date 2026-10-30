@@ -76,9 +76,25 @@ class TestDetection(unittest.TestCase):
         self.assertIn('if entry["found"]:', body)
         self.assertIn("edit.setText(entry[\"path\"])", body)
 
-    def test_using_a_detected_cli_still_needs_the_acknowledgement_box(self):
-        body = DIALOG[DIALOG.index("    def _on_cli_ack_toggled"):DIALOG.index("    @staticmethod\n    def _cli_quick_status")]
-        self.assertIn("self._use_buttons[pv].setEnabled(checked)", body)
+    def test_unticking_the_acknowledgement_withdraws_the_consent(self):
+        body = DIALOG[DIALOG.index("    def _on_cli_ack_toggled"):DIALOG.index("    # ----", DIALOG.index("    def _on_cli_ack_toggled"))]
+        self.assertIn("self._use_provider(DEFAULT_PROVIDER)", body)
+
+    def test_the_guided_setup_only_runs_after_the_user_pressed_the_button_and_agreed(self):
+        """Polling for a sign-in and the automatic test and use start only from _cli_primary, after the consent question."""
+        for name in ("_start_detect", "_on_detected", "_apply_detection"):
+            start = DIALOG.index(f"    def {name}")
+            body = DIALOG[start:DIALOG.index("\n    def ", start + 10)]
+            self.assertNotIn("_start_poll(", body, name)
+            self.assertNotIn("_connect_after_check =", body, name)
+        self.assertEqual(DIALOG.count("self._start_poll(provider)"), 1)
+        start = DIALOG.index("    def _after_poll_detection")
+        body = DIALOG[start:DIALOG.index("\n    def ", start + 10)]
+        self.assertIn("if provider is None:\n            return", body)
+
+    def test_the_poll_stops_when_the_window_closes_and_gives_up_after_five_minutes(self):
+        self.assertIn("def done(self, result):\n        self._stop_poll()", DIALOG)
+        self.assertIn("_POLL_GIVE_UP = 300", DIALOG)
 
 
 class TestGeminiCliIsGone(unittest.TestCase):

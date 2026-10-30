@@ -17,13 +17,35 @@ from . import cli_locator
 
 # provider -> (constructor, command that starts the sign-in, hint shown when the program is missing)
 _SPECS = {
-    "claude_cli": (cb.ClaudeCliClient, [], "Install Claude Code, then run `claude` once in a terminal and sign in."),
+    # `claude auth status` is confirmed on the owner's machine (Claude Code 2.1.314, 2026-10-30), so `claude auth login`, the same command
+    # group, is used for the sign-in; it was not run from the sandbox.
+    "claude_cli": (cb.ClaudeCliClient, ["auth", "login"], "Install Claude Code, then run `claude auth login` in a terminal and sign in."),
     "codex_cli": (cb.CodexCliClient, ["login"], "Install the Codex CLI, then run `codex login`."),
 }
 DEFAULT_PROGRAM = {"claude_cli": "claude", "codex_cli": "codex"}
 _PLAIN_PATH = re.compile(r"^[A-Za-z0-9_./\\:+-]+$")  # no spaces, quotes or shell characters: safe to hand to a terminal launcher
 CHECK_PROMPT = "Reply with the single word: ok"
 LABELS = {"claude_cli": "Claude Code CLI", "codex_cli": "Codex CLI"}
+VENDORS = {"claude_cli": "Anthropic", "codex_cli": "OpenAI"}
+
+# How to install each CLI, from the vendors' own pages as found by search on 2026-10-30 (Claude Code: its install script and npm package;
+# Codex: the openai/codex README's PowerShell installer, the npm package and the Homebrew cask). Shown to the user to copy and run
+# themselves: the plugin never runs an installer. Not run from the sandbox.
+_INSTALL = {
+    "claude_cli": {"windows": ["irm https://claude.ai/install.ps1 | iex", "npm install -g @anthropic-ai/claude-code"],
+                   "mac": ["curl -fsSL https://claude.ai/install.sh | bash", "npm install -g @anthropic-ai/claude-code"],
+                   "linux": ["curl -fsSL https://claude.ai/install.sh | bash", "npm install -g @anthropic-ai/claude-code"]},
+    "codex_cli": {"windows": ["irm https://chatgpt.com/codex/install.ps1 | iex", "npm install -g @openai/codex"],
+                  "mac": ["brew install --cask codex", "npm install -g @openai/codex"],
+                  "linux": ["npm install -g @openai/codex"]},
+}
+
+
+def install_commands(provider, platform=None):
+    """The commands that install this CLI on this OS, best first."""
+    platform = platform or sys.platform
+    key = "windows" if platform.startswith("win") else ("mac" if platform == "darwin" else "linux")
+    return list(_INSTALL[provider][key])
 
 
 def install_hint(provider):
@@ -147,6 +169,43 @@ def describe(entry, short=False):
         return f"Found {entry['version']} \u00b7 {state}" if entry["version"] else f"Found \u00b7 {state}"
     version = f", {entry['version']}" if entry["version"] else ""
     return f"{entry['label']}: found{version}, {state}"
+
+
+def setup_step(entry, verified=False, active=False, platform=None):
+    """The next thing the user has to do to get this CLI working, for the guided setup on its page. Returns {'kind', 'button', 'detail',
+    'command'}; kind is one of 'install', 'signin', 'verify', 'ready', 'in_use'. `entry` is a `detect_all` result (None = not looked yet).
+    Pure; the window decides what pressing the button does."""
+    if entry is None:
+        return {"kind": "looking", "button": "Looking...", "detail": "", "command": ""}
+    label = entry["label"]
+    if not entry["found"]:
+        commands = install_commands(entry["provider"], platform)
+        return {"kind": "install", "button": "Copy install command", "command": commands[0],
+                "detail": f"{label} is not installed. Install it by running this in a terminal, then press Detect again:\n  "
+                          + "\n  or ".join(commands)}
+    if active:
+        return {"kind": "in_use", "button": "In use", "detail": f"{label} is the connection in use. Press OK to save.", "command": ""}
+    if verified:
+        return {"kind": "ready", "button": "Use this connection", "detail": "Connected: it answered a test question.", "command": ""}
+    if entry["state"] == "no":
+        return {"kind": "signin", "button": "Sign in...", "command": "",
+                "detail": f"{label} is installed but you are not signed in. A terminal opens for the sign-in; this window notices when you "
+                          "finish, tests the connection and starts using it."}
+    if entry["state"] in ("yes", "likely"):
+        return {"kind": "verify", "button": "Connect", "command": "",
+                "detail": "Signed in. Connect asks it one short test question (a few tokens of your own plan), then starts using it."}
+    return {"kind": "verify", "button": "Connect", "command": "",
+            "detail": "The sign-in status could not be read. Connect tests it with one short question; if you are not signed in you are "
+                      "taken to the sign-in."}
+
+
+def consent_text(provider):
+    """What the user agrees to before the plugin runs their CLI as the model (shown in a confirmation, once per window)."""
+    label, vendor = LABELS[provider], VENDORS[provider]
+    return (f"Use {label} as the model?\n\nCartogen AI will run the {DEFAULT_PROGRAM[provider]} program on this computer with your own "
+            f"login. The conversation, including any layer or attribute data a tool surfaces, is sent to {vendor}'s service, so treat it "
+            "as a cloud provider and check that your plan's terms allow this use. Cartogen AI never sees or stores your login. "
+            "This is experimental.")
 
 
 def usable(entry):

@@ -151,16 +151,113 @@ class TestConnectionsWindow(unittest.TestCase):
         dialog._on_detected(results)
         self.assertEqual(dialog._key_edits["codex_cli"].text(), "/bin/codex")
 
-    def test_using_a_cli_needs_the_acknowledgement_and_then_makes_it_the_connection_in_use(self):
+    # ---- the guided setup of a CLI: install -> sign in -> connect -> use
+
+    def _guided(self, results):
         dialog = self._detecting_dialog()
-        self.assertFalse(dialog._use_buttons["codex_cli"].isEnabled())
-        self.assertFalse(dialog._cli_ack_notes["codex_cli"].isHidden())
-        dialog.experimental_cli_checkbox.setChecked(True)
-        self.assertTrue(dialog._use_buttons["codex_cli"].isEnabled())
-        self.assertTrue(dialog._cli_ack_notes["codex_cli"].isHidden())
+        dialog._on_detected([dict(r) for r in results])
+        self.consent_asked = []
+
+        def consent(provider):
+            self.consent_asked.append(provider)
+            return self.consent_answer
+        self.consent_answer = True
+        dialog._confirm_cli_consent = consent
+        return dialog
+
+    def test_each_cli_page_button_follows_the_step_the_cli_is_at(self):
+        dialog = self._guided(self.RESULTS)
+        self.assertEqual(dialog._use_buttons["claude_cli"].text(), "Copy install command")
+        self.assertIn("is not installed", dialog._step_details["claude_cli"].text())
+        self.assertEqual(dialog._use_buttons["codex_cli"].text(), "Connect")
+        signed_out = [dict(r) for r in self.RESULTS]
+        signed_out[1]["state"] = "no"
+        dialog._on_detected(signed_out)
+        self.assertEqual(dialog._use_buttons["codex_cli"].text(), "Sign in...")
+        dialog._verified_cli.add("codex_cli")
+        dialog._on_detected([dict(r) for r in self.RESULTS])
+        self.assertEqual(dialog._use_buttons["codex_cli"].text(), "Use this connection")
+
+    def test_the_install_step_copies_the_command_and_asks_nothing(self):
+        from qgis.PyQt.QtWidgets import QApplication
+        dialog = self._guided(self.RESULTS)
+        dialog._use_buttons["claude_cli"].click()
+        self.assertTrue(QApplication.clipboard().text())
+        self.assertEqual(self.consent_asked, [], "copying a command needs no consent")
+        self.assertIn("copied", dialog._cli_status_labels["claude_cli"].text())
+
+    def test_connect_asks_consent_then_tests_and_then_uses_the_cli_by_itself(self):
+        dialog = self._guided(self.RESULTS)
+        checked = []
+        dialog._check_cli = checked.append
         dialog._use_buttons["codex_cli"].click()
+        self.assertEqual(self.consent_asked, ["codex_cli"])
+        self.assertTrue(dialog.experimental_cli_checkbox.isChecked())
+        self.assertEqual(checked, ["codex_cli"])
+        self.assertNotEqual(dialog._active_provider, "codex_cli", "not in use until the test answered")
+        dialog._on_cli_check("codex_cli", {"ok": True, "stage": "ready", "message": "ok", "version": "v"})
         self.assertEqual(dialog._active_provider, "codex_cli")
-        self.assertTrue(dialog._use_buttons["codex_cli"].isHidden(), "no Use button for the connection already in use")
+        self.assertIn("codex_cli", dialog._verified_cli)
+        self.assertIn("in use", dialog._cli_status_labels["codex_cli"].text())
+
+    def test_declining_the_consent_does_nothing(self):
+        dialog = self._guided(self.RESULTS)
+        self.consent_answer = False
+        started = []
+        dialog._check_cli = started.append
+        dialog._use_buttons["codex_cli"].click()
+        self.assertEqual(self.consent_asked, ["codex_cli"])
+        self.assertEqual(started, [])
+        self.assertFalse(dialog.experimental_cli_checkbox.isChecked())
+        self.assertIsNone(dialog._connect_after_check)
+
+    def test_a_failed_test_that_says_not_signed_in_moves_the_cli_to_the_sign_in_step(self):
+        dialog = self._guided(self.RESULTS)
+        dialog._check_cli = lambda p: None
+        dialog._use_buttons["codex_cli"].click()
+        dialog._on_cli_check("codex_cli", {"ok": False, "stage": "signin", "message": "401 Unauthorized"})
+        self.assertEqual(dialog._use_buttons["codex_cli"].text(), "Sign in...")
+        self.assertNotEqual(dialog._active_provider, "codex_cli")
+
+    def test_signing_in_opens_the_terminal_waits_notices_the_login_and_connects(self):
+        from unittest.mock import patch
+
+        from cartogen_ai.infrastructure.providers import cli_bridge_status as st
+        signed_out = [dict(r) for r in self.RESULTS]
+        signed_out[1]["state"] = "no"
+        dialog = self._guided(signed_out)
+        tested = []
+        dialog._check_cli = tested.append
+        with patch.object(st, "open_signin_terminal", return_value={"launched": True, "command": "codex login", "message": "terminal opened"}) as opened:
+            dialog._use_buttons["codex_cli"].click()
+        opened.assert_called_once()
+        self.assertEqual(dialog._poll_provider, "codex_cli")
+        self.assertTrue(dialog._poll_timer.isActive())
+        dialog._on_detected(signed_out)  # still not signed in: keeps waiting
+        self.assertTrue(dialog._poll_timer.isActive())
+        self.assertEqual(tested, [])
+        dialog._on_detected([dict(r) for r in self.RESULTS])  # the user finished signing in
+        self.assertFalse(dialog._poll_timer.isActive())
+        self.assertEqual(tested, ["codex_cli"])
+        dialog._on_cli_check("codex_cli", {"ok": True, "stage": "ready", "message": "ok", "version": "v"})
+        self.assertEqual(dialog._active_provider, "codex_cli")
+
+    def test_the_wait_gives_up_and_closing_the_window_stops_it(self):
+        dialog = self._guided(self.RESULTS)
+        dialog._start_poll("codex_cli")
+        dialog._poll_deadline = 0.0
+        dialog._on_poll()
+        self.assertIsNone(dialog._poll_provider)
+        self.assertIn("Still not signed in", dialog._cli_status_labels["codex_cli"].text())
+        dialog._start_poll("codex_cli")
+        dialog.reject()
+        self.assertFalse(dialog._poll_timer.isActive())
+
+    def test_editing_the_program_path_withdraws_a_verification(self):
+        dialog = self._guided(self.RESULTS)
+        dialog._verified_cli.add("codex_cli")
+        dialog._key_edits["codex_cli"].setText("/somewhere/else/codex")
+        self.assertNotIn("codex_cli", dialog._verified_cli)
 
     def test_settings_shows_the_connection_in_use_and_no_longer_has_the_connection_widgets(self):
         from cartogen_ai.core.ui.settings_dialog import CartogenAiSettingsDialog

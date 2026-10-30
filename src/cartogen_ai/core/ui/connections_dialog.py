@@ -14,8 +14,9 @@ import contextlib
 import json
 import os
 import threading
+import time
 
-from qgis.PyQt.QtCore import pyqtSignal, Qt
+from qgis.PyQt.QtCore import pyqtSignal, Qt, QTimer
 from qgis.PyQt.QtWidgets import (
     QDialog, QVBoxLayout, QLabel, QMessageBox, QApplication, QLineEdit, QComboBox, QFormLayout, QDialogButtonBox, QStackedWidget,
     QWidget, QCheckBox, QHBoxLayout, QPushButton, QScrollArea, QFrame, QListWidget, QListWidgetItem, QFileDialog,
@@ -47,6 +48,8 @@ _LIST_GROUPS = (
     ("data", "DATA SERVICES"),
 )
 _MARKS = {"verified": "\u2713", "set": "\u25cf", "unset": "\u25cb"}
+_POLL_SECONDS = 3         # how often the window looks again while the user is signing in in a terminal
+_POLL_GIVE_UP = 300       # and for how long
 
 
 class CartogenAiConnectionsDialog(QDialog):
@@ -80,7 +83,11 @@ class CartogenAiConnectionsDialog(QDialog):
         self._row_items = {}          # the list on the left: one item per connection (the item that is current is the page shown)
         self._use_buttons = {}        # "Use this connection" on each page
         self._in_use_labels = {}      # "In use" tag on each page
-        self._cli_ack_notes = {}      # "tick the box to use this" on each CLI page
+        self._step_details = {}       # the "what to do next" line on each CLI page
+        self._verified_cli = set()    # CLIs that answered a test question in this window session
+        self._poll_provider = None    # the CLI whose sign-in the window is waiting for
+        self._poll_deadline = 0.0
+        self._connect_after_check = None  # use this CLI as soon as its test answers
         self._page_index = {}
         # A provider only enters this set after a real _on_models_fetched success in THIS window session: a saved key that has not been
         # exercised this session is "set", not "verified" -- the window cannot know a key still works without calling the provider, so
@@ -95,6 +102,9 @@ class CartogenAiConnectionsDialog(QDialog):
         self.cli_check_signal.connect(self._on_cli_check)
         self.api_check_signal.connect(self._on_api_check)
         self.detect_signal.connect(self._on_detected)
+        self._poll_timer = QTimer(self)
+        self._poll_timer.setInterval(_POLL_SECONDS * 1000)
+        self._poll_timer.timeout.connect(self._on_poll)
         self.init_ui()
         self._start_detect()
 
@@ -281,16 +291,13 @@ QPushButton#settingsCancelButton {{
         use_btn.setObjectName("primaryAction")
         use_btn.setToolTip("Makes this the connection the assistant uses. Nothing changes until you press OK.")
         if group == "cli":
-            use_btn.setEnabled(self.experimental_cli_checkbox.isChecked())
-        use_btn.clicked.connect(lambda _checked=False, p=pv: self._use_provider(p))
+            # On a CLI page this one button is the next step of the guided setup (install, sign in, connect, use); its text follows the
+            # step (cli_bridge_status.setup_step), and _cli_primary does what it says.
+            use_btn.clicked.connect(lambda _checked=False, p=pv: self._cli_primary(p))
+        else:
+            use_btn.clicked.connect(lambda _checked=False, p=pv: self._use_provider(p))
         use_row.addWidget(use_btn)
         self._use_buttons[pv] = use_btn
-        if group == "cli":
-            ack_note = QLabel("Tick \u201cAllow CLI logins\u201d under the list to use this.")
-            ack_note.setStyleSheet("color: gray; font-size: 11px;")
-            ack_note.setVisible(not self.experimental_cli_checkbox.isChecked())
-            use_row.addWidget(ack_note)
-            self._cli_ack_notes[pv] = ack_note
         use_row.addStretch(1)
         col.addLayout(use_row)
         if group == "cli":
@@ -308,6 +315,12 @@ QPushButton#settingsCancelButton {{
             self._detect_buttons[pv] = detect_btn
             detect_row.addWidget(detect_btn)
             col.addLayout(detect_row)
+            step_detail = QLabel("")
+            step_detail.setWordWrap(True)
+            step_detail.setStyleSheet("color: gray; font-size: 11px;")
+            step_detail.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+            self._step_details[pv] = step_detail
+            col.addWidget(step_detail)
 
         page_form = QFormLayout()
         page_form.setContentsMargins(0, 8, 0, 2)
@@ -375,6 +388,7 @@ QPushButton#settingsCancelButton {{
             button_holder.setLayout(button_row)
             page_form.addRow("", button_holder)
             key_edit.textChanged.connect(lambda text, p=pv: self._cli_status_labels[p].setText(self._cli_quick_status(p, text)))
+            key_edit.textChanged.connect(lambda _text="", p=pv: self._forget_verified(p))
 
         if not is_setting and pv in _provider_check.TESTABLE:
             test_btn = QPushButton("Test")
@@ -475,6 +489,10 @@ QPushButton#settingsCancelButton {{
 
     # ----------------------------------------------------------- list and choice
 
+    def done(self, result):
+        self._stop_poll()  # no timer keeps running after the window is closed
+        super().done(result)
+
     def _on_row_changed(self, current, _previous):
         pv = current.data(Qt.ItemDataRole.UserRole) if current is not None else None
         if pv:
@@ -533,6 +551,8 @@ QPushButton#settingsCancelButton {{
             item.setFont(font)
             self._in_use_labels[pv].setVisible(active)
             self._use_buttons[pv].setVisible(not active)
+        for cli in self._step_details:
+            self._refresh_cli_step(cli)
         self._row_items[FIRMS_KEY].setText(f"{_MARKS[self._row_mark(FIRMS_KEY)]}  NASA FIRMS")
         entry = next((e for e in self._providers if e["value"] == self._active_provider), None)
         if entry is not None:
@@ -570,6 +590,7 @@ QPushButton#settingsCancelButton {{
             button.setEnabled(True)
         self._detected = {entry["provider"]: entry for entry in results}
         self._apply_detection()
+        self._after_poll_detection()
 
     def _apply_detection(self):
         """Writes each result on its CLI page and into the list marks. Nothing is switched automatically: a CLI sends the conversation to
@@ -604,17 +625,105 @@ QPushButton#settingsCancelButton {{
             self._start_detect()
 
     def _on_cli_ack_toggled(self, checked):
-        """Ticking the acknowledgement enables the CLI pages' 'Use this connection' buttons; unticking disables them and, if a CLI was the
-        connection in use, moves the choice back to the default provider so Save cannot store a provider this window no longer offers."""
-        for entry in self._providers:
-            if _group_of(entry) == "cli":
-                pv = entry["value"]
-                self._use_buttons[pv].setEnabled(checked)
-                self._cli_ack_notes[pv].setVisible(not checked)
+        """Unticking the box withdraws the consent: if a CLI was the connection in use the choice goes back to the default provider so Save
+        cannot store a provider this window no longer offers. Ticking it is only the saved setting; the guided setup asks for the consent
+        itself the first time a CLI is connected."""
         if not checked and self._active_provider in _cli_status.DEFAULT_PROGRAM:
             self._use_provider(DEFAULT_PROVIDER)
             self._show_provider(DEFAULT_PROVIDER)
         self._refresh_rows()
+
+    # ------------------------------------------------------- guided setup of a CLI
+
+    def _forget_verified(self, provider):
+        if provider in self._verified_cli:
+            self._verified_cli.discard(provider)
+            self._refresh_rows()
+
+    def _refresh_cli_step(self, provider):
+        button = self._use_buttons.get(provider)
+        if button is None:
+            return
+        step = _cli_status.setup_step(self._detected.get(provider), provider in self._verified_cli, provider == self._active_provider)
+        button.setText(step["button"])
+        button.setEnabled(step["kind"] != "looking" and provider not in self._cli_checking)
+        self._step_details[provider].setText(step["detail"])
+
+    def _confirm_cli_consent(self, provider):
+        """Asks the user to agree to a CLI being used as the model (the conversation goes to that vendor). A method of its own so a test can
+        answer it without a dialog."""
+        box = QMessageBox(self)
+        box.setWindowTitle("Cartogen AI")
+        box.setIcon(QMessageBox.Icon.Question)
+        box.setText(_cli_status.consent_text(provider))
+        box.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel)
+        box.setDefaultButton(QMessageBox.StandardButton.Cancel)
+        return box.exec() == QMessageBox.StandardButton.Yes
+
+    def _ensure_cli_consent(self, provider):
+        if self.experimental_cli_checkbox.isChecked():
+            return True
+        if not self._confirm_cli_consent(provider):
+            return False
+        self.experimental_cli_checkbox.setChecked(True)
+        return True
+
+    def _cli_primary(self, provider):
+        """What the page's main button does, by the step the CLI is at."""
+        step = _cli_status.setup_step(self._detected.get(provider), provider in self._verified_cli, provider == self._active_provider)
+        kind = step["kind"]
+        if kind == "install":
+            QApplication.clipboard().setText(step["command"])
+            self._cli_status_labels[provider].setText(
+                "Install command copied. Paste it into a terminal, wait for it to finish, then press Detect again.")
+            return
+        if kind in ("looking", "in_use"):
+            return
+        if not self._ensure_cli_consent(provider):
+            return
+        if kind == "signin":
+            self._signin_cli(provider)
+            self._start_poll(provider)
+        elif kind == "verify":
+            self._connect_after_check = provider
+            self._check_cli(provider)
+        elif kind == "ready":
+            self._use_provider(provider)
+            self._show_provider(provider)
+
+    def _start_poll(self, provider):
+        """After the sign-in terminal is opened: look again every few seconds until the program says the user is signed in."""
+        self._poll_provider = provider
+        self._poll_deadline = time.monotonic() + _POLL_GIVE_UP
+        self._poll_timer.start()
+
+    def _stop_poll(self):
+        self._poll_timer.stop()
+        self._poll_provider = None
+
+    def _on_poll(self):
+        if self._poll_provider is None:
+            self._poll_timer.stop()
+            return
+        if time.monotonic() > self._poll_deadline:
+            provider = self._poll_provider
+            self._stop_poll()
+            self._cli_status_labels[provider].setText("Still not signed in after 5 minutes. Press Sign in... to try again.")
+            return
+        if not self._detecting:
+            self._start_detect()
+
+    def _after_poll_detection(self):
+        """Called after every detection: when the user the window is waiting for has signed in, test the connection and use it."""
+        provider = self._poll_provider
+        if provider is None:
+            return
+        entry = self._detected.get(provider)
+        if entry is not None and entry["found"] and entry["state"] in ("yes", "likely"):
+            self._stop_poll()
+            self._cli_status_labels[provider].setText("Signed in. Testing the connection...")
+            self._connect_after_check = provider
+            self._check_cli(provider)
 
     @staticmethod
     def _cli_quick_status(provider, program_text):
@@ -637,6 +746,7 @@ QPushButton#settingsCancelButton {{
         for btn in self._cli_buttons[provider]:
             btn.setEnabled(False)
         self._cli_status_labels[provider].setText("Checking... (this asks the model one short question and can take a minute)")
+        self._refresh_cli_step(provider)
 
         def worker():
             try:
@@ -653,12 +763,25 @@ QPushButton#settingsCancelButton {{
         for btn in self._cli_buttons[provider]:
             btn.setEnabled(True)
         label = self._cli_status_labels[provider]
+        connect = self._connect_after_check == provider
+        if connect:
+            self._connect_after_check = None
         if result.get("ok"):
             version = f" ({result['version']})" if result.get("version") else ""
-            label.setText(f"Ready{version}. Signed in. {result.get('message', '')}")
+            self._verified_cli.add(provider)
+            if connect:
+                self._use_provider(provider)
+                self._show_provider(provider)
+                label.setText(f"Connected{version} and in use. Press OK to save.")
+            else:
+                label.setText(f"Ready{version}. Signed in. {result.get('message', '')}")
+            self._refresh_rows()
             return
         hint = {"install": " Fix the program name or path above.", "signin": " Press Sign in..., finish there, then check again."}
         label.setText(f"Not ready: {result.get('message', 'unknown error')}{hint.get(result.get('stage'), '')}")
+        if result.get("stage") == "signin" and provider in self._detected:
+            self._detected[provider]["state"] = "no"  # the test says it is not signed in: the next step is the sign-in
+        self._refresh_rows()
 
     def _test_api(self, provider):
         """The Test button of a key-based provider: runs provider_check.check_provider on a background thread with the values typed in the
