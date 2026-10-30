@@ -45,7 +45,7 @@ class TestApiTestButton(unittest.TestCase):
         for pv in ("openrouter", "gemini", "ollama", "cartogen"):
             self.assertIn(pv, dialog._api_test_buttons, pv)
             self.assertIn(pv, dialog._api_status_labels, pv)
-        for pv in ("claude_cli", "codex_cli", "gemini_cli"):
+        for pv in ("claude_cli", "codex_cli"):
             self.assertNotIn(pv, dialog._api_test_buttons, pv)
 
     def test_pressing_test_uses_the_typed_key_and_the_chosen_model_and_saves_nothing(self):

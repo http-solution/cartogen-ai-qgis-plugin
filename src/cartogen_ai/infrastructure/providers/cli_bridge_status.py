@@ -13,17 +13,17 @@ import sys
 import time
 
 from . import cli_bridge as cb
+from . import cli_locator
 
 # provider -> (constructor, command that starts the sign-in, hint shown when the program is missing)
 _SPECS = {
     "claude_cli": (cb.ClaudeCliClient, [], "Install Claude Code, then run `claude` once in a terminal and sign in."),
     "codex_cli": (cb.CodexCliClient, ["login"], "Install the Codex CLI, then run `codex login`."),
-    "gemini_cli": (cb.GeminiCliClient, [], "Install the Gemini CLI, then run `gemini` once and choose Login with Google."),
 }
-DEFAULT_PROGRAM = {"claude_cli": "claude", "codex_cli": "codex", "gemini_cli": "gemini"}
+DEFAULT_PROGRAM = {"claude_cli": "claude", "codex_cli": "codex"}
 _PLAIN_PATH = re.compile(r"^[A-Za-z0-9_./\\:+-]+$")  # no spaces, quotes or shell characters: safe to hand to a terminal launcher
 CHECK_PROMPT = "Reply with the single word: ok"
-LABELS = {"claude_cli": "Claude Code CLI", "codex_cli": "Codex CLI", "gemini_cli": "Gemini CLI"}
+LABELS = {"claude_cli": "Claude Code CLI", "codex_cli": "Codex CLI"}
 
 
 def install_hint(provider):
@@ -75,10 +75,10 @@ def detect(provider, configured="", timeout=15):
 
 def signin_status(provider, path, timeout=15):
     """Is the user signed in to this CLI? Asks the program itself, with no model call and no tokens. Returns {'state', 'note'} where state
-    is 'yes', 'no', 'likely' or 'unknown'; never raises.
+    is 'yes', 'no' or 'unknown' ('likely' is accepted by `usable` for a future adapter); never raises.
 
     UNVERIFIED except the Codex 'logged in' case (`codex login status` printed "Logged in using ChatGPT" on the owner's machine,
-    2026-10-30). `claude auth status` and the Gemini file check are from the CLIs' public behaviour, not run here; when the answer cannot
+    2026-10-30). `claude auth status` was confirmed by the owner's Connections window (2026-10-30); when the answer cannot
     be read the state is 'unknown' rather than a guess, and Check connection stays the one test that proves the login works."""
     try:
         if provider == "codex_cli":
@@ -103,10 +103,6 @@ def signin_status(provider, path, timeout=15):
             if "not logged in" in low or "not signed in" in low:
                 return {"state": "no", "note": ""}
             return {"state": "unknown", "note": ""}
-        if provider == "gemini_cli":
-            # The Gemini CLI has no status command; its Google sign-in is saved under ~/.gemini. Existence only, the file is never read.
-            saved = os.path.isfile(os.path.join(os.path.expanduser("~"), ".gemini", "oauth_creds.json"))
-            return {"state": "likely" if saved else "unknown", "note": "a saved Google login was found" if saved else ""}
     except cb.CliBridgeError as e:
         return {"state": "unknown", "note": str(e)[:120]}
     return {"state": "unknown", "note": ""}
@@ -117,6 +113,8 @@ def detect_all(configured=None):
     provider to the program text from the form (blank = the default name). Runs `--version` and a sign-in status command per CLI found;
     no model call, nothing sent anywhere. Returns a list of dicts in a fixed order."""
     configured = configured or {}
+    cli_locator.ensure(refresh=True)  # ask the OS what the user's own terminal would search (a shell / the registry / npm), once per detection
+    searched = cb.search_folders()
     out = []
     for provider in _SPECS:
         tried = (configured.get(provider) or "").strip() or DEFAULT_PROGRAM[provider]
@@ -129,7 +127,7 @@ def detect_all(configured=None):
         sign = signin_status(provider, info["path"]) if info["found"] else {"state": "missing", "note": ""}
         out.append({"provider": provider, "label": LABELS[provider], "found": info["found"], "path": info["path"],
                     "version": info["version"], "problem": info["problem"], "state": sign["state"], "note": sign["note"],
-                    "tried": tried})
+                    "tried": tried, "searched": searched})
     return out
 
 
@@ -141,7 +139,10 @@ def describe(entry, short=False):
     that already has it as its title (a narrow window wrapped the long form onto two lines)."""
     state = _STATE_TEXT.get(entry["state"], "sign-in not confirmed")
     if not entry["found"]:
-        return "Not found on this computer" if short else f"{entry['label']}: not found on this computer"
+        looked = entry.get("searched") or []
+        if short:
+            return f"Not found on this computer (looked in {len(looked)} folders; hover to list them)" if looked else "Not found on this computer"
+        return f"{entry['label']}: not found on this computer"
     if short:
         return f"Found {entry['version']} \u00b7 {state}" if entry["version"] else f"Found \u00b7 {state}"
     version = f", {entry['version']}" if entry["version"] else ""

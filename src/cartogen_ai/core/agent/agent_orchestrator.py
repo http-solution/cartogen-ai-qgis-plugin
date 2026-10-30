@@ -32,7 +32,7 @@ from ...infrastructure.providers import (
     OpenRouterClient, GeminiClient, OllamaClient, OpenAIClient, ClaudeClient, CartogenClient,
 )
 from ...infrastructure.providers.base import DEFAULT_MAX_TOKENS
-from ...infrastructure.providers.cli_bridge import ClaudeCliClient, CodexCliClient, GeminiCliClient
+from ...infrastructure.providers.cli_bridge import ClaudeCliClient, CodexCliClient
 from ...infrastructure.providers.cartogen import FALLBACK_MODELS as CARTOGEN_FALLBACK_MODELS
 from ..model_selector import AUTO_SENTINEL, classify_complexity, is_cheap_tier, pick_model_for_complexity
 from .tool_dispatcher import ToolDispatcher
@@ -56,7 +56,7 @@ from . import onboarding_profile
 from ..logger import log_event
 from ...infrastructure.settings_keys import (
     SETTINGS_PROVIDER, normalize_provider, SETTINGS_GEMINI_MODEL, SETTINGS_OLLAMA_MODEL,
-    CLI_PROVIDERS, cli_path_setting_key, SETTINGS_CLAUDE_CLI_MODEL, SETTINGS_CODEX_CLI_MODEL, SETTINGS_GEMINI_CLI_MODEL,
+    CLI_PROVIDERS, cli_path_setting_key, SETTINGS_CLAUDE_CLI_MODEL, SETTINGS_CODEX_CLI_MODEL,
     SETTINGS_OPENAI_MODEL, SETTINGS_CLAUDE_MODEL, SETTINGS_CARTOGEN_MODEL,
     SETTINGS_CARTOGEN_GATEWAY_URL, SETTINGS_OPENROUTER_MODEL,
     SETTINGS_PROJECT_INSPECTOR_ENABLED,
@@ -301,7 +301,6 @@ class CartogenAi:
             cli_class, cli_model_key = {
                 "claude_cli": (ClaudeCliClient, SETTINGS_CLAUDE_CLI_MODEL),
                 "codex_cli": (CodexCliClient, SETTINGS_CODEX_CLI_MODEL),
-                "gemini_cli": (GeminiCliClient, SETTINGS_GEMINI_CLI_MODEL),
             }[provider_name]
             cli_model = settings.value(cli_model_key, AUTO_SENTINEL)
             self.client = cli_class(executable=settings.value(cli_path_setting_key(provider_name), "") or None,

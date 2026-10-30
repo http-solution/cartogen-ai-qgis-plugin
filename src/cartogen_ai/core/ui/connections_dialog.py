@@ -12,12 +12,13 @@ Everything here was section 01 and 02 of the Settings window until PLAN-041; the
 storage are unchanged. CI-only until the owner has looked at it in QGIS."""
 import contextlib
 import json
+import os
 import threading
 
 from qgis.PyQt.QtCore import pyqtSignal, Qt
 from qgis.PyQt.QtWidgets import (
     QDialog, QVBoxLayout, QLabel, QMessageBox, QApplication, QLineEdit, QComboBox, QFormLayout, QDialogButtonBox, QStackedWidget,
-    QWidget, QCheckBox, QHBoxLayout, QPushButton, QScrollArea, QFrame, QListWidget, QListWidgetItem,
+    QWidget, QCheckBox, QHBoxLayout, QPushButton, QScrollArea, QFrame, QListWidget, QListWidgetItem, QFileDialog,
 )
 from qgis.core import QgsSettings
 
@@ -301,7 +302,7 @@ QPushButton#settingsCancelButton {{
             detect_row.addWidget(detect_label, 1)
             detect_btn = QPushButton("Detect again")
             detect_btn.setObjectName("secondaryButton")
-            detect_btn.setToolTip("Looks for the Claude Code, Codex and Gemini programs and whether you are signed in. Runs only their "
+            detect_btn.setToolTip("Looks for the Claude Code and Codex programs and whether you are signed in. Runs only their "
                                   "version and sign-in status commands: no question is asked of any model.")
             detect_btn.clicked.connect(self._start_detect)
             self._detect_buttons[pv] = detect_btn
@@ -327,7 +328,20 @@ QPushButton#settingsCancelButton {{
         key_tooltip = entry.get("key_tooltip", "")
         if key_tooltip:
             key_edit.setToolTip(key_tooltip)
-        page_form.addRow(entry["key_label"], key_edit)
+        if is_setting:
+            field_row = QHBoxLayout()
+            field_row.setContentsMargins(0, 0, 0, 0)
+            field_row.addWidget(key_edit, 1)
+            browse = QPushButton("Browse...")
+            browse.setObjectName("secondaryButton")
+            browse.setToolTip("Pick the program yourself if it was not found automatically.")
+            browse.clicked.connect(lambda _checked=False, p=pv: self._browse_program(p))
+            field_row.addWidget(browse)
+            field_holder = QWidget()
+            field_holder.setLayout(field_row)
+            page_form.addRow(entry["key_label"], field_holder)
+        else:
+            page_form.addRow(entry["key_label"], key_edit)
         self._key_edits[pv] = key_edit
 
         page_note = entry.get("page_note")
@@ -564,7 +578,10 @@ QPushButton#settingsCancelButton {{
             entry = self._detected.get(provider)
             if entry is None:
                 continue
-            label.setText(_cli_status.describe(entry, short=True))  # what to do about a missing program is already said by the status line below
+            label.setText(_cli_status.describe(entry, short=True))
+            folders = entry.get("searched") or []
+            # Where the program was looked for, so "not found" can be checked against the folder it is really in.
+            label.setToolTip("Looked in:\n" + "\n".join(folders) if (folders and not entry["found"]) else "")
             if entry["found"]:
                 edit = self._key_edits[provider]
                 # A saved path that no longer exists (program moved or reinstalled) while the program was found under its usual name:
@@ -575,6 +592,16 @@ QPushButton#settingsCancelButton {{
                     self._cli_status_labels[provider].setText(self._cli_quick_status(provider, edit.text()))
         self._refresh_rows()
 
+
+    def _browse_program(self, provider):
+        """Lets the user pick the program when it was not found: works the same on every OS, and fills the path field."""
+        current = self._key_edits[provider].text().strip()
+        start = os.path.dirname(current) if current and os.path.isabs(current) else os.path.expanduser("~")
+        filters = "Programs (*.exe *.cmd *.bat);;All files (*)" if os.name == "nt" else "All files (*)"
+        path, _selected = QFileDialog.getOpenFileName(self, f"Choose the {_cli_status.DEFAULT_PROGRAM[provider]} program", start, filters)
+        if path:
+            self._key_edits[provider].setText(path)
+            self._start_detect()
 
     def _on_cli_ack_toggled(self, checked):
         """Ticking the acknowledgement enables the CLI pages' 'Use this connection' buttons; unticking disables them and, if a CLI was the

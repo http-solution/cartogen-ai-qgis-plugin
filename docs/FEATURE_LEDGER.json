@@ -1449,7 +1449,7 @@
   },
   {
     "id": "cli-bridge-runner-and-claude-adapter",
-    "feature": "a Claude Code, a Codex and a Gemini CLI client (not yet selectable in Settings) that runs the user's own `claude -p`, `codex exec` or `gemini -p` login as a text model (Claude: all CLI tools off; Codex and Gemini: read-only mode and any run that acts on its own is rejected), a size/time/cancel-limited subprocess runner, and a strict tool-call parser that rejects unknown tools instead of guessing",
+    "feature": "a Claude Code and a Codex CLI client that runs the user's own `claude -p` or `codex exec` login as a text model (Claude: all CLI tools off; Codex: read-only mode and any run that acts on its own is rejected; the Gemini CLI client was removed 2026-10-30), a size/time/cancel-limited subprocess runner, and a strict tool-call parser that rejects unknown tools instead of guessing",
     "issues": [],
     "since": "1.18.6",
     "sources": [
@@ -1461,8 +1461,7 @@
       "tests/test_cli_bridge_adapters.py::TestParseReply::test_unknown_tool_is_an_error_not_a_guess",
       "tests/test_cli_bridge_adapters.py::TestCodexArgv::test_exact_command_line",
       "tests/test_cli_bridge_adapters.py::TestParseCodexEvents::test_acting_on_its_own_is_rejected",
-      "tests/test_cli_bridge_adapters.py::TestGeminiArgv::test_exact_command_line",
-      "tests/test_cli_bridge_adapters.py::TestParseGeminiResult::test_tool_calls_in_the_stats_are_rejected"
+      "tests/test_connections_window.py::TestGeminiCliIsGone::test_the_gemini_cli_client_and_parser_are_gone_but_the_api_client_stays"
     ],
     "hand_verified": "not verified: CI only, against a stand-in process; never run against a real logged-in Claude CLI (PLAN-038 spike)",
     "hand_row": "SPIKE-1 (tools/cli_bridge_spike.py, PLAN-038)"
@@ -1485,7 +1484,7 @@
   },
   {
     "id": "cli-providers-opt-in-settings",
-    "feature": "the experimental CLI providers (Claude Code, Codex, Gemini) sit under their own heading in the Connections window and can be chosen only after the user ticks an acknowledgement box that is off by default (the rows and their Use buttons are disabled until then, with no reopening); each has a status line and Check connection / Sign in buttons; the program path is saved as a plain setting, the agent builds the matching client, the Stop button ends the CLI process, and with the box off a saved CLI provider falls back to the default",
+    "feature": "the experimental CLI providers (Claude Code, Codex) sit under their own heading in the Connections window and can be chosen only after the user ticks an acknowledgement box that is off by default (the rows and their Use buttons are disabled until then, with no reopening); each has a status line and Check connection / Sign in buttons; the program path is saved as a plain setting, the agent builds the matching client, the Stop button ends the CLI process, and with the box off a saved CLI provider falls back to the default",
     "issues": [],
     "since": "1.18.6",
     "sources": [
@@ -1547,7 +1546,7 @@
   },
   {
     "id": "connections-window",
-    "feature": "the model connection (hosted API keys, Ollama, a signed-in CLI) and the NASA FIRMS key are set up in their own Connections window, opened from Plugins > Cartogen AI > Connections... or from Settings: a plain list of every connection (each group heading once) with a status mark and an in-use tag on the left, the selected connection's page on the right, and looking at a page never changes the connection in use until Use this connection and OK; Settings only shows which connection is in use and never writes it; when the window opens it looks for the Claude Code, Codex and Gemini CLIs already installed and signed in (version and sign-in status commands only, no model call) and writes the result on each CLI page and in the list mark, never switching to a CLI by itself and with Use this connection enabled only after the CLI acknowledgement box is ticked",
+    "feature": "the model connection (hosted API keys, Ollama, a signed-in CLI) and the NASA FIRMS key are set up in their own Connections window, opened from Plugins > Cartogen AI > Connections... or from Settings: a plain list of every connection (each group heading once) with a status mark and an in-use tag on the left, the selected connection's page on the right, and looking at a page never changes the connection in use until Use this connection and OK; Settings only shows which connection is in use and never writes it; when the window opens it looks for the Claude Code and Codex CLIs already installed and signed in (version and sign-in status commands only, no model call) and writes the result on each CLI page and in the list mark, never switching to a CLI by itself and with Use this connection enabled only after the CLI acknowledgement box is ticked",
     "issues": [],
     "since": "1.18.6",
     "sources": [
@@ -1573,6 +1572,29 @@
     ],
     "hand_verified": "not verified: CI only (nobody has opened the window; the layout has never been looked at)",
     "hand_row": "SPIKE-1 (open Plugins > Cartogen AI > Connections..., look at each page, press Use this connection, OK, and check the panel dropdown)"
+  },
+  {
+    "id": "cli-program-found-on-every-os",
+    "feature": "a CLI program (Claude Code, Codex) installed where the user's own terminal finds it is found by the plugin on Windows, macOS and Linux even when QGIS was started with a shorter PATH: the Windows registry PATH, the user's login shell PATH and the npm global folder are read once on a background thread and cached, the Connections window lists the folders it looked in when a program is not found, and a Browse button picks the program by hand",
+    "issues": [],
+    "since": "1.18.6",
+    "sources": [
+      "src/cartogen_ai/infrastructure/providers/cli_locator.py",
+      "src/cartogen_ai/infrastructure/providers/cli_bridge.py",
+      "src/cartogen_ai/infrastructure/providers/cli_bridge_status.py",
+      "src/cartogen_ai/core/ui/connections_dialog.py",
+      "src/cartogen_ai/core/ui/connections_catalog.py"
+    ],
+    "guards": [
+      "tests/test_cli_locator.py::TestLoginShell::test_a_shell_that_is_not_a_plain_shell_is_never_run",
+      "tests/test_cli_locator.py::TestEnsureAndCache::test_cached_dirs_never_starts_a_program",
+      "tests/test_cli_locator.py::TestFindExecutableUsesTheOsPath::test_a_program_only_the_terminal_path_has_is_found_once_the_cache_is_filled",
+      "tests/test_cli_locator.py::TestFindExecutableUsesTheOsPath::test_finding_a_program_never_starts_the_shell_or_npm",
+      "tests/test_connections_window.py::TestGeminiCliIsGone::test_no_gemini_cli_in_the_provider_tables_or_the_settings_keys",
+      "tests/test_connections_window_live.py::TestConnectionsWindow::test_a_missing_program_lists_where_it_was_looked_for_and_every_cli_page_has_a_browse_button"
+    ],
+    "hand_verified": "not verified: CI only (stand-ins for the registry, the login shell and npm; nothing was run on a real Windows or macOS machine)",
+    "hand_row": "SPIKE-1 (open Connections with Codex installed only on the terminal PATH; it should be found; press Browse... on a page)"
   },
   {
     "id": "script-worker-survives-print-and-odd-results",
