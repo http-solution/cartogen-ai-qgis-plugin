@@ -480,24 +480,6 @@ _TOOL_ALIASES = {
     ],
     # Other ways to ask for the same places ("list medical service in Al Maharah", owner's chat 2026-10-30, was answered "the available
     # tools cannot retrieve health-facility listings" because none of these tools was offered for that wording).
-    "geocode_and_enrich": [
-        "hospital", "hospitals", "clinic", "clinics", "health facilit",
-        "medical", "healthcare", "health care", "health service", "health centre", "health center", "dispensar",
-        "geocode", "find the location of", "where is",
-    ],
-    "geocode_batch": [
-        "hospital", "hospitals", "clinic", "clinics", "health facilit",
-        "medical", "healthcare", "health care", "health service", "health centre", "health center", "dispensar",
-        "geocode", "list of locations", "multiple locations",
-    ],
-    "ingest_osm_features": [
-        "hospital", "hospitals", "clinic", "clinics", "health facilit",
-        "medical", "healthcare", "health care", "health service", "health centre", "health center", "dispensar",
-        "health facilities", "doctors", "pharmacy", "pharmacies", "osm data",
-        "download facilities", "fetch facilities", "osm features",
-        "infrastructure", "schools", "road network", "highways",
-        "osm", "amenities", "amenity",
-    ],
     # Hydrology (see tools/engineering_tools.py). "steam length" is the typo in the request that motivated these tools. No bare
     # "tc" alias: aliases match as substrings of the query, so it would boost these tools on "match", "batch" or "catchment".
     "parse_dms_location": [
@@ -756,6 +738,14 @@ _FUZZY_TYPO_MIN_WORD_LEN = 5
 _FUZZY_TYPO_CUTOFF = 0.8
 
 
+def _declared_keywords(name):
+    """Phrases a tool declares beside its own @register_tool (PLAN-042 step 2); empty if the registry is unavailable."""
+    with contextlib.suppress(Exception):
+        from ..agent.tools.registry import TOOL_KEYWORDS
+        return TOOL_KEYWORDS.get(name, ())
+    return ()
+
+
 def _expand_query_with_fuzzy_corrections(query_words: set, query_lower: str) -> str:
     """Returns query_lower with a space-joined tail of any fuzzy-corrected words appended,
     for use as the alias-matching string. Does not mutate query_words (name/description
@@ -919,7 +909,7 @@ def _score_tool(name, desc, query_words, long_query, alias_query_lower, algorith
     score += 2 * (min(description_hits, _DESCRIPTION_HIT_CAP) if long_query else description_hits)
 
     # Curated alias/synonym match score
-    for alias in _TOOL_ALIASES.get(name, []):
+    for alias in (*_TOOL_ALIASES.get(name, ()), *_declared_keywords(name)):
         if alias in alias_query_lower:
             score += _ALIAS_MATCH_SCORE
     if algorithm_topic_match and name in _PROCESSING_GENERIC_TOOLS:

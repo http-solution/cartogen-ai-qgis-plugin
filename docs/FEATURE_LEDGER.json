@@ -1708,6 +1708,24 @@
     ],
     "hand_verified": "not verified: CI only. Checks offline that the router offers the listed tools; no model was run.",
     "hand_row": "none, because it is a test fixture and command; the owner hand test row is the medical-services prompt (OWN-16 list)"
+  },
+  {
+    "id": "tool-keywords-beside-the-tool",
+    "feature": "a tool declares the phrases users say for it next to its own @register_tool (keywords=[...]); the router scores them like the curated aliases and never sends them to the model; geocode_and_enrich, geocode_batch and ingest_osm_features are the first tools migrated",
+    "issues": [],
+    "since": "1.18.6",
+    "sources": [
+      "src/cartogen_ai/core/agent/tools/registry.py",
+      "src/cartogen_ai/core/services/tool_router.py"
+    ],
+    "guards": [
+      "tests/test_tool_keywords.py::TestToolKeywords::test_a_declared_keyword_alone_offers_its_tool",
+      "tests/test_tool_keywords.py::TestToolKeywords::test_keywords_are_not_sent_to_the_model",
+      "tests/test_tool_keywords.py::TestToolKeywords::test_a_phrase_is_declared_in_one_place_only",
+      "tests/test_tool_router_basics.py::TestMedicalWordingOffersTheFacilityTools::test_each_wording_offers_the_osm_tool"
+    ],
+    "hand_verified": "not verified: CI only. Offline: the medical wordings still offer the same tools after the move, the schema is unchanged, and no model was run.",
+    "hand_row": "none, because routing is unchanged for users; the medical-services prompt in the OWN-16 hand list covers it"
   }
  ]
 }

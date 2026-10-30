@@ -532,7 +532,14 @@ def add_osm_layer_main_thread_phase(fetch_result: dict) -> dict:
             "layer_name": {"type": "string", "description": "Optional name for the created QGIS vector layer"}
         },
         "required": ["key", "value"]
-    }
+    },
+    keywords=[
+        "hospital", "hospitals", "clinic", "clinics", "health facilit", "medical",
+        "healthcare", "health care", "health service", "health centre", "health center", "dispensar",
+        "health facilities", "doctors", "pharmacy", "pharmacies", "osm data", "download facilities",
+        "fetch facilities", "osm features", "infrastructure", "schools", "road network", "highways",
+        "osm", "amenities", "amenity",
+    ],
 )
 def ingest_osm_features(
     key: str,
