@@ -149,7 +149,8 @@ def detect_all(configured=None):
         sign = signin_status(provider, info["path"]) if info["found"] else {"state": "missing", "note": ""}
         out.append({"provider": provider, "label": LABELS[provider], "found": info["found"], "path": info["path"],
                     "version": info["version"], "problem": info["problem"], "state": sign["state"], "note": sign["note"],
-                    "tried": tried, "searched": searched})
+                    "tried": tried, "searched": searched,
+                    "diagnosis": [] if info["found"] else cb.diagnose_missing(DEFAULT_PROGRAM[provider])})
     return out
 
 
@@ -165,6 +166,9 @@ def describe(entry, short=False):
         if short:
             return f"Not found on this computer (looked in {len(looked)} folders; hover to list them)" if looked else "Not found on this computer"
         return f"{entry['label']}: not found on this computer"
+    if entry.get("problem") and not entry["version"]:
+        return f"Found at {entry['path']}, but it could not be started: {entry['problem']}" if short else (
+            f"{entry['label']}: found at {entry['path']}, but it could not be started: {entry['problem']}")
     if short:
         return f"Found {entry['version']} \u00b7 {state}" if entry["version"] else f"Found \u00b7 {state}"
     version = f", {entry['version']}" if entry["version"] else ""
@@ -180,9 +184,12 @@ def setup_step(entry, verified=False, active=False, platform=None):
     label = entry["label"]
     if not entry["found"]:
         commands = install_commands(entry["provider"], platform)
+        diagnosis = entry.get("diagnosis") or []
+        seen = ("\n\nQGIS could see these, but could not use them (if " + label + " works in your terminal, pick the program with "
+                "Browse...):\n  " + "\n  ".join(diagnosis)) if diagnosis else ""
         return {"kind": "install", "button": "Copy install command", "command": commands[0],
-                "detail": f"{label} is not installed. Install it by running this in a terminal, then press Detect again:\n  "
-                          + "\n  or ".join(commands)}
+                "detail": f"{label} was not found. If it is not installed, run this in a terminal, then press Detect again:\n  "
+                          + "\n  or ".join(commands) + seen}
     if active:
         return {"kind": "in_use", "button": "In use", "detail": f"{label} is the connection in use. Press OK to save.", "command": ""}
     if verified:

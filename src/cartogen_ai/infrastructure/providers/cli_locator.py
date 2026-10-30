@@ -16,11 +16,13 @@ import os
 import shutil
 import subprocess
 import threading
+from typing import Any
 
 _SHELLS = frozenset({"bash", "zsh", "fish", "sh", "dash", "ksh"})
 _START, _END = "__CARTOGEN_PATH_START__", "__CARTOGEN_PATH_END__"
 _lock = threading.Lock()
-_cache = {"dirs": None}  # None = not looked yet
+_cache: dict[str, Any] = {"dirs": None, "resolved": {}, "where": {}}  # dirs None = not looked yet
+PROGRAM_NAMES = ("claude", "codex")  # the programs the OS is asked about by name (Windows `where.exe`)
 
 
 def _split(path_text):
@@ -81,13 +83,64 @@ def npm_global_bin(search_dirs, timeout=10):
     return [prefix if os.name == "nt" else os.path.join(prefix, "bin")]
 
 
+def windows_where(names, path_dirs, timeout=8):
+    """Asks Windows itself where each program is, with the registry PATH added: ({name: first path}, {name: what it said}). The answer is
+    trusted without opening the file: a program installed as an app alias or a link can be run by Windows although Python's file calls
+    cannot open it (the owner's Codex was found by PowerShell but not by the plugin, 2026-10-30)."""
+    where = os.path.join(os.environ.get("SYSTEMROOT", r"C:\Windows"), "System32", "where.exe")
+    env = dict(os.environ)
+    env["PATH"] = os.pathsep.join([*path_dirs, *_split(env.get("PATH", ""))])
+    found, said = {}, {}
+    for name in names:
+        try:
+            proc = subprocess.run([where, name], stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,  # noqa: S603 -- fixed system binary, fixed program names
+                                  timeout=timeout, check=False, env=env, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+        except (OSError, subprocess.SubprocessError) as e:
+            said[name] = f"where.exe could not be run ({type(e).__name__})"
+            continue
+        lines = [ln.strip() for ln in proc.stdout.decode("utf-8", "replace").splitlines() if ln.strip()]
+        said[name] = lines[0][:200] if lines else ""
+        if proc.returncode == 0 and lines:
+            found[name] = lines[0]
+    return found, said
+
+
+def look_alikes(name, dirs, limit=6):
+    """Files named like the program in these folders, with whether Python can open them: [(path, 'ok' | reason)]. Used to say "it is there
+    but QGIS cannot use it" instead of "not found"."""
+    out = []
+    low = name.lower()
+    for d in dirs:
+        try:
+            entries = os.listdir(d)
+        except OSError:
+            continue
+        for entry in entries:
+            if entry.lower() == low or entry.lower().startswith(low + "."):
+                path = os.path.join(d, entry)
+                try:
+                    os.stat(path)
+                    status = "ok"
+                except OSError as e:
+                    status = f"cannot be opened: {type(e).__name__} {getattr(e, 'winerror', None) or e.errno or ''}".strip()
+                out.append((path, status))
+                if len(out) >= limit:
+                    return out
+    return out
+
+
 def _compute():
     base = windows_registry_path() if os.name == "nt" else login_shell_path()
     seen, out = set(), []
     for d in [*base, *npm_global_bin([*base, *_split(os.environ.get("PATH", ""))])]:
-        if d and d not in seen and os.path.isdir(d):
+        # lexists, not isdir: a folder that is a link Python cannot follow is still where the terminal looks
+        if d and d not in seen and os.path.lexists(d):
             seen.add(d)
             out.append(d)
+    if os.name == "nt":
+        found, said = windows_where(PROGRAM_NAMES, base)
+        _cache["resolved"] = found
+        _cache["where"] = said
     return out
 
 
@@ -100,6 +153,16 @@ def ensure(refresh=False):
             if _cache["dirs"] is None:
                 _cache["dirs"] = []
         return list(_cache["dirs"])
+
+
+def resolved(name):
+    """The path Windows `where.exe` gave for this program name during `ensure`, or ''."""
+    return _cache["resolved"].get(name.lower(), "")
+
+
+def where_said(name):
+    """What `where.exe` printed for this name ('' when it was not asked or said nothing), for the diagnosis shown to the user."""
+    return _cache["where"].get(name.lower(), "")
 
 
 def cached_dirs():

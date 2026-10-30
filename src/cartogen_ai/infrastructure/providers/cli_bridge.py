@@ -49,7 +49,7 @@ class CliBridgeError(Exception):
     """A CLI could not be run or its output could not be used. The message is safe to show the user (no prompt content)."""
 
 
-def _extra_bin_dirs():
+def _extra_bin_dirs(existing_only=True):
     """Folders where npm, Homebrew, Volta, nvm, bun, pnpm or scoop put CLIs. A QGIS started from a desktop icon or Finder has a
     shorter PATH than the user's terminal, so `shutil.which("codex")` fails there even though the terminal finds it (user report,
     2026-10-28: Codex installed, Settings said 'program not found'). Only existing directories are returned."""
@@ -76,7 +76,7 @@ def _extra_bin_dirs():
             dirs += [os.path.join(nvm_root, v, "bin") for v in sorted(os.listdir(nvm_root), reverse=True)]
     seen, out = set(), []
     for d in dirs:
-        if d and d not in seen and os.path.isdir(d):
+        if d and d not in seen and (not existing_only or os.path.lexists(d)):
             seen.add(d)
             out.append(d)
     return out
@@ -106,7 +106,7 @@ def find_executable(name_or_path):
     if not text or os.path.isdir(text):
         return None
     if os.sep in text or (os.altsep and os.altsep in text):
-        if os.path.isfile(text):
+        if os.path.isfile(text) or os.path.lexists(text):  # lexists: a link or app alias Python cannot open is still a program to start
             return text
         return _with_pathext(text) if os.name == "nt" else None
     found = shutil.which(text)
@@ -119,7 +119,29 @@ def find_executable(name_or_path):
         found = shutil.which(text, path=path) if path else None
         if found:
             return found
-    return None
+    # A file Python cannot open (a link, an app alias) is invisible to `which` but can still be started: look for the name by its
+    # directory entry, with each Windows extension.
+    for folder in [*(os.environ.get("PATH", "").split(os.pathsep)), *_extra_bin_dirs(), *cli_locator.cached_dirs()]:
+        for ext in ([""] + [e for e in os.environ.get("PATHEXT", ".COM;.EXE;.BAT;.CMD").split(";") if e]) if os.name == "nt" else [""]:
+            candidate = os.path.join(folder, text + ext) if folder else ""
+            if candidate and os.path.lexists(candidate) and not os.path.isdir(candidate):
+                return candidate
+    # Last, what Windows itself says (filled on a background thread by cli_locator.ensure).
+    return cli_locator.resolved(text) or None
+
+
+def diagnose_missing(name):
+    """Lines saying what is known about a program that was not found: what Windows said, and any file named like it that Python cannot
+    open. Empty when there is nothing to add. Reads the filesystem only (no program is started), cheap enough for the UI thread."""
+    lines = []
+    said = cli_locator.where_said(name)
+    if said:
+        lines.append(f"where.exe {name} said: {said}")
+    folders = [*(os.environ.get("PATH", "").split(os.pathsep)), *_extra_bin_dirs(), *cli_locator.cached_dirs()]
+    for path, status in cli_locator.look_alikes(name, [d for d in dict.fromkeys(folders) if d]):
+        lines.append(f"{path}: {status}")
+    lines.extend(f"{d}: the folder exists but cannot be opened" for d in _extra_bin_dirs() if not os.path.isdir(d))
+    return lines
 
 
 def search_folders():

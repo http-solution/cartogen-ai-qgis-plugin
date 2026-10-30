@@ -92,7 +92,8 @@ class TestEnsureAndCache(_FreshCache):
     def test_windows_uses_the_registry_and_other_systems_the_login_shell(self):
         with patch.object(loc, "windows_registry_path", return_value=["/reg"]) as reg, \
              patch.object(loc, "login_shell_path", return_value=["/sh"]) as shell, \
-             patch.object(loc, "npm_global_bin", return_value=[]), patch.object(loc.os.path, "isdir", return_value=True):
+             patch.object(loc, "npm_global_bin", return_value=[]), patch.object(loc.os.path, "lexists", return_value=True), \
+             patch.object(loc, "windows_where", return_value=({}, {})):
             with patch.object(loc.os, "name", "nt"):
                 self.assertEqual(loc._compute(), ["/reg"])
             with patch.object(loc.os, "name", "posix"):
@@ -118,6 +119,68 @@ class TestFindExecutableUsesTheOsPath(_FreshCache):
         with tempfile.TemporaryDirectory() as d:
             loc._cache["dirs"] = [d]
             self.assertIn(d, cb.scrubbed_environment({"PATH": "/usr/bin"})["PATH"].split(os.pathsep))
+
+
+class TestWhatTheOsSays(_FreshCache):
+    """The owner's Codex ran in PowerShell but the plugin said "not found" (2026-10-30, 29 folders searched). The OS's own answer is used
+    even when Python cannot open the file (an app alias or link)."""
+
+    def test_where_exe_output_is_read_and_a_miss_is_kept_as_the_reason(self):
+        class Done:
+            def __init__(self, code, text):
+                self.returncode, self.stdout = code, text
+
+        answers = {"codex": Done(0, b"C:\\Users\\u\\AppData\\Local\\Programs\\OpenAI\\Codex\\bin\\codex.exe\r\n"),
+                   "claude": Done(1, b"INFO: Could not find files for the given pattern(s).\r\n")}
+        with patch.object(loc.subprocess, "run", side_effect=lambda argv, **kw: answers[argv[1]]) as run:
+            found, said = loc.windows_where(("claude", "codex"), ["C:\\reg"])
+        self.assertEqual(found, {"codex": "C:\\Users\\u\\AppData\\Local\\Programs\\OpenAI\\Codex\\bin\\codex.exe"})
+        self.assertIn("Could not find files", said["claude"])
+        self.assertIn("C:\\reg", run.call_args.kwargs["env"]["PATH"])
+
+    def test_where_exe_that_cannot_run_is_a_note_not_an_error(self):
+        with patch.object(loc.subprocess, "run", side_effect=OSError("no")):
+            found, said = loc.windows_where(("codex",), [])
+        self.assertEqual(found, {})
+        self.assertIn("could not be run", said["codex"])
+
+    @unittest.skipIf(os.name == "nt", "uses a POSIX symlink")
+    def test_a_program_python_cannot_open_is_still_found_by_name_and_by_where(self):
+        with tempfile.TemporaryDirectory() as d, patch.dict(os.environ, {"PATH": d}):
+            os.symlink(os.path.join(d, "nowhere"), os.path.join(d, "alias-cli"))  # a link whose target Python cannot open
+            self.assertFalse(os.path.isfile(os.path.join(d, "alias-cli")))
+            self.assertEqual(cb.find_executable("alias-cli"), os.path.join(d, "alias-cli"))
+            self.assertEqual(cb.find_executable(os.path.join(d, "alias-cli")), os.path.join(d, "alias-cli"))
+        loc._cache["resolved"] = {"zz-cli": "C:\\somewhere\\zz-cli.exe"}
+        with patch.dict(os.environ, {"PATH": "/nonexistent"}):
+            self.assertEqual(cb.find_executable("zz-cli"), "C:\\somewhere\\zz-cli.exe")
+
+    @unittest.skipIf(os.name == "nt", "uses a POSIX symlink")
+    def test_look_alikes_and_the_diagnosis_say_what_exists_but_cannot_be_used(self):
+        with tempfile.TemporaryDirectory() as d, patch.dict(os.environ, {"PATH": d}):
+            os.symlink(os.path.join(d, "nowhere"), os.path.join(d, "codex"))
+            alikes = loc.look_alikes("codex", [d])
+            self.assertEqual(alikes[0][0], os.path.join(d, "codex"))
+            self.assertIn("cannot be opened", alikes[0][1])
+            loc._cache["where"] = {"codex": "INFO: Could not find files for the given pattern(s)."}
+            lines = cb.diagnose_missing("codex")
+            self.assertTrue(any("where.exe codex said" in ln for ln in lines))
+            self.assertTrue(any("cannot be opened" in ln for ln in lines))
+
+    def test_a_missing_program_with_a_diagnosis_says_so_instead_of_only_not_installed(self):
+        entry = {"provider": "codex_cli", "label": "Codex CLI", "found": False, "state": "missing", "version": "", "problem": "",
+                 "diagnosis": ["C:\\x\\codex.exe: cannot be opened: OSError 1920"]}
+        step = st.setup_step(entry, platform="win32")
+        self.assertIn("could not use them", step["detail"])
+        self.assertIn("OSError 1920", step["detail"])
+        self.assertIn("Browse...", step["detail"])
+        self.assertNotIn("could not use them", st.setup_step({**entry, "diagnosis": []}, platform="win32")["detail"])
+
+    def test_a_program_that_was_found_but_cannot_be_started_says_why(self):
+        entry = {"provider": "codex_cli", "label": "Codex CLI", "found": True, "path": "C:\\x\\codex.exe", "version": "",
+                 "problem": "Could not start the CLI (PermissionError).", "state": "unknown", "note": ""}
+        self.assertIn("could not be started", st.describe(entry, short=True))
+        self.assertIn("PermissionError", st.describe(entry))
 
 
 class TestDetectionUsesIt(unittest.TestCase):
