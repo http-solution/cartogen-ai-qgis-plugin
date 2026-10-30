@@ -1575,6 +1575,29 @@
     "hand_row": "SPIKE-1 (open Plugins > Cartogen AI > Connections..., look at each page, press Use this connection, OK, and check the panel dropdown)"
   },
   {
+    "id": "cli-program-found-on-every-os",
+    "feature": "a CLI program (Claude Code, Codex, Gemini) installed where the user's own terminal finds it is found by the plugin on Windows, macOS and Linux even when QGIS was started with a shorter PATH: the Windows registry PATH, the user's login shell PATH and the npm global folder are read once on a background thread and cached, the Connections window lists the folders it looked in when a program is not found, and a Browse button picks the program by hand; the Gemini CLI page says Google ended personal-account use on 18 June 2026",
+    "issues": [],
+    "since": "1.18.6",
+    "sources": [
+      "src/cartogen_ai/infrastructure/providers/cli_locator.py",
+      "src/cartogen_ai/infrastructure/providers/cli_bridge.py",
+      "src/cartogen_ai/infrastructure/providers/cli_bridge_status.py",
+      "src/cartogen_ai/core/ui/connections_dialog.py",
+      "src/cartogen_ai/core/ui/connections_catalog.py"
+    ],
+    "guards": [
+      "tests/test_cli_locator.py::TestLoginShell::test_a_shell_that_is_not_a_plain_shell_is_never_run",
+      "tests/test_cli_locator.py::TestEnsureAndCache::test_cached_dirs_never_starts_a_program",
+      "tests/test_cli_locator.py::TestFindExecutableUsesTheOsPath::test_a_program_only_the_terminal_path_has_is_found_once_the_cache_is_filled",
+      "tests/test_cli_locator.py::TestFindExecutableUsesTheOsPath::test_finding_a_program_never_starts_the_shell_or_npm",
+      "tests/test_connections_window.py::TestGeminiRetirementNote::test_the_gemini_cli_entry_warns_that_personal_accounts_ended_on_18_june_2026",
+      "tests/test_connections_window_live.py::TestConnectionsWindow::test_a_missing_program_lists_where_it_was_looked_for_and_every_cli_page_has_a_browse_button"
+    ],
+    "hand_verified": "not verified: CI only (stand-ins for the registry, the login shell and npm; nothing was run on a real Windows or macOS machine)",
+    "hand_row": "SPIKE-1 (open Connections with Codex installed only on the terminal PATH; it should be found; press Browse... on a page)"
+  },
+  {
     "id": "script-worker-survives-print-and-odd-results",
     "feature": "execute_pyqgis_script: a script that prints, or returns a set, a date or another value JSON cannot hold, gets a normal reply from the isolation worker (its printed text comes back as `printed`; odd values become text) instead of a crashed worker; a call missing its required `script` says which argument is missing and that a cut-off reply is the usual cause",
     "issues": [],

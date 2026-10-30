@@ -103,7 +103,7 @@ class TestConnectionsWindow(unittest.TestCase):
 
     RESULTS = (
         {"provider": "claude_cli", "label": "Claude Code CLI", "found": False, "path": "", "version": "", "problem": "not found",
-         "state": "missing", "note": ""},
+         "state": "missing", "note": "", "searched": ("/usr/bin", "/opt/tools/bin")},
         {"provider": "codex_cli", "label": "Codex CLI", "found": True, "path": "/bin/codex", "version": "codex-cli 0.165.0", "problem": "",
          "state": "yes", "note": "Logged in using ChatGPT"},
         {"provider": "gemini_cli", "label": "Gemini CLI", "found": True, "path": "/bin/gemini", "version": "0.9", "problem": "",
@@ -132,6 +132,17 @@ class TestConnectionsWindow(unittest.TestCase):
         self.assertTrue(dialog._row_items["codex_cli"].text().startswith("\u2713"), "signed in is marked in the list")
         self.assertTrue(dialog._row_items["claude_cli"].text().startswith("\u25cb"), "not found is marked empty")
         self.assertTrue(dialog._row_items["gemini_cli"].text().startswith("\u25cf"), "found but not signed in is 'set'")
+
+    def test_a_missing_program_lists_where_it_was_looked_for_and_every_cli_page_has_a_browse_button(self):
+        from qgis.PyQt.QtWidgets import QLabel, QPushButton
+        dialog = self._detecting_dialog()
+        tip = dialog._detect_labels["claude_cli"].toolTip()
+        self.assertIn("Looked in:", tip)
+        self.assertIn("/opt/tools/bin", tip)
+        self.assertIn("looked in 2 folders", dialog._detect_labels["claude_cli"].text())
+        self.assertEqual(sum(1 for b in dialog.findChildren(QPushButton) if b.text() == "Browse..."), 3)
+        notes = [lab.text() for lab in dialog.findChildren(QLabel) if "18 June 2026" in lab.text()]
+        self.assertEqual(len(notes), 1, "only the Gemini CLI page says personal accounts were ended")
 
     def test_a_stale_saved_path_is_replaced_by_the_program_that_was_found(self):
         dialog = self._dialog()

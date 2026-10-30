@@ -13,6 +13,7 @@ import sys
 import time
 
 from . import cli_bridge as cb
+from . import cli_locator
 
 # provider -> (constructor, command that starts the sign-in, hint shown when the program is missing)
 _SPECS = {
@@ -117,6 +118,8 @@ def detect_all(configured=None):
     provider to the program text from the form (blank = the default name). Runs `--version` and a sign-in status command per CLI found;
     no model call, nothing sent anywhere. Returns a list of dicts in a fixed order."""
     configured = configured or {}
+    cli_locator.ensure(refresh=True)  # ask the OS what the user's own terminal would search (a shell / the registry / npm), once per detection
+    searched = cb.search_folders()
     out = []
     for provider in _SPECS:
         tried = (configured.get(provider) or "").strip() or DEFAULT_PROGRAM[provider]
@@ -129,7 +132,7 @@ def detect_all(configured=None):
         sign = signin_status(provider, info["path"]) if info["found"] else {"state": "missing", "note": ""}
         out.append({"provider": provider, "label": LABELS[provider], "found": info["found"], "path": info["path"],
                     "version": info["version"], "problem": info["problem"], "state": sign["state"], "note": sign["note"],
-                    "tried": tried})
+                    "tried": tried, "searched": searched})
     return out
 
 
@@ -141,7 +144,10 @@ def describe(entry, short=False):
     that already has it as its title (a narrow window wrapped the long form onto two lines)."""
     state = _STATE_TEXT.get(entry["state"], "sign-in not confirmed")
     if not entry["found"]:
-        return "Not found on this computer" if short else f"{entry['label']}: not found on this computer"
+        looked = entry.get("searched") or []
+        if short:
+            return f"Not found on this computer (looked in {len(looked)} folders; hover to list them)" if looked else "Not found on this computer"
+        return f"{entry['label']}: not found on this computer"
     if short:
         return f"Found {entry['version']} \u00b7 {state}" if entry["version"] else f"Found \u00b7 {state}"
     version = f", {entry['version']}" if entry["version"] else ""

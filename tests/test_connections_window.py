@@ -80,6 +80,15 @@ class TestDetection(unittest.TestCase):
         self.assertIn("self._use_buttons[pv].setEnabled(checked)", body)
 
 
+class TestGeminiRetirementNote(unittest.TestCase):
+    def test_the_gemini_cli_entry_warns_that_personal_accounts_ended_on_18_june_2026(self):
+        from cartogen_ai.core.ui import connections_catalog as c
+        gemini = next(e for e in c._CLI_PROVIDERS if e["value"] == "gemini_cli")
+        self.assertIn("18 June 2026", gemini["extra_note"])
+        self.assertIn("Gemini API key", gemini["extra_note"])
+        self.assertTrue(all("extra_note" not in e for e in c._CLI_PROVIDERS if e["value"] != "gemini_cli"))
+
+
 class TestEntryPoints(unittest.TestCase):
     def test_a_plugins_menu_action_opens_the_connections_window_through_the_panel(self):
         self.assertIn('QAction(self.tr("Connections...")', PLUGIN)

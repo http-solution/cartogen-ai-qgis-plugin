@@ -23,6 +23,7 @@ import time
 import uuid
 
 from ...core.logger import log_event
+from . import cli_locator
 from .base import BaseAiProvider
 
 DEFAULT_TIMEOUT_SECONDS = 180
@@ -109,8 +110,24 @@ def find_executable(name_or_path):
     found = shutil.which(text)
     if found:
         return found
-    extra = os.pathsep.join(_extra_bin_dirs())
-    return shutil.which(text, path=extra) if extra else None
+    # Then the usual install folders, then what the OS says the user's own terminal would search (cli_locator; read from its cache only,
+    # because looking starts a shell and this runs on the UI thread too).
+    for folders in (_extra_bin_dirs(), cli_locator.cached_dirs()):
+        path = os.pathsep.join(folders)
+        found = shutil.which(text, path=path) if path else None
+        if found:
+            return found
+    return None
+
+
+def search_folders():
+    """Every folder a bare program name is looked for in, in order, for telling the user where was searched."""
+    seen, out = set(), []
+    for d in [*(os.environ.get("PATH", "").split(os.pathsep)), *_extra_bin_dirs(), *cli_locator.cached_dirs()]:
+        if d and d not in seen:
+            seen.add(d)
+            out.append(d)
+    return out
 
 
 def find_in_folder(folder, name):
@@ -127,7 +144,7 @@ def scrubbed_environment(base=None):
         env.pop(key, None)
     # Node-based CLIs are launcher scripts that need `node` on PATH; add the usual folders after the existing PATH.
     have = env.get("PATH", "").split(os.pathsep)
-    extra = [d for d in _extra_bin_dirs() if d not in have]
+    extra = [d for d in [*_extra_bin_dirs(), *cli_locator.cached_dirs()] if d not in have]
     if extra:
         env["PATH"] = os.pathsep.join([p for p in [env.get("PATH", ""), *extra] if p])
     return env
@@ -441,6 +458,7 @@ class _CliClient(BaseAiProvider):
         raise NotImplementedError
 
     def complete(self, messages, tools=None, max_tokens=None):  # max_tokens unused: the CLIs have no output-token flag
+        cli_locator.ensure()  # first call looks at the OS's own PATH (a few seconds at most, once); this runs on a worker thread
         exe = find_executable(self.executable) or find_in_folder(self.executable, self.default_exe)
         if not exe:
             return {"error": f"{self.label} not found. Install it and sign in, or set its path in Settings."}
