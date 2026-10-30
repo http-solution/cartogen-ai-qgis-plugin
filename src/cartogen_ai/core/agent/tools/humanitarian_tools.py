@@ -534,8 +534,7 @@ def add_osm_layer_main_thread_phase(fetch_result: dict) -> dict:
         "required": ["key", "value"]
     },
     keywords=[
-        "hospital", "hospitals", "clinic", "clinics", "health facilit", "medical",
-        "healthcare", "health care", "health service", "health centre", "health center", "dispensar",
+        "concept:health_facility",
         "health facilities", "doctors", "pharmacy", "pharmacies", "osm data", "download facilities",
         "fetch facilities", "osm features", "infrastructure", "schools", "road network", "highways",
         "osm", "amenities", "amenity",

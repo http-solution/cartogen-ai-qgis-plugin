@@ -550,8 +550,7 @@ def _geocode_one(location_name: str):
 
 
 @register_tool("geocode_and_enrich", "Geocode a SINGLE address/place name into lat/lon via Nominatim API; the result also carries the place's bounding box (bbox_south_west_north_east and bbox_west_south_east_north) for tools that take an area. For multiple locations in one request, use geocode_batch instead -- one call per place will run out of tool-call steps before finishing a long list.", {"type": "object", "properties": {"location_name": {"type": "string"}}, "required": ["location_name"]}, keywords=[
-    "hospital", "hospitals", "clinic", "clinics", "health facilit", "medical",
-    "healthcare", "health care", "health service", "health centre", "health center", "dispensar",
+    "concept:health_facility",
     "geocode", "find the location of", "where is",
 ])
 def geocode_and_enrich(location_name: str):
@@ -564,8 +563,7 @@ def geocode_and_enrich(location_name: str):
     "calling geocode_and_enrich in a loop whenever more than one location needs coordinates.",
     {"type": "object", "properties": {"location_names": {"type": "array", "items": {"type": "string"}}}, "required": ["location_names"]},
     keywords=[
-        "hospital", "hospitals", "clinic", "clinics", "health facilit", "medical",
-        "healthcare", "health care", "health service", "health centre", "health center", "dispensar",
+        "concept:health_facility",
         "geocode", "list of locations", "multiple locations",
     ],
 )
