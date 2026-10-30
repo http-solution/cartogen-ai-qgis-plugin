@@ -242,6 +242,32 @@ class TestConnectionsWindow(unittest.TestCase):
         dialog._on_cli_check("codex_cli", {"ok": True, "stage": "ready", "message": "ok", "version": "v"})
         self.assertEqual(dialog._active_provider, "codex_cli")
 
+    def test_the_small_sign_in_button_also_waits_for_the_login(self):
+        from unittest.mock import patch
+
+        from cartogen_ai.infrastructure.providers import cli_bridge_status as st
+        dialog = self._guided(self.RESULTS)
+        dialog._check_cli = lambda p: None
+        with patch.object(st, "open_signin_terminal", return_value={"launched": True, "command": "codex login", "message": "terminal opened"}):
+            dialog._cli_buttons["codex_cli"][1].click()
+        self.assertEqual(self.consent_asked, ["codex_cli"])
+        self.assertEqual(dialog._poll_provider, "codex_cli")
+        self.assertTrue(dialog._poll_timer.isActive())
+        self.assertIn("waiting for you", dialog._cli_status_labels["codex_cli"].text())
+
+    def test_leaving_the_path_field_looks_for_the_program_again(self):
+        from unittest.mock import patch
+
+        from cartogen_ai.infrastructure.providers import cli_bridge_status as st
+        dialog = self._guided(self.RESULTS)
+        self.assertFalse(dialog._detecting)
+        with patch.object(st, "detect_all", return_value=[dict(r) for r in self.RESULTS]):
+            dialog._key_edits["codex_cli"].editingFinished.emit()
+            self.assertTrue(dialog._detecting, "a detection was started")
+            for t in threading.enumerate():
+                if t is not threading.current_thread() and t.daemon:
+                    t.join(timeout=5)
+
     def test_the_wait_gives_up_and_closing_the_window_stops_it(self):
         dialog = self._guided(self.RESULTS)
         dialog._start_poll("codex_cli")

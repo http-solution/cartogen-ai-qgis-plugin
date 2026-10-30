@@ -92,6 +92,24 @@ class TestDetection(unittest.TestCase):
         body = DIALOG[start:DIALOG.index("\n    def ", start + 10)]
         self.assertIn("if provider is None:\n            return", body)
 
+    def test_both_sign_in_buttons_wait_for_the_login_and_a_typed_path_is_looked_at(self):
+        """The owner pressed the small Sign in... button, authorised in the browser and nothing changed (2026-10-30): that button opened
+        the sign-in and forgot it, and nothing looked again after a path was typed."""
+        self.assertIn("signin_btn.clicked.connect(lambda _checked=False, p=pv: self._signin_and_wait(p))", DIALOG)
+        start = DIALOG.index("    def _signin_and_wait")
+        body = DIALOG[start:DIALOG.index("\n    def ", start + 10)]
+        self.assertIn("self._ensure_cli_consent(provider)", body)
+        self.assertLess(body.index("self._ensure_cli_consent(provider)"), body.index("self._signin_cli(provider)"))
+        self.assertIn("self._start_poll(provider)", body)
+        self.assertIn("key_edit.editingFinished.connect(self._start_detect)", DIALOG)
+
+    def test_coming_back_to_the_window_looks_again_at_most_every_five_seconds(self):
+        start = DIALOG.index("    def changeEvent")
+        body = DIALOG[start:DIALOG.index("\n    def ", start + 10)]
+        self.assertIn("QEvent.Type.ActivationChange", body)
+        self.assertIn("> 5", body)
+        self.assertIn("not self._detecting", body)
+
     def test_the_poll_stops_when_the_window_closes_and_gives_up_after_five_minutes(self):
         self.assertIn("def done(self, result):\n        self._stop_poll()", DIALOG)
         self.assertIn("_POLL_GIVE_UP = 300", DIALOG)
