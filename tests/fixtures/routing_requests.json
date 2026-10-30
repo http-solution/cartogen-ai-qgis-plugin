@@ -1,0 +1,33 @@
+[
+  {
+    "prompt": "list medical service in Al Maharah",
+    "tools": [
+      [
+        "geocode_and_enrich",
+        "geocode_batch",
+        "ingest_osm_features"
+      ]
+    ],
+    "source": "owner hand test 2026-10-30"
+  },
+  {
+    "prompt": "show me the clinics and hospitals in Sanaa",
+    "tools": [
+      [
+        "ingest_osm_features",
+        "fetch_osm_features"
+      ]
+    ],
+    "source": "wording variant of the medical report"
+  },
+  {
+    "prompt": "where are the nearest pharmacies",
+    "tools": [
+      [
+        "ingest_osm_features",
+        "fetch_osm_features"
+      ]
+    ],
+    "source": "wording variant of the medical report"
+  }
+]
