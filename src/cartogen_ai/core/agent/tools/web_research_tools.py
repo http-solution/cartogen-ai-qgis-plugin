@@ -295,7 +295,15 @@ def web_research_result(query, kind="web", max_results=8, days=7):
         "kind": {"type": "string", "description": "'web' (default) or 'news'."},
         "max_results": {"type": "integer", "description": "How many results (default 8, at most 25)."},
         "days": {"type": "integer", "description": "For kind='news': how many days back (1 to 30, default 7)."}},
-     "required": ["query"]})
+     "required": ["query"]},
+    keywords=[
+        "from the internet", "search the internet", "search the web", "search online", "look up online", "look it up",
+        "find information about", "find the information", "give me the source", "provide the source",
+        "provide me with the source", "cite the source", "with sources", "with the source", "source of the information",
+        "what are the latest news", "latest news about", "news about", "search the news", "check the internet",
+        "on the internet", "online sources", "google",
+    ],
+)
 def web_research(query, kind="web", max_results=8, days=7):
     return web_research_result(query, kind, max_results, days)
 

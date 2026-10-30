@@ -298,6 +298,10 @@ def _csv_row(r):
             "replace": {"type": "boolean", "description": "Replace all stored decisions instead of merging."},
         },
     },
+    keywords=[
+        "record the jiaf decision", "jiaf decisions", "final pin decision", "agreed severity", "flagged unit decision",
+        "which sector pin",
+    ],
 )
 def record_jiaf_decisions(pin_decisions=None, severity_decisions=None, replace=False):
     pin, e1 = validate_pin_decisions(pin_decisions)
@@ -321,6 +325,9 @@ def record_jiaf_decisions(pin_decisions=None, severity_decisions=None, replace=F
     "get_jiaf_decisions",
     "Read the JIAF 2 group decisions stored in the project by record_jiaf_decisions (support for the JIAF 2 process; not endorsed by OCHA or the IASC).",
     {"type": "object", "properties": {}},
+    keywords=[
+        "show the jiaf decisions", "stored jiaf decisions",
+    ],
 )
 def get_jiaf_decisions():
     if not QGIS_AVAILABLE:
@@ -361,6 +368,10 @@ def get_jiaf_decisions():
         },
         "required": ["file_path"],
     },
+    keywords=[
+        "final pin", "final joint overall pin", "finalize the jiaf", "finalise the jiaf", "jiaf final results",
+        "pending flagged units",
+    ],
 )
 def finalize_jiaf_results(file_path, input_format="auto", sheet_name=None, previous_file_path=None, previous_sheet_name=None,
                           bulk_accepted_flags=None, bulk_rationale=None, bulk_decided_by=None, rules_profile=None, sectors_sev_5=None, sectors_sev_4=None, sectors_in_scope=None, zero_severity_as=None,

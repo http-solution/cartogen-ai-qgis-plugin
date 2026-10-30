@@ -338,6 +338,9 @@ def _run_raster_and_add(alg, params, new_name, output_key="OUTPUT"):
     "up with apply_raster_stretch(layer_name='NDVI') to apply a readable diverging color ramp "
     "(auto-selected for NDVI-named layers) instead of leaving it flat/unstretched.",
     {"type": "object", "properties": {"red_layer": {"type": "string"}, "nir_layer": {"type": "string"}, **_ALIGN_PARAMS}, "required": ["red_layer", "nir_layer"]},
+    keywords=[
+        "vegetation", "vegetation health", "how green", "greenness", "crop health", "plant health", "vegetation index",
+    ],
 )
 def calculate_ndvi(red_layer, nir_layer, align_to_first=False, resampling="bilinear"):
     if not QGIS_AVAILABLE:
@@ -379,6 +382,9 @@ def calculate_ndvi(red_layer, nir_layer, align_to_first=False, resampling="bilin
     "apply_raster_stretch(layer_name='NDWI') to apply a readable diverging color ramp (auto-selected "
     "for NDWI-named layers) instead of leaving it flat/unstretched.",
     {"type": "object", "properties": {"green_layer": {"type": "string"}, "nir_layer": {"type": "string"}, **_ALIGN_PARAMS}, "required": ["green_layer", "nir_layer"]},
+    keywords=[
+        "surface water", "how much water", "water extent", "is there flooding", "flood mapping", "water index",
+    ],
 )
 def calculate_ndwi(green_layer, nir_layer, align_to_first=False, resampling="bilinear"):
     if not QGIS_AVAILABLE:
@@ -503,6 +509,9 @@ def weighted_overlay_analysis(raster_layers, weights, align_to_first=False, resa
     "apply_raster_stretch(layer_name='NDRE') to apply a readable diverging color ramp (auto-selected "
     "for NDRE-named layers) instead of leaving it flat/unstretched.",
     {"type": "object", "properties": {"red_edge_layer": {"type": "string"}, "nir_layer": {"type": "string"}, **_ALIGN_PARAMS}, "required": ["red_edge_layer", "nir_layer"]},
+    keywords=[
+        "chlorophyll", "nitrogen stress", "crop nitrogen", "precision agriculture", "precision ag",
+    ],
 )
 def calculate_ndre(red_edge_layer, nir_layer, align_to_first=False, resampling="bilinear"):
     if not QGIS_AVAILABLE:
@@ -1833,6 +1842,13 @@ def _auto_raster_style(layer_name, mode):
         },
         "required": ["layer_name"],
     },
+    keywords=[
+        "raster looks washed out", "raster looks flat", "fix the raster colors", "raster color ramp", "raster contrast",
+        "stretch the raster", "raster looks grey", "raster looks gray", "colorize the raster", "colour ramp", "color ramp",
+        "colour scheme", "color scheme", "green to red", "red to green", "blue to red", "style the raster", "style the dem",
+        "style the slope", "style the result with", "pseudocolor", "contrast stretch", "raster colours", "raster colors",
+        "population ramp",
+    ],
 )
 def apply_raster_stretch(layer_name, mode="auto", color_ramp=None, band=1, min_value=None, max_value=None,
                          keep_population_ramp=True):

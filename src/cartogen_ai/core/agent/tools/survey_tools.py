@@ -191,6 +191,10 @@ def _layer(name):
         },
         "required": ["layer_name", "group_field", "indicator_field"],
     },
+    keywords=[
+        "survey results by", "survey indicator", "weighted survey", "survey weights", "household survey results",
+        "proportion of households", "share of households", "percentage of households",
+    ],
 )
 def aggregate_survey_indicator(layer_name, group_field, indicator_field, kind="proportion", positive_values=None, weight_field=None,
                                min_n=DEFAULT_MIN_N, confidence=0.95, design_effect=1.0, output_table_name=None):

@@ -112,6 +112,14 @@ def rational_peak_flow_m3_s(coefficient, intensity_mm_h, area_km2):
         },
         "required": ["location"],
     },
+    # Other ways to ask for the same places ("list medical service in Al Maharah", owner's chat 2026-10-30, was answered "the available
+    # tools cannot retrieve health-facility listings" because none of these tools was offered for that wording).
+    # Hydrology (see tools/engineering_tools.py). "steam length" is the typo in the request that motivated these tools. No bare
+    # "tc" alias: aliases match as substrings of the query, so it would boost these tools on "match", "batch" or "catchment".
+    keywords=[
+        "degrees minutes seconds", "dms coordinate", "watershed outlet", "watershed area", "stream length", "steam length",
+        "peak flow",
+    ],
 )
 def parse_dms_location(location):
     try:
@@ -157,6 +165,10 @@ def parse_dms_location(location):
         },
         "required": ["location", "return_period_years"],
     },
+    keywords=[
+        "watershed", "catchment", "drainage basin", "stream length", "steam length", "return period", "rainfall intensity",
+        "time of concentration", "peak flow",
+    ],
 )
 def assess_watershed_hydrology_request(
     location,
@@ -271,6 +283,10 @@ def assess_watershed_hydrology_request(
             "return_period_years",
         ],
     },
+    keywords=[
+        "watershed", "catchment", "rational method", "return period", "rainfall intensity", "time of concentration", "peak flow",
+        "kirpich",
+    ],
 )
 def calculate_rational_watershed_peak_flow(
     area_km2,

@@ -67,6 +67,9 @@ def _temporary_layer_names(project):
         },
         "required": [],
     },
+    keywords=[
+        "save the project", "save project", "save my work", "save the map project",
+    ],
 )
 def save_project(output_path=None):
     output_path = resolve_output_path(output_path)   # rc22 smoke N3/N8/N9: anchor relative paths to the project (see _paths.py)
@@ -102,6 +105,9 @@ def save_project(output_path=None):
         },
         "required": ["file_path"],
     },
+    keywords=[
+        "open the project", "load the project", "open project", "open a project", "open the qgz", "open the qgs", "load the qgz",
+    ],
 )
 def load_project(file_path: str, confirmed: bool = False):
     if not confirmed:

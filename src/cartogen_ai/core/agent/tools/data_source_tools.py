@@ -187,7 +187,13 @@ def web_layer_source(kind, url, layer=None, crs=None, image_format=None, tile_ma
         "fields": {"type": "array", "items": {"type": "object", "properties": {"name": {"type": "string"}, "type": {"type": "string"}}}},
         "crs": {"type": "string", "description": "e.g. EPSG:4326 (default)"},
         "file_path": {"type": "string", "description": "optional .gpkg/.shp/.geojson to create on disk"}},
-     "required": ["layer_name", "geometry_type"]})
+     "required": ["layer_name", "geometry_type"]},
+    keywords=[
+        "empty layer", "new empty layer", "blank layer", "new layer with fields", "create a new layer", "create a scratch layer",
+        "scratch layer", "temporary layer", "new geopackage layer", "new shapefile", "layer to digitize", "layer to digitise",
+        "empty polygon layer", "empty point layer", "empty line layer", "new table",
+    ],
+)
 def create_empty_layer(layer_name, geometry_type, fields=None, crs=None, file_path=None, confirmed=False):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
@@ -241,7 +247,12 @@ def create_empty_layer(layer_name, geometry_type, fields=None, crs=None, file_pa
     "Add a background map to the QGIS project from a fixed list: openstreetmap, opentopomap, satellite (Esri imagery), esri streets, "
     "carto light, carto dark. The layer is placed at the bottom of the layer tree. Tiles are loaded by QGIS directly from the provider.",
     {"type": "object", "properties": {"basemap": {"type": "string", "description": "openstreetmap, topo, satellite, esri streets, carto light, carto dark"}},
-     "required": ["basemap"]})
+     "required": ["basemap"]},
+    keywords=[
+        "basemap", "base map", "background map", "add openstreetmap", "add osm", "satellite imagery background",
+        "satellite basemap", "add a satellite", "open street map", "topographic background", "carto light", "carto dark",
+    ],
+)
 def add_basemap(basemap):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
@@ -272,7 +283,12 @@ def add_basemap(basemap):
         "service_type": {"type": "string"}, "url": {"type": "string"}, "layer_name": {"type": "string"},
         "layer": {"type": "string", "description": "service layer / typename"}, "crs": {"type": "string"},
         "image_format": {"type": "string"}, "tile_matrix_set": {"type": "string"}, "style": {"type": "string"}},
-     "required": ["service_type", "url"]})
+     "required": ["service_type", "url"]},
+    keywords=[
+        "wms", "wmts", "wfs", "xyz tile", "tile layer", "web service", "web map service", "arcgis rest", "arcgis feature",
+        "featureserver", "mapserver", "add a service", "tile url", "getcapabilities",
+    ],
+)
 def add_web_layer(service_type, url, layer_name=None, layer=None, crs=None, image_format=None, tile_matrix_set=None, style=None):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
@@ -335,7 +351,12 @@ def replacement_source(old_source, new_file):
 @register_tool(
     "find_broken_layers",
     "List the project layers whose data source cannot be read (moved or deleted file, lost drive) with the path they point to. Read-only.",
-    {"type": "object", "properties": {}, "required": []})
+    {"type": "object", "properties": {}, "required": []},
+    keywords=[
+        "broken layer", "broken layers", "broken path", "broken paths", "missing layer", "layer not found", "layers with a red",
+        "unavailable layer", "fix the paths", "data source is missing", "lost layer", "moved the file",
+    ],
+)
 def find_broken_layers():
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
@@ -350,7 +371,12 @@ def find_broken_layers():
     "Point a broken layer at its data again. Give new_path if you know where the file is; otherwise the project folder (and search_folder, "
     "if given) is searched for a file with the same name. One match is applied; several are listed so you can choose one.",
     {"type": "object", "properties": {"layer_name": {"type": "string"}, "new_path": {"type": "string"}, "search_folder": {"type": "string"}},
-     "required": ["layer_name"]})
+     "required": ["layer_name"]},
+    keywords=[
+        "repair the layer", "repair layer", "fix the broken", "relink", "re-link", "point the layer to",
+        "change the data source", "change the source", "set data source", "resolve the missing", "find the moved",
+    ],
+)
 def repair_layer_source(layer_name, new_path=None, search_folder=None):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
@@ -405,7 +431,13 @@ def save_as_plan(fields_requested, layer_field_names):
         "crs": {"type": "string", "description": "target CRS, e.g. EPSG:4326; omit to keep the layer's CRS"},
         "fields": {"type": "array", "items": {"type": "string"}, "description": "field names to keep; omit for all"},
         "only_selected": {"type": "boolean"}, "add_to_project": {"type": "boolean"}},
-     "required": ["layer_name", "output_path", "format"]})
+     "required": ["layer_name", "output_path", "format"]},
+    keywords=[
+        "save as", "save the layer as", "save layer as", "save it in epsg", "save with only", "save only the selected",
+        "export in another crs", "export with only the fields", "save in a different crs", "export to a different projection",
+        "keep only the fields", "export only the fields",
+    ],
+)
 def save_layer_as(layer_name, output_path, format, crs=None, fields=None, only_selected=False, add_to_project=False,  # noqa: A002
                   confirmed=False):
     if not QGIS_AVAILABLE:

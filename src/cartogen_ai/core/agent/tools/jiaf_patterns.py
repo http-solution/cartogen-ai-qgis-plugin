@@ -226,6 +226,10 @@ def _dist(values):
         },
         "required": ["file_path"],
     },
+    keywords=[
+        "jiaf patterns", "intersectoral patterns", "workspace 3c", "pin correlation between sectors",
+        "sectors driving the needs", "needs patterns and linkages",
+    ],
 )
 def compute_jiaf_patterns(file_path, input_format="auto", sheet_name=None, previous_file_path=None, previous_sheet_name=None,
                           sectors_in_scope=None, zero_severity_as=None, sector_population_share=None, many_sectors_with_large_pin=None, top_units=None, high_pin_share=None, severe_phases=None,

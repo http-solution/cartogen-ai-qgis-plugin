@@ -140,6 +140,13 @@ def _apply_to_symbols(symbols, options, colours, pen, brush, shape):
         "line_style": {"type": "string", "description": "Pattern of a line or of a polygon outline."},
         "fill_style": {"type": "string", "description": "Pattern of a polygon fill, for example hatch_forward."},
     }, "required": ["layer_name"]},
+    keywords=[
+        "outline color", "outline colour", "outline width", "outline thickness", "thicker outline", "thinner outline",
+        "thin outline", "thick outline", "dashed outline", "dashed line", "dotted line", "dotted outline", "line pattern",
+        "line style", "stroke width", "stroke colour", "stroke color", "marker shape", "marker size", "symbol size",
+        "bigger symbols", "smaller symbols", "star marker", "square marker", "triangle marker", "diamond marker", "hatch",
+        "hatched", "hatching", "fill pattern", "no fill", "hollow polygons", "outline only", "symbol outline",
+    ],
 )
 def set_layer_symbol(layer_name, fill_color=None, outline_color=None, outline_width_mm=None, opacity_percent=None, marker_shape=None,
                      marker_size_mm=None, line_style=None, fill_style=None):
@@ -246,6 +253,11 @@ def _apply_text_format(fmt, options, colours):
         "visible_zoomed_in_to": {"type": "number", "description": "Scale denominator, e.g. 5000."},
         "show_labels": {"type": "boolean"},
     }, "required": ["layer_name"]},
+    keywords=[
+        "label color", "label colour", "label size", "bigger labels", "smaller labels", "bold labels", "italic labels",
+        "label halo", "halo around", "label buffer", "label placement", "labels only when zoomed", "hide the labels",
+        "show the labels", "turn off labels", "turn on labels", "label font", "labels in bold",
+    ],
 )
 def set_label_style(layer_name, font_color=None, font_size=None, bold=None, italic=None, halo=None, halo_color=None, halo_size_mm=None,
                     placement=None, visible_zoomed_out_to=None, visible_zoomed_in_to=None, show_labels=None):
@@ -312,6 +324,12 @@ def set_label_style(layer_name, font_color=None, font_size=None, bold=None, ital
         "opacity_percent": {"type": "number"},
         "nodata_min": {"type": "number"}, "nodata_max": {"type": "number"}, "clear_nodata": {"type": "boolean"},
     }, "required": ["layer_name"]},
+    keywords=[
+        "unique values", "one color per value", "one colour per value", "class colors", "class colours", "paletted",
+        "categorical raster", "land cover colors", "land cover colours", "nodata", "no data", "no-data",
+        "make zeros transparent", "resampling", "smooth the raster", "blocky cells", "pixelated", "bilinear", "raster opacity",
+        "raster transparency",
+    ],
 )
 def set_raster_style(layer_name, mode=None, resampling=None, opacity_percent=None, nodata_min=None, nodata_max=None, clear_nodata=None):
     if not QGIS_AVAILABLE:

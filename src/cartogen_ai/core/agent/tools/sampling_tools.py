@@ -245,6 +245,11 @@ def _draw_sample_features(out, rows, groups, unit_points, units, seed, warnings)
         },
         "required": ["strata_layer"],
     },
+    # Survey sampling (see tools/sampling_tools.py). No bare "sample" or "survey": they appear in unrelated requests.
+    keywords=[
+        "sampling frame", "sample size", "stratified sample", "sampling design", "household survey", "needs assessment", "msna",
+        "enumerator", "margin of error", "cluster sampling", "random sample of households",
+    ],
 )
 def design_sampling_frame(strata_layer, stratum_field=None, units_layer=None, population_attribute=None, confidence=0.95,
                           margin_of_error=0.05, expected_proportion=0.5, design_effect=1.0, nonresponse_rate=0.0, seed=None,

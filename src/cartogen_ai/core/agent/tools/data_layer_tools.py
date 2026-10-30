@@ -40,7 +40,12 @@ def _vector_layers(names):
     "a query instead of a whole table.",
     {"type": "object", "properties": {"connection_name": {"type": "string"}, "table": {"type": "string"}, "schema": {"type": "string"},
                                       "geometry_column": {"type": "string"}, "key_column": {"type": "string"}, "layer_name": {"type": "string"}},
-     "required": ["connection_name", "table"]})
+     "required": ["connection_name", "table"]},
+    keywords=[
+        "postgis table", "postgis layer", "add the postgis", "load the postgis", "table from postgis", "postgresql table",
+        "postgres table", "add the table from the database", "layer from the database", "from the postgis connection",
+    ],
+)
 def add_postgis_layer(connection_name, table, schema="public", geometry_column=None, key_column=None, layer_name=None):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
@@ -92,7 +97,12 @@ def _connection_names(settings):
     "follows the source layers.",
     {"type": "object", "properties": {"layer_name": {"type": "string"}, "sql": {"type": "string"},
                                       "geometry_column": {"type": "string", "description": "name of the geometry column in the result, if it is not detected"}},
-     "required": ["layer_name", "sql"]})
+     "required": ["layer_name", "sql"]},
+    keywords=[
+        "virtual layer", "create a virtual layer", "sql layer", "query layer", "spatialite query",
+        "sqlite query over the layers", "join the layers with sql", "sql query over the layers", "live query layer",
+    ],
+)
 def create_virtual_layer(layer_name, sql, geometry_column=None):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
@@ -125,7 +135,12 @@ def create_virtual_layer(layer_name, sql, geometry_column=None):
     "load_layer_definition",
     "Load a QGIS layer definition file (.qlr) into the project: the layers it holds come with their styles. The layers read their own data "
     "sources, so a .qlr is only as safe as the files and services it points to.",
-    {"type": "object", "properties": {"file_path": {"type": "string"}}, "required": ["file_path"]})
+    {"type": "object", "properties": {"file_path": {"type": "string"}}, "required": ["file_path"]},
+    keywords=[
+        "load the qlr", "open the qlr", "qlr file", "layer definition file", "load a layer definition",
+        "import the layer definition",
+    ],
+)
 def load_layer_definition(file_path):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
@@ -152,7 +167,11 @@ def load_layer_definition(file_path):
     "Save chosen layers of the project, with their styles, to a QGIS layer definition file (.qlr) that can be loaded into other projects. "
     "layer_names is the list of layers. An existing file is only replaced after confirmation.",
     {"type": "object", "properties": {"layer_names": {"type": "array", "items": {"type": "string"}}, "file_path": {"type": "string"}},
-     "required": ["layer_names", "file_path"]})
+     "required": ["layer_names", "file_path"]},
+    keywords=[
+        "save as qlr", "save the layer definition", "export the layer definition", "save layers as qlr", "layer definition for",
+    ],
+)
 def save_layer_definition(layer_names, file_path, confirmed=False):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
@@ -189,7 +208,15 @@ def save_layer_definition(layer_names, file_path, confirmed=False):
     "layer_names is the list of vector layers; file_path ends in .gpkg. only_selected packs just the selected features. An existing file "
     "is only replaced after confirmation. Raster layers are not packaged.",
     {"type": "object", "properties": {"layer_names": {"type": "array", "items": {"type": "string"}}, "file_path": {"type": "string"},
-                                      "only_selected": {"type": "boolean"}}, "required": ["layer_names", "file_path"]})
+                                      "only_selected": {"type": "boolean"}}, "required": ["layer_names", "file_path"]},
+    keywords=[
+        "package the layers", "package the project layers", "package for offline", "offline package",
+        "package into one geopackage", "pack the layers into a geopackage", "use offline", "take the layers offline",
+        "package layers", "bundle the project", "bundle the layers", "bundle the data", "package the data",
+        "package the project", "share the project data", "share the layers", "zip the layers", "zip the project data",
+        "hand over the data", "send the project data",
+    ],
+)
 def package_layers_offline(layer_names, file_path, only_selected=False, confirmed=False):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}

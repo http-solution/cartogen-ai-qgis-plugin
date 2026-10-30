@@ -1711,7 +1711,7 @@
   },
   {
     "id": "tool-keywords-beside-the-tool",
-    "feature": "a tool declares the phrases users say for it next to its own @register_tool (keywords=[...]); the router scores them like the curated aliases and never sends them to the model; geocode_and_enrich, geocode_batch and ingest_osm_features are the first tools migrated",
+    "feature": "a tool declares the phrases users say for it next to its own @register_tool (keywords=[...]); the router scores them like the curated aliases and never sends them to the model; every tool's phrases now live beside the tool (180 entries moved out of tool_router._TOOL_ALIASES, 2105 phrases, identical per tool before and after)",
     "issues": [],
     "since": "1.18.6",
     "sources": [
@@ -1725,7 +1725,10 @@
       "tests/test_tool_keywords.py::TestToolKeywords::test_a_phrase_is_declared_in_one_place_only",
       "tests/test_tool_router_basics.py::TestMedicalWordingOffersTheFacilityTools::test_each_wording_offers_the_osm_tool",
       "tests/test_tool_keywords.py::TestConceptGroups::test_every_concept_reference_names_a_defined_group",
-      "tests/test_tool_keywords.py::TestConceptGroups::test_the_health_group_reaches_all_three_tools_with_the_same_phrases"
+      "tests/test_tool_keywords.py::TestConceptGroups::test_the_health_group_reaches_all_three_tools_with_the_same_phrases",
+      "tests/test_tool_keywords.py::TestToolKeywords::test_the_curated_phrase_count_has_not_shrunk",
+      "tests/test_tool_keywords.py::TestToolKeywords::test_no_tool_is_registered_twice",
+      "tests/test_tool_router_basics.py::TestEveryAliasStillOffersItsOwnTool::test_each_alias_phrase_offers_the_tool_it_belongs_to"
     ],
     "hand_verified": "not verified: CI only. Shared concept groups (core/services/routing_concepts.json, named concept:<name>) hold the medical phrases once. Offline: the medical wordings still offer the same tools after the move, the schema is unchanged, and no model was run.",
     "hand_row": "none, because routing is unchanged for users; the medical-services prompt in the OWN-16 hand list covers it"

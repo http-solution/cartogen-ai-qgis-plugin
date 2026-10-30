@@ -57,7 +57,12 @@ def _colour(text):
             "field": {"type": "string"}, "filter": {"type": "string"}, "font_size": {"type": "number"}, "font_color": {"type": "string"},
             "min_scale": {"type": "number"}, "max_scale": {"type": "number"}, "description": {"type": "string"}}, "required": ["field"]}},
         "clear": {"type": "boolean"}},
-     "required": ["layer_name"]})
+     "required": ["layer_name"]},
+    keywords=[
+        "rule based labels", "rule-based labels", "rule based labelling", "label rules", "label only the",
+        "different labels for", "label the big", "label the large", "label by rules", "labels with rules",
+    ],
+)
 def set_rule_based_labels(layer_name, rules=None, clear=False):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
@@ -116,7 +121,12 @@ def set_rule_based_labels(layer_name, rules=None, clear=False):
     {"type": "object", "properties": {
         "layer_name": {"type": "string"}, "enabled": {"type": "boolean"}, "style": {"type": "string", "description": "simple or manhattan"},
         "color": {"type": "string"}, "width_mm": {"type": "number"}, "mask": {"type": "boolean"}, "mask_size_mm": {"type": "number"}},
-     "required": ["layer_name"]})
+     "required": ["layer_name"]},
+    keywords=[
+        "callout", "callouts", "label callout", "leader line", "leader lines", "label mask", "mask behind the text",
+        "clear halo behind",
+    ],
+)
 def set_label_callout(layer_name, enabled=None, style=None, color=None, width_mm=None, mask=None, mask_size_mm=None):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
@@ -200,7 +210,12 @@ def _resolve_svg(path):
     {"type": "object", "properties": {
         "layer_name": {"type": "string"}, "kind": {"type": "string", "description": "svg or font"}, "svg_path": {"type": "string"},
         "font_family": {"type": "string"}, "character": {"type": "string"}, "size_mm": {"type": "number"}, "color": {"type": "string"}},
-     "required": ["layer_name", "kind"]})
+     "required": ["layer_name", "kind"]},
+    keywords=[
+        "svg marker", "svg icon", "use an svg", "picture marker", "icon for the points", "use an icon", "font marker",
+        "use a symbol font", "use the svg", "marker from svg",
+    ],
+)
 def set_point_marker(layer_name, kind, svg_path=None, font_family=None, character=None, size_mm=None, color=None):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
@@ -250,7 +265,13 @@ def set_point_marker(layer_name, kind, svg_path=None, font_family=None, characte
     {"type": "object", "properties": {
         "layer_name": {"type": "string"}, "kind": {"type": "string"}, "fields": {"type": "array", "items": {"type": "string"}},
         "size_mm": {"type": "number"}, "colors": {"type": "array", "items": {"type": "string"}}, "clear": {"type": "boolean"}},
-     "required": ["layer_name"]})
+     "required": ["layer_name"]},
+    keywords=[
+        "pie chart on the map", "pie charts on the map", "pie diagram", "bar diagram", "bar chart on each", "diagram on each",
+        "diagrams on the map", "draw a pie", "add pie charts", "add a pie chart", "pie charts of the", "draw pies",
+        "histogram diagram", "chart for each feature",
+    ],
+)
 def set_layer_diagram(layer_name, kind=None, fields=None, size_mm=None, colors=None, clear=False):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
@@ -311,7 +332,12 @@ def set_layer_diagram(layer_name, kind=None, fields=None, size_mm=None, colors=N
     {"type": "object", "properties": {
         "layer_name": {"type": "string"}, "style": {"type": "string", "description": "hillshade or contour"}, "azimuth": {"type": "number"},
         "altitude": {"type": "number"}, "z_factor": {"type": "number"}, "interval": {"type": "number"}, "index_interval": {"type": "number"},
-        "band": {"type": "integer"}}, "required": ["layer_name", "style"]})
+        "band": {"type": "integer"}}, "required": ["layer_name", "style"]},
+    keywords=[
+        "hillshade renderer", "draw as a hillshade", "show as hillshade", "show the dem as hillshade",
+        "contour lines on the dem", "contour renderer", "draw as contours", "show contours on the raster", "shaded relief",
+    ],
+)
 def set_raster_relief(layer_name, style, azimuth=None, altitude=None, z_factor=None, interval=None, index_interval=None, band=None):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
@@ -369,7 +395,12 @@ def _symbol_of(layer):
     "Save a vector layer's (single) symbol into your personal QGIS symbol library under a name, optionally with tags, so it can be reused "
     "on other layers and in other projects. An existing symbol with the same name is only replaced after confirmation.",
     {"type": "object", "properties": {"layer_name": {"type": "string"}, "name": {"type": "string"},
-                                      "tags": {"type": "array", "items": {"type": "string"}}}, "required": ["layer_name", "name"]})
+                                      "tags": {"type": "array", "items": {"type": "string"}}}, "required": ["layer_name", "name"]},
+    keywords=[
+        "save the symbol", "save this symbol", "add the symbol to my library", "symbol library", "save the style as a symbol",
+        "store this symbol",
+    ],
+)
 def save_symbol_to_library(layer_name, name, tags=None, confirmed=False):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
@@ -400,7 +431,11 @@ def save_symbol_to_library(layer_name, name, tags=None, confirmed=False):
 @register_tool(
     "list_saved_symbols",
     "List the symbols in your personal QGIS symbol library (name and kind: marker, line or fill).",
-    {"type": "object", "properties": {}, "required": []})
+    {"type": "object", "properties": {}, "required": []},
+    keywords=[
+        "my saved symbols", "list the saved symbols", "saved symbols", "what symbols do i have", "symbols in my library",
+    ],
+)
 def list_saved_symbols():
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
@@ -416,7 +451,11 @@ def list_saved_symbols():
     "apply_saved_symbol",
     "Give a vector layer a symbol from your personal symbol library by name. The symbol kind must fit the layer (marker for points, line for "
     "lines, fill for polygons). A layer that uses categories or graduated colours is only switched to the single symbol after confirmation.",
-    {"type": "object", "properties": {"layer_name": {"type": "string"}, "name": {"type": "string"}}, "required": ["layer_name", "name"]})
+    {"type": "object", "properties": {"layer_name": {"type": "string"}, "name": {"type": "string"}}, "required": ["layer_name", "name"]},
+    keywords=[
+        "use the saved symbol", "apply the saved symbol", "apply my symbol", "use the symbol called", "symbol from my library",
+    ],
+)
 def apply_saved_symbol(layer_name, name, confirmed=False):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}

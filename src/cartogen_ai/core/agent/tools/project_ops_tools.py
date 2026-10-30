@@ -48,7 +48,11 @@ def _member(owner_names, member):
 @register_tool(
     "rename_layer_group",
     "Rename a layer group in the layer tree.",
-    {"type": "object", "properties": {"group_name": {"type": "string"}, "new_name": {"type": "string"}}, "required": ["group_name", "new_name"]})
+    {"type": "object", "properties": {"group_name": {"type": "string"}, "new_name": {"type": "string"}}, "required": ["group_name", "new_name"]},
+    keywords=[
+        "rename the group", "rename group", "rename the layer group", "change the group name", "call the group",
+    ],
+)
 def rename_layer_group(group_name, new_name):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
@@ -76,7 +80,12 @@ def extent_changed(before, after, tolerance=1e-9):
 @register_tool(
     "zoom_history",
     "Zoom the map canvas to the previous or the next extent in its history (like the Zoom Last / Zoom Next buttons). direction: previous or next.",
-    {"type": "object", "properties": {"direction": {"type": "string", "description": "previous or next"}}, "required": ["direction"]})
+    {"type": "object", "properties": {"direction": {"type": "string", "description": "previous or next"}}, "required": ["direction"]},
+    keywords=[
+        "zoom last", "zoom next", "zoom to the previous extent", "previous extent", "go back to the previous view",
+        "previous view", "zoom back", "next extent", "go back to the last view",
+    ],
+)
 def zoom_history(direction):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
@@ -108,7 +117,12 @@ def _metadata_dict(layer):
 @register_tool(
     "get_layer_metadata",
     "Read a layer's metadata: title, abstract, licenses, rights, keywords and contacts.",
-    {"type": "object", "properties": {"layer_name": {"type": "string"}}, "required": ["layer_name"]})
+    {"type": "object", "properties": {"layer_name": {"type": "string"}}, "required": ["layer_name"]},
+    keywords=[
+        "layer metadata", "show the metadata", "metadata of the layer", "what is the abstract", "show the abstract",
+        "layer abstract",
+    ],
+)
 def get_layer_metadata(layer_name):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
@@ -126,7 +140,12 @@ def get_layer_metadata(layer_name):
                                       "license": {"type": "string"}, "rights": {"type": "string"},
                                       "keywords": {"type": "array", "items": {"type": "string"}}, "contact_name": {"type": "string"},
                                       "contact_organization": {"type": "string"}, "contact_email": {"type": "string"}},
-     "required": ["layer_name"]})
+     "required": ["layer_name"]},
+    keywords=[
+        "set the abstract", "set the layer abstract", "set the metadata", "set the license", "set the layer license",
+        "set the keywords", "update the metadata", "edit the metadata", "set the layer title",
+    ],
+)
 def set_layer_metadata(layer_name, title=None, abstract=None, license=None, rights=None, keywords=None,  # noqa: A002
                        contact_name=None, contact_organization=None, contact_email=None):
     if not QGIS_AVAILABLE:
@@ -164,7 +183,12 @@ def set_layer_metadata(layer_name, title=None, abstract=None, license=None, righ
     "tolerance, units (pixels or project units), mode (all layers, active layer, advanced) and topological editing. Options you leave out are kept.",
     {"type": "object", "properties": {"enabled": {"type": "boolean"}, "snap_type": {"type": "string"}, "tolerance": {"type": "number"},
                                       "units": {"type": "string"}, "mode": {"type": "string"}, "topological_editing": {"type": "boolean"}},
-     "required": []})
+     "required": []},
+    keywords=[
+        "turn on snapping", "turn off snapping", "enable snapping", "disable snapping", "snapping to vertices",
+        "snapping tolerance", "snapping options", "topological editing", "set snapping", "snap to",
+    ],
+)
 def set_snapping_options(enabled=None, snap_type=None, tolerance=None, units=None, mode=None, topological_editing=None):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
@@ -221,7 +245,12 @@ def set_snapping_options(enabled=None, snap_type=None, tolerance=None, units=Non
     "and schools.district_pcode). The relation is stored in the project.",
     {"type": "object", "properties": {"name": {"type": "string"}, "parent_layer": {"type": "string"}, "parent_field": {"type": "string"},
                                       "child_layer": {"type": "string"}, "child_field": {"type": "string"}},
-     "required": ["name", "parent_layer", "parent_field", "child_layer", "child_field"]})
+     "required": ["name", "parent_layer", "parent_field", "child_layer", "child_field"]},
+    keywords=[
+        "create a relation", "add a relation", "define a relation", "relate the", "one to many relation", "1-n relation",
+        "project relation",
+    ],
+)
 def create_relation(name, parent_layer, parent_field, child_layer, child_field):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
@@ -253,7 +282,11 @@ def create_relation(name, parent_layer, parent_field, child_layer, child_field):
 @register_tool(
     "list_relations",
     "List the project's relations between layers.",
-    {"type": "object", "properties": {}, "required": []})
+    {"type": "object", "properties": {}, "required": []},
+    keywords=[
+        "list the relations", "show the relations", "what relations", "project relations",
+    ],
+)
 def list_relations():
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
@@ -271,7 +304,12 @@ def list_relations():
     "Make a vector layer time-aware: give the date or date-time field (start_field) and optionally an end_field for features that last a "
     "period. Set clear=true to switch it off. The fields must be of date or date-time type.",
     {"type": "object", "properties": {"layer_name": {"type": "string"}, "start_field": {"type": "string"}, "end_field": {"type": "string"},
-                                      "clear": {"type": "boolean"}}, "required": ["layer_name"]})
+                                      "clear": {"type": "boolean"}}, "required": ["layer_name"]},
+    keywords=[
+        "make the layer temporal", "enable temporal", "temporal properties", "time enabled", "time-aware", "make it time aware",
+        "use the date field for time", "temporal controller for the layer", "set the layer time",
+    ],
+)
 def set_layer_temporal(layer_name, start_field=None, end_field=None, clear=False):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
@@ -308,7 +346,11 @@ def set_layer_temporal(layer_name, start_field=None, end_field=None, clear=False
     "set_project_time_range",
     "Set the project's temporal range (the period the temporal controller covers). start and end are dates such as 2026-03-01 or "
     "2026-03-01T12:00:00.",
-    {"type": "object", "properties": {"start": {"type": "string"}, "end": {"type": "string"}}, "required": ["start", "end"]})
+    {"type": "object", "properties": {"start": {"type": "string"}, "end": {"type": "string"}}, "required": ["start", "end"]},
+    keywords=[
+        "project time range", "temporal range", "set the time range", "set the temporal range", "animation range",
+    ],
+)
 def set_project_time_range(start, end):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
@@ -324,7 +366,12 @@ def set_project_time_range(start, end):
     "add_text_annotation",
     "Put a text note on the map at x, y (in crs, default EPSG:4326). It is kept in the project's annotation layer.",
     {"type": "object", "properties": {"text": {"type": "string"}, "x": {"type": "number"}, "y": {"type": "number"}, "crs": {"type": "string"}},
-     "required": ["text", "x", "y"]})
+     "required": ["text", "x", "y"]},
+    keywords=[
+        "add a text annotation", "text annotation", "annotate the map", "add an annotation", "add a note on the map",
+        "write on the map",
+    ],
+)
 def add_text_annotation(text, x, y, crs=None):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
@@ -348,7 +395,11 @@ def add_text_annotation(text, x, y, crs=None):
 @register_tool(
     "remove_annotations",
     "Remove all text annotations from the map. Destructive: a preview with the count is shown first.",
-    {"type": "object", "properties": {}, "required": []})
+    {"type": "object", "properties": {}, "required": []},
+    keywords=[
+        "remove the annotations", "delete the annotations", "clear the annotations", "remove all annotations",
+    ],
+)
 def remove_annotations(confirmed=False):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}

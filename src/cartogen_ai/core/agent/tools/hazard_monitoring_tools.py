@@ -331,6 +331,9 @@ def add_nasa_active_fires_layer_main_thread_phase(fetch_result, layer_name="NASA
         },
         "required": ["bbox"],
     },
+    keywords=[
+        "active fire", "live fire", "fire detection", "current wildfire", "wildfire location", "fire alert", "wildfire",
+    ],
 )
 def fetch_nasa_active_fires(bbox, days=1, min_confidence="nominal", layer_name="NASA Active Fires"):
     fetch_result = fetch_nasa_active_fires_network_phase(bbox, days, min_confidence)
@@ -497,6 +500,10 @@ def add_nasa_eonet_events_layer_main_thread_phase(fetch_result, layer_name="NASA
         },
         "required": [],
     },
+    keywords=[
+        "natural event", "live event", "current event", "live hazard", "current hazard", "natural incident", "live incident",
+        "ongoing hazard", "what hazards", "hazard incident", "hazard", "incident",
+    ],
 )
 def fetch_nasa_eonet_events(bbox=None, category=None, days=20, status="open", layer_name="NASA EONET Events"):
     fetch_result = fetch_nasa_eonet_events_network_phase(bbox, category, days, status)
@@ -697,6 +704,21 @@ def add_gdacs_disaster_alerts_layer_main_thread_phase(fetch_result, layer_name="
         },
         "required": [],
     },
+    # Added 2026-09-13, live user report: "show live incedent in jordan... natural, crime,
+    # haszard" -- fetch_gdacs_disaster_alerts scored zero relevance for this phrasing (its
+    # description names specific hazard TYPES -- earthquakes, floods, wildfires -- but never
+    # the generic words "disaster"/"hazard"/"incident" a real user reaches for first). The
+    # single-word "hazard"/"disaster"/"incident"/"wildfire" entries below exist specifically so
+    # _expand_query_with_fuzzy_corrections() (see its docstring) has something to land a
+    # corrected "haszard"->"hazard" or "incedent"->"incident" on -- bare-substring matching
+    # alone still can't see a misspelled word, but the fuzzy-correction pass runs before this
+    # check and appends the corrected form to the string these aliases are matched against.
+    # rule 48 (prompts.py) is the complementary fix for when the tool IS already a candidate
+    # but the model doesn't know to reach for it.
+    keywords=[
+        "disaster alert", "current disaster", "live disaster", "ongoing disaster", "disaster incident", "hazard alert",
+        "what disasters", "natural disaster", "hazard", "disaster", "emergency",
+    ],
 )
 def fetch_gdacs_disaster_alerts(bbox=None, min_alert_level="Orange", country=None, layer_name="GDACS Disaster Alerts"):
     fetch_result = fetch_gdacs_disaster_alerts_network_phase(bbox, min_alert_level, country)

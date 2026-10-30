@@ -47,6 +47,9 @@ def rank_tools(query, schemas, limit=MAX_RESULTS):
     "rest of this request. Use it BEFORE writing a script. It only searches; it changes nothing.",
     {"type": "object", "properties": {"need": {"type": "string", "description": "The step you need to do, in plain words."}},
      "required": ["need"]},
+    keywords=[
+        "which tool", "what tool", "is there a tool", "is there a way to", "what can you do", "list the tools", "what tools",
+    ],
 )
 def find_tools(need):
     matches = rank_tools(need, TOOLS_SCHEMA)

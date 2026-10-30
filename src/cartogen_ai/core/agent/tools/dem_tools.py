@@ -143,6 +143,10 @@ def _open_existing(urls):
         "output_path": {"type": "string", "description": "Optional GeoTIFF path; relative paths are anchored to the project folder."},
         "output_name": {"type": "string", "description": "Optional layer name."}},
      "required": []},
+    keywords=[
+        "dem", "elevation data", "download elevation", "download the dem", "terrain data", "get the dem", "watershed",
+        "catchment", "peak flow", "stream length", "time of concentration",
+    ],
 )
 def fetch_dem(layer_name=None, west=None, south=None, east=None, north=None, lat=None, lon=None, radius_km=None,
               output_path=None, output_name=None):

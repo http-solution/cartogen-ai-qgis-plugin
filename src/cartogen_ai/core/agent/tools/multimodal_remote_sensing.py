@@ -120,7 +120,12 @@ def search_stac_satellite_imagery(bbox: list, start_date: str, end_date: str, li
         return {"error": f"STAC API query failed: {e}"}
 
 
-@register_tool("inspect_canvas_visually", "Capture current map canvas view and return visual inspection context.", {"type": "object", "properties": {"prompt_guidance": {"type": "string"}}, "required": []})
+@register_tool("inspect_canvas_visually", "Capture current map canvas view and return visual inspection context.", {"type": "object", "properties": {"prompt_guidance": {"type": "string"}}, "required": []},
+    keywords=[
+        "look at the map", "look at the canvas", "see the map", "screenshot of the map", "what does the map look like",
+        "inspect the canvas", "check how the map looks", "view the canvas",
+    ],
+)
 def inspect_canvas_visually(prompt_guidance: str = "Analyze visible map layers"):
     """Captures map canvas image for multimodal vision inspection."""
     if not QGIS_AVAILABLE or iface is None:
@@ -166,6 +171,10 @@ _ALIGN_PARAMS_CHANGE = {
     "added to the project with a diverging ramp symmetric about zero (blue = decrease, red = "
     "increase, no change transparent) so the change pattern is visible straight away.",
     {"type": "object", "properties": {"raster_before": {"type": "string"}, "raster_after": {"type": "string"}, **_ALIGN_PARAMS_CHANGE}, "required": ["raster_before", "raster_after"]},
+    keywords=[
+        "before and after", "compare images", "what changed", "how much damage", "damage from before to after",
+        "satellite comparison",
+    ],
 )
 def calculate_raster_change_detection(raster_before: str, raster_after: str, align_to_first: bool = False, resampling: str = "bilinear"):
     """Calculates temporal raster difference layer (after - before)."""

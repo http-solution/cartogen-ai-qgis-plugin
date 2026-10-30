@@ -527,6 +527,10 @@ def _row_for_csv(r):
         },
         "required": ["file_path"],
     },
+    keywords=[
+        "preliminary joint pin", "preliminary pin", "mosaic method", "joint overall pin", "preliminary intersectoral severity",
+        "jiaf flags", "pin flags", "highest sectoral pin", "compute the jiaf", "jiaf preliminary",
+    ],
 )
 def compute_jiaf_preliminary(file_path, input_format="auto", sheet_name=None, previous_file_path=None, previous_sheet_name=None,
                              rules_profile=None, sectors_sev_5=None, sectors_sev_4=None, sectors_in_scope=None, zero_severity_as=None, f1_min_sectors=None, f1_count_missing=None, f1_count_zero=None, f2_pct=None, f3_pct=None, f4_subpopulation_sectors=None, f5_share=None, f6_pct=None,

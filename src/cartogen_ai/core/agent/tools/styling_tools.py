@@ -457,6 +457,11 @@ def _reorder_top_level_layers(ordered_layers):
         },
         "required": ["layer_name", "field"],
     },
+    keywords=[
+        "different colour for each", "different color for each", "each type in its own colour", "each type in its own color",
+        "colour by type", "color by type", "colour each", "color each", "separate colours", "separate colors",
+        "categorize the layer", "categorise the layer", "categorized style", "categorised style", "unique values",
+    ],
 )
 def apply_categorized_style(layer_name, field, opacity=None, palette=None):
     if not QGIS_AVAILABLE:
@@ -610,6 +615,11 @@ def _mark_no_data(layer, renderer, field):
         },
         "required": ["layer_name", "field"],
     },
+    keywords=[
+        "colour the districts by", "color the districts by", "shade the districts", "darker where", "darker the more",
+        "colour by how many", "color by how many", "from light to dark", "light to dark", "darker for higher", "show how much",
+        "show how many",
+    ],
 )
 def apply_graduated_style(layer_name, field, mode="auto", opacity=None, cluster=None, breaks=None, num_classes=5, color_from=None, color_to=None):
     if not QGIS_AVAILABLE:
@@ -769,6 +779,10 @@ def apply_graduated_style(layer_name, field, mode="auto", opacity=None, cluster=
         },
         "required": ["layer_name", "field"],
     },
+    keywords=[
+        "bigger dots", "bigger circles", "larger dots", "larger circles", "bigger the more", "size by", "scale the dots",
+        "scale the circles", "dot size", "bigger symbols",
+    ],
 )
 def apply_graduated_symbol_style(layer_name, field, min_size=4, max_size=24, mode="auto", num_classes=5, color="#3182bd"):
     if not QGIS_AVAILABLE:
@@ -956,7 +970,12 @@ def apply_rule_based_style(layer_name, field, rules):
         return {"error": f"apply_rule_based_style failed: {e}"}
 
 
-@register_tool("apply_heatmap_style", "Apply heatmap renderer to point layer with transparent zero-density baseline so basemaps remain visible.", {"type": "object", "properties": {"layer_name": {"type": "string"}, "field": {"type": "string"}}, "required": ["layer_name"]})
+@register_tool("apply_heatmap_style", "Apply heatmap renderer to point layer with transparent zero-density baseline so basemaps remain visible.", {"type": "object", "properties": {"layer_name": {"type": "string"}, "field": {"type": "string"}}, "required": ["layer_name"]},
+    keywords=[
+        "crowded", "crowding", "where people are concentrated", "where most", "concentrated", "density map", "hot spots",
+        "hotspots", "busy areas", "clusters of",
+    ],
+)
 def apply_heatmap_style(layer_name, field=None):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
@@ -1034,6 +1053,9 @@ def _heatmap_algorithm_id():
         },
         "required": ["point_layer", "radius"],
     },
+    keywords=[
+        "dbscan", "density clusters", "clusters of incidents", "hot spots",
+    ],
 )
 def hotspot_analysis(point_layer, radius, pixel_size=None, weight_field=None):
     if not QGIS_AVAILABLE:
@@ -1090,6 +1112,10 @@ def hotspot_analysis(point_layer, radius, pixel_size=None, weight_field=None):
         },
         "required": ["layer_name", "color_hex"],
     },
+    keywords=[
+        "make it red", "make them red", "in red", "in blue", "in green", "in dark", "in light", "in pale", "make it stand out",
+        "make them stand out", "stand out", "change the colour", "change the color", "recolour", "recolor",
+    ],
 )
 def change_layer_color(layer_name, color_hex, opacity=None):
     if not QGIS_AVAILABLE:
@@ -1138,6 +1164,10 @@ def change_layer_color(layer_name, color_hex, opacity=None):
         },
         "required": ["layer_name", "opacity_percent"],
     },
+    keywords=[
+        "see-through", "see through", "less solid", "so i can see underneath", "so i can see what is below", "fade the",
+        "more transparent",
+    ],
 )
 def set_layer_transparency(layer_name, opacity_percent):
     if not QGIS_AVAILABLE:
@@ -1164,6 +1194,9 @@ def set_layer_transparency(layer_name, opacity_percent):
     "the usual fix when a map with several layers looks 'messy' or a small icon layer has "
     "disappeared under a larger area layer.",
     {"type": "object", "properties": {}},
+    keywords=[
+        "easier to read", "tidy the map", "clean up the map", "declutter", "map is cluttered", "looks messy", "hide the clutter",
+    ],
 )
 def auto_arrange_layer_order():
     if not QGIS_AVAILABLE:
@@ -1204,6 +1237,12 @@ def auto_arrange_layer_order():
         },
         "required": ["layer_names"],
     },
+    keywords=[
+        "move the layer to the top", "move the layer to the bottom", "bring the layer to the front",
+        "send the layer to the back", "layer order", "draw order", "put the layer above", "put the layer below",
+        "move the layer", "move layer", "put the layer", "move the layer above", "move the layer below", "reorder the layers",
+        "stacking order",
+    ],
 )
 def set_layer_order(layer_names):
     if not QGIS_AVAILABLE:

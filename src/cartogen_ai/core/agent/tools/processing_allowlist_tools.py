@@ -447,6 +447,71 @@ def _with_sun_point(alg_id, params):
         },
         "required": ["alg_id", "params"],
     },
+    # QGIS vocabulary audit 2026-10-14 (91 plain menu-style phrases): these were not offered. The Processing tool covers the algorithms in
+    # _processing_allowlist.py; phrases are the names users know from the Processing toolbox and the Vector/Raster menus.
+    keywords=[
+        "mesh edges", "mesh faces", "mesh vertices", "mesh on grid", "mesh contours", "rasterize mesh", "mesh dataset",
+        "surface to polygon", "grass", "grass gis", "grass algorithm", "r.watershed", "r.slope.aspect", "r.cost", "r.viewshed",
+        "v.buffer", "v.clean", "v.net", "add geometry attributes", "affine transform", "approximate medial axis",
+        "bounding box of each", "bounding boxes", "check validity", "collect geometries", "concave hull",
+        "convert geometry type", "convert to curved geometries", "convert to multipart", "create wedge buffers", "delete holes",
+        "delete the holes", "densify", "densify by count", "densify by interval", "dissolve coverage", "drop m z values",
+        "explode lines", "explode the lines", "extend lines", "extract clip by extent", "extract vertices", "extrude",
+        "fill gaps between polygons", "fill the holes", "filter vertices by m value", "filter vertices by z value",
+        "force polygons", "force polygons clockwise", "force polygons counter clockwise", "force right hand rule",
+        "geodesic line split at antimeridian", "interpolate point on line", "keep n biggest parts", "line substring",
+        "lines to polygons", "merge lines", "minimum bounding", "minimum bounding geometry", "minimum enclosing circles",
+        "multi ring buffer", "offset lines", "offset the lines", "oriented bounding box", "oriented minimum bounding box",
+        "orthogonalize", "point on surface", "points along", "points along geometry", "points displacement",
+        "pole of inaccessibility", "polygonize", "polygons to lines", "project points", "promote to multi",
+        "promote to multipart", "rectangles ovals diamonds", "remove duplicate vertices", "remove null geometries",
+        "remove parts by area", "remove parts by length", "reverse line", "reverse line direction", "reverse the line",
+        "right hand rule", "rotate the features", "roundness", "segmentize", "segmentize by maximum angle",
+        "segmentize by maximum distance", "set m value", "set z value", "simplify coverage", "single sided buffer",
+        "smooth the geometr", "smooth the line", "smooth the polygon", "snap geometries to layer", "snap points to grid",
+        "snap the points to", "split lines by maximum length", "split with lines", "subdivide the", "swap x and y",
+        "swap x and y coordinates", "tapered buffer", "tapered buffers", "boundary of the polygon", "boundary of each polygon",
+        "outline of the polygons as lines", "translate the", "validate coverage", "variable width buffer", "wedge buffer",
+        "delete duplicate geometries", "drop geometries", "drop the geometries", "extract within distance",
+        "filter by geometry type", "drop field", "drop the field", "retain fields", "delete duplicates by attribute",
+        "random extract", "random extract within subsets", "join attributes by location summary", "detect dataset changes",
+        "detect vector changes", "array of translated features", "array of offset", "check geometry", "check the geometry",
+        "geometry check", "small angles", "small polygons", "dangle end", "degenerate polygons", "duplicated geometries",
+        "duplicated vertices", "polygons exceeding boundaries", "lines intersecting", "missing vertices along borders",
+        "strictly multipart", "sliver polygons", "small segments", "self contacts", "self intersections", "climb along line",
+        "distance matrix", "distance to nearest hub", "create layer from extent", "create layer from point", "join by lines",
+        "hub lines", "mean coordinate", "shortest line between features", "text to float", "topological coloring",
+        "random points in polygons", "random points on lines", "random points along line", "random points in layer bounds",
+        "extract by expression", "geometry by expression", "order by expression", "add autoincremental field",
+        "random points inside polygons", "autoincrement", "symmetrical difference", "symmetric difference", "k-means", "kmeans",
+        "k means cluster", "dbscan", "reclassify", "reclassification", "sample raster", "raster sampling", "raster values at",
+        "join by nearest", "join attributes by location", "count points in polygon", "count points in each",
+        "points per polygon", "points in each polygon", "cell statistics", "tin interpolation", "idw",
+        "statistics by categories", "pansharp", "shortest path", "extract by location", "create grid", "create a grid",
+        "make a grid", "fishnet", "regular grid", "native:", "gdal:", "qgis:", "processing algorithm", "processing toolbox",
+        "build virtual raster", "clip raster by extent", "fill nodata", "grid with moving average", "grid with data metrics",
+        "grid with inverse distance", "grid with nearest neighbor", "grid with linear interpolation", "gdal hillshade",
+        "gdal slope", "gdal aspect", "near black", "pct to rgb", "rgb to pct", "raster proximity", "proximity map",
+        "distance to the nearest", "rearrange bands", "roughness of the dem", "sieve the raster", "sieve",
+        "topographic position index", "terrain ruggedness index", "convert raster format", "warp the raster",
+        "reproject the raster", "resample the raster", "cell stack percentile", "cell stack percent rank",
+        "create constant raster", "create random raster", "dtm filter", "equal to frequency", "greater than frequency",
+        "less than frequency", "highest position in raster stack", "lowest position in raster stack",
+        "feature preserving dem smoothing", "gaussian blur", "raster layer properties", "raster layer zonal statistics",
+        "raster rank", "ruggedness index", "total curvature", "zonal histogram", "zonal minimum maximum point", "fill sinks",
+        "fuzzify raster", "raster boolean and", "raster boolean or", "rescale raster", "round raster", "reclassify by layer",
+        "raster minimum maximum", "viewshed", "cell stack", "add unique value index field", "add x y fields to layer",
+        "convert spatial bookmarks to layer", "find projection", "assign projection to the layer", "extract by attribute value",
+        "rename a table field", "extract selected features to a new layer", "split features by character",
+        "create points layer from table", "align points to features", "overlap analysis", "extract network end points",
+        "line density", "kernel density heatmap", "raster pixels to points", "raster pixels to polygons",
+        "generate points at pixel centroids inside polygons", "regular points", "service area from a layer of facilities",
+        "shortest path from a layer to a point", "st-dbscan", "sum line lengths", "validate network", "extract m values",
+        "extract z values", "extract specific vertices", "line intersections", "difference of multiple layers",
+        "intersection of multiple layers", "union of multiple layers", "set m value from raster", "drape the lines on the dem",
+        "extract layer extent as a polygon", "rasterize the vector to a raster", "random points in extent",
+        "add field to attributes table",
+    ],
 )
 def run_allowlisted_processing_algorithm(alg_id, params, new_layer_name=None):
     if not QGIS_AVAILABLE:
@@ -674,7 +739,16 @@ def _browse_family(family):
     {"type": "object", "properties": {"query": {"type": "string"}, "algorithm_id": {"type": "string"},
                                       "family": {"type": "string", "description": "Browse one family instead of searching: geometry, table, analysis, "
                                                  "expression, raster, mixed, grass or mesh. Lists id, name and what each is for."}},
-     "required": []})
+     "required": []},
+    # M1 (2026-10-14). inspect_canvas_visually is here because the new basemap/web-layer tools mention "map" and pushed it out of the
+    # top 40 for "look at the map" (caught by tests/test_qgis_coverage_ratchet.py): a tool that only matched on a description word
+    # loses to any newcomer that uses the same word, so the phrases users actually say are pinned.
+    keywords=[
+        "which grass", "grass algorithms", "grass commands", "which processing algorithm", "processing algorithm",
+        "processing tool for", "is there a tool for", "is there an algorithm", "list the processing", "what algorithms",
+        "which algorithm", "available algorithms", "qgis algorithm",
+    ],
+)
 def find_processing_algorithm(query="", algorithm_id=None, family=None):
     if family:
         return _browse_family(family)

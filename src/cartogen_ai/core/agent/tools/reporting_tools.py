@@ -308,6 +308,10 @@ def _aggregate_3w_presence(rows, admin_field, org_field, sector_field=None):
         },
         "required": ["file_path", "admin_field", "org_field"],
     },
+    keywords=[
+        "who else is working", "who is working", "3w", "4w", "operational presence", "who's active", "who's responding",
+        "who is active", "who is responding", "which organizations are present", "which organisations are present",
+    ],
 )
 def load_3w_data(file_path, admin_field, org_field, sector_field=None, sheet_name=None, delimiter=","):
     if not os.path.exists(file_path):

@@ -169,9 +169,9 @@ class TestEngineeringAdjustments(unittest.TestCase):
         self.assertTrue(any("80 ha" in w for w in large["warnings"]))  # past FHWA's Rational Method limit too
 
     def test_no_router_alias_is_short_enough_to_match_inside_ordinary_words(self):
-        from cartogen_ai.core.services.tool_router import _TOOL_ALIASES
+        from cartogen_ai.core.services.tool_router import routing_phrases
         for tool in ("parse_dms_location", "assess_watershed_hydrology_request", "calculate_rational_watershed_peak_flow"):
-            for alias in _TOOL_ALIASES[tool]:
+            for alias in routing_phrases(tool):
                 self.assertGreaterEqual(len(alias), 5, (tool, alias))     # aliases match as substrings of the query
 
     def test_the_tools_are_classified_as_read_only_calculations(self):

@@ -645,6 +645,10 @@ def load_units(file_path, input_format="auto", sheet_name=None, sector=None, tem
         },
         "required": ["file_path"],
     },
+    keywords=[
+        "jiaf input", "jiaf inputs", "import jiaf", "load the jiaf", "sector pin file", "sectoral pin", "jiaf worksheet",
+        "hno dataset", "people in need by sector", "sector inputs",
+    ],
 )
 def import_jiaf_inputs(file_path, input_format="auto", sheet_name=None, sector=None, template_kind=None, layer_name=None, layer_key_field=None,
                        write_fields=False, confirmed: bool = False):
@@ -786,6 +790,9 @@ def validate_setup(setup, alignments):
         },
         "required": ["country", "planning_cycle", "unit_of_analysis", "manual_edition"],
     },
+    keywords=[
+        "jiaf set-up", "jiaf setup", "record the jiaf", "sector alignment", "jiaf scope", "manual edition",
+    ],
 )
 def record_jiaf_setup(country, planning_cycle, unit_of_analysis, manual_edition, areas_in_scope=None, population_groups=None, scope_note=None,
                       hct_endorsed_scope=None, sector_alignment=None):
@@ -812,6 +819,9 @@ def record_jiaf_setup(country, planning_cycle, unit_of_analysis, manual_edition,
     "Read the JIAF 2 analysis set-up and sector alignment records stored in the project by record_jiaf_setup (support for the JIAF 2 process; not "
     "endorsed by OCHA or the IASC).",
     {"type": "object", "properties": {}},
+    keywords=[
+        "show the jiaf set-up", "jiaf setup record", "what jiaf scope",
+    ],
 )
 def get_jiaf_setup():
     if not QGIS_AVAILABLE:

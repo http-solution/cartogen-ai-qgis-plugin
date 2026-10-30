@@ -355,6 +355,10 @@ def _write_joined_fields(layer, layer_name, kind, fields, pairs, result):
         },
         "required": ["file_path", "kind"],
     },
+    keywords=[
+        "import ipc", "ipc table", "ipc phase file", "ipc classification file", "import inform", "inform risk table",
+        "inform risk file", "unosat damage", "unosat points", "import the damage points", "load the ipc", "load the inform",
+    ],
 )
 def import_humanitarian_table(file_path, kind, mapping=None, sheet_name=None, delimiter=",", layer_name=None, layer_key_field=None,
                               write_fields=False, confirmed: bool = False):

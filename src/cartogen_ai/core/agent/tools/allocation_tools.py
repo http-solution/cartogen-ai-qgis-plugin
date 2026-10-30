@@ -180,6 +180,10 @@ def _layer(name):
         },
         "required": ["layer_name", "budget", "need_field"],
     },
+    keywords=[
+        "allocation envelope", "split the budget", "allocate the budget", "divide the budget", "distribute the budget",
+        "budget across districts", "budget by severity", "funding envelope", "share the funding", "allocate funding",
+    ],
 )
 def calculate_allocation_envelope(layer_name, budget, need_field, population_field=None, unit_name_field=None, need_exponent=1.0,
                                   max_share_per_unit=None, min_amount_per_unit=0.0, exclude_need_below=None, rounding=None,

@@ -91,7 +91,13 @@ def _unsaved_note(owned):
     "(default), add, remove or intersect with the current selection.",
     {"type": "object", "properties": {"layer_name": {"type": "string"}, "expression": {"type": "string"},
                                       "mode": {"type": "string", "description": "replace, add, remove or intersect"}},
-     "required": ["layer_name", "expression"]})
+     "required": ["layer_name", "expression"]},
+    keywords=[
+        "select by expression", "select with an expression", "select where", "select all features where",
+        "select the features where", "add to the selection", "remove from the selection", "narrow the selection",
+        "select features with",
+    ],
+)
 def select_by_expression(layer_name, expression, mode="replace"):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
@@ -115,7 +121,11 @@ def select_by_expression(layer_name, expression, mode="replace"):
 @register_tool(
     "select_all_features",
     "Select every feature of a layer.",
-    {"type": "object", "properties": {"layer_name": {"type": "string"}}, "required": ["layer_name"]})
+    {"type": "object", "properties": {"layer_name": {"type": "string"}}, "required": ["layer_name"]},
+    keywords=[
+        "select all features", "select everything", "select all the features", "select all records",
+    ],
+)
 def select_all_features(layer_name):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
@@ -129,7 +139,12 @@ def select_all_features(layer_name):
 @register_tool(
     "clear_selection",
     "Deselect all features: of one layer, or of every layer in the project when layer_name is omitted.",
-    {"type": "object", "properties": {"layer_name": {"type": "string"}}, "required": []})
+    {"type": "object", "properties": {"layer_name": {"type": "string"}}, "required": []},
+    keywords=[
+        "clear the selection", "clear selection", "deselect", "unselect", "remove the selection", "clear all selections",
+        "select nothing",
+    ],
+)
 def clear_selection(layer_name=None):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
@@ -152,7 +167,13 @@ def clear_selection(layer_name=None):
     "Delete features from a layer: those matching an expression, or the currently selected ones (only_selected). Destructive: a preview "
     "with the exact count is shown for confirmation first. Never deletes everything unless the expression says so.",
     {"type": "object", "properties": {"layer_name": {"type": "string"}, "expression": {"type": "string"}, "only_selected": {"type": "boolean"}},
-     "required": ["layer_name"]})
+     "required": ["layer_name"]},
+    keywords=[
+        "delete the selected", "delete features", "delete the features", "delete the selected features",
+        "remove the selected features", "delete all features where", "delete the records", "delete the rows",
+        "delete the polygons where", "delete the points where",
+    ],
+)
 def delete_features(layer_name, expression=None, only_selected=False, confirmed=False):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
@@ -192,7 +213,12 @@ def delete_features(layer_name, expression=None, only_selected=False, confirmed=
     "refused, not turned into NULL. Use the string null to clear a value. Changes data: a preview with the count is shown first.",
     {"type": "object", "properties": {"layer_name": {"type": "string"}, "field": {"type": "string"}, "value": {"type": "string"},
                                       "feature_id": {"type": "integer"}, "expression": {"type": "string"}},
-     "required": ["layer_name", "field", "value"]})
+     "required": ["layer_name", "field", "value"]},
+    keywords=[
+        "change the value", "set the value", "edit the value", "update the value", "set the field", "change the attribute",
+        "edit the attribute", "change the population of", "set its", "update the attribute", "fill the field",
+    ],
+)
 def set_attribute_value(layer_name, field, value, feature_id=None, expression=None, confirmed=False):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
@@ -240,7 +266,12 @@ def set_attribute_value(layer_name, field, value, feature_id=None, expression=No
     "add_field",
     "Add an empty field to a layer. field_type: string, integer, long, double, date or datetime.",
     {"type": "object", "properties": {"layer_name": {"type": "string"}, "field_name": {"type": "string"}, "field_type": {"type": "string"}},
-     "required": ["layer_name", "field_name"]})
+     "required": ["layer_name", "field_name"]},
+    keywords=[
+        "add a field", "add a column", "add a new field", "new column", "add an attribute field", "add a new column",
+        "add field",
+    ],
+)
 def add_field(layer_name, field_name, field_type="string"):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
@@ -276,7 +307,11 @@ def add_field(layer_name, field_name, field_type="string"):
     "rename_field",
     "Rename a field of a layer.",
     {"type": "object", "properties": {"layer_name": {"type": "string"}, "field_name": {"type": "string"}, "new_name": {"type": "string"}},
-     "required": ["layer_name", "field_name", "new_name"]})
+     "required": ["layer_name", "field_name", "new_name"]},
+    keywords=[
+        "rename the field", "rename the column", "rename field", "rename column", "rename the attribute",
+    ],
+)
 def rename_field(layer_name, field_name, new_name):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
@@ -309,7 +344,12 @@ def rename_field(layer_name, field_name, new_name):
     "delete_field",
     "Delete a field (column) and all its values from a layer. Destructive: a preview is shown for confirmation first.",
     {"type": "object", "properties": {"layer_name": {"type": "string"}, "field_name": {"type": "string"}},
-     "required": ["layer_name", "field_name"]})
+     "required": ["layer_name", "field_name"]},
+    keywords=[
+        "delete the field", "delete the column", "drop the field", "drop the column", "remove the field", "remove the column",
+        "delete field", "delete column",
+    ],
+)
 def delete_field(layer_name, field_name, confirmed=False):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
@@ -342,7 +382,12 @@ def delete_field(layer_name, field_name, confirmed=False):
     "(default: the layer's own); it is transformed in code. attributes is {field: value}. The geometry type must match the layer.",
     {"type": "object", "properties": {"layer_name": {"type": "string"}, "wkt": {"type": "string"},
                                       "attributes": {"type": "object"}, "crs": {"type": "string", "description": "e.g. EPSG:4326"}},
-     "required": ["layer_name", "wkt"]})
+     "required": ["layer_name", "wkt"]},
+    keywords=[
+        "add a feature", "add a new feature", "add this wkt", "from wkt", "add the geometry", "add a polygon to",
+        "add a line to", "add a point to the layer", "wkt",
+    ],
+)
 def add_feature_from_wkt(layer_name, wkt, attributes=None, crs=None):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
