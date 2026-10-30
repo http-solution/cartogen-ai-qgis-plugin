@@ -8,21 +8,22 @@ One list to follow up and plan from. It replaces the session task list (101 entr
 
 | Item | Value |
 |---|---|
-| Latest release | 1.18.4 (published 2026-10-27), checked by the offline suite and CI on QGIS 4.2.2; only the three 1.18.2 checks and part of 1.18.3 are hand-verified |
-| Offline tests / registered tools | 5,103 passing (779 skipped, live-QGIS) / 296 |
+| Latest release | 1.18.5 (published 2026-10-28). `main` on 2026-10-30 holds unreleased work (Connections window, CLI guided setup, PLAN-040 structure audit); 1.18.6 is held. Checked by the offline suite and CI on QGIS 4.2.2; hand verification of the new work is OWN-16 |
+| Offline tests / registered tools | about 5,450 run in CI (about 790 skipped, live-QGIS only) / 296 |
 | Open GitHub issues | 2: #362, #380 (waiting on hand rows V3 to V8) |
-| Feature ledger | 98 entries; 27 'not verified', 5 'partly' |
-| Plans | 26 plan files; 14 flagged stale by PLAN-022 (not yet corrected) |
-| Remote branches | 193 |
+| Feature ledger | 119 entries; 48 'not verified', 5 'partly' |
+| Plans | 40 plan files (PLAN-001 to PLAN-041; HY-1 corrected the stale statuses) |
+| Remote branches | 13 (the work branches of 2026-10-29/30 and main) |
 | Unmerged documents | branch claude/pending-work-master-list (earlier master list and PLAN-023) |
 
 ## Do these first (the next two weeks)
 
-1. **OWN-1**: run Section N of the 1.18.4 package and send the folder with logs. Everything else about 1.18.x quality hangs on it.
-2. **OWN-5**: confirm the roadmap order so RM-A can get a plan.
-3. **HT-1**: Claude triages your results into 1.18.5.
-4. **DEF-1**: Claude adds the empty-render capture to CI so release builds stop failing at random.
-5. **OWN-3 and OWN-4**: the logs and rows that close the unexplained defects and the two open issues.
+1. **OWN-16** (added 2026-10-30): run the Connections window and the guided Claude Code / Codex setup on your Windows machine and send screenshots; the CLI work is CI-only until you do.
+2. **OWN-1**: run Section N of the 1.18.4 package and send the folder with logs. Everything else about 1.18.x quality hangs on it.
+3. **OWN-5**: confirm the roadmap order so RM-A can get a plan.
+4. **HT-1**: Claude triages your results into 1.18.5.
+5. **DEF-1**: Claude adds the empty-render capture to CI so release builds stop failing at random.
+6. **OWN-3 and OWN-4**: the logs and rows that close the unexplained defects and the two open issues.
 
 ## A. Your actions and decisions
 
@@ -43,6 +44,7 @@ One list to follow up and plan from. It replaces the session task list (101 entr
 | OWN-13 | Close the open secret-scanning alert in repository settings (CI gitleaks passes on every push). | Repository setting only you can change. | You | - | XS | P3 | Waiting on you | STATUS_DONE_VS_TESTED |
 | OWN-14 | Provide real-data samples when the matching release approaches: case-count file (R2), a DEM site and the engineer's report (R4), a depot and orders sample (R5), parcels and a store list (R6). | Known-answer tests and hand rows need real inputs. | You | - | M | P3 | Waiting on you | PLAN-023 Q7 to Q11 |
 | OWN-15 | Re-run the nine model-choice rows (A5, A6, C1, C3, C4, C6, D4, E2, S5) with the Claude provider, and send the 40 MB evidence folder (needed for DEF-10, DEF-11, DEF-12). | The runbook's own method for telling a model problem from a tool problem. | You | - | S | P1 | Waiting on you | 1.18.4 smoke run 2026-10-27/28 |
+| OWN-16 | Hand-verify the Connections window and the guided Claude Code / Codex setup on your Windows machine with the 2026-10-30 zip: open Plugins > Cartogen AI > Connections..., on each CLI page press the main button and follow it (install, sign in, connect, use), press OK, send one chat message; send a screenshot of each CLI page and the first error text. | Everything about the CLI connections is CI-only (stand-ins for the registry, where.exe, the login shell, the sign-in terminal and the model); the first real Codex run found three faults that CI could not see. | You | LEAD-8 | S | P0 | Waiting on you | PLAN-041 |
 
 ## B. Verification and hand-test follow-up
 
@@ -54,6 +56,7 @@ One list to follow up and plan from. It replaces the session task list (101 entr
 | HT-4 | Verification debt, CI only today: Windows and macOS QGIS; large, messy, non-English and database-backed user data; numerical correctness of Processing outputs; delineate_watershed on a real DEM versus the engineer's report; a real Geofabrik extract and prompt-cache check. | Built and passing in CI, never run by a person. | Both | OWN-11, OWN-14 | L | P3 | Not started | W-5 to W-9 |
 | HT-5 | Re-check 'partly' ledger entries (5) and wave E1, DXF and Excel export and the 20 later routing additions by hand. | Only 21 algorithms were ever hand-tested. | Both | OWN-1 | M | P3 | Not started | W-2, W-3 |
 | HT-6 | Prove tools/collect_evidence.py in a real QGIS 4.2 session (written without QGIS, never run) and fix what breaks; then add it to the repo with a live test. | The agent-edition smoke package depends on it for logs, screenshots and layer tables; until run, evidence may fall back to manual capture. | Claude | OWN-1 | S | P1 | In progress | smoke package 2026-10-27 |
+| HT-7 | Routing vocabulary audit: replay everyday synonyms and alternative wordings of each tool family through the real router and list the requests that are offered none of the right tools (found: 'list medical service in Al Maharah' offered no OSM or geocoding tool). Fix with aliases and a ratchet test. | The model tells the truth about the tools it is given, so a wording the router misses reads as 'I cannot do that'; the owner hit it in the first real chat through the CLI. | Claude | - | M | P2 | Not started | PR 508 |
 
 ## C. Open defects and observations
 
@@ -155,19 +158,20 @@ Source: the owner's analysis document of nine flagship QGIS AI plugins, checked 
 | LEAD-7 | Structural debt after LEAD-4: split the largest modules (agent_orchestrator, analysis_tools, vector_tools, layout_tools), burn down the 504 broad-except baseline with a ratchet test, typed result shapes for one tool family. Plan to be written when LEAD-4 lands. | Reviewers notice size and broad excepts first; it does not cause wrong answers the way dropped arguments do, so it follows LEAD-4. | Claude | LEAD-4 | XL | P3 | Not started | codebase analysis 2026-10-28 |
 | LEAD-8 | CLI bridge providers (PLAN-038): run the plugin on a local Claude Code, Codex or Gemini CLI login with no API key, tools and gates stay in the plugin. Starts with a spike on the Claude Code adapter. | Closes the no-key gap and widens who can try the plugin; priority raised by the owner 2026-10-28. | Claude | LEAD-1 | L | P1 | In progress | owner request 2026-10-28 |
 | LEAD-9 | Settings connection redesign and CLI panel (PLAN-039): group connections by where the prompts go, an in-dialog acknowledgement for the CLI group, and Check connection / Sign in buttons per CLI. | The CLI providers need setup, a test and sign-in help to be usable by someone who is not a developer. | Claude | LEAD-8 | M | P1 | In progress | owner request 2026-10-28 |
+| LEAD-10 | Decide whether to build an Antigravity CLI (agy) provider to replace the removed Gemini CLI one. Needs a real signed-in agy run first: third-party reports say `agy -p` prints nothing or hangs when its output is not a terminal (v1.0.6), which is how the bridge runs a CLI, and its flags are not from official documentation. | Google ended personal-account use of Gemini CLI on 2026-06-18 and moved those users to the Antigravity CLI; the plugin now has no Google-account CLI route (the Gemini API key connection stays). | You | OWN-16 | M | P2 | Decision needed | PLAN-041 |
 
 ## Counts by status
 
 | Status | Rows |
 |---|---|
-| Not started | 35 |
+| Not started | 36 |
 | In progress | 17 |
-| Decision needed | 13 |
-| Waiting on you | 12 |
+| Decision needed | 14 |
+| Waiting on you | 13 |
 | Blocked | 5 |
 | Closed | 2 |
 | Closed (record) | 1 |
-| **Total** | **85** |
+| **Total** | **88** |
 
 ## How to keep it current
 
@@ -228,3 +232,9 @@ Newest last. One line per status change; written by `tools/master_list.py set`.
 - 2026-10-29: AR-6 Waiting on you -> Waiting on you. PLAN-040 stages 0, 3, 4, 5a-5d, 6 merged (#485 #486 #488 #489 #490 #491 #493 #494 #495 #496), all CI-only. Not done by decision: styling-cluster cycle break, large-file splits (patch seams), JIAF refactors (owner sign-off), token trim (needs your hand test), live-job coverage collection (CI change). Needs the one full QGIS test before it is closed.
 - 2026-10-30: LEAD-9 In progress -> In progress. slices 1 to 3 merged; slice 4 (PLAN-041): connections moved out of Settings into their own Connections window with a Plugins menu link, in PR, CI-only; owner: open Plugins > Cartogen AI > Connections..., look at every page, press Use this connection, Test and Check connection
 - 2026-10-30: LEAD-8 In progress -> In progress. Claude Code and Codex CLI providers only; Gemini CLI removed 2026-10-30 (Google ended personal accounts 2026-06-18); owner: install the zip, tick Allow CLI logins, Use Claude Code CLI and Codex CLI and send one message each
+- 2026-10-30: LEAD-8 In progress -> In progress. 2026-10-30: Claude Code and Codex CLI providers merged (PRs 498, 499, 504-507): program found the way the terminal finds it (registry PATH, login shell, npm prefix, where.exe), detection of installed/signed-in CLIs, guided install/sign-in/connect/use with consent. Gemini CLI removed (Google ended personal accounts 2026-06-18). CI-only: first real Codex run is OWN-16; Antigravity is LEAD-10
+- 2026-10-30: LEAD-9 In progress -> In progress. 2026-10-30: Connections window merged (PRs 500-503, 505-507): native list, one accent, Plugins menu link, Settings keeps privacy/behaviour/layout/diagnostics. Looked at only in my offscreen PyQt6 renders, plus the owner's screenshot of the first build (which led to the redesign); the real QGIS look after the redesign is part of OWN-16
+- 2026-10-30: DEF-7 Not started -> Not started. 2026-10-30: seen again (Hadramawt hospitals: timeout, then HTTP 502 after 4 retries, public overpass-api.de). Not fixed: no mirror fallback yet; needs a choice of mirrors (owner) and a test with a stand-in server
+- 2026-10-30: OWN-16 Waiting on you -> Waiting on you. 2026-10-30: added; run the Connections window and the guided CLI setup on your Windows machine, send screenshots of each CLI page and the first error text
+- 2026-10-30: HT-7 Not started -> Not started. 2026-10-30: added after 'list medical service in Al Maharah' offered no OSM tool (PR 508 fixed that wording)
+- 2026-10-30: LEAD-10 Decision needed -> Decision needed. 2026-10-30: added; no Google-account CLI route since Gemini CLI was removed; needs a real signed-in agy headless check before any code
