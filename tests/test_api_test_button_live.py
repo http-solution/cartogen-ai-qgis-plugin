@@ -1,5 +1,5 @@
-"""PLAN-039 slice 3, real QGIS (CI live job; written without a QGIS install, so CI's first run is its first execution): the Test button on the
-key-based provider pages. The provider check itself is replaced, so no network or key is used."""
+"""PLAN-039 slice 3 (now in the Connections window, PLAN-041), real QGIS (CI live job; written without a QGIS install, so CI's first run is its first execution): the Test button on the
+key-based connection pages. The provider check itself is replaced, so no network or key is used."""
 import threading
 import unittest
 from unittest.mock import patch
@@ -37,8 +37,8 @@ class TestApiTestButton(unittest.TestCase):
             settings.remove(key)
 
     def _dialog(self):
-        from cartogen_ai.core.ui.settings_dialog import CartogenAiSettingsDialog
-        return CartogenAiSettingsDialog()
+        from cartogen_ai.core.ui.connections_dialog import CartogenAiConnectionsDialog
+        return CartogenAiConnectionsDialog()
 
     def test_every_key_based_page_has_a_test_button_and_a_status_line_but_cli_pages_do_not(self):
         dialog = self._dialog()

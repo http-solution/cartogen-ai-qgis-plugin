@@ -116,7 +116,7 @@ class TestOllamaUrl(unittest.TestCase):
 
 
 class TestDialogWiring(unittest.TestCase):
-    SOURCE = (Path(__file__).resolve().parents[1] / "src" / "cartogen_ai" / "core" / "ui" / "settings_dialog.py").read_text(encoding="utf-8")
+    SOURCE = (Path(__file__).resolve().parents[1] / "src" / "cartogen_ai" / "core" / "ui" / "connections_dialog.py").read_text(encoding="utf-8")
 
     def test_the_test_button_uses_what_is_typed_and_saves_nothing(self):
         text = self.SOURCE

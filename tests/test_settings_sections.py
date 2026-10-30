@@ -8,8 +8,8 @@ SOURCE = (Path(__file__).resolve().parents[1] / "src" / "cartogen_ai" / "core" /
 INIT = SOURCE[SOURCE.index("    def init_ui"):SOURCE.index("    def _section_note")]
 
 EXPECTED_SECTIONS = [
-    ("01", "Where your prompts go"), ("02", "Keys"), ("03", "Privacy and data protection"), ("04", "How the assistant works"),
-    ("05", "Who the assistant writes for"), ("06", "Print layouts"), ("07", "Diagnostics"),
+    ("01", "Privacy and data protection"), ("02", "How the assistant works"), ("03", "Who the assistant writes for"),
+    ("04", "Print layouts"), ("05", "Diagnostics"),
 ]
 # widget attribute -> the column (and so the section) it must be placed in
 PLACEMENT = {
@@ -22,6 +22,13 @@ PLACEMENT = {
 
 
 class TestSections(unittest.TestCase):
+    def test_the_connection_settings_left_for_the_connections_window(self):
+        """PLAN-041: provider keys, models, CLI paths and the FIRMS key are the Connections window's, so Settings only reads which one is in use (to show it) and never writes them."""
+        for gone in ("provider_stack", "_key_edits", "firms_key_edit", "experimental_cli_checkbox", "save_credential", "setValue(PROVIDER_KEY"):
+            self.assertNotIn(gone, SOURCE, gone)
+        self.assertIn("CartogenAiConnectionsDialog", SOURCE)
+        self.assertIn("Connections…", SOURCE)
+
     def test_sections_are_numbered_in_order_with_the_agreed_titles(self):
         found = re.findall(r'_section_header\("(\d\d)", "([^"]+)"\)', INIT)
         self.assertEqual(found, EXPECTED_SECTIONS)

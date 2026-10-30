@@ -1,11 +1,9 @@
-import json
-import threading
 
-from qgis.PyQt.QtCore import pyqtSignal, Qt
+from qgis.PyQt.QtCore import Qt
 from qgis.PyQt.QtWidgets import (
-    QDialog, QVBoxLayout, QLabel, QMessageBox, QApplication,
-    QLineEdit, QComboBox, QFormLayout, QDialogButtonBox, QStackedWidget, QWidget, QCheckBox, QHBoxLayout, QPushButton, QSpinBox,
-    QScrollArea, QFrame, QButtonGroup, QToolButton,
+    QDialog, QVBoxLayout, QLabel, QApplication,
+    QLineEdit, QComboBox, QFormLayout, QDialogButtonBox, QWidget, QCheckBox, QHBoxLayout, QPushButton, QSpinBox,
+    QScrollArea, QFrame, QToolButton,
 )
 from qgis.core import QgsSettings
 
@@ -13,40 +11,17 @@ from ..agent.agent_orchestrator import DEFAULT_TURN_TOKEN_BUDGET
 from ..agent.chat_persistence import PERSIST_DEFAULT, PERSIST_SETTING_KEY
 from ..agent.memory import PERSIST_PROJECT_MEMORY_KEY
 
-from ..model_selector import AUTO_SENTINEL
 from ..models.model_view import SCHEMA_DISCLOSURE
 from ..services.prompt_refiner import (
     PROFILE_LABELS, DEFAULT_PROFILE,
     PROMPT_REFINEMENT_ENABLED_KEY, PROMPT_PREVIEW_ENABLED_KEY, USER_PROFILE_KEY,
 )
-from ...infrastructure.providers.openrouter import list_models as _list_openrouter
-from ...infrastructure.providers.gemini import list_models as _list_gemini
-from ...infrastructure.providers.ollama import list_models as _list_ollama
-from ...infrastructure.providers.openai import list_models as _list_openai
-from ...infrastructure.providers.claude import list_models as _list_claude
-from ...infrastructure.providers import cli_bridge_status as _cli_status
-from ...infrastructure.providers import provider_check as _provider_check
-from ...infrastructure.providers.cartogen import list_models as _list_cartogen, FALLBACK_MODELS as _CARTOGEN_FALLBACK_MODELS
 from .chat_formatting import build_dock_stylesheet, BRAND_TEAL
 from ...infrastructure.settings_keys import (
     SETTINGS_API_TRACE_ENABLED,
     SETTINGS_EVIDENCE_ENABLED,
     SETTINGS_PROVIDER as PROVIDER_KEY,
-    DEFAULT_PROVIDER,
-    ENABLED_PROVIDERS,
     normalize_provider,
-    cli_path_setting_key,
-    cli_providers_enabled,
-    SETTINGS_EXPERIMENTAL_CLI as EXPERIMENTAL_CLI_KEY,
-    SETTINGS_CLAUDE_CLI_MODEL,
-    SETTINGS_CODEX_CLI_MODEL,
-    SETTINGS_GEMINI_CLI_MODEL,
-    SETTINGS_OPENROUTER_MODEL,
-    SETTINGS_GEMINI_MODEL,
-    SETTINGS_OLLAMA_MODEL,
-    SETTINGS_OPENAI_MODEL,
-    SETTINGS_CLAUDE_MODEL,
-    SETTINGS_CARTOGEN_MODEL,
     SETTINGS_PROJECT_INSPECTOR_ENABLED as PROJECT_INSPECTOR_ENABLED_KEY,
     SETTINGS_PLAN_VALIDATION_GATE_ENABLED as PLAN_VALIDATION_GATE_ENABLED_KEY,
     SETTINGS_EGRESS_GATE_MODE as EGRESS_GATE_MODE_KEY,
@@ -58,233 +33,21 @@ from ...infrastructure.settings_keys import (
     SETTINGS_LAYOUT_DISCLAIMER_TEXT as LAYOUT_DISCLAIMER_TEXT_KEY,
     SETTINGS_AUTO_OPEN_DOCK as AUTO_OPEN_DOCK_KEY,
     SETTINGS_LOCAL_DATA_ASK_ABOVE_MB as LOCAL_DATA_ASK_ABOVE_MB_KEY,
-    provider_model_list_key,
 )
-import contextlib
-AUTO_LABEL = "auto (recommended)"
-
-
-
-def _extract_theme_palette():
-    """Reads the live QGIS application's palette so this dialog's QSS follows
-    whatever theme QGIS is actually running, matching dock_widget.py's own
-    palette extraction. Duplicated in full rather than imported from
-    dock_widget.py to keep this dialog importable/loadable independently of
-    it -- both modules already require a real QGIS/PyQt process either way,
-    so this costs nothing beyond a few duplicated lines."""
-    from qgis.PyQt.QtGui import QPalette
-    app = QApplication.instance()
-    if app is None:
-        return None
-    p = app.palette()
-    return {
-        "window": p.color(QPalette.ColorRole.Window).name(),
-        "alt_base": p.color(QPalette.ColorRole.AlternateBase).name(),
-        "base": p.color(QPalette.ColorRole.Base).name(),
-        "text": p.color(QPalette.ColorRole.WindowText).name(),
-        "highlight": p.color(QPalette.ColorRole.Highlight).name(),
-        "highlighted_text": p.color(QPalette.ColorRole.HighlightedText).name(),
-        "muted_text": p.color(QPalette.ColorGroup.Disabled, QPalette.ColorRole.WindowText).name(),
-        "mid": p.color(QPalette.ColorRole.Mid).name(),
-    }
-
-# Single source of truth for every provider's UI row and behavior. Adding a
-# new provider means adding one entry here (plus a provider client + list_models
-# function) -- not another block of near-duplicate widget code.
-_ALL_PROVIDERS = [
-    {
-        "value": "openrouter", "provider_label": "OpenRouter (Hosted)", "pill_label": "OpenRouter",
-        "key_label": "OpenRouter API Key:", "model_label": "OpenRouter Model:",
-        "model_setting_key": SETTINGS_OPENROUTER_MODEL, "default_model": AUTO_SENTINEL,
-        "key_default": "", "list_fn": _list_openrouter,
-        "key_placeholder": "sk-or-v1-...",
-        "key_help_url": "https://openrouter.ai/keys",
-        "key_tooltip": "OpenRouter has a genuinely free tier covering many models -- a good "
-                        "default if you don't already have a key with another provider. Free "
-                        "models may route to an upstream provider that trains on prompts -- "
-                        "check your OpenRouter account's Privacy settings (separate toggles "
-                        "for free vs. paid models) before sending sensitive data.",
-        "dpa_url": "https://trust.openrouter.ai/",
-        "dpa_label": "Data processing info (self-serve; a signed DPA needs Enterprise)",
-    },
-    {
-        "value": "gemini", "provider_label": "Google Gemini (Hosted)", "pill_label": "Gemini",
-        "key_label": "Gemini API Key:", "model_label": "Gemini Model:",
-        # default_model is AUTO_SENTINEL (not a fixed model) so a fresh install
-        # with nothing saved yet shows "Auto" pre-selected here, matching
-        # agent_orchestrator.py's resolve_model default -- complexity-based routing out of
-        # the box instead of always landing on the same fixed model.
-        # safe_starting_model is still seeded into the dropdown as a concrete
-        # option/hint, just not pre-selected.
-        "model_setting_key": SETTINGS_GEMINI_MODEL, "default_model": AUTO_SENTINEL,
-        "safe_starting_model": "gemini-flash-latest",
-        # Google has no "-latest" alias for the Pro tier (unlike Flash). gemini-2.5-pro was
-        # seeded here before but was removed after a live user hit a 404 "no longer
-        # available to new users" on it, despite Google's own docs still listing it as
-        # stable -- these snapshot IDs get gated off per-account ahead of doc removal, so
-        # don't re-add a bare Pro snapshot ID here without live verification against an
-        # actual key. gemini-3.1-pro-preview is the current confirmed-working Pro tier.
-        # gemini-3.8-flash is the model Google names as the replacement for the retired gemini-2.5-flash (2026-10-11). The Pro model
-        # has no free-tier quota (limit 0): it needs billing enabled on the key's Google project.
-        "extra_seed_models": ["gemini-3.8-flash", "gemini-3.1-pro-preview"],
-        "key_default": "", "list_fn": _list_gemini,
-        "key_placeholder": "AIza...",
-        "key_help_url": "https://aistudio.google.com/apikey",
-        "key_tooltip": "On the free tier, Google may use your prompts to improve its products "
-                        "(human reviewers can read them) -- enable billing on this key for "
-                        "Google's paid-tier terms, which exclude prompts from training, before "
-                        "sending sensitive data.",
-        "dpa_url": "https://cloud.google.com/terms/data-processing-addendum",
-        "dpa_label": "Data Processing Addendum (paid tier)",
-    },
-    {
-        # Ollama stays pinned to a concrete default (no auto-routing) -- local
-        # models aren't a cost concern, and complexity-based naming heuristics
-        # don't translate to an arbitrary local model catalog.
-        "value": "ollama", "provider_label": "Ollama (Local)", "pill_label": "Ollama · local",
-        "key_label": "Ollama Endpoint URL:", "model_label": "Ollama Model:",
-        "model_setting_key": SETTINGS_OLLAMA_MODEL, "default_model": "llama3.1",
-        "key_default": "http://localhost:11434/v1/chat/completions", "list_fn": _list_ollama,
-        "key_tooltip": "Runs fully locally -- no account or key needed. Leave this as the "
-                        "default unless your Ollama server runs somewhere else.",
-    },
-    {
-        "value": "openai", "provider_label": "OpenAI (Hosted)", "pill_label": "OpenAI",
-        "key_label": "OpenAI API Key (paid):", "model_label": "OpenAI Model:",
-        "model_setting_key": SETTINGS_OPENAI_MODEL, "default_model": AUTO_SENTINEL,
-        "safe_starting_model": "gpt-5.6",
-        "key_default": "", "list_fn": _list_openai,
-        "key_placeholder": "sk-...",
-        "key_help_url": "https://platform.openai.com/api-keys",
-        "dpa_url": "https://openai.com/policies/data-processing-addendum/",
-        "dpa_label": "Data Processing Addendum",
-    },
-    {
-        "value": "claude", "provider_label": "Claude / Anthropic (Hosted)", "pill_label": "Claude",
-        "key_label": "Claude API Key (paid):", "model_label": "Claude Model:",
-        "model_setting_key": SETTINGS_CLAUDE_MODEL, "default_model": AUTO_SENTINEL,
-        "safe_starting_model": "claude-opus-5",
-        "key_default": "", "list_fn": _list_claude,
-        "key_placeholder": "sk-ant-...",
-        "key_help_url": "https://console.anthropic.com/settings/keys",
-        "dpa_url": "https://support.claude.com/en/articles/7996862-how-do-i-view-and-sign-your-data-processing-addendum-dpa",
-        "dpa_label": "Data Processing Addendum (auto-incorporated into Commercial ToS)",
-    },
-    {
-        # Placed last, not first: docs/archive/PRO_TIER_BUILD_PLAN_2026-08-21.md item 1.3 suggests
-        # making this the default on a fresh install, but no gateway is deployed at
-        # providers/cartogen.py's GATEWAY_BASE_URL anywhere yet -- defaulting a fresh
-        # install to a provider that can't resolve would break the out-of-the-box
-        # experience. Reorder to first once a real gateway exists (see that doc's Phase 1).
-        "value": "cartogen", "provider_label": "Cartogen AI (Hosted)", "pill_label": "Cartogen AI",
-        "key_label": "Cartogen AI Key:", "model_label": "Cartogen AI Model:",
-        "model_setting_key": SETTINGS_CARTOGEN_MODEL, "default_model": AUTO_SENTINEL,
-        "safe_starting_model": _CARTOGEN_FALLBACK_MODELS[0],
-        "key_default": "", "list_fn": _list_cartogen,
-        "key_tooltip": "No hosted gateway is deployed yet -- this option isn't usable today.",
-    },
-]
-
-# Only the providers this build enables (settings_keys.ENABLED_PROVIDERS); the rest stay defined above.
-PROVIDERS = [e for e in _ALL_PROVIDERS if e["value"] in ENABLED_PROVIDERS]
-
-# Experimental CLI bridge providers (PLAN-038). Not in ENABLED_PROVIDERS: each dialog adds them to its own list only while the user has
-# switched on SETTINGS_EXPERIMENTAL_CLI (see CartogenAiSettingsDialog._providers). The "key" field holds the executable path and is
-# stored as a plain setting ("key_storage": "setting"), not in the credential store: a path is not a secret.
-_CLI_NOTE = (
-    "Experimental and not yet verified against a real signed-in CLI. Runs the program below on this computer with your own login "
-    "and sends the conversation, including any layer or attribute data a tool surfaces, to that vendor's service, so treat it as a "
-    "cloud provider. Cartogen AI never sees or stores your login. Check that your plan's terms allow this use."
-)
-_CLI_PROVIDERS = [
-    {
-        "value": "claude_cli", "provider_label": "Claude Code CLI (experimental)", "pill_label": "Claude Code CLI",
-        "key_label": "claude program:", "model_label": "Model (optional):",
-        "model_setting_key": SETTINGS_CLAUDE_CLI_MODEL, "default_model": AUTO_SENTINEL,
-        "extra_seed_models": ["sonnet", "opus", "haiku"],
-        "key_default": "claude", "group": "cli", "list_fn": None, "key_storage": "setting", "page_note": _CLI_NOTE,
-        "key_tooltip": "Name or full path of the claude program. Sign in once by running `claude` in a terminal. "
-                        "Auto = the CLI's own default model.",
-    },
-    {
-        "value": "codex_cli", "provider_label": "Codex CLI (experimental)", "pill_label": "Codex CLI",
-        "key_label": "codex program:", "model_label": "Model (optional):",
-        "model_setting_key": SETTINGS_CODEX_CLI_MODEL, "default_model": AUTO_SENTINEL,
-        "key_default": "codex", "group": "cli", "list_fn": None, "key_storage": "setting", "page_note": _CLI_NOTE,
-        "key_tooltip": "Name or full path of the codex program. Sign in once with `codex login`. Auto = the CLI's own default model.",
-    },
-    {
-        "value": "gemini_cli", "provider_label": "Gemini CLI (experimental)", "pill_label": "Gemini CLI",
-        "key_label": "gemini program:", "model_label": "Model (optional):",
-        "model_setting_key": SETTINGS_GEMINI_CLI_MODEL, "default_model": AUTO_SENTINEL,
-        "extra_seed_models": ["pro", "flash", "flash-lite"],
-        "key_default": "gemini", "group": "cli", "list_fn": None, "key_storage": "setting", "page_note": _CLI_NOTE,
-        "key_tooltip": "Name or full path of the gemini program. Sign in once by running `gemini` and choosing Login with Google. "
-                        "Auto = the CLI's own default model.",
-    },
-]
-
-
-
-# How the connection choices are grouped in the dialog (PLAN-039): what a user is choosing between is not "which vendor" but "where does my
-# data go and what do I need to bring" -- a key, nothing, or a program already signed in on this computer.
-_GROUP_OF = {"openrouter": "hosted", "gemini": "hosted", "openai": "hosted", "claude": "hosted", "cartogen": "hosted", "ollama": "local"}
-_GROUP_TITLES = {
-    "hosted": "Hosted -- your prompts go to the provider; you bring an API key",
-    "local": "Local -- nothing leaves this machine",
-    "cli": "Your own CLI login -- your prompts go to that vendor; you bring a signed-in program (experimental)",
-}
-
-
-def _group_of(entry):
-    return entry.get("group") or _GROUP_OF.get(entry["value"], "hosted")
+from .connections_catalog import PROVIDERS, _CLI_PROVIDERS
+from .theme_palette import extract_theme_palette as _extract_theme_palette
 
 
 class CartogenAiSettingsDialog(QDialog):
-    # Fetching a model list hits the network -- must never block the UI thread
-    # (a slow/unreachable endpoint would otherwise freeze the whole dialog, and
-    # QGIS with it, for the full request timeout). The background thread in
-    # _fetch_models emits this signal with the result; Qt auto-queues delivery
-    # to _on_models_fetched on the main thread since the receiver (this dialog)
-    # lives there -- same cross-thread pattern already used in dock_widget.py.
-    modelsFetchedSignal = pyqtSignal(str, dict)
-    # Same pattern for the CLI connection check (it runs a subprocess and a model call, so never on the UI thread).
-    cli_check_signal = pyqtSignal(str, dict)
-    api_check_signal = pyqtSignal(str, dict)  # the Test button of the key-based providers
-
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Cartogen AI — Settings")
         self.setMinimumWidth(420)
         self.settings = QgsSettings()
-        # The CLI entries are always listed, under their own heading; their pills stay disabled until the user ticks the acknowledgement
-        # box under that heading (no reopening the dialog), and normalize_provider() ignores a saved CLI provider while it is unticked.
-        self._providers = PROVIDERS + _CLI_PROVIDERS
-        self._cli_status_labels = {}
-        self._cli_buttons = {}
-        self._cli_checking = set()
         self._collapsibles = []
-        self._api_status_labels = {}
-        self._api_test_buttons = {}
-        self._api_testing = set()
-        self._key_edits = {}
-        self._model_combos = {}
-        self._cached_model_lists = {}
-        self._fetching = set()
-        self._provider_buttons = {}
-        # A provider only ever enters this set after a real _on_models_fetched success in
-        # THIS dialog session -- a saved key that has never been exercised this session is
-        # "set", not "verified": this dialog has no way to know a key still works without
-        # actually calling the provider, so the Keys section (see _rebuild_keys_summary)
-        # deliberately shows two different words rather than claiming more than it knows.
-        self._verified_providers = set()
-        self.modelsFetchedSignal.connect(self._on_models_fetched)
-        self.cli_check_signal.connect(self._on_cli_check)
-        self.api_check_signal.connect(self._on_api_check)
         self.init_ui()
 
     def init_ui(self):
-        from ...infrastructure.auth import CredentialManager
 
         # Real live report, 2026-09-15: "the setting window unable to save NASA free Api key,
         # and the window is too long can not press ok or cancel" -- confirmed via screenshot.
@@ -316,271 +79,19 @@ class CartogenAiSettingsDialog(QDialog):
         if screen is not None:
             self.setMaximumHeight(max(300, int(screen.availableGeometry().height() * 0.85)))
 
-        account_row = QHBoxLayout()
-        account_status = QLabel("Hosted Cartogen AI account")
-        self.account_button = QPushButton("Manage account")
-        self.account_button.clicked.connect(self._open_account_dialog)
-        account_row.addWidget(account_status)
-        account_row.addStretch(1)
-        account_row.addWidget(self.account_button)
-        layout.addLayout(account_row)
-
-        # Visual design proposal, 2026-09-16 (adapted from Settings Window.pdf's option 1c):
-        # one-glance status line -- which connection, which model, how many of the provider
-        # keys that need one actually have one set. Kept honest rather than mirroring the
-        # mockup's "N keys verified" literally: see _verified_providers's comment above for
-        # why a freshly-opened dialog can only ever claim a key is "set", not "verified".
-        # Directly useful given the FIRMS-key bug this replaces the neighbourhood of: this
-        # line would have shown a count that didn't match what the user just typed, instead
-        # of the dialog giving no feedback at all about whether a save actually took.
-        self.masthead_label = QLabel()
-        self.masthead_label.setWordWrap(True)
-        self.masthead_label.setStyleSheet("color: gray; font-size: 11px;")
-        layout.addWidget(self.masthead_label)
-
-        layout.addWidget(self._section_header("01", "Where your prompts go"))
-
-        self._active_provider = normalize_provider(self.settings.value(PROVIDER_KEY, "openrouter"))
-
-        # Visual design proposal, 2026-09-16 (adapted from Settings Window.pdf's option 1c):
-        # a row of pills instead of a QComboBox -- every connection (including Ollama's
-        # "local" qualifier) is visible at once instead of hidden inside a closed dropdown.
-        # REVERTED from FlowLayout back to a plain vertical QVBoxLayout, 2026-09-16: a real
-        # live report ("the software completely freeze") right after this dialog's first real
-        # interactive use with FlowLayout -- a custom QLayout subclass nested inside this
-        # dialog's QScrollArea is a known way to trigger a resize feedback loop that pegs the
-        # Qt event loop, and headless/offscreen testing (everything this was verified with
-        # before shipping) doesn't reliably exercise real interactive resize/paint behavior the
-        # way a live windowed session does. A plain QVBoxLayout can't overflow -- it was
-        # already the working, freeze-free version -- so this trades the mockup's wrapping chip
-        # row back for one pill per line rather than risk the same freeze again. See docs/
-        # BUG_TRACKER.md if this is later revisited with a safer wrap approach.
-        pills_col = QVBoxLayout()
-        pills_col.setSpacing(4)
-        self._provider_button_group = QButtonGroup(self)
-        self._provider_button_group.setExclusive(True)
-        last_group = None
-        for entry in self._providers:
-            pv = entry["value"]
-            group = _group_of(entry)
-            if group != last_group:
-                group_label = QLabel(_GROUP_TITLES[group])
-                group_label.setWordWrap(True)
-                group_label.setStyleSheet("color: gray; font-size: 11px; font-weight: 600; margin-top: 6px;")
-                pills_col.addWidget(group_label)
-                if group == "cli":
-                    self.experimental_cli_checkbox = QCheckBox("I understand: use a CLI I am already signed in to as the model")
-                    self.experimental_cli_checkbox.setChecked(cli_providers_enabled())
-                    self.experimental_cli_checkbox.setToolTip(
-                        "Experimental and not yet verified against a real signed-in CLI. Cartogen AI runs the program on this computer "
-                        "with your own account; it never sees or stores your login. The conversation, including any layer or "
-                        "attribute data a tool surfaces, goes to that vendor's service. Off by default.")
-                    self.experimental_cli_checkbox.toggled.connect(self._on_cli_ack_toggled)
-                    pills_col.addWidget(self.experimental_cli_checkbox)
-                last_group = group
-            btn = QPushButton(entry["provider_label"])
-            btn.setObjectName("providerPill")
-            btn.setCheckable(True)
-            btn.setChecked(pv == self._active_provider)
-            if group == "cli":
-                btn.setEnabled(self.experimental_cli_checkbox.isChecked())
-            btn.clicked.connect(lambda checked, p=pv: self._select_provider(p))
-            self._provider_button_group.addButton(btn)
-            self._provider_buttons[pv] = btn
-            pills_col.addWidget(btn)
-        layout.addLayout(pills_col)
-
-        # GDPR review (docs/GDPR_COMPLIANCE_REVIEW.docx, 2026-09-01) finding F2: nothing
-        # in the product told a user what happens to data once a cloud provider is picked.
-        # Static, provider-agnostic -- each provider page below adds its own specifics
-        # (dpa_url / key_tooltip) where they differ.
-        privacy_note = QLabel(
-            "Chat text and any layer/attribute data a tool call surfaces to the model are "
-            "sent to whichever provider is selected above (Ollama excepted -- fully local, "
-            "nothing leaves this machine; a CLI login sends it to that CLI's vendor). Each provider's Data Processing Addendum link "
-            "below is a starting point, not a substitute for your organization's own GDPR "
-            "review before processing real beneficiary data. See docs/USER_GUIDE.md and "
-            "SECURITY.md's \"Data protection\" section."
-        )
-        privacy_note.setWordWrap(True)
-        privacy_note.setStyleSheet("color: gray; font-size: 11px;")
-        layout.addWidget(privacy_note)
-
-        # One page per provider, holding just that provider's key/URL field and
-        # model combo -- only the selected provider's page is ever shown, instead
-        # of all providers' rows being present in one long form and merely
-        # greyed out when not selected (the previous design).
-        self.provider_stack = QStackedWidget()
-        self._provider_page_index = {}
-        for entry in self._providers:
-            pv = entry["value"]
-            page = QWidget()
-            page_form = QFormLayout(page)
-            page_form.setContentsMargins(0, 2, 0, 2)
-
-            key_edit = QLineEdit()
-            is_setting = entry.get("key_storage") == "setting"
-            if pv != "ollama" and not is_setting:
-                key_edit.setEchoMode(QLineEdit.EchoMode.Password)
-            saved_key = self.settings.value(cli_path_setting_key(pv), "") if is_setting else CredentialManager.get_credential(pv)
-            key_edit.setText(saved_key if saved_key else entry["key_default"])
-            key_edit.editingFinished.connect(lambda p=pv: self._fetch_models(p))
-            # Live feedback for the Keys summary below (masked value + Set/Verified badge) --
-            # not gated on editingFinished/blur like the model fetch above, so the summary
-            # reflects what's actually typed even before the user tabs away or saves.
-            key_edit.textChanged.connect(self._rebuild_keys_summary)
-            # A user who has never used an LLM API before has no way to know
-            # what belongs in this field or where to get it -- found in the UX
-            # audit dated 2026-08-31 ("Settings gives no guidance on what an
-            # API key is or where to get one, for any of the 5 providers").
-            key_placeholder = entry.get("key_placeholder", "")
-            if key_placeholder:
-                key_edit.setPlaceholderText(key_placeholder)
-            key_tooltip = entry.get("key_tooltip", "")
-            if key_tooltip:
-                key_edit.setToolTip(key_tooltip)
-            page_form.addRow(entry["key_label"], key_edit)
-            self._key_edits[pv] = key_edit
-
-            page_note = entry.get("page_note")
-            if page_note:
-                note_label = QLabel(page_note)
-                note_label.setWordWrap(True)
-                note_label.setStyleSheet("color: gray; font-size: 11px;")
-                page_form.addRow("", note_label)
-
-            if is_setting:
-                status_label = QLabel(self._cli_quick_status(pv, key_edit.text()))
-                status_label.setWordWrap(True)
-                status_label.setStyleSheet("font-size: 11px;")
-                self._cli_status_labels[pv] = status_label
-                page_form.addRow("", status_label)
-                button_row = QHBoxLayout()
-                check_btn = QPushButton("Check connection")
-                check_btn.setToolTip("Finds the program, then asks the model one tiny question through your own login "
-                                     "(a few tokens of your plan).")
-                check_btn.clicked.connect(lambda _checked=False, p=pv: self._check_cli(p))
-                signin_btn = QPushButton("Sign in...")
-                signin_btn.setToolTip("Opens a terminal running the program's own sign-in. Your login stays with that program.")
-                signin_btn.clicked.connect(lambda _checked=False, p=pv: self._signin_cli(p))
-                button_row.addWidget(check_btn)
-                button_row.addWidget(signin_btn)
-                button_row.addStretch(1)
-                self._cli_buttons[pv] = (check_btn, signin_btn)
-                button_holder = QWidget()
-                button_holder.setLayout(button_row)
-                page_form.addRow("", button_holder)
-                key_edit.textChanged.connect(lambda text, p=pv: self._cli_status_labels[p].setText(self._cli_quick_status(p, text)))
-
-            if not is_setting and pv in _provider_check.TESTABLE:
-                test_btn = QPushButton("Test")
-                test_btn.setToolTip("Uses what is typed above (it does not have to be saved yet): lists the provider's models, then "
-                                    "asks the chosen model one tiny question (a few tokens of your own key).")
-                test_btn.clicked.connect(lambda _checked=False, p=pv: self._test_api(p))
-                self._api_test_buttons[pv] = test_btn
-                test_row = QHBoxLayout()
-                test_row.addWidget(test_btn)
-                test_row.addStretch(1)
-                test_holder = QWidget()
-                test_holder.setLayout(test_row)
-                page_form.addRow("", test_holder)
-                api_status = QLabel("")
-                api_status.setWordWrap(True)
-                api_status.setStyleSheet("font-size: 11px;")
-                self._api_status_labels[pv] = api_status
-                page_form.addRow("", api_status)
-
-            key_help_url = entry.get("key_help_url")
-            if key_help_url:
-                help_label = QLabel(f'<a href="{key_help_url}">Get a key \u2192</a>')
-                help_label.setOpenExternalLinks(True)
-                help_label.setStyleSheet("color: gray; font-size: 11px;")
-                page_form.addRow("", help_label)
-
-            # GDPR review (docs/GDPR_COMPLIANCE_REVIEW.docx, 2026-09-01) finding F4: the
-            # deploying org needs its own Data Processing Agreement with whichever cloud
-            # provider it enables -- nothing in this codebase can provide or verify that on
-            # the org's behalf, but not pointing at it at all left the org to discover the
-            # need unprompted. Mirrors the key_help_url pattern above.
-            dpa_url = entry.get("dpa_url")
-            if dpa_url:
-                dpa_label_text = entry.get("dpa_label", "Data Processing Agreement")
-                dpa_label = QLabel(f'<a href="{dpa_url}">{dpa_label_text} \u2192</a>')
-                dpa_label.setOpenExternalLinks(True)
-                dpa_label.setStyleSheet("color: gray; font-size: 11px;")
-                dpa_label.setWordWrap(True)
-                page_form.addRow("", dpa_label)
-
-            model_combo = QComboBox()
-            model_combo.setEditable(True)
-            saved_model = self.settings.value(entry["model_setting_key"], entry["default_model"])
-            model_combo.addItem(AUTO_LABEL)
-            seeded = []
-            if entry["default_model"] and entry["default_model"] != AUTO_SENTINEL:
-                seeded.append(entry["default_model"])
-            elif entry.get("safe_starting_model"):
-                seeded.append(entry["safe_starting_model"])
-            for m in entry.get("extra_seed_models", []):
-                if m not in seeded:
-                    seeded.append(m)
-            if saved_model and saved_model != AUTO_SENTINEL and saved_model not in seeded:
-                seeded.append(saved_model)
-            for seed_model in seeded:
-                model_combo.addItem(seed_model)
-            model_combo.setCurrentText(AUTO_LABEL if saved_model == AUTO_SENTINEL else saved_model)
-            page_form.addRow(entry["model_label"], model_combo)
-            self._model_combos[pv] = model_combo
-
-            cached_raw = self.settings.value(provider_model_list_key(pv), "")
-            if cached_raw:
-
-                with contextlib.suppress(TypeError, ValueError):
-                    self._cached_model_lists[pv] = json.loads(cached_raw)
-
-            self._provider_page_index[pv] = self.provider_stack.addWidget(page)
-
-        layout.addWidget(self.provider_stack)
-
-        layout.addWidget(self._section_header("02", "Keys"))
-
-        # Visual design proposal, 2026-09-16 (adapted from Settings Window.pdf's option 1b):
-        # a compact, read-only summary of every credential -- masked value, and whether it's
-        # set or verified -- with a "Replace"/"Add key" link that jumps to the real editable
-        # field above (provider_stack's key_edit, or firms_key_edit below). This is the piece
-        # that most directly targets the live-reported bug: the plain password-dot field gave
-        # no confirmation a key had actually been typed or saved, so a save that silently
-        # failed (the settings dialog being too tall to reach Save, in that report) looked
-        # identical to one that worked. Rebuilt on every keystroke (_rebuild_keys_summary) and
-        # after every model-fetch result, never edited in place.
-        self.keys_summary_layout = QVBoxLayout()
-        self.keys_summary_layout.setSpacing(0)
-        layout.addLayout(self.keys_summary_layout)
-
-        # NASA FIRMS active-fire monitoring (hazard_monitoring_tools.py) needs its own free API
-        # key -- separate from any LLM provider key above, so it gets its own standalone field
-        # rather than a page in provider_stack (it isn't an LLM connection choice). Stored/read
-        # via the same CredentialManager every provider key above already uses, keyed by the
-        # provider string "firms" -- CredentialManager.LEGACY_SETTINGS_KEYS falls back to
-        # f"cartogen_ai/{provider}_key" for any provider not in its explicit mapping, so "firms"
-        # works with zero changes needed there.
-        firms_form = QFormLayout()
-        self.firms_key_edit = QLineEdit()
-        self.firms_key_edit.setEchoMode(QLineEdit.EchoMode.Password)
-        self.firms_key_edit.setText(CredentialManager.get_credential("firms"))
-        self.firms_key_edit.setPlaceholderText("Optional -- only needed for live active-fire monitoring")
-        self.firms_key_edit.setToolTip(
-            "Powers fetch_nasa_active_fires (NASA FIRMS active fire/thermal-anomaly detections). "
-            "Leave blank if you don't need this -- every other tool works without it."
-        )
-        self.firms_key_edit.textChanged.connect(self._rebuild_keys_summary)
-        firms_form.addRow("NASA FIRMS API Key:", self.firms_key_edit)
-        layout.addLayout(firms_form)
-        firms_help_label = QLabel('<a href="https://firms.modaps.eosdis.nasa.gov/api/area/">Get a free key →</a>')
-        firms_help_label.setOpenExternalLinks(True)
-        firms_help_label.setStyleSheet("color: gray; font-size: 11px;")
-        layout.addWidget(firms_help_label)
-
-        self._rebuild_keys_summary()
+        # The connections (hosted API keys, Ollama, a CLI login, NASA FIRMS) have their own window since PLAN-041; this row says which one
+        # is in use and opens it. Choosing a connection is saved by that window's own OK, not by this window's.
+        connection_row = QHBoxLayout()
+        self.connection_summary_label = QLabel()
+        self.connection_summary_label.setWordWrap(True)
+        self.connection_summary_label.setStyleSheet("font-size: 12px;")
+        connection_row.addWidget(self.connection_summary_label, 1)
+        self.open_connections_button = QPushButton("Connections…")
+        self.open_connections_button.setToolTip("API keys, models, Ollama, and signed-in CLIs such as Claude Code or Codex.")
+        self.open_connections_button.clicked.connect(self._open_connections)
+        connection_row.addWidget(self.open_connections_button)
+        layout.addLayout(connection_row)
+        self._update_connection_summary()
 
         # PLAN-039 slice 2: the old "03 What gets kept and shown" mixed privacy, behaviour, print-layout and diagnostic settings, and put
         # the cloud data protection gate (the most consequential switch here) below the print-layout colour. Widgets are still built where
@@ -832,20 +343,20 @@ class CartogenAiSettingsDialog(QDialog):
         )
         privacy_gate_col.addWidget(self.egress_gate_strict_checkbox)
 
-        layout.addWidget(self._section_header("03", "Privacy and data protection"))
+        layout.addWidget(self._section_header("01", "Privacy and data protection"))
         layout.addWidget(self._section_note(
             "What may leave this machine, and what is saved into files that can be shared. Settings here are the ones to review first."))
         layout.addLayout(privacy_gate_col)
         layout.addLayout(privacy_keep_col)
 
-        layout.addWidget(self._section_header("04", "How the assistant works"))
+        layout.addWidget(self._section_header("02", "How the assistant works"))
         layout.addWidget(self._section_note("Prompts, limits and downloads. The experimental options are off by default."))
         layout.addLayout(behaviour_col)
         layout.addWidget(self._collapsible(
             "Experimental options", experimental_col,
             expanded=self.project_inspector_checkbox.isChecked() or self.plan_validation_gate_checkbox.isChecked()))
 
-        layout.addWidget(self._section_header("05", "Who the assistant writes for"))
+        layout.addWidget(self._section_header("03", "Who the assistant writes for"))
 
         profile_form = QFormLayout()
         self.user_profile_combo = QComboBox()
@@ -872,22 +383,16 @@ class CartogenAiSettingsDialog(QDialog):
         self.edit_onboarding_profile_btn.clicked.connect(self._open_onboarding_profile)
         layout.addWidget(self.edit_onboarding_profile_btn)
 
-        layout.addWidget(self._section_header("06", "Print layouts"))
+        layout.addWidget(self._section_header("04", "Print layouts"))
         layout.addWidget(self._section_note("How exported maps look and what their footer says."))
         layout.addLayout(layouts_col)
 
-        layout.addWidget(self._section_header("07", "Diagnostics"))
+        layout.addWidget(self._section_header("05", "Diagnostics"))
         layout.addWidget(self._section_note(
             "For testing and support. These write raw request data to local folders; nothing is uploaded."))
         layout.addWidget(self._collapsible(
             "Diagnostic recording", diag_col,
             expanded=self.evidence_checkbox.isChecked() or self.api_trace_checkbox.isChecked()))
-
-        self.fetch_status_label = QLabel("Model lists refresh automatically when you leave an API key field.")
-        self.fetch_status_label.setObjectName("secondaryLabel")
-        self.fetch_status_label.setStyleSheet("color: gray; font-size: 11px;")
-        self.fetch_status_label.setWordWrap(True)
-        layout.addWidget(self.fetch_status_label)
 
         # Buttons -- deliberately added to outer_layout, NOT layout/scroll_area, so OK/Cancel
         # stay fixed and reachable at the bottom of the dialog regardless of how tall the
@@ -912,14 +417,6 @@ class CartogenAiSettingsDialog(QDialog):
         # dialog so it can't affect the chat dock's own Send/Stop buttons, which still use
         # the shared, theme-blended style on purpose.
         self.setStyleSheet(build_dock_stylesheet(_extract_theme_palette()) + f"""
-QPushButton#providerPill {{
-    padding: 5px 10px;
-}}
-QPushButton#providerPill:checked {{
-    background-color: #ffffff;
-    color: {BRAND_TEAL};
-    border: 1.5px solid {BRAND_TEAL};
-}}
 QPushButton#settingsOkButton, QPushButton#settingsCancelButton {{
     padding: 5px 16px;
     font-size: 12px;
@@ -935,8 +432,6 @@ QPushButton#settingsCancelButton {{
     border: 1px solid {BRAND_TEAL};
 }}
 """)
-
-        self.update_fields()
 
     def _section_note(self, text):
         """A one-line, grey description under a section heading, saying what the section governs."""
@@ -994,278 +489,22 @@ QPushButton#settingsCancelButton {{
         row_layout.addStretch(1)
         return row
 
-    def _on_cli_ack_toggled(self, checked):
-        """Ticking the acknowledgement enables the CLI pills; unticking disables them and, if one was the active choice, moves the
-        choice back to the default provider so Save cannot store a provider this dialog is no longer offering."""
-        for entry in self._providers:
-            if _group_of(entry) == "cli":
-                self._provider_buttons[entry["value"]].setEnabled(checked)
-        if not checked and self._active_provider in _cli_status.DEFAULT_PROGRAM:
-            self._provider_buttons[DEFAULT_PROVIDER].setChecked(True)
-            self._select_provider(DEFAULT_PROVIDER)
+    def _open_connections(self):
+        from .connections_dialog import CartogenAiConnectionsDialog
+        dialog = CartogenAiConnectionsDialog(self)
+        if dialog.exec():
+            self._update_connection_summary()
 
-    @staticmethod
-    def _cli_quick_status(provider, program_text):
-        """A one-line status that needs no subprocess: is the program on this computer? (Signed in or not only the check button knows.)"""
-        path = _cli_status.locate(provider, program_text)
-        if path:
-            return f"Program found: {path}. Press Check connection to confirm you are signed in."
-        return _cli_status.not_found_message(provider, program_text)
-
-    def _cli_form_values(self, provider):
-        program = self._key_edits[provider].text().strip()
-        model = self._resolve_model_value(provider)
-        return program, (None if model == AUTO_SENTINEL else model)
-
-    def _check_cli(self, provider):
-        if provider in self._cli_checking:
-            return
-        program, model = self._cli_form_values(provider)
-        self._cli_checking.add(provider)
-        for btn in self._cli_buttons[provider]:
-            btn.setEnabled(False)
-        self._cli_status_labels[provider].setText("Checking... (this asks the model one short question and can take a minute)")
-
-        def worker():
-            try:
-                result = _cli_status.check_connection(provider, program, model)
-            except Exception as e:
-                result = {"ok": False, "stage": "other", "message": f"Unexpected error: {type(e).__name__}", "seconds": 0.0}
-            with contextlib.suppress(RuntimeError):
-                self.cli_check_signal.emit(provider, result)
-
-        threading.Thread(target=worker, daemon=True).start()
-
-    def _on_cli_check(self, provider, result):
-        self._cli_checking.discard(provider)
-        for btn in self._cli_buttons[provider]:
-            btn.setEnabled(True)
-        label = self._cli_status_labels[provider]
-        if result.get("ok"):
-            version = f" ({result['version']})" if result.get("version") else ""
-            label.setText(f"Ready{version}. Signed in. {result.get('message', '')}")
-            return
-        hint = {"install": " Fix the program name or path above.", "signin": " Press Sign in..., finish there, then check again."}
-        label.setText(f"Not ready: {result.get('message', 'unknown error')}{hint.get(result.get('stage'), '')}")
-
-    def _test_api(self, provider):
-        """The Test button of a key-based provider: runs provider_check.check_provider on a background thread with the values typed in the
-        form. Nothing is saved by testing."""
-        if provider in self._api_testing:
-            return
-        key_text = self._key_edits[provider].text().strip()
-        model = self._resolve_model_value(provider)
-        model = None if model == AUTO_SENTINEL else model
-        self._api_testing.add(provider)
-        self._api_test_buttons[provider].setEnabled(False)
-        self._api_status_labels[provider].setText("Testing... (lists the models, then asks one short question; can take a minute)")
-
-        def worker():
-            try:
-                result = _provider_check.check_provider(provider, key_text, model)
-            except Exception as e:
-                result = {"ok": False, "stage": "other", "message": f"Unexpected error: {type(e).__name__}", "models": []}
-            with contextlib.suppress(RuntimeError):
-                self.api_check_signal.emit(provider, result)
-
-        threading.Thread(target=worker, daemon=True).start()
-
-    def _on_api_check(self, provider, result):
-        self._api_testing.discard(provider)
-        self._api_test_buttons[provider].setEnabled(True)
-        label = self._api_status_labels[provider]
-        if result.get("ok"):
-            label.setText(result.get("message", "Works."))
-            if result.get("models"):
-                self._on_models_fetched(provider, {"success": True, "models": result["models"]})  # fills the model box, marks it verified
-            else:
-                self._verified_providers.add(provider)
-                self._rebuild_keys_summary()
-            return
-        hint = _provider_check.HINTS.get(result.get("stage"), "")
-        label.setText(f"Not working: {result.get('message', 'unknown error')}" + (f" {hint}" if hint else ""))
-
-    def _signin_cli(self, provider):
-        program = self._key_edits[provider].text().strip()
-        outcome = _cli_status.open_signin_terminal(provider, program)
-        self._cli_status_labels[provider].setText(outcome["message"])
-
-    def _select_provider(self, provider_value):
-        self._active_provider = provider_value
-        self.update_fields()
-
-    def _open_account_dialog(self):
-        from .account_dialog import CartogenAccountDialog
-        dialog = CartogenAccountDialog(self)
-        dialog.exec()
+    def _update_connection_summary(self):
+        provider = normalize_provider(self.settings.value(PROVIDER_KEY, "openrouter"))
+        entry = next((e for e in PROVIDERS + _CLI_PROVIDERS if e["value"] == provider), None)
+        label = entry["provider_label"] if entry else provider
+        self.connection_summary_label.setText(f"Connection in use: {label}")
 
     def _open_onboarding_profile(self):
         from .onboarding_dialog import OnboardingDialog
         dialog = OnboardingDialog(self)
         dialog.exec()
-
-    def update_fields(self):
-        provider = self._active_provider
-        page_index = self._provider_page_index.get(provider)
-        if page_index is not None:
-            self.provider_stack.setCurrentIndex(page_index)
-        self._update_masthead()
-
-    def _update_masthead(self):
-        entry = next((e for e in self._providers if e["value"] == self._active_provider), None)
-        if entry is None:
-            return
-        model_text = self._model_combos[self._active_provider].currentText().strip() or AUTO_LABEL
-        # Ollama excluded from the count: it's a local endpoint URL with a working default,
-        # not a credential a user needs to go obtain -- counting it would make "N of 6" read
-        # as if something were missing when nothing is.
-        keyed_providers = [e["value"] for e in self._providers if e["value"] != "ollama" and e.get("key_storage") != "setting"]
-        set_count = sum(1 for pv in keyed_providers if self._key_edits[pv].text().strip())
-        self.masthead_label.setText(
-            f"{entry['provider_label']} &middot; {model_text} model &middot; "
-            f"{set_count} of {len(keyed_providers)} keys set &middot; "
-            f'<a href="#" style="color:inherit;">Manage account →</a>'
-        )
-
-    def _rebuild_keys_summary(self):
-        """Redraws the '02 Keys' summary from scratch against current field text -- cheap
-        (6 rows, no network) so it can safely run on every keystroke. See its construction
-        site in init_ui for what real bug this addresses."""
-        if not hasattr(self, "keys_summary_layout"):
-            return  # called via textChanged before init_ui has built this section yet
-        while self.keys_summary_layout.count():
-            item = self.keys_summary_layout.takeAt(0)
-            w = item.widget()
-            if w is not None:
-                w.deleteLater()
-
-        rows = [(e["value"], e["provider_label"]) for e in self._providers if e["value"] != "ollama" and e.get("key_storage") != "setting"]
-        rows.append(("firms", "NASA FIRMS"))
-        for pv, label in rows:
-            key_edit = self.firms_key_edit if pv == "firms" else self._key_edits[pv]
-            value = key_edit.text().strip()
-            self.keys_summary_layout.addWidget(self._build_key_row(pv, label, value))
-        self._update_masthead()
-
-    def _build_key_row(self, provider_value, label, value):
-        row = QWidget()
-        row.setObjectName("keyRow")
-        # WA_StyledBackground: a plain QWidget ignores border/background from its own
-        # stylesheet by default (a real Qt gotcha) -- needed for the dashed row divider
-        # below (mockup's .key-row: border-bottom:1px dashed) to actually paint.
-        row.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
-        row.setStyleSheet("QWidget#keyRow { border: none; border-bottom: 1px dashed palette(mid); }")
-        row_layout = QHBoxLayout(row)
-        row_layout.setContentsMargins(0, 6, 0, 6)
-        row_layout.setSpacing(8)
-
-        name_label = QLabel(label)
-        name_label.setMinimumWidth(110)
-        name_label.setStyleSheet("font-size: 12px; font-weight: 600;")
-        row_layout.addWidget(name_label)
-
-        if value:
-            masked = ("•••• " * 2 + value[-4:]) if len(value) > 4 else "•" * len(value)
-            mask_label = QLabel(masked)
-            mask_label.setStyleSheet("font-size: 11.5px; color: gray; font-family: monospace;")
-            row_layout.addWidget(mask_label, 1)
-
-            verified = provider_value in self._verified_providers
-            status = QLabel("Verified" if verified else "Set")
-            status.setStyleSheet(
-                "font-size: 11px; font-weight: 700; color: %s;" % ("#1c7a4d" if verified else "gray")
-            )
-            row_layout.addWidget(status)
-
-            replace_btn = QPushButton("Replace")
-            replace_btn.setObjectName("linkButton")
-            replace_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-            replace_btn.clicked.connect(lambda: self._go_to_key(provider_value))
-            row_layout.addWidget(replace_btn)
-        else:
-            row_layout.addWidget(QLabel(""), 1)
-            unset_label = QLabel("not set")
-            unset_label.setStyleSheet("font-size: 11px; color: gray;")
-            row_layout.addWidget(unset_label)
-
-            add_btn = QPushButton("Add key →")
-            add_btn.setObjectName("linkButton")
-            add_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-            add_btn.clicked.connect(lambda: self._go_to_key(provider_value))
-            row_layout.addWidget(add_btn)
-
-        return row
-
-    def _go_to_key(self, provider_value):
-        """A Keys-summary row's Replace/Add-key link jumps straight to the real editable
-        field, rather than making the user hunt for which provider pill owns which key."""
-        if provider_value == "firms":
-            target = self.firms_key_edit
-        else:
-            btn = self._provider_buttons.get(provider_value)
-            if btn is not None:
-                btn.setChecked(True)
-            self._select_provider(provider_value)
-            target = self._key_edits[provider_value]
-        target.setFocus()
-        target.selectAll()
-
-    def _fetch_models(self, provider_value):
-        entry = next(e for e in self._providers if e["value"] == provider_value)
-        key_text = self._key_edits[provider_value].text().strip()
-        if not key_text or provider_value in self._fetching or entry.get("key_storage") == "setting":
-            return  # a CLI provider has no model list to fetch: its "key" is just a program path
-
-        self._fetching.add(provider_value)
-        self.fetch_status_label.setText(f"Fetching {entry['provider_label']} models...")
-
-        def worker():
-            try:
-                result = entry["list_fn"](key_text)
-            except Exception as e:
-                result = {"error": f"Unexpected error: {e}"}
-            # dialog was closed/deleted before the fetch finished -- nothing to update
-            with contextlib.suppress(RuntimeError):
-                self.modelsFetchedSignal.emit(provider_value, result)
-
-        threading.Thread(target=worker, daemon=True).start()
-
-    def _on_models_fetched(self, provider_value, result):
-        self._fetching.discard(provider_value)
-        entry = next(e for e in self._providers if e["value"] == provider_value)
-        combo = self._model_combos[provider_value]
-
-        if result.get("success"):
-            models = result.get("models", [])
-            self._cached_model_lists[provider_value] = models
-            previous = combo.currentText()
-            combo.blockSignals(True)
-            combo.clear()
-            combo.addItem(AUTO_LABEL)
-            for model_id in models:
-                combo.addItem(model_id)
-            restore_idx = combo.findText(previous)
-            combo.setCurrentIndex(restore_idx if restore_idx >= 0 else 0)
-            combo.blockSignals(False)
-            self.fetch_status_label.setText(
-                f"Loaded {len(models)} {entry['provider_label']} model(s)."
-            )
-            # A successful model fetch is the one thing this dialog actually knows for sure
-            # about a key -- the provider accepted it and returned real data. That's what
-            # "Verified" in the Keys summary means; see _verified_providers's comment in
-            # __init__ for why nothing else in this dialog is allowed to claim that word.
-            self._verified_providers.add(provider_value)
-            self._rebuild_keys_summary()
-        else:
-            self.fetch_status_label.setText(
-                f"{entry['provider_label']} fetch failed: {result.get('error', 'unknown error')}"
-            )
-
-    def _resolve_model_value(self, provider_value):
-        text = self._model_combos[provider_value].currentText().strip()
-        if not text or text == AUTO_LABEL:
-            return AUTO_SENTINEL
-        return text
 
     def _int_setting(self, key, default, low, high):
         """An int setting clamped to [low, high]; the default when unset or unreadable."""
@@ -1278,10 +517,6 @@ QPushButton#settingsCancelButton {{
             return default
 
     def accept(self):
-        from ...infrastructure.auth import CredentialManager
-        provider = self._active_provider
-        self.settings.setValue(PROVIDER_KEY, provider)
-        self.settings.setValue(EXPERIMENTAL_CLI_KEY, self.experimental_cli_checkbox.isChecked())
         self.settings.setValue(PERSIST_SETTING_KEY, self.persist_history_checkbox.isChecked())
         self.settings.setValue(PERSIST_PROJECT_MEMORY_KEY, self.persist_project_memory_checkbox.isChecked())
         self.settings.setValue(SETTINGS_EVIDENCE_ENABLED, self.evidence_checkbox.isChecked())
@@ -1300,43 +535,5 @@ QPushButton#settingsCancelButton {{
         self.settings.setValue(EGRESS_GATE_MODE_KEY, self.egress_gate_mode_combo.currentData())
         self.settings.setValue(EGRESS_GATE_STRICT_KEY, self.egress_gate_strict_checkbox.isChecked())
         self.settings.setValue(USER_PROFILE_KEY, self.user_profile_combo.currentData())
-
-        # Product policy decision, 2026-09-20 (strict option chosen over an opt-in
-        # plaintext-persist path): save_credential() has no way to write a new key to
-        # disk in plaintext at all now -- session_only_entries only drives the
-        # informational notice below, there is no consent prompt or plaintext-persist
-        # call to make regardless of what the user chooses.
-        session_only_entries = []
-        for entry in self._providers:
-            pv = entry["value"]
-            self.settings.setValue(entry["model_setting_key"], self._resolve_model_value(pv))
-            if pv in self._cached_model_lists:
-                self.settings.setValue(
-                    provider_model_list_key(pv), json.dumps(self._cached_model_lists[pv])
-                )
-
-            key_text = self._key_edits[pv].text().strip()
-            if entry.get("key_storage") == "setting":
-                self.settings.setValue(cli_path_setting_key(pv), key_text)
-                continue
-            if key_text and CredentialManager.save_credential(pv, key_text) and CredentialManager.used_session_only_fallback(pv):
-                session_only_entries.append(entry.get("provider_label", pv))
-
-        firms_key_text = self.firms_key_edit.text().strip()
-        if firms_key_text and CredentialManager.save_credential("firms", firms_key_text) and CredentialManager.used_session_only_fallback("firms"):
-            session_only_entries.append("NASA FIRMS")
-
-        if session_only_entries:
-            labels = ", ".join(session_only_entries)
-            message = (
-                "QGIS's encrypted credential store (QgsAuthManager) wasn't available, so the "
-                "API key for " + labels + " will only be kept for this QGIS session -- it has "
-                "NOT been saved to disk, and you'll need to re-enter it next time you start "
-                "QGIS. Cartogen AI never stores API keys in plain text, so this isn't optional."
-            )
-            diagnostic = CredentialManager.get_auth_system_diagnostic_message()
-            if diagnostic:
-                message += "\n\n" + diagnostic
-            QMessageBox.information(self, "Key kept for this session only", message)
 
         super().accept()

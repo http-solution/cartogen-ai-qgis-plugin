@@ -13,8 +13,8 @@ class TestAccountUiContract(unittest.TestCase):
         self.assertIn('CredentialManager.save_secure_credential("cartogen"', source)
         self.assertIn('password is sent only over HTTPS', source)
 
-    def test_settings_exposes_account_entry_point(self):
-        source = (ROOT / 'src' / 'cartogen_ai' / 'core' / 'ui' / 'settings_dialog.py').read_text(encoding='utf-8')
+    def test_connections_window_exposes_account_entry_point(self):
+        source = (ROOT / 'src' / 'cartogen_ai' / 'core' / 'ui' / 'connections_dialog.py').read_text(encoding='utf-8')
         self.assertIn('Manage account', source)
         self.assertIn('CartogenAccountDialog', source)
         self.assertIn('_open_account_dialog', source)

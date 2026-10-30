@@ -78,7 +78,7 @@ def build_help_html(version=None, tool_count=None, task_count=None, section_coun
 
     <h4>Getting started</h4>
     <ol>
-    <li>Open <b>Settings</b> (top-right gear icon) and pick a provider and enter its API key.</li>
+    <li>Open <b>Plugins &gt; Cartogen AI &gt; Connections...</b>, pick a provider, enter its API key and press <b>Use this connection</b>.</li>
     <li>Type a request in the chat box and press Enter (Shift+Enter for a new line).</li>
     <li>For anything that edits or deletes data, you'll see a confirmation card right in the
     chat before it actually runs.</li>
@@ -140,10 +140,10 @@ def build_help_html(version=None, tool_count=None, task_count=None, section_coun
 
     <h4>Something not working?</h4>
     <ul>
-    <li><b>"No API key configured" / an authentication error</b> — open Settings and check the
+    <li><b>"No API key configured" / an authentication error</b> — open Connections and check the
     key for your selected provider, or switch to Ollama to run fully locally with no key.</li>
     <li><b>Rate limited or quota errors</b> — wait a moment and try again, or switch models or
-    providers in Settings.</li>
+    providers in Connections.</li>
     <li><b>A file attachment isn't being read</b> — PDF/Word/Excel parsing needs a few optional
     Python packages; everything else works without them (see the README's "Optional
     dependencies" section for how to install them).</li>

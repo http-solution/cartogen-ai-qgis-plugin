@@ -1,0 +1,76 @@
+"""PLAN-041, offline half: the Connections window and its entry points, checked from source (the dialog imports Qt; the real widgets are
+exercised in tests/test_connections_window_live.py in the CI live job)."""
+import ast
+import unittest
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+UI = ROOT / "src" / "cartogen_ai" / "core" / "ui"
+DIALOG = (UI / "connections_dialog.py").read_text(encoding="utf-8")
+SETTINGS = (UI / "settings_dialog.py").read_text(encoding="utf-8")
+DOCK = (UI / "dock_widget.py").read_text(encoding="utf-8")
+PLUGIN = (ROOT / "plugin_main.py").read_text(encoding="utf-8")
+
+
+class TestCatalogIsQtFree(unittest.TestCase):
+    def test_the_catalog_imports_without_qgis_and_lists_every_connection_once(self):
+        from cartogen_ai.core.ui import connections_catalog as c
+        values = [e["value"] for e in c.PROVIDERS + c._CLI_PROVIDERS]
+        self.assertEqual(len(values), len(set(values)))
+        self.assertTrue({"claude_cli", "codex_cli", "gemini_cli"} <= set(values))
+        for entry in c.PROVIDERS + c._CLI_PROVIDERS:
+            self.assertIn(c._group_of(entry), c._GROUP_TITLES)
+
+    def test_no_qt_import_in_the_catalog(self):
+        tree = ast.parse((UI / "connections_catalog.py").read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            if isinstance(node, (ast.Import, ast.ImportFrom)):
+                self.assertNotIn("qgis", ast.unparse(node))
+
+
+class TestWindowStructure(unittest.TestCase):
+    def test_choosing_which_page_to_see_is_separate_from_choosing_the_connection_in_use(self):
+        self.assertIn("def _show_provider", DIALOG)
+        self.assertIn("def _use_provider", DIALOG)
+        show = DIALOG[DIALOG.index("    def _show_provider"):DIALOG.index("    def _use_provider")]
+        self.assertNotIn("_active_provider =", show, "looking at a page must not change the connection in use")
+        self.assertIn('row.clicked.connect(lambda _checked=False, p=pv: self._show_provider(p))', DIALOG)
+        self.assertIn("use_btn.clicked.connect(lambda _checked=False, p=pv: self._use_provider(p))", DIALOG)
+
+    def test_save_writes_the_choice_the_keys_the_models_and_the_cli_path(self):
+        accept = DIALOG[DIALOG.index("    def accept"):]
+        for needle in ("setValue(PROVIDER_KEY, self._active_provider)", "EXPERIMENTAL_CLI_KEY", "save_credential(pv, key_text)",
+                       "cli_path_setting_key(pv)", "save_credential(FIRMS_KEY", 'entry["model_setting_key"]'):
+            self.assertIn(needle, accept, needle)
+
+    def test_the_ok_and_cancel_buttons_sit_outside_the_scroll_areas(self):
+        self.assertIn("outer_layout.addWidget(self.button_box)", DIALOG)
+
+    def test_the_firms_key_has_its_own_page_and_is_not_a_model_choice(self):
+        from cartogen_ai.core.ui import connections_catalog as c
+        self.assertIn("def _build_firms_page", DIALOG)
+        self.assertIn("credentials.get_credential(FIRMS_KEY)", DIALOG)
+        self.assertNotIn("firms", {e["value"] for e in c.PROVIDERS + c._CLI_PROVIDERS})
+
+
+class TestEntryPoints(unittest.TestCase):
+    def test_a_plugins_menu_action_opens_the_connections_window_through_the_panel(self):
+        self.assertIn('QAction(self.tr("Connections...")', PLUGIN)
+        self.assertIn("connections_action.triggered.connect(self.show_connections)", PLUGIN)
+        self.assertIn("self.iface.addPluginToMenu(self.menu, connections_action)", PLUGIN)
+        self.assertIn("self.actions.append(connections_action)", PLUGIN)  # so unload removes it
+        body = PLUGIN[PLUGIN.index("    def show_connections"):PLUGIN.index("    def show_help")]
+        self.assertIn("self._ensure_dock()", body)
+        self.assertIn("self.dock_widget.open_connections()", body)
+
+    def test_the_panel_refreshes_its_provider_dropdown_after_either_window_saves(self):
+        self.assertIn("def open_connections", DOCK)
+        self.assertEqual(DOCK.count("self._refresh_after_connection_change()"), 2)
+
+    def test_settings_opens_the_connections_window_and_no_longer_holds_its_settings(self):
+        self.assertIn("self.open_connections_button.clicked.connect(self._open_connections)", SETTINGS)
+        self.assertIn("from .connections_dialog import CartogenAiConnectionsDialog", SETTINGS)
+
+
+if __name__ == "__main__":
+    unittest.main()

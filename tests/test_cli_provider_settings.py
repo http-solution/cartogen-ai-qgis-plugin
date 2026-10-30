@@ -45,7 +45,7 @@ class TestWiring(unittest.TestCase):
     @staticmethod
     def _module_constants():
         """Top-level `NAME = <literal>` assignments of the dialog module (it imports Qt, so it is parsed, not imported)."""
-        tree = ast.parse(_text("core", "ui", "settings_dialog.py"))
+        tree = ast.parse(_text("core", "ui", "connections_catalog.py"))
         out = {}
         for node in tree.body:
             if isinstance(node, ast.Assign) and len(node.targets) == 1 and isinstance(node.targets[0], ast.Name):
@@ -55,7 +55,7 @@ class TestWiring(unittest.TestCase):
 
     def _cli_entries(self):
         """The _CLI_PROVIDERS dicts with their non-literal values (setting-key names, _CLI_NOTE) replaced by markers."""
-        tree = ast.parse(_text("core", "ui", "settings_dialog.py"))
+        tree = ast.parse(_text("core", "ui", "connections_catalog.py"))
         for node in tree.body:
             if isinstance(node, ast.Assign) and getattr(node.targets[0], "id", "") == "_CLI_PROVIDERS":
                 entries = []
@@ -77,11 +77,13 @@ class TestWiring(unittest.TestCase):
         for cls in ("ClaudeCliClient", "CodexCliClient", "GeminiCliClient"):
             self.assertIn(cls, text)
 
-    def test_the_dialog_always_lists_the_cli_entries_but_gates_their_pills_on_the_acknowledgement(self):
-        text = _text("core", "ui", "settings_dialog.py")
+    def test_the_dialog_always_lists_the_cli_entries_but_gates_their_rows_on_the_acknowledgement(self):
+        text = _text("core", "ui", "connections_dialog.py")
         self.assertIn("self._providers = PROVIDERS + _CLI_PROVIDERS", text)
-        self.assertIn('btn.setEnabled(self.experimental_cli_checkbox.isChecked())', text)
-        self.assertRegex(text, r'PROVIDERS = \[e for e in _ALL_PROVIDERS if e\["value"\] in ENABLED_PROVIDERS\]')
+        self.assertIn('row.setEnabled(self.experimental_cli_checkbox.isChecked())', text)
+        self.assertIn('use_btn.setEnabled(self.experimental_cli_checkbox.isChecked())', text)
+        self.assertRegex(_text("core", "ui", "connections_catalog.py"),
+                         r'PROVIDERS = \[e for e in _ALL_PROVIDERS if e\["value"\] in ENABLED_PROVIDERS\]')
         entries = self._cli_entries()
         self.assertEqual([e["value"] for e in entries], list(sk.CLI_PROVIDERS))
         self.assertTrue(all(e["key_storage"] == "setting" and e["group"] == "cli" for e in entries))
@@ -94,7 +96,7 @@ class TestWiring(unittest.TestCase):
         self.assertEqual(consts["_GROUP_OF"]["ollama"], "local")
 
     def test_the_program_path_is_saved_as_a_plain_setting_not_a_credential(self):
-        text = _text("core", "ui", "settings_dialog.py")
+        text = _text("core", "ui", "connections_dialog.py")
         self.assertRegex(text, r'if entry\.get\("key_storage"\) == "setting":\s+self\.settings\.setValue\(cli_path_setting_key\(pv\)')
 
     def test_every_cli_page_says_data_goes_to_the_vendor(self):

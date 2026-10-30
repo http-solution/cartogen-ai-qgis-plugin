@@ -249,21 +249,32 @@ class CartogenAiDockWidget(QDockWidget):
         dialog = CartogenAiSettingsDialog(self)
         if dialog.exec():
             self.statusSignal.emit("Settings saved")
-            # Keep the quick-switch dropdown in sync without re-triggering _on_provider_switch.
-            provider_value = normalize_provider(QgsSettings().value(SETTINGS_PROVIDER, "openrouter"))
-            idx = self.provider_combo.findData(provider_value)
-            if idx < 0 and provider_value in CLI_PROVIDER_LABELS:
-                self.provider_combo.blockSignals(True)
-                self.provider_combo.addItem(CLI_PROVIDER_LABELS[provider_value], provider_value)
-                self.provider_combo.blockSignals(False)
-                idx = self.provider_combo.findData(provider_value)
+            self._refresh_after_connection_change()
 
-            if idx >= 0:
-                self.provider_combo.blockSignals(True)
-                self.provider_combo.setCurrentIndex(idx)
-                self.provider_combo.blockSignals(False)
-            if hasattr(self, '_agent_provider'):
-                try:
-                    self._agent_provider()
-                except Exception as e:
-                    log_event("agent_refresh_after_settings_save_failed", tag="DockWidget", error_class=type(e).__name__, error=True)
+    def open_connections(self):
+        """The Connections window (PLAN-041): API keys, models, Ollama and CLI logins. Also reachable from Plugins > Cartogen AI."""
+        from .connections_dialog import CartogenAiConnectionsDialog
+        dialog = CartogenAiConnectionsDialog(self)
+        if dialog.exec():
+            self.statusSignal.emit("Connections saved")
+            self._refresh_after_connection_change()
+
+    def _refresh_after_connection_change(self):
+        # Keep the quick-switch dropdown in sync without re-triggering _on_provider_switch.
+        provider_value = normalize_provider(QgsSettings().value(SETTINGS_PROVIDER, "openrouter"))
+        idx = self.provider_combo.findData(provider_value)
+        if idx < 0 and provider_value in CLI_PROVIDER_LABELS:
+            self.provider_combo.blockSignals(True)
+            self.provider_combo.addItem(CLI_PROVIDER_LABELS[provider_value], provider_value)
+            self.provider_combo.blockSignals(False)
+            idx = self.provider_combo.findData(provider_value)
+
+        if idx >= 0:
+            self.provider_combo.blockSignals(True)
+            self.provider_combo.setCurrentIndex(idx)
+            self.provider_combo.blockSignals(False)
+        if hasattr(self, '_agent_provider'):
+            try:
+                self._agent_provider()
+            except Exception as e:
+                log_event("agent_refresh_after_settings_save_failed", tag="DockWidget", error_class=type(e).__name__, error=True)
