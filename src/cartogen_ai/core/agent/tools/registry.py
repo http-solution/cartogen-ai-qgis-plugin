@@ -8,6 +8,8 @@ import re
 
 TOOL_REGISTRY: dict = {}
 TOOLS_SCHEMA: list = []
+# Routing-only phrases a tool declares next to its own definition (PLAN-042 step 2). Never sent to the model: they are not part of the schema.
+TOOL_KEYWORDS: dict = {}
 
 # "'QgsRasterLayer' object has no attribute 'fields'": a tool that looked a layer up by name and got a layer of the other kind.
 _WRONG_LAYER_KIND = re.compile(r"'Qgs(Raster|Vector|Mesh|PointCloud|VectorTile|Annotation|TiledScene)Layer' object has no attribute '(\w+)'")
@@ -33,16 +35,20 @@ def _refuse_wrong_layer_kind(name, func):
     return guarded
 
 
-def register_tool(name, description, parameters):
+def register_tool(name, description, parameters, keywords=()):
     """
     Decorator to register a function into the global tool registry and schema list.
 
     :param name: Unique name of the tool function.
     :param description: High-level description of what the tool does.
     :param parameters: JSON schema dictionary of input parameters.
+    :param keywords: lower-case phrases users say for this tool that share no word with its name or description; the router scores them
+        like the curated aliases in tool_router._TOOL_ALIASES (a phrase may be in either place, not both).
     """
     def decorator(func):
         TOOL_REGISTRY[name] = _refuse_wrong_layer_kind(name, func)
+        if keywords:
+            TOOL_KEYWORDS[name] = tuple(keywords)
         TOOLS_SCHEMA.append({
             "type": "function",
             "function": {
