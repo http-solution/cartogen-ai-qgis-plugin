@@ -30,9 +30,9 @@ class TestEnabledProviders(unittest.TestCase):
         from cartogen_ai.core.ui.dock_constants import PROVIDER_CHOICES
         self.assertEqual({v for _, v in PROVIDER_CHOICES}, {"openrouter", "gemini", "ollama"})
 
-    def test_settings_dialog_filters_providers(self):
-        # settings_dialog imports Qt unconditionally, so check the source rather than import it.
-        text = (SRC / "core" / "ui" / "settings_dialog.py").read_text(encoding="utf-8")
+    def test_connections_catalog_filters_providers(self):
+        # the catalog is Qt-free but the check is a source check.
+        text = (SRC / "core" / "ui" / "connections_catalog.py").read_text(encoding="utf-8")
         self.assertRegex(text, r'PROVIDERS = \[e for e in _ALL_PROVIDERS if e\["value"\] in ENABLED_PROVIDERS\]')
 
     def test_orchestrator_normalizes_saved_provider(self):

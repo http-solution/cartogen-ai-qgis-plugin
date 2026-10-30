@@ -136,6 +136,13 @@ class CartogenAi:
         # "Cartogen AI vX.Y.Z" entry directly in this menu, but direct follow-up feedback the
         # same day said that was one place too many; removed rather than kept as a second,
         # redundant spot.
+        # Connections (PLAN-041): the model connection -- API keys, Ollama, a signed-in CLI -- has its own window, reachable here as well
+        # as from Settings. It opens the panel first, because choosing a connection also has to refresh the panel's quick-switch dropdown.
+        connections_action = QAction(self.tr("Connections..."), self.iface.mainWindow())
+        connections_action.triggered.connect(self.show_connections)
+        self.iface.addPluginToMenu(self.menu, connections_action)
+        self.actions.append(connections_action)
+
         help_action = QAction(self.tr("Help"), self.iface.mainWindow())
         help_action.triggered.connect(self.show_help)
         self.iface.addPluginToMenu(self.menu, help_action)
@@ -385,6 +392,14 @@ class CartogenAi:
                 f"Failed to open panel: {e}",
             )
             return False, False
+
+    def show_connections(self):
+        ok, _just_created = self._ensure_dock()
+        if not ok:
+            return
+        self.dock_widget.show()
+        self.dock_widget.raise_()
+        self.dock_widget.open_connections()
 
     def show_help(self):
         """Opens Help in its own dialog rather than the dock -- independent of whether the

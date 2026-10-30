@@ -34,8 +34,11 @@ what's new/available stays easy to find without having to go looking for it.
 
 ## First-time setup
 
-1. Click **Settings** in the dock header (top right, next to the provider dropdown).
-2. Pick a provider from the dropdown: **OpenRouter**, **Gemini** or **Ollama**. (OpenAI and
+1. Open **Plugins → Cartogen AI → Connections...** (or press **Connections…** at the top of
+   **Settings**). The window lists every connection on the left; the one you click shows its
+   page on the right. Looking at a page changes nothing: press **Use this connection** to make
+   it the one the assistant uses.
+2. Pick a connection: **OpenRouter**, **Gemini** or **Ollama**. (OpenAI and
    Claude were removed from the list in rc25 because they were never tested; a provider saved
    by an older version falls back to OpenRouter. The Cartogen API entry in Settings is a stub
    until a hosted gateway exists.)
@@ -50,8 +53,10 @@ what's new/available stays easy to find without having to go looking for it.
    automatically, based on the request's wording and length. (Ollama always uses
    whatever model you pick; local models aren't a cost concern the auto-router needs
    to optimize for.)
-5. Click OK. You can switch providers anytime from the small dropdown in the dock
-   header without reopening Settings.
+5. Press **Use this connection** and then OK. You can switch providers anytime from the small
+   dropdown in the dock header without reopening the window. A mark beside each connection in
+   the list shows whether it has a key or program set (●), has been checked this session (✓),
+   or is empty (○).
 
 <p align="center"><img src="images/settings-dialog.png" alt="Settings dialog — provider connection, API key, NASA FIRMS key, and privacy toggles" width="380"></p>
 
@@ -80,12 +85,12 @@ delete it (copies of the project file you already shared keep their own copy).
 If you want to use the hosted **Cartogen AI** API rather than bring your own
 provider key:
 
-1. Open Settings and click **Manage account**.
+1. Open **Plugins → Cartogen AI → Connections...** and click **Manage account**.
 2. Enter the Cartogen account service URL supplied by your administrator.
 3. Use **Create account** for a new account, or **Sign in** for an existing one.
 4. If the service requires activation, follow its activation email before signing in.
 5. Paste the separately assigned **Cartogen AI API key** from the account portal.
-6. Select **Cartogen AI (Hosted)** as the Connection provider and click OK in Settings.
+6. Select **Cartogen AI (Hosted)**, press **Use this connection** and click OK.
 
 The account session and hosted API key are stored separately in QGIS's encrypted
 credential store. The plugin never saves the password in QGIS settings, and the

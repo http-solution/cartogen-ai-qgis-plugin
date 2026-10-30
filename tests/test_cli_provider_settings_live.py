@@ -1,5 +1,5 @@
-"""PLAN-038: the experimental CLI provider wiring in a real QGIS process (CI live job; written without a QGIS install, so CI's first run
-is its first execution). Checks the Settings dialog with the switch off and on, what Save writes, and that the agent builds the matching
+"""PLAN-038 (the dialog is the Connections window since PLAN-041): the experimental CLI provider wiring in a real QGIS process (CI live job; written without a QGIS install, so CI's first run
+is its first execution). Checks the Connections window with the switch off and on, what Save writes, and that the agent builds the matching
 client. No CLI is run."""
 import threading
 import unittest
@@ -37,10 +37,10 @@ class TestCliProviderSettings(unittest.TestCase):
             settings.remove(key)
 
     def _dialog(self):
-        from cartogen_ai.core.ui.settings_dialog import CartogenAiSettingsDialog
-        return CartogenAiSettingsDialog()
+        from cartogen_ai.core.ui.connections_dialog import CartogenAiConnectionsDialog
+        return CartogenAiConnectionsDialog()
 
-    def test_off_by_default_cli_pills_are_listed_but_disabled_and_a_saved_cli_provider_falls_back(self):
+    def test_off_by_default_cli_rows_are_listed_but_disabled_and_a_saved_cli_provider_falls_back(self):
         from cartogen_ai.infrastructure.settings_keys import DEFAULT_PROVIDER, SETTINGS_PROVIDER, normalize_provider
         QgsSettings().setValue(SETTINGS_PROVIDER, "claude_cli")
         self.assertEqual(normalize_provider("claude_cli"), DEFAULT_PROVIDER)
@@ -51,10 +51,10 @@ class TestCliProviderSettings(unittest.TestCase):
             self.assertFalse(dialog._provider_buttons[p].isEnabled(), p)
         self.assertEqual(dialog._active_provider, DEFAULT_PROVIDER)
 
-    def test_ticking_the_acknowledgement_enables_the_pills_without_reopening_and_save_writes_a_plain_setting(self):
+    def test_ticking_the_acknowledgement_enables_the_rows_without_reopening_and_save_writes_a_plain_setting(self):
         from cartogen_ai.infrastructure.auth import CredentialManager
         from cartogen_ai.infrastructure.settings_keys import (
-            SETTINGS_CLAUDE_CLI_MODEL, SETTINGS_PROVIDER, cli_path_setting_key, normalize_provider,
+            DEFAULT_PROVIDER, SETTINGS_CLAUDE_CLI_MODEL, SETTINGS_PROVIDER, cli_path_setting_key, normalize_provider,
         )
         dialog = self._dialog()
         dialog.experimental_cli_checkbox.setChecked(True)
@@ -63,6 +63,8 @@ class TestCliProviderSettings(unittest.TestCase):
         self.assertEqual(dialog._key_edits["claude_cli"].text(), "claude")  # the default program name
         dialog._key_edits["claude_cli"].setText("/opt/tools/claude")
         dialog._provider_buttons["claude_cli"].click()
+        self.assertEqual(dialog._active_provider, DEFAULT_PROVIDER, "looking at a page must not change the connection in use")
+        dialog._use_buttons["claude_cli"].click()
         self.assertEqual(dialog._active_provider, "claude_cli")
         dialog._model_combos["claude_cli"].setCurrentText("sonnet")
         dialog.accept()
@@ -84,9 +86,11 @@ class TestCliProviderSettings(unittest.TestCase):
         dialog = self._dialog()
         dialog.experimental_cli_checkbox.setChecked(True)
         dialog._provider_buttons["gemini_cli"].click()
+        dialog._use_buttons["gemini_cli"].click()
         self.assertEqual(dialog._active_provider, "gemini_cli")
         dialog.experimental_cli_checkbox.setChecked(False)
         self.assertEqual(dialog._active_provider, DEFAULT_PROVIDER)
+        self.assertFalse(dialog._use_buttons["gemini_cli"].isEnabled())
         self.assertTrue(dialog._provider_buttons[DEFAULT_PROVIDER].isChecked())
         self.assertFalse(dialog._provider_buttons["gemini_cli"].isEnabled())
 
