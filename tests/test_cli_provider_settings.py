@@ -84,7 +84,7 @@ class TestWiring(unittest.TestCase):
         # every step that starts a CLI (sign-in terminal, test question) or makes it the connection in use comes after the consent check
         body = text[text.index("    def _cli_primary"):text.index("    def _start_poll")]
         consent_at = body.index("self._ensure_cli_consent(provider)")
-        for later in ("self._signin_cli(provider)", "self._check_cli(provider)", "self._use_provider(provider)"):
+        for later in ("self._signin_and_wait(provider, consent_done=True)", "self._check_cli(provider)", "self._use_provider(provider)"):
             self.assertGreater(body.index(later), consent_at, later)
         self.assertRegex(_text("core", "ui", "connections_catalog.py"),
                          r'PROVIDERS = \[e for e in _ALL_PROVIDERS if e\["value"\] in ENABLED_PROVIDERS\]')

@@ -16,7 +16,7 @@ import os
 import threading
 import time
 
-from qgis.PyQt.QtCore import pyqtSignal, Qt, QTimer
+from qgis.PyQt.QtCore import pyqtSignal, Qt, QTimer, QEvent
 from qgis.PyQt.QtWidgets import (
     QDialog, QVBoxLayout, QLabel, QMessageBox, QApplication, QLineEdit, QComboBox, QFormLayout, QDialogButtonBox, QStackedWidget,
     QWidget, QCheckBox, QHBoxLayout, QPushButton, QScrollArea, QFrame, QListWidget, QListWidgetItem, QFileDialog,
@@ -95,6 +95,7 @@ class CartogenAiConnectionsDialog(QDialog):
         self._verified_providers = set()
         self._detected = {}           # provider -> the last detection result (cli_bridge_status.detect_all)
         self._detecting = False
+        self._last_detect_started = 0.0
         self._detect_labels = {}
         self._detect_buttons = {}
         self._shown_provider = None
@@ -379,7 +380,7 @@ QPushButton#settingsCancelButton {{
             signin_btn = QPushButton("Sign in...")
             signin_btn.setObjectName("secondaryButton")
             signin_btn.setToolTip("Opens a terminal running the program's own sign-in. Your login stays with that program.")
-            signin_btn.clicked.connect(lambda _checked=False, p=pv: self._signin_cli(p))
+            signin_btn.clicked.connect(lambda _checked=False, p=pv: self._signin_and_wait(p))
             button_row.addWidget(check_btn)
             button_row.addWidget(signin_btn)
             button_row.addStretch(1)
@@ -389,6 +390,9 @@ QPushButton#settingsCancelButton {{
             page_form.addRow("", button_holder)
             key_edit.textChanged.connect(lambda text, p=pv: self._cli_status_labels[p].setText(self._cli_quick_status(p, text)))
             key_edit.textChanged.connect(lambda _text="", p=pv: self._forget_verified(p))
+            # A path typed or pasted by hand is looked at as soon as the user leaves the field (the owner typed Codex's absolute path
+            # and nothing happened, 2026-10-30: detection only ran on open).
+            key_edit.editingFinished.connect(self._start_detect)
 
         if not is_setting and pv in _provider_check.TESTABLE:
             test_btn = QPushButton("Test")
@@ -566,6 +570,7 @@ QPushButton#settingsCancelButton {{
         if self._detecting:
             return
         self._detecting = True
+        self._last_detect_started = time.monotonic()
         for button in self._detect_buttons.values():
             button.setEnabled(False)
         for label in self._detect_labels.values():
@@ -682,8 +687,7 @@ QPushButton#settingsCancelButton {{
         if not self._ensure_cli_consent(provider):
             return
         if kind == "signin":
-            self._signin_cli(provider)
-            self._start_poll(provider)
+            self._signin_and_wait(provider, consent_done=True)
         elif kind == "verify":
             self._connect_after_check = provider
             self._check_cli(provider)
@@ -824,6 +828,26 @@ QPushButton#settingsCancelButton {{
         program = self._key_edits[provider].text().strip()
         outcome = _cli_status.open_signin_terminal(provider, program)
         self._cli_status_labels[provider].setText(outcome["message"])
+        return outcome
+
+    def _signin_and_wait(self, provider, consent_done=False):
+        """Opens the program's own sign-in, then waits for it: looks again every few seconds and when the window is clicked back into
+        (after a browser or terminal), notices the login, tests the connection and uses it. The page's main button and its small
+        "Sign in..." button both come here (the small one used to open the sign-in and then forget about it)."""
+        if not consent_done and not self._ensure_cli_consent(provider):
+            return
+        outcome = self._signin_cli(provider)
+        self._cli_status_labels[provider].setText(outcome["message"] + " This window is waiting for you to finish and will notice.")
+        self._start_poll(provider)
+
+    def changeEvent(self, event):  # noqa: N802 -- Qt virtual, the name is fixed
+        """Coming back to this window (from the browser or terminal of a sign-in, or from installing a program) looks again, at most
+        every 5 seconds, so the page shows what changed without anyone pressing Detect again."""
+        super().changeEvent(event)
+        if event.type() == QEvent.Type.ActivationChange and self.isActiveWindow() and self._detected:
+            now = time.monotonic()
+            if not self._detecting and now - self._last_detect_started > 5:
+                self._start_detect()
 
     def _open_account_dialog(self):
         from .account_dialog import CartogenAccountDialog
