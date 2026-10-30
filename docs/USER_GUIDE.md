@@ -63,6 +63,23 @@ what's new/available stays easy to find without having to go looking for it.
    the list shows whether it has a key or program set (●), has been checked this session (✓),
    or is empty (○).
 
+**Using your Claude Code or Codex login instead of an API key** (experimental). Pick the CLI in the
+list; its page has one main button that is always the next step:
+
+- **Copy install command** — the program was not found. Paste the command in a terminal, then press
+  **Detect again**. If it works in your terminal but not here, hover the "looked in N folders" text,
+  or press **Browse...** and pick the program yourself.
+- **Sign in...** — opens the program's own sign-in (a terminal or your browser). Finish it there; the
+  window notices by itself, tests the connection and starts using it.
+- **Connect** — signed in; asks the program one short test question (a few tokens of your plan).
+- **Use this connection** — tested and ready.
+
+The first time, you are asked to agree: the conversation, including any layer or attribute data a tool
+surfaces, goes to the vendor's service (Anthropic for Claude Code, OpenAI for Codex), so treat it as a
+cloud provider. Cartogen AI never sees or stores your login. The Gemini CLI is no longer offered:
+Google stopped serving personal Google accounts through it on 18 June 2026; use the Gemini API key
+connection instead.
+
 <p align="center"><img src="images/settings-dialog.png" alt="Settings dialog — provider connection, API key, NASA FIRMS key, and privacy toggles" width="380"></p>
 
 **NASA FIRMS API Key** (optional) — only needed for `fetch_nasa_active_fires` (live
