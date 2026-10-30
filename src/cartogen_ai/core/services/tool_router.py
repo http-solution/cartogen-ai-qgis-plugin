@@ -6,6 +6,8 @@ to prevent LLM system prompt context overload.
 
 import contextlib
 import difflib
+import json
+import os
 import re
 
 
@@ -738,11 +740,34 @@ _FUZZY_TYPO_MIN_WORD_LEN = 5
 _FUZZY_TYPO_CUTOFF = 0.8
 
 
+_CONCEPTS_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "routing_concepts.json")
+_concepts_cache: dict = {}
+_CONCEPT_PREFIX = "concept:"   # not "@": existing aliases such as "@2" (raster calculator) start with it
+
+
+def _concepts():
+    """Shared synonym groups (routing_concepts.json): a phrase list written once and named by "concept:name" in a tool's keywords, so a new
+    synonym is one line of data for every tool that uses the group (PLAN-042 step 3). Empty if the file cannot be read."""
+    if not _concepts_cache:
+        with contextlib.suppress(Exception), open(_CONCEPTS_PATH, encoding="utf-8") as handle:
+            _concepts_cache.update(json.load(handle))
+    return _concepts_cache
+
+
+def expand_phrases(phrases):
+    """The phrases with every "concept:name" replaced by that concept's phrases; an unknown concept adds nothing (a test fails on it)."""
+    out = []
+    for phrase in phrases:
+        out.extend(_concepts().get(phrase[len(_CONCEPT_PREFIX):], ()) if phrase.startswith(_CONCEPT_PREFIX) else (phrase,))
+    return tuple(out)
+
+
 def _declared_keywords(name):
-    """Phrases a tool declares beside its own @register_tool (PLAN-042 step 2); empty if the registry is unavailable."""
+    """Phrases a tool declares beside its own @register_tool (PLAN-042 step 2), concept references expanded; empty if the registry is
+    unavailable."""
     with contextlib.suppress(Exception):
         from ..agent.tools.registry import TOOL_KEYWORDS
-        return TOOL_KEYWORDS.get(name, ())
+        return expand_phrases(TOOL_KEYWORDS.get(name, ()))
     return ()
 
 
@@ -909,7 +934,7 @@ def _score_tool(name, desc, query_words, long_query, alias_query_lower, algorith
     score += 2 * (min(description_hits, _DESCRIPTION_HIT_CAP) if long_query else description_hits)
 
     # Curated alias/synonym match score
-    for alias in (*_TOOL_ALIASES.get(name, ()), *_declared_keywords(name)):
+    for alias in (*expand_phrases(_TOOL_ALIASES.get(name, ())), *_declared_keywords(name)):
         if alias in alias_query_lower:
             score += _ALIAS_MATCH_SCORE
     if algorithm_topic_match and name in _PROCESSING_GENERIC_TOOLS:
