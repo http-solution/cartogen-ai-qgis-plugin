@@ -119,10 +119,17 @@ def detect_all(configured=None):
     configured = configured or {}
     out = []
     for provider in _SPECS:
+        tried = (configured.get(provider) or "").strip() or DEFAULT_PROGRAM[provider]
         info = detect(provider, configured.get(provider, ""))
+        if not info["found"] and tried != DEFAULT_PROGRAM[provider]:
+            # A saved path that no longer exists (program moved or reinstalled) should not hide a CLI that is on PATH under its usual name.
+            fallback = detect(provider, "")
+            if fallback["found"]:
+                info = {**fallback, "problem": ""}
         sign = signin_status(provider, info["path"]) if info["found"] else {"state": "missing", "note": ""}
         out.append({"provider": provider, "label": LABELS[provider], "found": info["found"], "path": info["path"],
-                    "version": info["version"], "problem": info["problem"], "state": sign["state"], "note": sign["note"]})
+                    "version": info["version"], "problem": info["problem"], "state": sign["state"], "note": sign["note"],
+                    "tried": tried})
     return out
 
 
@@ -133,7 +140,7 @@ def describe(entry):
     """One line for the 'Found on this computer' list."""
     if not entry["found"]:
         return f"{entry['label']}: not found on this computer"
-    version = f" ({entry['version']})" if entry["version"] else ""
+    version = f", {entry['version']}" if entry["version"] else ""
     return f"{entry['label']}: found{version}, {_STATE_TEXT.get(entry['state'], 'sign-in not confirmed')}"
 
 

@@ -44,33 +44,44 @@ class TestConnectionsWindow(unittest.TestCase):
         from cartogen_ai.infrastructure.settings_keys import DEFAULT_PROVIDER
         dialog = self._dialog()
         for pv in list(dialog._key_edits):
-            self.assertIn(pv, dialog._provider_buttons, pv)
+            self.assertIn(pv, dialog._row_items, pv)
             self.assertIn(pv, dialog._use_buttons, pv)
             self.assertIn(pv, dialog._page_index, pv)
-        self.assertIn("firms", dialog._provider_buttons)
+        self.assertIn("firms", dialog._row_items)
         self.assertEqual(dialog._active_provider, DEFAULT_PROVIDER)
-        self.assertIn("(in use)", dialog._provider_buttons[DEFAULT_PROVIDER].text())
+        self.assertIn("in use", dialog._row_items[DEFAULT_PROVIDER].text())
         self.assertTrue(dialog._use_buttons[DEFAULT_PROVIDER].isHidden())
+
+    def test_each_group_heading_appears_once_and_headings_cannot_be_selected(self):
+        from qgis.PyQt.QtCore import Qt
+        dialog = self._dialog()
+        headings = [dialog.connection_list.item(i) for i in range(dialog.connection_list.count())
+                    if dialog.connection_list.item(i).data(Qt.ItemDataRole.UserRole) is None]
+        titles = [h.text() for h in headings]
+        self.assertEqual(len(titles), len(set(titles)), titles)
+        self.assertEqual(len(titles), 4)
+        for heading in headings:
+            self.assertEqual(heading.flags(), Qt.ItemFlag.NoItemFlags)
 
     def test_looking_at_a_page_changes_the_page_but_not_the_connection_in_use(self):
         from cartogen_ai.infrastructure.settings_keys import DEFAULT_PROVIDER
         dialog = self._dialog()
         other = next(pv for pv in dialog._key_edits if pv != DEFAULT_PROVIDER and not pv.endswith("_cli"))
-        dialog._provider_buttons[other].click()
+        dialog.connection_list.setCurrentItem(dialog._row_items[other])  # what a click on the row does
         self.assertEqual(dialog.provider_stack.currentIndex(), dialog._page_index[other])
         self.assertEqual(dialog._active_provider, DEFAULT_PROVIDER)
         dialog._use_buttons[other].click()
         self.assertEqual(dialog._active_provider, other)
-        self.assertIn("(in use)", dialog._provider_buttons[other].text())
-        self.assertNotIn("(in use)", dialog._provider_buttons[DEFAULT_PROVIDER].text())
+        self.assertIn("in use", dialog._row_items[other].text())
+        self.assertNotIn("in use", dialog._row_items[DEFAULT_PROVIDER].text())
 
     def test_a_typed_key_changes_the_row_mark_and_ok_saves_the_key_the_choice_and_the_model(self):
         from cartogen_ai.infrastructure.auth import CredentialManager
         from cartogen_ai.infrastructure.settings_keys import SETTINGS_PROVIDER
         dialog = self._dialog()
-        self.assertTrue(dialog._provider_buttons["gemini"].text().startswith("○"))
+        self.assertTrue(dialog._row_items["gemini"].text().startswith("○"))
         dialog._key_edits["gemini"].setText("test-key-1234")
-        self.assertTrue(dialog._provider_buttons["gemini"].text().startswith("●"))
+        self.assertTrue(dialog._row_items["gemini"].text().startswith("●"))
         dialog._use_buttons["gemini"].click()
         dialog._model_combos["gemini"].setCurrentText("gemini-x")
         dialog.accept()
@@ -83,10 +94,10 @@ class TestConnectionsWindow(unittest.TestCase):
     def test_the_firms_key_is_saved_from_its_own_page(self):
         from cartogen_ai.infrastructure.auth import CredentialManager
         dialog = self._dialog()
-        dialog._provider_buttons["firms"].click()
+        dialog.connection_list.setCurrentItem(dialog._row_items["firms"])
         self.assertEqual(dialog.provider_stack.currentIndex(), dialog._page_index["firms"])
         dialog.firms_key_edit.setText("firms-key-9999")
-        self.assertTrue(dialog.firms_row.text().startswith("●"))
+        self.assertTrue(dialog._row_items["firms"].text().startswith("●"))
         dialog.accept()
         self.assertEqual(CredentialManager.get_credential("firms"), "firms-key-9999")
 
@@ -111,28 +122,35 @@ class TestConnectionsWindow(unittest.TestCase):
         dialog._on_detected(list(self.RESULTS))  # the queued signal would arrive through the event loop; apply it directly
         return dialog
 
-    def test_detected_clis_are_listed_and_a_signed_in_one_is_offered_but_never_switched_to_by_itself(self):
+    def test_detection_is_written_on_each_cli_page_and_never_switches_the_connection(self):
         from cartogen_ai.infrastructure.settings_keys import DEFAULT_PROVIDER
         dialog = self._detecting_dialog()
         self.assertIn("not found", dialog._detect_labels["claude_cli"].text())
-        self.assertIn("Codex CLI: found (codex-cli 0.165.0), signed in", dialog._detect_labels["codex_cli"].text())
+        self.assertIn("Codex CLI: found, codex-cli 0.165.0, signed in", dialog._detect_labels["codex_cli"].text())
         self.assertIn("not signed in", dialog._detect_labels["gemini_cli"].text())
         self.assertEqual(dialog._active_provider, DEFAULT_PROVIDER, "detection must not change the connection in use")
-        self.assertFalse(dialog._detect_use_buttons["codex_cli"].isHidden())
-        self.assertTrue(dialog._detect_use_buttons["claude_cli"].isHidden())
-        self.assertTrue(dialog._detect_use_buttons["gemini_cli"].isHidden(), "a CLI that is not signed in is not offered")
+        self.assertTrue(dialog._row_items["codex_cli"].text().startswith("\u2713"), "signed in is marked in the list")
+        self.assertTrue(dialog._row_items["claude_cli"].text().startswith("\u25cb"), "not found is marked empty")
+        self.assertTrue(dialog._row_items["gemini_cli"].text().startswith("\u25cf"), "found but not signed in is 'set'")
 
-    def test_using_a_detected_cli_needs_the_acknowledgement_and_then_makes_it_the_connection_in_use(self):
+    def test_a_stale_saved_path_is_replaced_by_the_program_that_was_found(self):
+        dialog = self._dialog()
+        dialog._key_edits["codex_cli"].setText("/no/such/codex-xyz")
+        results = [dict(r) for r in self.RESULTS]
+        dialog._on_detected(results)
+        self.assertEqual(dialog._key_edits["codex_cli"].text(), "/bin/codex")
+        self.assertEqual(dialog._key_edits["gemini_cli"].text(), "/bin/gemini")
+
+    def test_using_a_cli_needs_the_acknowledgement_and_then_makes_it_the_connection_in_use(self):
         dialog = self._detecting_dialog()
-        self.assertIn("tick the box", dialog._detect_labels["codex_cli"].text())
-        self.assertFalse(dialog._detect_use_buttons["codex_cli"].isEnabled())
+        self.assertFalse(dialog._use_buttons["codex_cli"].isEnabled())
+        self.assertFalse(dialog._cli_ack_notes["codex_cli"].isHidden())
         dialog.experimental_cli_checkbox.setChecked(True)
-        self.assertNotIn("tick the box", dialog._detect_labels["codex_cli"].text())
-        self.assertTrue(dialog._detect_use_buttons["codex_cli"].isEnabled())
-        dialog._detect_use_buttons["codex_cli"].click()
+        self.assertTrue(dialog._use_buttons["codex_cli"].isEnabled())
+        self.assertTrue(dialog._cli_ack_notes["codex_cli"].isHidden())
+        dialog._use_buttons["codex_cli"].click()
         self.assertEqual(dialog._active_provider, "codex_cli")
-        self.assertEqual(dialog.provider_stack.currentIndex(), dialog._page_index["codex_cli"])
-        self.assertTrue(dialog._detect_use_buttons["codex_cli"].isHidden(), "no Use button for the connection already in use")
+        self.assertTrue(dialog._use_buttons["codex_cli"].isHidden(), "no Use button for the connection already in use")
 
     def test_settings_shows_the_connection_in_use_and_no_longer_has_the_connection_widgets(self):
         from cartogen_ai.core.ui.settings_dialog import CartogenAiSettingsDialog

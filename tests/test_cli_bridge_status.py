@@ -91,8 +91,24 @@ class TestDetectAll(unittest.TestCase):
         by = {e["provider"]: e for e in result}
         self.assertEqual(by["claude_cli"]["state"], "missing")
         self.assertEqual(by["codex_cli"]["state"], "yes")
-        self.assertEqual(st.describe(by["codex_cli"]), "Codex CLI: found (codex-cli 0.165.0), signed in")
+        self.assertEqual(st.describe(by["codex_cli"]), "Codex CLI: found, codex-cli 0.165.0, signed in")
         self.assertEqual(st.describe(by["claude_cli"]), "Claude Code CLI: not found on this computer")
+
+    def test_a_saved_path_that_no_longer_exists_falls_back_to_the_usual_name(self):
+        calls = []
+
+        def fake_detect(provider, configured=""):
+            calls.append((provider, configured))
+            if provider == "codex_cli" and not configured:
+                return {"found": True, "path": "/bin/codex", "version": "v", "problem": ""}
+            return {"found": False, "path": "", "version": "", "problem": "not found"}
+        with patch.object(st, "detect", side_effect=fake_detect), \
+             patch.object(st, "signin_status", return_value={"state": "yes", "note": ""}):
+            result = {e["provider"]: e for e in st.detect_all({"codex_cli": "C:\\old\\codex.exe"})}
+        self.assertTrue(result["codex_cli"]["found"])
+        self.assertEqual(result["codex_cli"]["tried"], "C:\\old\\codex.exe")
+        self.assertIn(("codex_cli", ""), calls)
+        self.assertFalse(result["claude_cli"]["found"])
 
     def test_no_model_is_asked_anything_while_detecting(self):
         with patch.object(st, "detect", return_value={"found": True, "path": "/bin/x", "version": "v", "problem": ""}), \

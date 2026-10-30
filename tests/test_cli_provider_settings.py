@@ -77,11 +77,11 @@ class TestWiring(unittest.TestCase):
         for cls in ("ClaudeCliClient", "CodexCliClient", "GeminiCliClient"):
             self.assertIn(cls, text)
 
-    def test_the_dialog_always_lists_the_cli_entries_but_gates_their_rows_on_the_acknowledgement(self):
+    def test_the_dialog_always_lists_the_cli_entries_but_gates_choosing_them_on_the_acknowledgement(self):
         text = _text("core", "ui", "connections_dialog.py")
         self.assertIn("self._providers = PROVIDERS + _CLI_PROVIDERS", text)
-        self.assertIn('row.setEnabled(self.experimental_cli_checkbox.isChecked())', text)
         self.assertIn('use_btn.setEnabled(self.experimental_cli_checkbox.isChecked())', text)
+        self.assertIn('self._use_buttons[pv].setEnabled(checked)', text)
         self.assertRegex(_text("core", "ui", "connections_catalog.py"),
                          r'PROVIDERS = \[e for e in _ALL_PROVIDERS if e\["value"\] in ENABLED_PROVIDERS\]')
         entries = self._cli_entries()

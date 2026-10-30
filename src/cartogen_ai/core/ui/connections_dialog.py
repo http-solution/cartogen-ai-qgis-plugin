@@ -1,10 +1,12 @@
 """The Connections window (PLAN-041): where the user configures and chooses the model connection -- hosted API keys, the local Ollama
 server, and a CLI the user is already signed in to -- and where the NASA FIRMS data key lives.
 
-Layout: a list of every connection on the left (grouped by where the prompts go, each with a status mark and a "in use" tag) and the
-selected connection's own page on the right (key or program path, model, Test / Check connection, Sign in, and a "Use this connection"
-button). Choosing which page to look at and choosing which connection is in use are two separate actions, so reading a page never
-changes what the assistant uses. Same plain vertical layouts as before (a wrapping custom layout froze QGIS once; see docs/BUG_TRACKER.md).
+Layout: a plain QListWidget of every connection on the left (grouped by where the prompts go, one heading per group, each row with a
+status mark and an "in use" tag) and the selected connection's own page on the right (key or program path, model, Test / Check
+connection, Sign in, and a "Use this connection" button). Choosing which page to look at and choosing which connection is in use are two
+separate actions, so reading a page never changes what the assistant uses. No custom wrapping layout (one froze QGIS once; see
+docs/BUG_TRACKER.md). The first version used a column of buttons that all rendered in the same brand blue, squeezed under a tall header;
+the owner's screenshot (2026-10-30) showed it unreadable, so the list is now a native list and the header is two lines.
 
 Everything here was section 01 and 02 of the Settings window until PLAN-041; the behaviour, the settings keys and the credential
 storage are unchanged. CI-only until the owner has looked at it in QGIS."""
@@ -12,10 +14,10 @@ import contextlib
 import json
 import threading
 
-from qgis.PyQt.QtCore import pyqtSignal
+from qgis.PyQt.QtCore import pyqtSignal, Qt
 from qgis.PyQt.QtWidgets import (
     QDialog, QVBoxLayout, QLabel, QMessageBox, QApplication, QLineEdit, QComboBox, QFormLayout, QDialogButtonBox, QStackedWidget,
-    QWidget, QCheckBox, QHBoxLayout, QPushButton, QScrollArea, QFrame, QButtonGroup,
+    QWidget, QCheckBox, QHBoxLayout, QPushButton, QScrollArea, QFrame, QListWidget, QListWidgetItem,
 )
 from qgis.core import QgsSettings
 
@@ -36,6 +38,14 @@ from .connections_catalog import AUTO_LABEL, PROVIDERS, _CLI_PROVIDERS, _GROUP_T
 from .theme_palette import extract_theme_palette
 
 FIRMS_KEY = "firms"  # the NASA FIRMS data key's name in the credential store (not an LLM provider)
+# Short headings for the list on the left (the long ones in connections_catalog are the page subtitles), in the order shown.
+_LIST_GROUPS = (
+    ("hosted", "HOSTED -- API key"),
+    ("local", "LOCAL -- stays on this computer"),
+    ("cli", "YOUR OWN CLI LOGIN -- experimental"),
+    ("data", "DATA SERVICES"),
+)
+_MARKS = {"verified": "\u2713", "set": "\u25cf", "unset": "\u25cb"}
 
 
 class CartogenAiConnectionsDialog(QDialog):
@@ -50,10 +60,11 @@ class CartogenAiConnectionsDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Cartogen AI \u2014 Connections")
-        self.setMinimumWidth(640)
+        self.setMinimumSize(780, 460)
         self.settings = QgsSettings()
-        # The CLI entries are always listed, under their own heading; their rows stay disabled until the user ticks the acknowledgement
-        # box under that heading, and normalize_provider() ignores a saved CLI provider while it is unticked.
+        # The CLI entries are always listed, under their own heading. Their pages can be read at any time, but "Use this connection" stays
+        # disabled until the user ticks the acknowledgement box under the list, and normalize_provider() ignores a saved CLI provider
+        # while it is unticked.
         self._providers = PROVIDERS + _CLI_PROVIDERS
         self._cli_status_labels = {}
         self._cli_buttons = {}
@@ -65,22 +76,24 @@ class CartogenAiConnectionsDialog(QDialog):
         self._model_combos = {}
         self._cached_model_lists = {}
         self._fetching = set()
-        self._provider_buttons = {}   # the list on the left: one checkable row per connection (the row that is checked is shown)
+        self._row_items = {}          # the list on the left: one item per connection (the item that is current is the page shown)
         self._use_buttons = {}        # "Use this connection" on each page
         self._in_use_labels = {}      # "In use" tag on each page
+        self._cli_ack_notes = {}      # "tick the box to use this" on each CLI page
         self._page_index = {}
         # A provider only enters this set after a real _on_models_fetched success in THIS window session: a saved key that has not been
         # exercised this session is "set", not "verified" -- the window cannot know a key still works without calling the provider, so
         # the list shows two different marks rather than claiming more than it knows.
         self._verified_providers = set()
+        self._detected = {}           # provider -> the last detection result (cli_bridge_status.detect_all)
+        self._detecting = False
+        self._detect_labels = {}
+        self._detect_buttons = {}
+        self._shown_provider = None
         self.modelsFetchedSignal.connect(self._on_models_fetched)
         self.cli_check_signal.connect(self._on_cli_check)
         self.api_check_signal.connect(self._on_api_check)
         self.detect_signal.connect(self._on_detected)
-        self._detected = {}          # provider -> the last detection result (cli_bridge_status.detect_all)
-        self._detecting = False
-        self._detect_labels = {}
-        self._detect_use_buttons = {}
         self.init_ui()
         self._start_detect()
 
@@ -89,138 +102,95 @@ class CartogenAiConnectionsDialog(QDialog):
     def init_ui(self):
         from ...infrastructure.auth import CredentialManager
 
-        # The whole window except the button row sits in scroll areas, and OK/Cancel stay fixed outside them: a window taller than a
-        # short screen once left OK/Cancel off-screen so a typed key could never be saved (live report 2026-09-15, see the Settings window).
         outer_layout = QVBoxLayout(self)
         outer_layout.setContentsMargins(0, 0, 0, 0)
         outer_layout.setSpacing(0)
         screen = QApplication.primaryScreen()
+        height = 620
         if screen is not None:
-            self.setMaximumHeight(max(300, int(screen.availableGeometry().height() * 0.85)))
+            height = min(height, max(460, int(screen.availableGeometry().height() * 0.85)))
+        self.resize(900, height)
 
-        top = QWidget()
-        top_layout = QVBoxLayout(top)
-        top_layout.setContentsMargins(12, 12, 12, 6)
-        top_layout.setSpacing(4)
-        intro = QLabel(
-            "Pick a connection on the left to set it up, then press \u201cUse this connection\u201d to make it the one the assistant "
-            "uses. Chat text and any layer or attribute data a tool surfaces go to the connection in use (Ollama excepted: fully local, "
-            "nothing leaves this machine; a CLI login sends it to that CLI's vendor). A provider's Data Processing Addendum link is a "
-            "starting point, not a substitute for your organization's own GDPR review. See docs/USER_GUIDE.md and SECURITY.md.")
-        intro.setWordWrap(True)
-        intro.setStyleSheet("color: gray; font-size: 11px;")
-        top_layout.addWidget(intro)
+        # ---- header: what is in use now, and the hosted account
+        header = QWidget()
+        header_layout = QHBoxLayout(header)
+        header_layout.setContentsMargins(16, 12, 16, 4)
         self.summary_label = QLabel()
-        self.summary_label.setWordWrap(True)
-        self.summary_label.setStyleSheet("font-size: 12px; font-weight: 600;")
-        top_layout.addWidget(self.summary_label)
-        account_row = QHBoxLayout()
-        account_row.addWidget(QLabel("Hosted Cartogen AI account"))
-        account_row.addStretch(1)
+        self.summary_label.setStyleSheet("font-size: 13px; font-weight: 600;")
+        header_layout.addWidget(self.summary_label, 1)
         self.account_button = QPushButton("Manage account")
+        self.account_button.setObjectName("secondaryButton")
+        self.account_button.setToolTip("Sign in to or manage your hosted Cartogen AI account.")
         self.account_button.clicked.connect(self._open_account_dialog)
-        account_row.addWidget(self.account_button)
-        top_layout.addLayout(account_row)
+        header_layout.addWidget(self.account_button)
+        outer_layout.addWidget(header)
 
-        # Found on this computer: the CLIs that are installed and signed in, looked for automatically when the window opens. Looking
-        # runs only `--version` and a sign-in status command (no model call, nothing sent); using one is still the user's choice.
-        detect_head = QHBoxLayout()
-        detect_title = QLabel("Found on this computer")
-        detect_title.setStyleSheet("font-size: 12px; font-weight: 600;")
-        detect_head.addWidget(detect_title)
-        detect_head.addStretch(1)
-        self.detect_button = QPushButton("Detect again")
-        self.detect_button.setToolTip("Looks for the Claude Code, Codex and Gemini programs and whether you are signed in to them. "
-                                      "Runs only their version and sign-in status commands: no question is asked of any model.")
-        self.detect_button.clicked.connect(self._start_detect)
-        detect_head.addWidget(self.detect_button)
-        top_layout.addLayout(detect_head)
-        for provider in _cli_status.DEFAULT_PROGRAM:
-            line = QHBoxLayout()
-            label = QLabel("Looking...")
-            label.setWordWrap(True)
-            label.setStyleSheet("font-size: 11px;")
-            use = QPushButton("Use")
-            use.setVisible(False)
-            use.clicked.connect(lambda _checked=False, p=provider: self._use_detected(p))
-            line.addWidget(label, 1)
-            line.addWidget(use)
-            self._detect_labels[provider] = label
-            self._detect_use_buttons[provider] = use
-            top_layout.addLayout(line)
-        outer_layout.addWidget(top)
+        data_note = QLabel("Chat text and any layer or attribute data a tool surfaces go to the connection in use.")
+        data_note.setStyleSheet("color: gray; font-size: 11px;")
+        data_note.setContentsMargins(16, 0, 16, 8)
+        data_note.setToolTip(
+            "Ollama stays on this computer; a CLI login sends it to that CLI's vendor. A provider's Data Processing Addendum link is a "
+            "starting point, not a substitute for your organization's own GDPR review. See docs/USER_GUIDE.md and SECURITY.md.")
+        outer_layout.addWidget(data_note)
 
+        # ---- body: the list of connections on the left, the selected connection's page on the right
         body = QHBoxLayout()
-        body.setContentsMargins(12, 0, 12, 0)
-        body.setSpacing(12)
+        body.setContentsMargins(16, 0, 16, 0)
+        body.setSpacing(16)
 
-        # ---- left: every connection, grouped by where the prompts go
-        side_scroll = QScrollArea()
-        side_scroll.setWidgetResizable(True)
-        side_scroll.setFrameShape(QFrame.Shape.NoFrame)
-        side_scroll.setMinimumWidth(250)
-        side_scroll.setMaximumWidth(250)
-        side = QWidget()
-        side_col = QVBoxLayout(side)
-        side_col.setContentsMargins(0, 0, 4, 0)
-        side_col.setSpacing(4)
-        side_scroll.setWidget(side)
-        self._row_group = QButtonGroup(self)
-        self._row_group.setExclusive(True)
-        self._active_provider = normalize_provider(self.settings.value(PROVIDER_KEY, "openrouter"))
-        last_group = None
-        for entry in self._providers:
-            pv = entry["value"]
-            group = _group_of(entry)
-            if group != last_group:
-                group_label = QLabel(_GROUP_TITLES[group])
-                group_label.setWordWrap(True)
-                group_label.setStyleSheet("color: gray; font-size: 11px; font-weight: 600; margin-top: 6px;")
-                side_col.addWidget(group_label)
-                if group == "cli":
-                    self.experimental_cli_checkbox = QCheckBox("I understand: use a CLI I am already signed in to as the model")
-                    self.experimental_cli_checkbox.setChecked(cli_providers_enabled())
-                    self.experimental_cli_checkbox.setToolTip(
-                        "Experimental and not yet verified against a real signed-in CLI. Cartogen AI runs the program on this computer "
-                        "with your own account; it never sees or stores your login. The conversation, including any layer or "
-                        "attribute data a tool surfaces, goes to that vendor's service. Off by default.")
-                    self.experimental_cli_checkbox.toggled.connect(self._on_cli_ack_toggled)
-                    side_col.addWidget(self.experimental_cli_checkbox)
-                last_group = group
-            row = QPushButton()
-            row.setObjectName("connectionRow")
-            row.setCheckable(True)
-            row.setChecked(pv == self._active_provider)
-            if group == "cli":
-                row.setEnabled(self.experimental_cli_checkbox.isChecked())
-            row.clicked.connect(lambda _checked=False, p=pv: self._show_provider(p))
-            self._row_group.addButton(row)
-            self._provider_buttons[pv] = row
-            side_col.addWidget(row)
-        data_label = QLabel("Data services -- a key for a data source, not a model")
-        data_label.setWordWrap(True)
-        data_label.setStyleSheet("color: gray; font-size: 11px; font-weight: 600; margin-top: 6px;")
-        side_col.addWidget(data_label)
-        self.firms_row = QPushButton()
-        self.firms_row.setObjectName("connectionRow")
-        self.firms_row.setCheckable(True)
-        self.firms_row.clicked.connect(lambda _checked=False: self._show_provider(FIRMS_KEY))
-        self._row_group.addButton(self.firms_row)
-        self._provider_buttons[FIRMS_KEY] = self.firms_row
-        side_col.addWidget(self.firms_row)
-        side_col.addStretch(1)
-        body.addWidget(side_scroll)
+        left = QWidget()
+        left.setFixedWidth(280)
+        left_col = QVBoxLayout(left)
+        left_col.setContentsMargins(0, 0, 0, 0)
+        left_col.setSpacing(6)
+        self.connection_list = QListWidget()
+        self.connection_list.setObjectName("connectionList")
+        self.connection_list.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        left_col.addWidget(self.connection_list, 1)
+        self.experimental_cli_checkbox = QCheckBox("Allow CLI logins (experimental)")
+        self.experimental_cli_checkbox.setChecked(cli_providers_enabled())
+        self.experimental_cli_checkbox.setToolTip(
+            "I understand: use a CLI I am already signed in to as the model. Experimental and not yet verified against every CLI. "
+            "Cartogen AI runs the program on this computer with your own account; it never sees or stores your login. The conversation, "
+            "including any layer or attribute data a tool surfaces, goes to that vendor's service. Off by default.")
+        self.experimental_cli_checkbox.toggled.connect(self._on_cli_ack_toggled)
+        left_col.addWidget(self.experimental_cli_checkbox)
+        legend = QLabel(f"{_MARKS['verified']} ready or checked    {_MARKS['set']} set    {_MARKS['unset']} not set")
+        legend.setStyleSheet("color: gray; font-size: 11px;")
+        left_col.addWidget(legend)
+        body.addWidget(left)
 
-        # ---- right: one page per connection
         page_scroll = QScrollArea()
         page_scroll.setWidgetResizable(True)
         page_scroll.setFrameShape(QFrame.Shape.NoFrame)
         self.provider_stack = QStackedWidget()
         page_scroll.setWidget(self.provider_stack)
         body.addWidget(page_scroll, 1)
+
+        self._active_provider = normalize_provider(self.settings.value(PROVIDER_KEY, "openrouter"))
         for entry in self._providers:
             self._page_index[entry["value"]] = self.provider_stack.addWidget(self._build_page(entry, CredentialManager))
         self._page_index[FIRMS_KEY] = self.provider_stack.addWidget(self._build_firms_page(CredentialManager))
+
+        # Items go in group by group so each heading appears once (the provider table is not ordered by group).
+        by_group = {}
+        for entry in self._providers:
+            by_group.setdefault(_group_of(entry), []).append(entry["value"])
+        by_group["data"] = [FIRMS_KEY]
+        for group, title in _LIST_GROUPS:
+            heading = QListWidgetItem(title)
+            heading.setFlags(Qt.ItemFlag.NoItemFlags)
+            font = heading.font()
+            font.setBold(True)
+            font.setPointSizeF(max(7.0, font.pointSizeF() - 1))
+            heading.setFont(font)
+            self.connection_list.addItem(heading)
+            for pv in by_group.get(group, []):
+                item = QListWidgetItem()
+                item.setData(Qt.ItemDataRole.UserRole, pv)
+                self.connection_list.addItem(item)
+                self._row_items[pv] = item
+        self.connection_list.currentItemChanged.connect(self._on_row_changed)
 
         body_holder = QWidget()
         body_holder.setLayout(body)
@@ -230,29 +200,28 @@ class CartogenAiConnectionsDialog(QDialog):
         self.fetch_status_label.setObjectName("secondaryLabel")
         self.fetch_status_label.setStyleSheet("color: gray; font-size: 11px;")
         self.fetch_status_label.setWordWrap(True)
-        self.fetch_status_label.setContentsMargins(12, 6, 12, 0)
+        self.fetch_status_label.setContentsMargins(16, 6, 16, 0)
         outer_layout.addWidget(self.fetch_status_label)
 
         # OK/Cancel are added to outer_layout, NOT to a scroll area, so they stay reachable at any window height.
         self.button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
-        self.button_box.setContentsMargins(12, 8, 12, 12)
+        self.button_box.setContentsMargins(16, 8, 16, 12)
         self.button_box.button(QDialogButtonBox.StandardButton.Ok).setObjectName("settingsOkButton")
         self.button_box.button(QDialogButtonBox.StandardButton.Cancel).setObjectName("settingsCancelButton")
         self.button_box.accepted.connect(self.accept)
         self.button_box.rejected.connect(self.reject)
         outer_layout.addWidget(self.button_box)
 
-        # Same narrowly scoped styling as the Settings window: brand teal for OK and for the row being looked at; scoped to object names
-        # unique to these windows so it cannot touch the chat dock's own buttons.
+        # Same narrowly scoped styling as the Settings window for OK and Cancel, scoped to object names unique to these windows so it
+        # cannot touch the chat dock's own buttons. Only "Use this connection" keeps the filled brand colour; every other button on a
+        # page is the quiet secondaryButton style, so the one action that matters is the one that stands out.
         self.setStyleSheet(build_dock_stylesheet(extract_theme_palette()) + f"""
-QPushButton#connectionRow {{
-    text-align: left;
-    padding: 6px 10px;
+QListWidget#connectionList {{
+    border: 1px solid palette(mid);
+    outline: 0;
 }}
-QPushButton#connectionRow:checked {{
-    background-color: #ffffff;
-    color: {BRAND_TEAL};
-    border: 1.5px solid {BRAND_TEAL};
+QListWidget#connectionList::item {{
+    padding: 7px 8px;
 }}
 QPushButton#settingsOkButton, QPushButton#settingsCancelButton {{
     padding: 5px 16px;
@@ -269,19 +238,27 @@ QPushButton#settingsCancelButton {{
     border: 1px solid {BRAND_TEAL};
 }}
 """)
-        self._show_provider(self._active_provider if self._active_provider in self._page_index else DEFAULT_PROVIDER)
         self._refresh_rows()
+        self._show_provider(self._active_provider if self._active_provider in self._page_index else DEFAULT_PROVIDER)
 
     def _build_page(self, entry, credentials):
-        """One connection's page: header and 'Use this connection', then its key or program path, model, test buttons and help links."""
+        """One connection's page: title and 'Use this connection', then its key or program path, model, test buttons and help links."""
         pv = entry["value"]
         group = _group_of(entry)
         page = QWidget()
         col = QVBoxLayout(page)
-        col.setContentsMargins(4, 0, 0, 0)
+        col.setContentsMargins(0, 0, 4, 0)
+        col.setSpacing(6)
+        title_row = QHBoxLayout()
         title = QLabel(entry["provider_label"])
-        title.setStyleSheet("font-size: 14px; font-weight: 700;")
-        col.addWidget(title)
+        title.setStyleSheet("font-size: 15px; font-weight: 700;")
+        in_use = QLabel("\u2713 In use")
+        in_use.setStyleSheet("font-size: 12px; font-weight: 700; color: #1c7a4d;")
+        title_row.addWidget(title)
+        title_row.addWidget(in_use)
+        title_row.addStretch(1)
+        self._in_use_labels[pv] = in_use
+        col.addLayout(title_row)
         where = QLabel(_GROUP_TITLES[group])
         where.setWordWrap(True)
         where.setStyleSheet("color: gray; font-size: 11px;")
@@ -292,17 +269,34 @@ QPushButton#settingsCancelButton {{
         if group == "cli":
             use_btn.setEnabled(self.experimental_cli_checkbox.isChecked())
         use_btn.clicked.connect(lambda _checked=False, p=pv: self._use_provider(p))
-        in_use = QLabel("\u2713 In use")
-        in_use.setStyleSheet("font-size: 11px; font-weight: 700; color: #1c7a4d;")
         use_row.addWidget(use_btn)
-        use_row.addWidget(in_use)
-        use_row.addStretch(1)
         self._use_buttons[pv] = use_btn
-        self._in_use_labels[pv] = in_use
+        if group == "cli":
+            ack_note = QLabel("Tick \u201cAllow CLI logins\u201d under the list to use this.")
+            ack_note.setStyleSheet("color: gray; font-size: 11px;")
+            ack_note.setVisible(not self.experimental_cli_checkbox.isChecked())
+            use_row.addWidget(ack_note)
+            self._cli_ack_notes[pv] = ack_note
+        use_row.addStretch(1)
         col.addLayout(use_row)
+        if group == "cli":
+            detect_row = QHBoxLayout()
+            detect_label = QLabel("Looking...")
+            detect_label.setWordWrap(True)
+            detect_label.setStyleSheet("font-size: 12px; font-weight: 600;")
+            self._detect_labels[pv] = detect_label
+            detect_row.addWidget(detect_label, 1)
+            detect_btn = QPushButton("Detect again")
+            detect_btn.setObjectName("secondaryButton")
+            detect_btn.setToolTip("Looks for the Claude Code, Codex and Gemini programs and whether you are signed in. Runs only their "
+                                  "version and sign-in status commands: no question is asked of any model.")
+            detect_btn.clicked.connect(self._start_detect)
+            self._detect_buttons[pv] = detect_btn
+            detect_row.addWidget(detect_btn)
+            col.addLayout(detect_row)
 
         page_form = QFormLayout()
-        page_form.setContentsMargins(0, 6, 0, 2)
+        page_form.setContentsMargins(0, 8, 0, 2)
         key_edit = QLineEdit()
         is_setting = entry.get("key_storage") == "setting"
         if pv != "ollama" and not is_setting:
@@ -338,10 +332,12 @@ QPushButton#settingsCancelButton {{
             page_form.addRow("", status_label)
             button_row = QHBoxLayout()
             check_btn = QPushButton("Check connection")
+            check_btn.setObjectName("secondaryButton")
             check_btn.setToolTip("Finds the program, then asks the model one tiny question through your own login "
                                  "(a few tokens of your plan).")
             check_btn.clicked.connect(lambda _checked=False, p=pv: self._check_cli(p))
             signin_btn = QPushButton("Sign in...")
+            signin_btn.setObjectName("secondaryButton")
             signin_btn.setToolTip("Opens a terminal running the program's own sign-in. Your login stays with that program.")
             signin_btn.clicked.connect(lambda _checked=False, p=pv: self._signin_cli(p))
             button_row.addWidget(check_btn)
@@ -355,6 +351,7 @@ QPushButton#settingsCancelButton {{
 
         if not is_setting and pv in _provider_check.TESTABLE:
             test_btn = QPushButton("Test")
+            test_btn.setObjectName("secondaryButton")
             test_btn.setToolTip("Uses what is typed above (it does not have to be saved yet): lists the provider's models, then "
                                 "asks the chosen model one tiny question (a few tokens of your own key).")
             test_btn.clicked.connect(lambda _checked=False, p=pv: self._test_api(p))
@@ -422,9 +419,10 @@ QPushButton#settingsCancelButton {{
         gets its own page rather than being a choice. Stored through the same CredentialManager as the provider keys."""
         page = QWidget()
         col = QVBoxLayout(page)
-        col.setContentsMargins(4, 0, 0, 0)
+        col.setContentsMargins(0, 0, 4, 0)
+        col.setSpacing(6)
         title = QLabel("NASA FIRMS (active fires)")
-        title.setStyleSheet("font-size: 14px; font-weight: 700;")
+        title.setStyleSheet("font-size: 15px; font-weight: 700;")
         col.addWidget(title)
         note = QLabel("A data key, not a model: it powers fetch_nasa_active_fires. Leave it blank if you do not need live fire "
                       "monitoring; every other tool works without it.")
@@ -432,6 +430,7 @@ QPushButton#settingsCancelButton {{
         note.setStyleSheet("color: gray; font-size: 11px;")
         col.addWidget(note)
         form = QFormLayout()
+        form.setContentsMargins(0, 8, 0, 2)
         self.firms_key_edit = QLineEdit()
         self.firms_key_edit.setEchoMode(QLineEdit.EchoMode.Password)
         self.firms_key_edit.setText(credentials.get_credential(FIRMS_KEY))
@@ -449,59 +448,79 @@ QPushButton#settingsCancelButton {{
 
     # ----------------------------------------------------------- list and choice
 
-    def _show_provider(self, provider_value):
-        """Shows a connection's page. Looking at a page does not change which connection is in use."""
+    def _on_row_changed(self, current, _previous):
+        pv = current.data(Qt.ItemDataRole.UserRole) if current is not None else None
+        if pv:
+            self._display(pv)
+
+    def _display(self, provider_value):
         index = self._page_index.get(provider_value)
         if index is not None:
             self.provider_stack.setCurrentIndex(index)
         self._shown_provider = provider_value
-        button = self._provider_buttons.get(provider_value)
-        if button is not None and not button.isChecked():
-            button.setChecked(True)
+
+    def _show_provider(self, provider_value):
+        """Shows a connection's page. Looking at a page does not change which connection is in use."""
+        item = self._row_items.get(provider_value)
+        if item is not None and self.connection_list.currentItem() is not item:
+            self.connection_list.setCurrentItem(item)
+        self._display(provider_value)
 
     def _use_provider(self, provider_value):
         """Makes a connection the one in use (saved when OK is pressed)."""
         self._active_provider = provider_value
         self._refresh_rows()
-        if self._detected:
-            self._apply_detection()
 
     def _row_mark(self, provider_value):
-        """'verified' / 'set' / 'unset' for the mark in the list; Ollama and the CLIs have no key, so 'set' means a program or URL is there."""
+        """'verified' / 'set' / 'unset' for the mark in the list. Ollama has a URL, a CLI has a program: for a CLI 'verified' means the
+        program was found and its own status says you are signed in; for a key it means this window got a real answer from the provider."""
         if provider_value == FIRMS_KEY:
             return "set" if self.firms_key_edit.text().strip() else "unset"
         edit = self._key_edits.get(provider_value)
         if edit is None or not edit.text().strip():
             return "unset"
         entry = next((e for e in self._providers if e["value"] == provider_value), None)
-        if entry is not None and entry.get("key_storage") == "setting" and not _cli_status.locate(provider_value, edit.text()):
-            return "unset"
+        if entry is not None and entry.get("key_storage") == "setting":
+            found = self._detected.get(provider_value)
+            if found is not None:
+                if not found["found"]:
+                    return "unset"
+                return "verified" if found["state"] == "yes" else "set"
+            return "set" if _cli_status.locate(provider_value, edit.text()) else "unset"
         return "verified" if provider_value in self._verified_providers else "set"
 
     def _refresh_rows(self):
         """Redraws the list marks, the 'In use' tags and the summary line from the current field text. Cheap (no network), so it runs on
         every keystroke."""
-        if not hasattr(self, "summary_label") or not hasattr(self, "firms_key_edit"):
+        if not hasattr(self, "firms_key_edit") or not self._row_items:
             return  # called via textChanged before init_ui has built everything
-        marks = {"verified": "\u2713", "set": "\u25cf", "unset": "\u25cb"}
         for entry in self._providers:
             pv = entry["value"]
-            tag = "   (in use)" if pv == self._active_provider else ""
-            self._provider_buttons[pv].setText(f"{marks[self._row_mark(pv)]}  {entry['pill_label']}{tag}")
-            self._in_use_labels[pv].setVisible(pv == self._active_provider)
-            self._use_buttons[pv].setVisible(pv != self._active_provider)
-        self.firms_row.setText(f"{marks[self._row_mark(FIRMS_KEY)]}  NASA FIRMS")
+            item = self._row_items.get(pv)
+            if item is None:
+                continue
+            active = pv == self._active_provider
+            item.setText(f"{_MARKS[self._row_mark(pv)]}  {entry['pill_label']}" + ("   \u2022 in use" if active else ""))
+            font = item.font()
+            font.setBold(active)
+            item.setFont(font)
+            self._in_use_labels[pv].setVisible(active)
+            self._use_buttons[pv].setVisible(not active)
+        self._row_items[FIRMS_KEY].setText(f"{_MARKS[self._row_mark(FIRMS_KEY)]}  NASA FIRMS")
         entry = next((e for e in self._providers if e["value"] == self._active_provider), None)
         if entry is not None:
             model_text = self._model_combos[self._active_provider].currentText().strip() or AUTO_LABEL
             self.summary_label.setText(f"In use: {entry['provider_label']} \u00b7 {model_text} model")
+
+    # ------------------------------------------------------- finding installed CLIs
 
     def _start_detect(self):
         """Looks for installed, signed-in CLIs on a background thread (it starts programs, so never on the UI thread)."""
         if self._detecting:
             return
         self._detecting = True
-        self.detect_button.setEnabled(False)
+        for button in self._detect_buttons.values():
+            button.setEnabled(False)
         for label in self._detect_labels.values():
             label.setText("Looking...")
         configured = {p: self._key_edits[p].text().strip() for p in _cli_status.DEFAULT_PROGRAM if p in self._key_edits}
@@ -511,7 +530,7 @@ QPushButton#settingsCancelButton {{
                 result = _cli_status.detect_all(configured)
             except Exception as e:
                 result = [{"provider": p, "label": _cli_status.LABELS[p], "found": False, "path": "", "version": "",
-                           "problem": f"Detection failed: {type(e).__name__}", "state": "unknown", "note": ""}
+                           "problem": f"Detection failed: {type(e).__name__}", "state": "unknown", "note": "", "tried": ""}
                           for p in _cli_status.DEFAULT_PROGRAM]
             with contextlib.suppress(RuntimeError):
                 self.detect_signal.emit(result)
@@ -520,46 +539,42 @@ QPushButton#settingsCancelButton {{
 
     def _on_detected(self, results):
         self._detecting = False
-        self.detect_button.setEnabled(True)
+        for button in self._detect_buttons.values():
+            button.setEnabled(True)
         self._detected = {entry["provider"]: entry for entry in results}
         self._apply_detection()
 
     def _apply_detection(self):
-        """Shows each result, and offers 'Use' for a CLI that is installed and signed in. Nothing is switched automatically: a CLI sends the
-        conversation to that vendor's service, so moving to one is the user's decision (and needs the acknowledgement box ticked)."""
-        acknowledged = self.experimental_cli_checkbox.isChecked()
+        """Writes each result on its CLI page and into the list marks. Nothing is switched automatically: a CLI sends the conversation to
+        that vendor's service, so moving to one is the user's decision (and needs the acknowledgement box ticked)."""
         for provider, label in self._detect_labels.items():
             entry = self._detected.get(provider)
             if entry is None:
                 continue
-            text = _cli_status.describe(entry)
-            if _cli_status.usable(entry) and not acknowledged:
-                text += " -- tick the box under \u201cYour own CLI login\u201d to use it"
-            label.setText(text)
-            button = self._detect_use_buttons[provider]
-            button.setVisible(_cli_status.usable(entry) and provider != self._active_provider)
-            button.setEnabled(acknowledged)
+            label.setText(_cli_status.describe(entry))  # what to do about a missing program is already said by the status line below
+            if entry["found"]:
+                edit = self._key_edits[provider]
+                # A saved path that no longer exists (program moved or reinstalled) while the program was found under its usual name:
+                # put the real path in the field, so Check connection and Save use what was found instead of the stale text.
+                if not _cli_status.locate(provider, edit.text()):
+                    edit.setText(entry["path"])
+                if provider not in self._cli_checking:
+                    self._cli_status_labels[provider].setText(self._cli_quick_status(provider, edit.text()))
         self._refresh_rows()
 
-    def _use_detected(self, provider):
-        self._use_provider(provider)
-        self._show_provider(provider)
-        self._apply_detection()
 
     def _on_cli_ack_toggled(self, checked):
-        """Ticking the acknowledgement enables the CLI rows and their 'Use this connection' buttons; unticking disables them and, if one
-        was the connection in use, moves the choice back to the default provider so Save cannot store a provider this window is no
-        longer offering."""
+        """Ticking the acknowledgement enables the CLI pages' 'Use this connection' buttons; unticking disables them and, if a CLI was the
+        connection in use, moves the choice back to the default provider so Save cannot store a provider this window no longer offers."""
         for entry in self._providers:
             if _group_of(entry) == "cli":
-                self._provider_buttons[entry["value"]].setEnabled(checked)
-                self._use_buttons[entry["value"]].setEnabled(checked)
+                pv = entry["value"]
+                self._use_buttons[pv].setEnabled(checked)
+                self._cli_ack_notes[pv].setVisible(not checked)
         if not checked and self._active_provider in _cli_status.DEFAULT_PROGRAM:
             self._use_provider(DEFAULT_PROVIDER)
-            self._provider_buttons[DEFAULT_PROVIDER].setChecked(True)
             self._show_provider(DEFAULT_PROVIDER)
         self._refresh_rows()
-        self._apply_detection()
 
     @staticmethod
     def _cli_quick_status(provider, program_text):
