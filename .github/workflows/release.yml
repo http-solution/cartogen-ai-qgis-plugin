@@ -17,6 +17,10 @@ on:
         description: "Mark as pre-release"
         type: boolean
         default: true
+      draft:
+        description: "Create as a DRAFT (no email goes out; publish it by hand from the Releases page when ready)"
+        type: boolean
+        default: true
 
 permissions:
   contents: write
@@ -72,4 +76,7 @@ jobs:
           NOTES="Install the attached cartogen_ai_v${VERSION}.zip (Plugins > Install from ZIP), NOT 'Source code (zip)' -- GitHub's source zip folder name contains dots and QGIS cannot load it. Built from ${{ inputs.ref }} by the release workflow. SHA256: $(cut -d' ' -f1 dist/SHA256.txt)"
           FLAGS=""
           if [ "${{ inputs.prerelease }}" = "true" ]; then FLAGS="--prerelease"; fi
+          # A published release emails everyone who watches the repo's releases (the owner reported 2026-10-30 that each update mailed
+          # all watchers). A draft is invisible to them until it is published by hand, so drafting is the default.
+          if [ "${{ inputs.draft }}" = "true" ]; then FLAGS="$FLAGS --draft"; fi
           gh release create "${{ inputs.tag }}" "$ZIP" dist/SHA256.txt --target "${{ inputs.ref }}" --title "v${VERSION}" --notes "$NOTES" $FLAGS

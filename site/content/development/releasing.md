@@ -30,6 +30,7 @@ This documentation site reads the version, tool count and task count from the re
 | `ref` | The commit to build from: use the **merged** SHA on `main`, not the branch tip |
 | `tag` | `cartogen-ai-v<version>`, for example `cartogen-ai-v1.16.0-rc39` |
 | `prerelease` | `true` for release candidates |
+| `draft` | `true` (default) creates a draft: nobody is emailed until you publish it by hand from the Releases page |
 
 It builds the zip with `plugin_upload.py`, checks it, and attaches `cartogen_ai_v<version>.zip` and `SHA256.txt` to a GitHub release. **The same file** is the one to upload to plugins.qgis.org, so the directory and GitHub carry one checksum.
 
