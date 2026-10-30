@@ -40,7 +40,7 @@ class TestCliProviderSettings(unittest.TestCase):
         from cartogen_ai.core.ui.connections_dialog import CartogenAiConnectionsDialog
         return CartogenAiConnectionsDialog()
 
-    def test_off_by_default_cli_rows_are_listed_but_disabled_and_a_saved_cli_provider_falls_back(self):
+    def test_off_by_default_cli_pages_are_listed_but_cannot_be_used_and_a_saved_cli_provider_falls_back(self):
         from cartogen_ai.infrastructure.settings_keys import DEFAULT_PROVIDER, SETTINGS_PROVIDER, normalize_provider
         QgsSettings().setValue(SETTINGS_PROVIDER, "claude_cli")
         self.assertEqual(normalize_provider("claude_cli"), DEFAULT_PROVIDER)
@@ -48,10 +48,10 @@ class TestCliProviderSettings(unittest.TestCase):
         self.assertFalse(dialog.experimental_cli_checkbox.isChecked())
         for p in ("claude_cli", "codex_cli", "gemini_cli"):
             self.assertIn(p, dialog._key_edits)
-            self.assertFalse(dialog._provider_buttons[p].isEnabled(), p)
+            self.assertFalse(dialog._use_buttons[p].isEnabled(), p)
         self.assertEqual(dialog._active_provider, DEFAULT_PROVIDER)
 
-    def test_ticking_the_acknowledgement_enables_the_rows_without_reopening_and_save_writes_a_plain_setting(self):
+    def test_ticking_the_acknowledgement_enables_the_use_buttons_without_reopening_and_save_writes_a_plain_setting(self):
         from cartogen_ai.infrastructure.auth import CredentialManager
         from cartogen_ai.infrastructure.settings_keys import (
             DEFAULT_PROVIDER, SETTINGS_CLAUDE_CLI_MODEL, SETTINGS_PROVIDER, cli_path_setting_key, normalize_provider,
@@ -59,10 +59,10 @@ class TestCliProviderSettings(unittest.TestCase):
         dialog = self._dialog()
         dialog.experimental_cli_checkbox.setChecked(True)
         for p in ("claude_cli", "codex_cli", "gemini_cli"):
-            self.assertTrue(dialog._provider_buttons[p].isEnabled(), p)
+            self.assertTrue(dialog._use_buttons[p].isEnabled(), p)
         self.assertEqual(dialog._key_edits["claude_cli"].text(), "claude")  # the default program name
         dialog._key_edits["claude_cli"].setText("/opt/tools/claude")
-        dialog._provider_buttons["claude_cli"].click()
+        dialog.connection_list.setCurrentItem(dialog._row_items["claude_cli"])
         self.assertEqual(dialog._active_provider, DEFAULT_PROVIDER, "looking at a page must not change the connection in use")
         dialog._use_buttons["claude_cli"].click()
         self.assertEqual(dialog._active_provider, "claude_cli")
@@ -85,14 +85,13 @@ class TestCliProviderSettings(unittest.TestCase):
         from cartogen_ai.infrastructure.settings_keys import DEFAULT_PROVIDER
         dialog = self._dialog()
         dialog.experimental_cli_checkbox.setChecked(True)
-        dialog._provider_buttons["gemini_cli"].click()
         dialog._use_buttons["gemini_cli"].click()
         self.assertEqual(dialog._active_provider, "gemini_cli")
         dialog.experimental_cli_checkbox.setChecked(False)
         self.assertEqual(dialog._active_provider, DEFAULT_PROVIDER)
         self.assertFalse(dialog._use_buttons["gemini_cli"].isEnabled())
-        self.assertTrue(dialog._provider_buttons[DEFAULT_PROVIDER].isChecked())
-        self.assertFalse(dialog._provider_buttons["gemini_cli"].isEnabled())
+        self.assertEqual(dialog.provider_stack.currentIndex(), dialog._page_index[DEFAULT_PROVIDER])
+        self.assertTrue(dialog._row_items[DEFAULT_PROVIDER].isSelected())
 
     def test_each_cli_page_shows_a_status_and_the_check_and_signin_buttons(self):
         dialog = self._dialog()

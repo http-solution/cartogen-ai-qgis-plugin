@@ -34,7 +34,9 @@ class TestWindowStructure(unittest.TestCase):
         self.assertIn("def _use_provider", DIALOG)
         show = DIALOG[DIALOG.index("    def _show_provider"):DIALOG.index("    def _use_provider")]
         self.assertNotIn("_active_provider =", show, "looking at a page must not change the connection in use")
-        self.assertIn('row.clicked.connect(lambda _checked=False, p=pv: self._show_provider(p))', DIALOG)
+        display = DIALOG[DIALOG.index("    def _display"):DIALOG.index("    def _show_provider")]
+        self.assertNotIn("_active_provider =", display)
+        self.assertIn("self.connection_list.currentItemChanged.connect(self._on_row_changed)", DIALOG)
         self.assertIn("use_btn.clicked.connect(lambda _checked=False, p=pv: self._use_provider(p))", DIALOG)
 
     def test_save_writes_the_choice_the_keys_the_models_and_the_cli_path(self):
@@ -67,9 +69,15 @@ class TestDetection(unittest.TestCase):
             self.assertNotIn("_use_provider(", DIALOG[start:end], name)
             self.assertNotIn("_active_provider =", DIALOG[start:end], name)
 
+    def test_a_stale_saved_path_is_replaced_only_when_the_program_was_found(self):
+        start = DIALOG.index("    def _apply_detection")
+        body = DIALOG[start:DIALOG.index("\n    def ", start + 10)]
+        self.assertIn('if entry["found"]:', body)
+        self.assertIn("edit.setText(entry[\"path\"])", body)
+
     def test_using_a_detected_cli_still_needs_the_acknowledgement_box(self):
-        body = DIALOG[DIALOG.index("    def _apply_detection"):DIALOG.index("    def _use_detected")]
-        self.assertIn("button.setEnabled(acknowledged)", body)
+        body = DIALOG[DIALOG.index("    def _on_cli_ack_toggled"):DIALOG.index("    @staticmethod\n    def _cli_quick_status")]
+        self.assertIn("self._use_buttons[pv].setEnabled(checked)", body)
 
 
 class TestEntryPoints(unittest.TestCase):
