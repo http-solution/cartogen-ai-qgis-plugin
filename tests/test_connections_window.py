@@ -53,6 +53,25 @@ class TestWindowStructure(unittest.TestCase):
         self.assertNotIn("firms", {e["value"] for e in c.PROVIDERS + c._CLI_PROVIDERS})
 
 
+class TestDetection(unittest.TestCase):
+    def test_the_window_looks_for_installed_clis_on_a_background_thread_when_it_opens(self):
+        self.assertIn("self._start_detect()", DIALOG[DIALOG.index("        self.init_ui()"):DIALOG.index("    # ----")])
+        body = DIALOG[DIALOG.index("    def _start_detect"):DIALOG.index("    def _on_detected")]
+        self.assertIn("threading.Thread(target=worker, daemon=True).start()", body)
+        self.assertIn("_cli_status.detect_all(configured)", body)
+
+    def test_detection_never_switches_the_connection_by_itself(self):
+        for name in ("_start_detect", "_on_detected", "_apply_detection"):
+            start = DIALOG.index(f"    def {name}")
+            end = DIALOG.index("\n    def ", start + 10)
+            self.assertNotIn("_use_provider(", DIALOG[start:end], name)
+            self.assertNotIn("_active_provider =", DIALOG[start:end], name)
+
+    def test_using_a_detected_cli_still_needs_the_acknowledgement_box(self):
+        body = DIALOG[DIALOG.index("    def _apply_detection"):DIALOG.index("    def _use_detected")]
+        self.assertIn("button.setEnabled(acknowledged)", body)
+
+
 class TestEntryPoints(unittest.TestCase):
     def test_a_plugins_menu_action_opens_the_connections_window_through_the_panel(self):
         self.assertIn('QAction(self.tr("Connections...")', PLUGIN)

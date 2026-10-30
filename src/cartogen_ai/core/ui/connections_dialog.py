@@ -45,6 +45,7 @@ class CartogenAiConnectionsDialog(QDialog):
     modelsFetchedSignal = pyqtSignal(str, dict)
     cli_check_signal = pyqtSignal(str, dict)  # the CLI connection check runs a subprocess and a model call
     api_check_signal = pyqtSignal(str, dict)  # the Test button of the key-based providers
+    detect_signal = pyqtSignal(list)          # the result of looking for CLIs already installed and signed in on this computer
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -75,7 +76,13 @@ class CartogenAiConnectionsDialog(QDialog):
         self.modelsFetchedSignal.connect(self._on_models_fetched)
         self.cli_check_signal.connect(self._on_cli_check)
         self.api_check_signal.connect(self._on_api_check)
+        self.detect_signal.connect(self._on_detected)
+        self._detected = {}          # provider -> the last detection result (cli_bridge_status.detect_all)
+        self._detecting = False
+        self._detect_labels = {}
+        self._detect_use_buttons = {}
         self.init_ui()
+        self._start_detect()
 
     # ------------------------------------------------------------------ layout
 
@@ -114,6 +121,33 @@ class CartogenAiConnectionsDialog(QDialog):
         self.account_button.clicked.connect(self._open_account_dialog)
         account_row.addWidget(self.account_button)
         top_layout.addLayout(account_row)
+
+        # Found on this computer: the CLIs that are installed and signed in, looked for automatically when the window opens. Looking
+        # runs only `--version` and a sign-in status command (no model call, nothing sent); using one is still the user's choice.
+        detect_head = QHBoxLayout()
+        detect_title = QLabel("Found on this computer")
+        detect_title.setStyleSheet("font-size: 12px; font-weight: 600;")
+        detect_head.addWidget(detect_title)
+        detect_head.addStretch(1)
+        self.detect_button = QPushButton("Detect again")
+        self.detect_button.setToolTip("Looks for the Claude Code, Codex and Gemini programs and whether you are signed in to them. "
+                                      "Runs only their version and sign-in status commands: no question is asked of any model.")
+        self.detect_button.clicked.connect(self._start_detect)
+        detect_head.addWidget(self.detect_button)
+        top_layout.addLayout(detect_head)
+        for provider in _cli_status.DEFAULT_PROGRAM:
+            line = QHBoxLayout()
+            label = QLabel("Looking...")
+            label.setWordWrap(True)
+            label.setStyleSheet("font-size: 11px;")
+            use = QPushButton("Use")
+            use.setVisible(False)
+            use.clicked.connect(lambda _checked=False, p=provider: self._use_detected(p))
+            line.addWidget(label, 1)
+            line.addWidget(use)
+            self._detect_labels[provider] = label
+            self._detect_use_buttons[provider] = use
+            top_layout.addLayout(line)
         outer_layout.addWidget(top)
 
         body = QHBoxLayout()
@@ -429,6 +463,8 @@ QPushButton#settingsCancelButton {{
         """Makes a connection the one in use (saved when OK is pressed)."""
         self._active_provider = provider_value
         self._refresh_rows()
+        if self._detected:
+            self._apply_detection()
 
     def _row_mark(self, provider_value):
         """'verified' / 'set' / 'unset' for the mark in the list; Ollama and the CLIs have no key, so 'set' means a program or URL is there."""
@@ -460,6 +496,56 @@ QPushButton#settingsCancelButton {{
             model_text = self._model_combos[self._active_provider].currentText().strip() or AUTO_LABEL
             self.summary_label.setText(f"In use: {entry['provider_label']} \u00b7 {model_text} model")
 
+    def _start_detect(self):
+        """Looks for installed, signed-in CLIs on a background thread (it starts programs, so never on the UI thread)."""
+        if self._detecting:
+            return
+        self._detecting = True
+        self.detect_button.setEnabled(False)
+        for label in self._detect_labels.values():
+            label.setText("Looking...")
+        configured = {p: self._key_edits[p].text().strip() for p in _cli_status.DEFAULT_PROGRAM if p in self._key_edits}
+
+        def worker():
+            try:
+                result = _cli_status.detect_all(configured)
+            except Exception as e:
+                result = [{"provider": p, "label": _cli_status.LABELS[p], "found": False, "path": "", "version": "",
+                           "problem": f"Detection failed: {type(e).__name__}", "state": "unknown", "note": ""}
+                          for p in _cli_status.DEFAULT_PROGRAM]
+            with contextlib.suppress(RuntimeError):
+                self.detect_signal.emit(result)
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _on_detected(self, results):
+        self._detecting = False
+        self.detect_button.setEnabled(True)
+        self._detected = {entry["provider"]: entry for entry in results}
+        self._apply_detection()
+
+    def _apply_detection(self):
+        """Shows each result, and offers 'Use' for a CLI that is installed and signed in. Nothing is switched automatically: a CLI sends the
+        conversation to that vendor's service, so moving to one is the user's decision (and needs the acknowledgement box ticked)."""
+        acknowledged = self.experimental_cli_checkbox.isChecked()
+        for provider, label in self._detect_labels.items():
+            entry = self._detected.get(provider)
+            if entry is None:
+                continue
+            text = _cli_status.describe(entry)
+            if _cli_status.usable(entry) and not acknowledged:
+                text += " -- tick the box under \u201cYour own CLI login\u201d to use it"
+            label.setText(text)
+            button = self._detect_use_buttons[provider]
+            button.setVisible(_cli_status.usable(entry) and provider != self._active_provider)
+            button.setEnabled(acknowledged)
+        self._refresh_rows()
+
+    def _use_detected(self, provider):
+        self._use_provider(provider)
+        self._show_provider(provider)
+        self._apply_detection()
+
     def _on_cli_ack_toggled(self, checked):
         """Ticking the acknowledgement enables the CLI rows and their 'Use this connection' buttons; unticking disables them and, if one
         was the connection in use, moves the choice back to the default provider so Save cannot store a provider this window is no
@@ -473,6 +559,7 @@ QPushButton#settingsCancelButton {{
             self._provider_buttons[DEFAULT_PROVIDER].setChecked(True)
             self._show_provider(DEFAULT_PROVIDER)
         self._refresh_rows()
+        self._apply_detection()
 
     @staticmethod
     def _cli_quick_status(provider, program_text):

@@ -70,10 +70,12 @@ class TestDiscovery(unittest.TestCase):
 class TestCodexStandaloneInstallFolder(unittest.TestCase):
     def test_codex_own_windows_installer_folder_is_searched(self):
         with tempfile.TemporaryDirectory() as local:
-            folder = os.path.join(local, "Programs", "OpenAI", "Codex", "bin")
-            os.makedirs(folder)
+            folders = [os.path.join(local, "Programs", "OpenAI", "Codex", "bin"), os.path.join(local, "Microsoft", "WinGet", "Links")]
+            for folder in folders:
+                os.makedirs(folder)
             with mock.patch.dict(os.environ, {"LOCALAPPDATA": local}), mock.patch.object(cb.os, "name", "nt"):
-                self.assertIn(folder, cb._extra_bin_dirs())
+                for folder in folders:
+                    self.assertIn(folder, cb._extra_bin_dirs())
 
 
 class TestWindowsExtension(unittest.TestCase):
