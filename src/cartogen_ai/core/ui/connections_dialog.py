@@ -223,6 +223,18 @@ QListWidget#connectionList {{
 QListWidget#connectionList::item {{
     padding: 7px 8px;
 }}
+QListWidget#connectionList::item:selected {{
+    background-color: {BRAND_TEAL};
+    color: #ffffff;
+}}
+QPushButton#primaryAction {{
+    background-color: {BRAND_TEAL};
+    color: #ffffff;
+}}
+QPushButton#primaryAction:disabled {{
+    background-color: palette(mid);
+    color: palette(window);
+}}
 QPushButton#settingsOkButton, QPushButton#settingsCancelButton {{
     padding: 5px 16px;
     font-size: 12px;
@@ -234,7 +246,7 @@ QPushButton#settingsOkButton {{
 }}
 QPushButton#settingsCancelButton {{
     background-color: transparent;
-    color: {BRAND_TEAL};
+    color: palette(window-text);
     border: 1px solid {BRAND_TEAL};
 }}
 """)
@@ -265,6 +277,7 @@ QPushButton#settingsCancelButton {{
         col.addWidget(where)
         use_row = QHBoxLayout()
         use_btn = QPushButton("Use this connection")
+        use_btn.setObjectName("primaryAction")
         use_btn.setToolTip("Makes this the connection the assistant uses. Nothing changes until you press OK.")
         if group == "cli":
             use_btn.setEnabled(self.experimental_cli_checkbox.isChecked())
@@ -551,7 +564,7 @@ QPushButton#settingsCancelButton {{
             entry = self._detected.get(provider)
             if entry is None:
                 continue
-            label.setText(_cli_status.describe(entry))  # what to do about a missing program is already said by the status line below
+            label.setText(_cli_status.describe(entry, short=True))  # what to do about a missing program is already said by the status line below
             if entry["found"]:
                 edit = self._key_edits[provider]
                 # A saved path that no longer exists (program moved or reinstalled) while the program was found under its usual name:

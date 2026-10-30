@@ -93,6 +93,8 @@ class TestDetectAll(unittest.TestCase):
         self.assertEqual(by["codex_cli"]["state"], "yes")
         self.assertEqual(st.describe(by["codex_cli"]), "Codex CLI: found, codex-cli 0.165.0, signed in")
         self.assertEqual(st.describe(by["claude_cli"]), "Claude Code CLI: not found on this computer")
+        self.assertEqual(st.describe(by["codex_cli"], short=True), "Found codex-cli 0.165.0 \u00b7 signed in")
+        self.assertEqual(st.describe(by["claude_cli"], short=True), "Not found on this computer")
 
     def test_a_saved_path_that_no_longer_exists_falls_back_to_the_usual_name(self):
         calls = []
