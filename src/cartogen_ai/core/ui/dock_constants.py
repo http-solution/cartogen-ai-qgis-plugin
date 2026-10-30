@@ -20,7 +20,6 @@ PROVIDER_CHOICES = [c for c in _ALL_PROVIDER_CHOICES if c[1] in ENABLED_PROVIDER
 CLI_PROVIDER_LABELS = {
     "claude_cli": "Claude Code CLI (experimental)",
     "codex_cli": "Codex CLI (experimental)",
-    "gemini_cli": "Gemini CLI (experimental)",
 }
 
 # Module-level (not a local in some widget's init_ui) so the Help tab can list the same

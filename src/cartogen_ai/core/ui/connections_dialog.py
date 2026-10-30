@@ -302,7 +302,7 @@ QPushButton#settingsCancelButton {{
             detect_row.addWidget(detect_label, 1)
             detect_btn = QPushButton("Detect again")
             detect_btn.setObjectName("secondaryButton")
-            detect_btn.setToolTip("Looks for the Claude Code, Codex and Gemini programs and whether you are signed in. Runs only their "
+            detect_btn.setToolTip("Looks for the Claude Code and Codex programs and whether you are signed in. Runs only their "
                                   "version and sign-in status commands: no question is asked of any model.")
             detect_btn.clicked.connect(self._start_detect)
             self._detect_buttons[pv] = detect_btn
@@ -350,13 +350,6 @@ QPushButton#settingsCancelButton {{
             note_label.setWordWrap(True)
             note_label.setStyleSheet("color: gray; font-size: 11px;")
             page_form.addRow("", note_label)
-
-        extra_note = entry.get("extra_note")
-        if extra_note:
-            warn_label = QLabel(extra_note)
-            warn_label.setWordWrap(True)
-            warn_label.setStyleSheet("color: #b35c00; font-size: 11px; font-weight: 600;")
-            page_form.addRow("", warn_label)
 
         if is_setting:
             status_label = QLabel(self._cli_quick_status(pv, key_edit.text()))

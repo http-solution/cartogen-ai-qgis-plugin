@@ -37,7 +37,7 @@ class TestOptIn(unittest.TestCase):
 
     def test_path_setting_key_is_per_provider_and_namespaced(self):
         keys = {sk.cli_path_setting_key(p) for p in sk.CLI_PROVIDERS}
-        self.assertEqual(len(keys), 3)
+        self.assertEqual(len(keys), 2)
         self.assertTrue(all(k.startswith("cartogen_ai/") for k in keys))
 
 
@@ -74,7 +74,7 @@ class TestWiring(unittest.TestCase):
     def test_orchestrator_builds_each_cli_client(self):
         text = _text("core", "agent", "agent_orchestrator.py")
         self.assertIn("elif provider_name in CLI_PROVIDERS:", text)
-        for cls in ("ClaudeCliClient", "CodexCliClient", "GeminiCliClient"):
+        for cls in ("ClaudeCliClient", "CodexCliClient"):
             self.assertIn(cls, text)
 
     def test_the_dialog_always_lists_the_cli_entries_but_gates_choosing_them_on_the_acknowledgement(self):
@@ -119,7 +119,7 @@ class TestWiring(unittest.TestCase):
 
     def test_providers_package_exports_the_clients(self):
         from cartogen_ai.infrastructure import providers
-        for name in ("ClaudeCliClient", "CodexCliClient", "GeminiCliClient"):
+        for name in ("ClaudeCliClient", "CodexCliClient"):
             self.assertIn(name, providers.__all__)
 
 

@@ -5,7 +5,7 @@ from .ollama import OllamaClient
 from .openai import OpenAIClient
 from .claude import ClaudeClient
 from .cartogen import CartogenClient
-from .cli_bridge import ClaudeCliClient, CodexCliClient, GeminiCliClient
+from .cli_bridge import ClaudeCliClient, CodexCliClient
 
 __all__ = [
     "BaseAiProvider",
@@ -13,7 +13,6 @@ __all__ = [
     "ClaudeCliClient",
     "ClaudeClient",
     "CodexCliClient",
-    "GeminiCliClient",
     "GeminiClient",
     "OllamaClient",
     "OpenAIClient",

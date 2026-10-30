@@ -17,7 +17,8 @@ class TestCatalogIsQtFree(unittest.TestCase):
         from cartogen_ai.core.ui import connections_catalog as c
         values = [e["value"] for e in c.PROVIDERS + c._CLI_PROVIDERS]
         self.assertEqual(len(values), len(set(values)))
-        self.assertTrue({"claude_cli", "codex_cli", "gemini_cli"} <= set(values))
+        self.assertTrue({"claude_cli", "codex_cli"} <= set(values))
+        self.assertNotIn("gemini_cli", values)
         for entry in c.PROVIDERS + c._CLI_PROVIDERS:
             self.assertIn(c._group_of(entry), c._GROUP_TITLES)
 
@@ -80,13 +81,25 @@ class TestDetection(unittest.TestCase):
         self.assertIn("self._use_buttons[pv].setEnabled(checked)", body)
 
 
-class TestGeminiRetirementNote(unittest.TestCase):
-    def test_the_gemini_cli_entry_warns_that_personal_accounts_ended_on_18_june_2026(self):
+class TestGeminiCliIsGone(unittest.TestCase):
+    """Owner decision 2026-10-30: only Claude Code and Codex stay as CLI connections (Google ended personal-account use of Gemini CLI on
+    2026-06-18). The Gemini API key connection is a different thing and stays."""
+
+    def test_no_gemini_cli_in_the_provider_tables_or_the_settings_keys(self):
         from cartogen_ai.core.ui import connections_catalog as c
-        gemini = next(e for e in c._CLI_PROVIDERS if e["value"] == "gemini_cli")
-        self.assertIn("18 June 2026", gemini["extra_note"])
-        self.assertIn("Gemini API key", gemini["extra_note"])
-        self.assertTrue(all("extra_note" not in e for e in c._CLI_PROVIDERS if e["value"] != "gemini_cli"))
+        from cartogen_ai.infrastructure import settings_keys as sk
+        self.assertEqual([e["value"] for e in c._CLI_PROVIDERS], ["claude_cli", "codex_cli"])
+        self.assertEqual(sk.CLI_PROVIDERS, ("claude_cli", "codex_cli"))
+        self.assertFalse(hasattr(sk, "SETTINGS_GEMINI_CLI_MODEL"))
+        self.assertIn("gemini", [e["value"] for e in c.PROVIDERS], "the Gemini API key connection stays")
+
+    def test_the_gemini_cli_client_and_parser_are_gone_but_the_api_client_stays(self):
+        from cartogen_ai.infrastructure import providers
+        from cartogen_ai.infrastructure.providers import cli_bridge as cb
+        self.assertFalse(hasattr(cb, "GeminiCliClient"))
+        self.assertFalse(hasattr(cb, "parse_gemini_result"))
+        self.assertNotIn("GeminiCliClient", providers.__all__)
+        self.assertIn("GeminiClient", providers.__all__)
 
 
 class TestEntryPoints(unittest.TestCase):

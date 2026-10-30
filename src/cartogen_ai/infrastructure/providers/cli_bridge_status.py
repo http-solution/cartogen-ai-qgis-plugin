@@ -19,12 +19,11 @@ from . import cli_locator
 _SPECS = {
     "claude_cli": (cb.ClaudeCliClient, [], "Install Claude Code, then run `claude` once in a terminal and sign in."),
     "codex_cli": (cb.CodexCliClient, ["login"], "Install the Codex CLI, then run `codex login`."),
-    "gemini_cli": (cb.GeminiCliClient, [], "Install the Gemini CLI, then run `gemini` once and choose Login with Google."),
 }
-DEFAULT_PROGRAM = {"claude_cli": "claude", "codex_cli": "codex", "gemini_cli": "gemini"}
+DEFAULT_PROGRAM = {"claude_cli": "claude", "codex_cli": "codex"}
 _PLAIN_PATH = re.compile(r"^[A-Za-z0-9_./\\:+-]+$")  # no spaces, quotes or shell characters: safe to hand to a terminal launcher
 CHECK_PROMPT = "Reply with the single word: ok"
-LABELS = {"claude_cli": "Claude Code CLI", "codex_cli": "Codex CLI", "gemini_cli": "Gemini CLI"}
+LABELS = {"claude_cli": "Claude Code CLI", "codex_cli": "Codex CLI"}
 
 
 def install_hint(provider):
@@ -76,10 +75,10 @@ def detect(provider, configured="", timeout=15):
 
 def signin_status(provider, path, timeout=15):
     """Is the user signed in to this CLI? Asks the program itself, with no model call and no tokens. Returns {'state', 'note'} where state
-    is 'yes', 'no', 'likely' or 'unknown'; never raises.
+    is 'yes', 'no' or 'unknown' ('likely' is accepted by `usable` for a future adapter); never raises.
 
     UNVERIFIED except the Codex 'logged in' case (`codex login status` printed "Logged in using ChatGPT" on the owner's machine,
-    2026-10-30). `claude auth status` and the Gemini file check are from the CLIs' public behaviour, not run here; when the answer cannot
+    2026-10-30). `claude auth status` was confirmed by the owner's Connections window (2026-10-30); when the answer cannot
     be read the state is 'unknown' rather than a guess, and Check connection stays the one test that proves the login works."""
     try:
         if provider == "codex_cli":
@@ -104,10 +103,6 @@ def signin_status(provider, path, timeout=15):
             if "not logged in" in low or "not signed in" in low:
                 return {"state": "no", "note": ""}
             return {"state": "unknown", "note": ""}
-        if provider == "gemini_cli":
-            # The Gemini CLI has no status command; its Google sign-in is saved under ~/.gemini. Existence only, the file is never read.
-            saved = os.path.isfile(os.path.join(os.path.expanduser("~"), ".gemini", "oauth_creds.json"))
-            return {"state": "likely" if saved else "unknown", "note": "a saved Google login was found" if saved else ""}
     except cb.CliBridgeError as e:
         return {"state": "unknown", "note": str(e)[:120]}
     return {"state": "unknown", "note": ""}

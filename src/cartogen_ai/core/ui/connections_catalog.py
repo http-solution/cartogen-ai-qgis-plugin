@@ -15,7 +15,6 @@ from ...infrastructure.settings_keys import (
     ENABLED_PROVIDERS,
     SETTINGS_CLAUDE_CLI_MODEL,
     SETTINGS_CODEX_CLI_MODEL,
-    SETTINGS_GEMINI_CLI_MODEL,
     SETTINGS_OPENROUTER_MODEL,
     SETTINGS_GEMINI_MODEL,
     SETTINGS_OLLAMA_MODEL,
@@ -153,21 +152,6 @@ _CLI_PROVIDERS = [
         "model_setting_key": SETTINGS_CODEX_CLI_MODEL, "default_model": AUTO_SENTINEL,
         "key_default": "codex", "group": "cli", "list_fn": None, "key_storage": "setting", "page_note": _CLI_NOTE,
         "key_tooltip": "Name or full path of the codex program. Sign in once with `codex login`. Auto = the CLI's own default model.",
-    },
-    {
-        "value": "gemini_cli", "provider_label": "Gemini CLI (experimental)", "pill_label": "Gemini CLI",
-        "key_label": "gemini program:", "model_label": "Model (optional):",
-        "model_setting_key": SETTINGS_GEMINI_CLI_MODEL, "default_model": AUTO_SENTINEL,
-        "extra_seed_models": ["pro", "flash", "flash-lite"],
-        "key_default": "gemini", "group": "cli", "list_fn": None, "key_storage": "setting", "page_note": _CLI_NOTE,
-        # Google's own announcement (developers.googleblog.com, "Transitioning Gemini CLI to Antigravity CLI"): from 2026-06-18 Gemini CLI no
-        # longer serves requests for Google AI Pro, Google AI Ultra or free individual accounts. Checked 2026-10-30; not tried against a
-        # real account from the sandbox.
-        "extra_note": "Google stopped serving personal Google accounts (AI Pro, AI Ultra, free) through Gemini CLI on 18 June 2026; it "
-                      "still works with a Gemini Code Assist enterprise licence. With a personal account, use the Gemini API key "
-                      "connection instead.",
-        "key_tooltip": "Name or full path of the gemini program. Sign in once by running `gemini` and choosing Login with Google. "
-                        "Auto = the CLI's own default model.",
     },
 ]
 

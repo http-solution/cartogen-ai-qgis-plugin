@@ -106,8 +106,6 @@ class TestConnectionsWindow(unittest.TestCase):
          "state": "missing", "note": "", "searched": ("/usr/bin", "/opt/tools/bin")},
         {"provider": "codex_cli", "label": "Codex CLI", "found": True, "path": "/bin/codex", "version": "codex-cli 0.165.0", "problem": "",
          "state": "yes", "note": "Logged in using ChatGPT"},
-        {"provider": "gemini_cli", "label": "Gemini CLI", "found": True, "path": "/bin/gemini", "version": "0.9", "problem": "",
-         "state": "no", "note": ""},
     )
 
     def _detecting_dialog(self):
@@ -127,11 +125,14 @@ class TestConnectionsWindow(unittest.TestCase):
         dialog = self._detecting_dialog()
         self.assertIn("Not found", dialog._detect_labels["claude_cli"].text())
         self.assertIn("Found codex-cli 0.165.0 \u00b7 signed in", dialog._detect_labels["codex_cli"].text())
-        self.assertIn("not signed in", dialog._detect_labels["gemini_cli"].text())
         self.assertEqual(dialog._active_provider, DEFAULT_PROVIDER, "detection must not change the connection in use")
         self.assertTrue(dialog._row_items["codex_cli"].text().startswith("\u2713"), "signed in is marked in the list")
         self.assertTrue(dialog._row_items["claude_cli"].text().startswith("\u25cb"), "not found is marked empty")
-        self.assertTrue(dialog._row_items["gemini_cli"].text().startswith("\u25cf"), "found but not signed in is 'set'")
+        not_signed_in = [dict(r) for r in self.RESULTS]
+        not_signed_in[1]["state"] = "no"
+        dialog._on_detected(not_signed_in)
+        self.assertIn("not signed in", dialog._detect_labels["codex_cli"].text())
+        self.assertTrue(dialog._row_items["codex_cli"].text().startswith("\u25cf"), "found but not signed in is 'set'")
 
     def test_a_missing_program_lists_where_it_was_looked_for_and_every_cli_page_has_a_browse_button(self):
         from qgis.PyQt.QtWidgets import QLabel, QPushButton
@@ -140,9 +141,8 @@ class TestConnectionsWindow(unittest.TestCase):
         self.assertIn("Looked in:", tip)
         self.assertIn("/opt/tools/bin", tip)
         self.assertIn("looked in 2 folders", dialog._detect_labels["claude_cli"].text())
-        self.assertEqual(sum(1 for b in dialog.findChildren(QPushButton) if b.text() == "Browse..."), 3)
-        notes = [lab.text() for lab in dialog.findChildren(QLabel) if "18 June 2026" in lab.text()]
-        self.assertEqual(len(notes), 1, "only the Gemini CLI page says personal accounts were ended")
+        self.assertEqual(sum(1 for b in dialog.findChildren(QPushButton) if b.text() == "Browse..."), 2)
+        self.assertEqual([lab for lab in dialog.findChildren(QLabel) if "Gemini CLI" in lab.text()], [], "no Gemini CLI page any more")
 
     def test_a_stale_saved_path_is_replaced_by_the_program_that_was_found(self):
         dialog = self._dialog()
@@ -150,7 +150,6 @@ class TestConnectionsWindow(unittest.TestCase):
         results = [dict(r) for r in self.RESULTS]
         dialog._on_detected(results)
         self.assertEqual(dialog._key_edits["codex_cli"].text(), "/bin/codex")
-        self.assertEqual(dialog._key_edits["gemini_cli"].text(), "/bin/gemini")
 
     def test_using_a_cli_needs_the_acknowledgement_and_then_makes_it_the_connection_in_use(self):
         dialog = self._detecting_dialog()

@@ -32,12 +32,12 @@ CASES = [
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--cli", choices=("claude", "codex", "gemini"), default="claude")
+    ap.add_argument("--cli", choices=("claude", "codex"), default="claude")
     ap.add_argument("--exe", default=None, help="path or name of the CLI (default: the CLI name)")
     ap.add_argument("--model", default=None)
     ap.add_argument("--out", default="spike_report.md")
     args = ap.parse_args()
-    client_class = {"claude": cb.ClaudeCliClient, "codex": cb.CodexCliClient, "gemini": cb.GeminiCliClient}[args.cli]
+    client_class = {"claude": cb.ClaudeCliClient, "codex": cb.CodexCliClient}[args.cli]
     exe = cb.find_executable(args.exe or client_class.default_exe)
     lines = [f"# CLI bridge spike report ({client_class.label})", "", f"- executable: {exe or 'NOT FOUND'}", f"- model flag: {args.model or '(CLI default)'}", ""]
     if not exe:

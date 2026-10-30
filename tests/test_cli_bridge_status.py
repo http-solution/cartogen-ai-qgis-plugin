@@ -28,7 +28,7 @@ class TestDetect(unittest.TestCase):
     def test_a_program_that_fails_to_run_is_reported_not_raised(self):
         with patch.object(cb, "find_executable", return_value="/bin/x"), \
              patch.object(cb, "run_cli", side_effect=cb.CliBridgeError("timed out")):
-            info = st.detect("gemini_cli")
+            info = st.detect("codex_cli")
         self.assertTrue(info["found"])
         self.assertEqual(info["problem"], "timed out")
 
@@ -61,17 +61,9 @@ class TestSigninStatus(unittest.TestCase):
     def test_claude_with_no_status_command_is_unknown(self):
         self.assertEqual(self._status("claude_cli", 1, "", "error: unknown command 'auth'")[0]["state"], "unknown")
 
-    def test_gemini_is_likely_only_when_a_saved_login_file_exists_and_it_is_never_read(self):
-        import os
-        import tempfile
-        with tempfile.TemporaryDirectory() as home, patch.dict(os.environ, {"HOME": home, "USERPROFILE": home}):
-            self.assertEqual(st.signin_status("gemini_cli", "/bin/x")["state"], "unknown")
-            os.makedirs(os.path.join(home, ".gemini"))
-            with open(os.path.join(home, ".gemini", "oauth_creds.json"), "w") as f:
-                f.write("SECRET-TOKEN")
-            result = st.signin_status("gemini_cli", "/bin/x")
-        self.assertEqual(result["state"], "likely")
-        self.assertNotIn("SECRET-TOKEN", str(result))
+    def test_gemini_cli_is_gone_from_the_detected_set(self):
+        self.assertEqual(list(st.DEFAULT_PROGRAM), ["claude_cli", "codex_cli"])
+        self.assertEqual(st.signin_status("gemini_cli", "/bin/x")["state"], "unknown", "an unknown provider is never a guess")
 
     def test_a_program_that_fails_to_run_is_unknown_not_raised(self):
         with patch.object(cb, "run_cli", side_effect=cb.CliBridgeError("timed out")):
@@ -87,7 +79,7 @@ class TestDetectAll(unittest.TestCase):
         with patch.object(st, "detect", side_effect=fake_detect), \
              patch.object(st, "signin_status", return_value={"state": "yes", "note": "Logged in using ChatGPT"}):
             result = st.detect_all({})
-        self.assertEqual([e["provider"] for e in result], ["claude_cli", "codex_cli", "gemini_cli"])
+        self.assertEqual([e["provider"] for e in result], ["claude_cli", "codex_cli"])
         by = {e["provider"]: e for e in result}
         self.assertEqual(by["claude_cli"]["state"], "missing")
         self.assertEqual(by["codex_cli"]["state"], "yes")
@@ -115,10 +107,9 @@ class TestDetectAll(unittest.TestCase):
     def test_no_model_is_asked_anything_while_detecting(self):
         with patch.object(st, "detect", return_value={"found": True, "path": "/bin/x", "version": "v", "problem": ""}), \
              patch.object(st, "signin_status", return_value={"state": "unknown", "note": ""}), \
-             patch.object(cb.ClaudeCliClient, "complete") as claude, patch.object(cb.CodexCliClient, "complete") as codex, \
-             patch.object(cb.GeminiCliClient, "complete") as gemini:
+             patch.object(cb.ClaudeCliClient, "complete") as claude, patch.object(cb.CodexCliClient, "complete") as codex:
             st.detect_all({})
-        for client in (claude, codex, gemini):
+        for client in (claude, codex):
             client.assert_not_called()
 
     def test_only_a_signed_in_cli_is_offered_for_use(self):
@@ -133,7 +124,7 @@ class TestStage(unittest.TestCase):
         self.assertEqual(st.stage_of("Claude Code CLI not found. Install it"), "install")
         self.assertEqual(st.stage_of("Could not start the CLI (OSError). Check the executable path in Settings."), "install")
         self.assertEqual(st.stage_of("The Codex CLI exited with status 1. Is it signed in (`codex login`)?"), "signin")
-        self.assertEqual(st.stage_of("run `gemini` once and choose Login with Google"), "signin")
+        self.assertEqual(st.stage_of("Is it signed in (`claude` once, then /login)?"), "signin")
         self.assertEqual(st.stage_of("The Codex CLI reported an error: Reconnecting... 2/5 (unexpected status 401 Unauthorized: "
                                      "Missing bearer or basic authentication in header, url: wss://api.openai.com/v1/responses)"), "signin")
         self.assertEqual(st.stage_of("The CLI did not answer within 180 seconds."), "other")
@@ -180,8 +171,8 @@ class TestTerminalCommand(unittest.TestCase):
 
     def test_linux_uses_the_first_terminal_found(self):
         which = {"konsole": "/usr/bin/konsole", "xterm": "/usr/bin/xterm"}.get
-        self.assertEqual(st.terminal_command("gemini_cli", "/usr/bin/gemini", "linux", which=which),
-                         ["/usr/bin/konsole", "-e", "/usr/bin/gemini"])
+        self.assertEqual(st.terminal_command("codex_cli", "/usr/bin/codex", "linux", which=which),
+                         ["/usr/bin/konsole", "-e", "/usr/bin/codex", "login"])
 
     def test_linux_without_a_terminal_gives_none(self):
         self.assertIsNone(st.terminal_command("claude_cli", "/usr/bin/claude", "linux", which=lambda _n: None))
@@ -228,7 +219,8 @@ class TestSigninCommandText(unittest.TestCase):
     def test_text(self):
         self.assertEqual(st.signin_command("codex_cli", configured="codex"), "codex login")
         self.assertEqual(st.signin_command("claude_cli", "/x/claude"), "/x/claude")
-        self.assertTrue(st.known("gemini_cli"))
+        self.assertTrue(st.known("codex_cli"))
+        self.assertFalse(st.known("gemini_cli"))
         self.assertFalse(st.known("openrouter"))
 
 
