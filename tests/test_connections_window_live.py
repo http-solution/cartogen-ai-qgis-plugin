@@ -125,8 +125,8 @@ class TestConnectionsWindow(unittest.TestCase):
     def test_detection_is_written_on_each_cli_page_and_never_switches_the_connection(self):
         from cartogen_ai.infrastructure.settings_keys import DEFAULT_PROVIDER
         dialog = self._detecting_dialog()
-        self.assertIn("not found", dialog._detect_labels["claude_cli"].text())
-        self.assertIn("Codex CLI: found, codex-cli 0.165.0, signed in", dialog._detect_labels["codex_cli"].text())
+        self.assertIn("Not found", dialog._detect_labels["claude_cli"].text())
+        self.assertIn("Found codex-cli 0.165.0 \u00b7 signed in", dialog._detect_labels["codex_cli"].text())
         self.assertIn("not signed in", dialog._detect_labels["gemini_cli"].text())
         self.assertEqual(dialog._active_provider, DEFAULT_PROVIDER, "detection must not change the connection in use")
         self.assertTrue(dialog._row_items["codex_cli"].text().startswith("\u2713"), "signed in is marked in the list")

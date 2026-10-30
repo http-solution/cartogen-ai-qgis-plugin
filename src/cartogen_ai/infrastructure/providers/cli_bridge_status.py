@@ -136,12 +136,16 @@ def detect_all(configured=None):
 _STATE_TEXT = {"yes": "signed in", "likely": "probably signed in", "no": "not signed in", "unknown": "sign-in not confirmed"}
 
 
-def describe(entry):
-    """One line for the 'Found on this computer' list."""
+def describe(entry, short=False):
+    """One line saying whether the program is there and whether the user is signed in. `short` drops the program's name, for a page
+    that already has it as its title (a narrow window wrapped the long form onto two lines)."""
+    state = _STATE_TEXT.get(entry["state"], "sign-in not confirmed")
     if not entry["found"]:
-        return f"{entry['label']}: not found on this computer"
+        return "Not found on this computer" if short else f"{entry['label']}: not found on this computer"
+    if short:
+        return f"Found {entry['version']} \u00b7 {state}" if entry["version"] else f"Found \u00b7 {state}"
     version = f", {entry['version']}" if entry["version"] else ""
-    return f"{entry['label']}: found{version}, {_STATE_TEXT.get(entry['state'], 'sign-in not confirmed')}"
+    return f"{entry['label']}: found{version}, {state}"
 
 
 def usable(entry):
