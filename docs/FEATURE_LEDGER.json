@@ -1692,6 +1692,22 @@
     ],
     "hand_verified": "not verified: CI only. The router was run on the exact A5 and A6 prompts and did not offer geocode_and_enrich before this change; no model was run, so it is not shown that a model now completes A5 or A6.",
     "hand_row": "A5 and A6 in the runbook ('get building footprints for a small area in Aden', 'download population for a small area in Aden')"
+  },
+  {
+    "id": "routing-wordings-as-data",
+    "feature": "a request wording the router must serve is kept as a row of data (tests/fixtures/routing_requests.json) and replayed against the router; tools/routing_golden.py adds and checks rows without a Python edit",
+    "issues": [],
+    "since": "1.18.6",
+    "sources": [
+      "tools/routing_golden.py",
+      "tests/fixtures/routing_requests.json"
+    ],
+    "guards": [
+      "tests/test_routing_requests_data.py::TestRoutingRequestsData::test_every_request_is_offered_its_tools",
+      "tests/test_routing_requests_data.py::TestRoutingRequestsData::test_every_named_tool_is_registered"
+    ],
+    "hand_verified": "not verified: CI only. Checks offline that the router offers the listed tools; no model was run.",
+    "hand_row": "none, because it is a test fixture and command; the owner hand test row is the medical-services prompt (OWN-16 list)"
   }
  ]
 }
