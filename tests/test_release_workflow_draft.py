@@ -14,5 +14,15 @@ class TestReleaseIsDraftByDefault(unittest.TestCase):
         self.assertIn("--draft", text)
 
 
+class TestStatusNote(unittest.TestCase):
+    def test_the_note_is_an_optional_input_passed_through_the_environment(self):
+        text = WORKFLOW.read_text(encoding="utf-8")
+        block = text.split("      status_note:", 1)[1].split("      draft:", 1)[0]
+        self.assertIn('default: ""', block)
+        self.assertIn("STATUS_NOTE: ${{ inputs.status_note }}", text)
+        self.assertNotIn("${{ inputs.status_note }}\"", text.split("run: |", 2)[-1])   # never expanded inside the script body
+        self.assertIn('NOTES="$NOTES"', text)
+
+
 if __name__ == "__main__":
     unittest.main()
