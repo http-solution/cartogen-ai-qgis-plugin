@@ -17,6 +17,10 @@ on:
         description: "Mark as pre-release"
         type: boolean
         default: true
+      status_note:
+        description: "Optional sentence added to the release notes, for example what was and was not hand-tested (a release cannot be edited from every session)"
+        type: string
+        default: ""
       draft:
         description: "Create as a DRAFT (no email goes out; publish it by hand from the Releases page when ready)"
         type: boolean
@@ -72,8 +76,11 @@ jobs:
       - name: Create the release
         env:
           GH_TOKEN: ${{ github.token }}
+          # passed through the environment, never pasted into the script, so a quote or $() in the note cannot run as a command
+          STATUS_NOTE: ${{ inputs.status_note }}
         run: |
           NOTES="Install the attached cartogen_ai_v${VERSION}.zip (Plugins > Install from ZIP), NOT 'Source code (zip)' -- GitHub's source zip folder name contains dots and QGIS cannot load it. Built from ${{ inputs.ref }} by the release workflow. SHA256: $(cut -d' ' -f1 dist/SHA256.txt)"
+          if [ -n "$STATUS_NOTE" ]; then NOTES="$NOTES"$'\n\n'"Status: $STATUS_NOTE"; fi
           FLAGS=""
           if [ "${{ inputs.prerelease }}" = "true" ]; then FLAGS="--prerelease"; fi
           # A published release emails everyone who watches the repo's releases (the owner reported 2026-10-30 that each update mailed
