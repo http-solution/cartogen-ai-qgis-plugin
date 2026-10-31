@@ -398,4 +398,11 @@ class ToolRouter:
         # For a request of more than _LONG_QUERY_WORDS words a tool must score at least _LONG_QUERY_MIN_SCORE (a name or alias match,
         # three description words, or a capability the request names) to take a slot. Short requests keep the old rule (score > 0).
         floor = _LONG_QUERY_MIN_SCORE if len(user_query.split()) > _LONG_QUERY_WORDS else 1
-        return [tool for score, tool in scored_tools[:top_k] if score >= floor]
+        chosen = [tool for score, tool in scored_tools[:top_k] if score >= floor]
+        # find_tools is always offered, on top of top_k so it takes no slot from a relevant tool (PLAN-042 step 4): the offered tools are
+        # a selection, and it is how the model asks for one the selection missed. Measured 2026-10-30: the best score was 10 or more for
+        # all 493 test requests, so a "weak match" trigger never fires; the miss that mattered ("list medical service") was a confident
+        # wrong answer.
+        if "find_tools" in known_names and not any(t.get("function", {}).get("name") == "find_tools" for t in chosen):
+            chosen.extend(t for t in self.full_schema_list if t.get("function", {}).get("name") == "find_tools")
+        return chosen

@@ -560,6 +560,11 @@ _ALL_RULES = {
         'and copy the matching named field: `bbox_south_west_north_east` for the OSM and building-footprint tools, `bbox_west_south_east_north` for the STAC search. '
         'Do not change the country or place the user named to match a box, and say so if the box and the place disagree.\n'
     ),
+    56: (
+        '56. The tools you were given are a selection for this request, not every tool that exists. If none of them fits what the user asked, '
+        'call `find_tools(need)` with the step in plain words BEFORE telling the user a capability is missing or writing a script. Only say '
+        'something cannot be done after `find_tools` returned nothing suitable.\n'
+    ),
     55: (
         '55. Stored memory notes describe EARLIER work, possibly in another place. Never take a place, country or coordinates from a note when the '
         'user\'s request or the loaded layers say otherwise: the layer\'s own extent (`get_layer_extent`) decides where it is, not a remembered region. '
@@ -567,7 +572,7 @@ _ALL_RULES = {
     ),
 }
 
-CORE_RULE_NUMBERS = (1, 2, 3, 4, 5, 6, 9, 10, 11, 12, 15, 18, 19, 33, 40, 44, 49, 50, 51, 52)
+CORE_RULE_NUMBERS = (1, 2, 3, 4, 5, 6, 9, 10, 11, 12, 15, 18, 19, 33, 40, 44, 49, 50, 51, 52, 56)
 
 # Rules 25, 26, 29, 35, 37, 42, 43, 45, 46, 47.
 SENSITIVE_RULE_NUMBERS = (25, 26, 29, 35, 37, 42, 43, 45, 46, 47)

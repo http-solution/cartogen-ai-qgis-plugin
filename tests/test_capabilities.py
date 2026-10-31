@@ -61,8 +61,13 @@ class TestRouter(unittest.TestCase):
     def test_find_tools_is_offered_when_a_step_has_no_tool(self):
         names = {t["function"]["name"] for t in self.router.filter_relevant_tools(SCEN["taizz"], top_k=40)}
         self.assertIn("find_tools", names)
-        simple = {t["function"]["name"] for t in self.router.filter_relevant_tools("buffer the hospitals by 500 m", top_k=40)}
-        self.assertNotIn("find_tools", simple)
+
+    def test_find_tools_is_always_offered_and_takes_no_slot_from_top_k(self):
+        """PLAN-042 step 4: it used to be offered only for an uncovered step or a workflow. It rides on top of top_k now."""
+        for query in ("buffer the hospitals by 500 m", "hi", "list medical service in Al Maharah"):
+            offered = self.router.filter_relevant_tools(query, top_k=12)
+            self.assertIn("find_tools", {t["function"]["name"] for t in offered}, query)
+        self.assertLessEqual(len(self.router.filter_relevant_tools("buffer the hospitals by 500 m", top_k=12)), 13)
 
     def test_tool_schemas_sent_stay_in_the_measured_range(self):
         for key, query in SCEN.items():

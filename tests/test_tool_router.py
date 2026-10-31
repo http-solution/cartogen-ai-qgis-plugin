@@ -34,7 +34,7 @@ class TestToolRouter(unittest.TestCase):
     def test_router_filtering(self):
         router = ToolRouter(TOOLS_SCHEMA)
         filtered = router.filter_relevant_tools("Calculate NDVI on Sentinel image", top_k=15)
-        self.assertLessEqual(len(filtered), 15)
+        self.assertLessEqual(len(filtered), 15 + 1)   # +1: find_tools rides on top of top_k (PLAN-042 step 4)
         tool_names = [t.get("function", {}).get("name") for t in filtered]
         self.assertIn("calculate_ndvi", tool_names)
         self.assertIn("get_layers", tool_names)  # Always included core tool
@@ -114,7 +114,7 @@ class TestNoSignalQueryStaysSmall(unittest.TestCase):
         expected = {
             "get_layers", "get_attributes", "create_plan", "update_task",
             "set_task_preview", "store_project_memory", "store_global_memory",
-            "generate_spatial_report", "execute_pyqgis_script",
+            "generate_spatial_report", "execute_pyqgis_script", "find_tools",   # find_tools is always offered (PLAN-042 step 4)
         }
         self.assertEqual(names, expected)
 
@@ -133,7 +133,7 @@ class TestNoSignalQueryStaysSmall(unittest.TestCase):
         filtered = self.router.filter_relevant_tools("buffer this layer", top_k=40)
         names = [t.get("function", {}).get("name") for t in filtered]
         self.assertIn("buffer_analysis", names)
-        self.assertEqual(len(filtered), 40)
+        self.assertEqual(len(filtered), 40 + 1)   # +1: find_tools rides on top of top_k (PLAN-042 step 4)
 
     def test_partial_signal_query_also_drops_zero_score_filler(self):
         # 2026-09-19 follow-up: a query with SOME real signal (not the all-zero "hi" case

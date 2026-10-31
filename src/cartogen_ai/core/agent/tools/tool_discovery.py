@@ -9,6 +9,7 @@ import re
 from .registry import register_tool, TOOLS_SCHEMA
 
 MAX_RESULTS = 8
+PHRASE_SCORE = 12   # above a name-word hit (4) so a curated phrase outranks incidental word overlap
 _WORD = re.compile(r"[a-z0-9]+")
 _STOP = frozenset({"the", "a", "an", "and", "or", "of", "to", "for", "with", "in", "on", "by", "from", "tool", "tools", "need", "needs",
                    "that", "this", "how", "can", "do", "i", "me", "my", "all", "any"})
@@ -16,13 +17,18 @@ _STOP = frozenset({"the", "a", "an", "and", "or", "of", "to", "for", "with", "in
 
 def rank_tools(query, schemas, limit=MAX_RESULTS):
     """[(score, name, description)] best first for `query` over `schemas` (OpenAI-style function schemas). Name words count 4x a
-    description word; capability-table tools for the named steps come first. Pure."""
+    description word; each curated routing phrase found in the query adds PHRASE_SCORE; capability-table tools for the named steps come first. Pure."""
     words = {w for w in _WORD.findall((query or "").lower()) if w not in _STOP and len(w) > 2}
     try:
         from ..capabilities import required_tools
         preferred = required_tools(query)
     except Exception:
         preferred = []
+    query_lower = (query or "").lower()
+    try:
+        from ...services.tool_router import routing_phrases
+    except Exception:
+        routing_phrases = None
     scored = []
     for schema in schemas:
         fn = schema.get("function", {}) if isinstance(schema, dict) else {}
@@ -34,6 +40,11 @@ def rank_tools(query, schemas, limit=MAX_RESULTS):
         score = 4 * len(words & name_words) + len(words & desc_words)
         if name in preferred:
             score += 20 - preferred.index(name)
+        # The curated phrases the router also scores (a tool's keywords= and its shared concept groups): without them a wording that
+        # shares no word with the tool's name or description ("list medical services", "any dispensary") found calculate_service_area
+        # and list_bookmarks instead of the OSM and geocoding tools (measured 2026-10-30).
+        if routing_phrases is not None:
+            score += PHRASE_SCORE * sum(1 for phrase in routing_phrases(name) if phrase in query_lower)
         if score > 0:
             scored.append((score, name, desc))
     scored.sort(key=lambda x: (-x[0], x[1]))
