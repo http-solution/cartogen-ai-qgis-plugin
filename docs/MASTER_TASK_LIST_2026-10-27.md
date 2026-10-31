@@ -101,7 +101,7 @@ One list to follow up and plan from. It replaces the session task list (101 entr
 |---|---|---|---|---|---|---|---|---|
 | HY-1 | Set the 14 stale plan statuses from their own logs; fold PLAN-020 into PLAN-021; close PLAN-024 to PLAN-026 when their hand rows pass; mark PLAN-019 done. | Status words no longer match the logs. | Claude | - | S | P2 | In progress | PLAN-022 N1 |
 | HY-2 | Sweep IMPLEMENTATION_TRACKER.md (2,746 lines; duplicate sections 1.19 to 1.24; stale list at the top) and BUG_TRACKER.md. | The trackers are the planning source and are out of date. | Claude | - | M | P2 | Not started | PLAN-022 N3 |
-| HY-3 | CI and release hygiene: pin the Windows runner, check upload-artifact against the Node notice, add an optional status_note input to release.yml (releases cannot be edited from this session type), generate the README test count. | A release cannot say 'not hand-tested' without a manual edit. | Claude | - | S | P2 | Not started | PLAN-022 N4 |
+| HY-3 | CI and release hygiene: pin the Windows runner, check upload-artifact against the Node notice, add an optional status_note input to release.yml (releases cannot be edited from this session type), generate the README test count. | A release cannot say 'not hand-tested' without a manual edit. | Claude | - | S | P2 | In progress | PLAN-022 N4 |
 | HY-4 | Prune the 190-odd remote branches (merged and abandoned claude/* branches); keep the open ones. | 193 remote branches; it hides what is live. | Both | OWN-8 | S | P3 | Not started | repository state |
 | HY-5 | Clean the session task list: drop the 84 completed entries, keep this list's open rows. | The list is a history, not a plan. | Claude | - | XS | P3 | Not started | this document |
 
@@ -164,8 +164,8 @@ Source: the owner's analysis document of nine flagship QGIS AI plugins, checked 
 
 | Status | Rows |
 |---|---|
-| Not started | 33 |
-| In progress | 20 |
+| Not started | 32 |
+| In progress | 21 |
 | Decision needed | 14 |
 | Waiting on you | 13 |
 | Blocked | 5 |
@@ -241,3 +241,4 @@ Newest last. One line per status change; written by `tools/master_list.py set`.
 - 2026-10-31: HT-7 Not started -> In progress. PLAN-042 steps 1-4 merged (#512 data file and add/check command, #513 and #515 keywords beside each tool, #514 shared concept groups, #516 find_tools uses the phrases, is always offered, rule 56). Still open: the audit itself (replay everyday synonyms per tool family and add the misses as rows with tools/routing_golden.py) and a hand test that a model now calls find_tools (ledger entry find-tools-fallback).
 - 2026-10-31: LEAD-4 Not started -> In progress. PLAN-033 items 1 and 2 done (sublayer forwarded; tests/test_orchestrator_branches_forward_schema_arguments.py covers all 15 two-phase branches, mutation-checked on the GDACS country read; it cannot see a drop after the read, stated in the test). Items 3 (composite tools) and 4 (schema from signature) open.
 - 2026-10-31: DEF-8 Not started -> In progress. Unused noqa: none left (ruff RUF100 is part of the enforced RUF set and CI passes at zero, re-checked 2026-10-31); the 504 broad-except baseline is still only recorded, not reviewed.
+- 2026-10-31: HY-3 Not started -> In progress. release.yml status_note input done (PR open, CI only, workflow not run). Left: pin windows-latest (renames the 'test (windows-latest, 3.11)' check, which branch protection may require by name; owner can confirm), upload-artifact vs Node 24 notice, README test count generated.
