@@ -56,7 +56,7 @@ One list to follow up and plan from. It replaces the session task list (101 entr
 | HT-4 | Verification debt, CI only today: Windows and macOS QGIS; large, messy, non-English and database-backed user data; numerical correctness of Processing outputs; delineate_watershed on a real DEM versus the engineer's report; a real Geofabrik extract and prompt-cache check. | Built and passing in CI, never run by a person. | Both | OWN-11, OWN-14 | L | P3 | Not started | W-5 to W-9 |
 | HT-5 | Re-check 'partly' ledger entries (5) and wave E1, DXF and Excel export and the 20 later routing additions by hand. | Only 21 algorithms were ever hand-tested. | Both | OWN-1 | M | P3 | Not started | W-2, W-3 |
 | HT-6 | Prove tools/collect_evidence.py in a real QGIS 4.2 session (written without QGIS, never run) and fix what breaks; then add it to the repo with a live test. | The agent-edition smoke package depends on it for logs, screenshots and layer tables; until run, evidence may fall back to manual capture. | Claude | OWN-1 | S | P1 | In progress | smoke package 2026-10-27 |
-| HT-7 | Routing vocabulary audit: replay everyday synonyms and alternative wordings of each tool family through the real router and list the requests that are offered none of the right tools (found: 'list medical service in Al Maharah' offered no OSM or geocoding tool). Fix with aliases and a ratchet test. | The model tells the truth about the tools it is given, so a wording the router misses reads as 'I cannot do that'; the owner hit it in the first real chat through the CLI. | Claude | - | M | P2 | Not started | PR 508 |
+| HT-7 | Routing vocabulary audit: replay everyday synonyms and alternative wordings of each tool family through the real router and list the requests that are offered none of the right tools (found: 'list medical service in Al Maharah' offered no OSM or geocoding tool). Fix with aliases and a ratchet test. | The model tells the truth about the tools it is given, so a wording the router misses reads as 'I cannot do that'; the owner hit it in the first real chat through the CLI. | Claude | - | M | P2 | In progress | PR 508 |
 
 ## C. Open defects and observations
 
@@ -164,8 +164,8 @@ Source: the owner's analysis document of nine flagship QGIS AI plugins, checked 
 
 | Status | Rows |
 |---|---|
-| Not started | 36 |
-| In progress | 17 |
+| Not started | 35 |
+| In progress | 18 |
 | Decision needed | 14 |
 | Waiting on you | 13 |
 | Blocked | 5 |
@@ -238,3 +238,4 @@ Newest last. One line per status change; written by `tools/master_list.py set`.
 - 2026-10-30: OWN-16 Waiting on you -> Waiting on you. 2026-10-30: added; run the Connections window and the guided CLI setup on your Windows machine, send screenshots of each CLI page and the first error text
 - 2026-10-30: HT-7 Not started -> Not started. 2026-10-30: added after 'list medical service in Al Maharah' offered no OSM tool (PR 508 fixed that wording)
 - 2026-10-30: LEAD-10 Decision needed -> Decision needed. 2026-10-30: added; no Google-account CLI route since Gemini CLI was removed; needs a real signed-in agy headless check before any code
+- 2026-10-31: HT-7 Not started -> In progress. PLAN-042 steps 1-4 merged (#512 data file and add/check command, #513 and #515 keywords beside each tool, #514 shared concept groups, #516 find_tools uses the phrases, is always offered, rule 56). Still open: the audit itself (replay everyday synonyms per tool family and add the misses as rows with tools/routing_golden.py) and a hand test that a model now calls find_tools (ledger entry find-tools-fallback).
