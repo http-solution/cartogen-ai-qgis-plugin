@@ -113,5 +113,92 @@
       "estimate_population_exposure"
     ],
     "source": "HT-7 audit 2026-10-31"
+  },
+  {
+    "prompt": "which way do the slopes face",
+    "tools": [
+      "aspect_analysis"
+    ],
+    "source": "HT-7 audit round 2 2026-10-31"
+  },
+  {
+    "prompt": "average elevation per district",
+    "tools": [
+      "zonal_statistics"
+    ],
+    "source": "HT-7 audit round 2 2026-10-31"
+  },
+  {
+    "prompt": "how long does it take to drive between the towns",
+    "tools": [
+      [
+        "travel_time_matrix",
+        "calculate_service_area"
+      ]
+    ],
+    "source": "HT-7 audit round 2 2026-10-31"
+  },
+  {
+    "prompt": "assign each village to its nearest warehouse",
+    "tools": [
+      "location_allocation"
+    ],
+    "source": "HT-7 audit round 2 2026-10-31"
+  },
+  {
+    "prompt": "how fast can vehicles drive on these roads",
+    "tools": [
+      "estimate_road_speeds"
+    ],
+    "source": "HT-7 audit round 2 2026-10-31"
+  },
+  {
+    "prompt": "pick everything",
+    "tools": [
+      "select_all_features"
+    ],
+    "source": "HT-7 audit round 2 2026-10-31"
+  },
+  {
+    "prompt": "change the name of this district to Taiz",
+    "tools": [
+      "set_attribute_value"
+    ],
+    "source": "HT-7 audit round 2 2026-10-31"
+  },
+  {
+    "prompt": "combine these two polygons",
+    "tools": [
+      "merge_features"
+    ],
+    "source": "HT-7 audit round 2 2026-10-31"
+  },
+  {
+    "prompt": "show only the districts in Taiz",
+    "tools": [
+      "set_layer_filter"
+    ],
+    "source": "HT-7 audit round 2 2026-10-31"
+  },
+  {
+    "prompt": "let me edit the layer",
+    "tools": [
+      "set_layer_editing"
+    ],
+    "source": "HT-7 audit round 2 2026-10-31"
+  },
+  {
+    "prompt": "colour the clinics by type",
+    "tools": [
+      "apply_categorized_style"
+    ],
+    "source": "HT-7 audit round 2 2026-10-31"
+  },
+  {
+    "prompt": "clean up the layer list",
+    "tools": [
+      "tidy_project_layers"
+    ],
+    "source": "HT-7 audit round 2 2026-10-31"
   }
 ]

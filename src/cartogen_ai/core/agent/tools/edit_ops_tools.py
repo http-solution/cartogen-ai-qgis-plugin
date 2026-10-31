@@ -62,6 +62,8 @@ def _finish(out, owned):
     keywords=[
         "definition query", "set a filter on", "set the filter on", "layer filter", "set the layer filter", "clear the filter",
         "remove the filter", "clear the layer filter", "provider filter", "subset string",
+        "show only the", "only show the", "only the districts in", "filter the layer", "filter the districts",
+        "hide everything except",
     ],
 )
 def set_layer_filter(layer_name, filter=None, clear=False):  # noqa: A002 - the parameter name is the tool's public argument
@@ -154,6 +156,7 @@ def transform_features(layer_name, expression=None, only_selected=False, move_x=
     keywords=[
         "merge the selected features", "merge the features", "merge these features", "union the selected",
         "combine the selected features", "merge features into one", "merge the two features", "merge the selected polygons",
+        "combine these", "combine the polygons", "join these two polygons", "make them one feature", "combine two polygons",
     ],
 )
 def merge_features(layer_name, expression=None, only_selected=False, confirmed=False):
@@ -383,6 +386,7 @@ def change_field_type(layer_name, field, new_type, confirmed=False):
     keywords=[
         "start editing", "toggle editing", "stop editing", "save the edits", "save my edits", "save layer edits",
         "discard the edits", "discard my edits", "discard the changes", "enter edit mode", "leave edit mode",
+        "let me edit", "turn on editing", "edit mode",
     ],
 )
 def set_layer_editing(layer_name, action, confirmed=False):

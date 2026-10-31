@@ -461,6 +461,7 @@ def _reorder_top_level_layers(ordered_layers):
         "different colour for each", "different color for each", "each type in its own colour", "each type in its own color",
         "colour by type", "color by type", "colour each", "color each", "separate colours", "separate colors",
         "categorize the layer", "categorise the layer", "categorized style", "categorised style", "unique values",
+        "colour by", "color by", "by type", "by category", "by class",
     ],
 )
 def apply_categorized_style(layer_name, field, opacity=None, palette=None):

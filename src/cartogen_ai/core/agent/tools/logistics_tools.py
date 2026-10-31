@@ -1048,6 +1048,11 @@ def _greedy_p_median(candidate_distances, demand_weights, num_facilities):
         },
         "required": ["candidate_layer", "demand_layer", "num_facilities"],
     },
+
+    keywords=[
+        "assign each village", "assign each point to", "nearest warehouse", "nearest facility to each", "allocate demand",
+        "assign villages to",
+    ],
 )
 def location_allocation(candidate_layer, demand_layer, num_facilities, weight_field=None):
     if not QGIS_AVAILABLE:
@@ -2448,6 +2453,10 @@ def _with_matrix_options(result, speed_field, closed_segments, direction_field):
         },
         "required": ["origins_layer", "destinations_layer", "road_network_layer"],
     },
+
+    keywords=[
+        "how long does it take to drive", "drive time between", "travel time between", "driving time between", "how far by road",
+    ],
 )
 def travel_time_matrix(origins_layer, destinations_layer, road_network_layer, strategy="shortest", default_speed=50,
                         speed_field=None, direction_field=None,
@@ -3475,6 +3484,10 @@ def _country_speed_overrides(country):
         },
         "required": ["road_network_layer"],
     },
+
+    keywords=[
+        "how fast can vehicles", "speed on the roads", "road speeds", "speed of the roads", "travel speed",
+    ],
 )
 def estimate_road_speeds(road_network_layer, default_speed_kmh=30, overwrite=False, country=None, confirmed: bool = False):
     if not confirmed:

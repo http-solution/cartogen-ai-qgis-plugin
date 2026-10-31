@@ -706,7 +706,12 @@ def slope_analysis(dem_layer, dem_vertical_unit="m"):
     return result
 
 
-@register_tool("aspect_analysis", "Calculate aspect map from DEM layer.", {"type": "object", "properties": {"dem_layer": {"type": "string"}}, "required": ["dem_layer"]})
+@register_tool("aspect_analysis", "Calculate aspect map from DEM layer.", {"type": "object", "properties": {"dem_layer": {"type": "string"}}, "required": ["dem_layer"]},
+    keywords=[
+        "which way do the slopes face", "slopes face", "slope direction", "direction of the slope", "facing direction",
+        "north-facing", "south-facing",
+    ],
+)
 def aspect_analysis(dem_layer):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
@@ -772,7 +777,12 @@ def _zonal_stats_into_layer(raster, polygon_layer):
 
 
 
-@register_tool("zonal_statistics", "Compute zonal statistics of raster over vector polygons.", {"type": "object", "properties": {"raster_layer": {"type": "string"}, "vector_layer": {"type": "string"}}, "required": ["raster_layer", "vector_layer"]})
+@register_tool("zonal_statistics", "Compute zonal statistics of raster over vector polygons.", {"type": "object", "properties": {"raster_layer": {"type": "string"}, "vector_layer": {"type": "string"}}, "required": ["raster_layer", "vector_layer"]},
+    keywords=[
+        "average elevation per", "mean elevation per", "average of the raster per", "raster values per district", "statistics for each district",
+        "per district from the raster",
+    ],
+)
 def zonal_statistics(raster_layer, vector_layer):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}

@@ -145,6 +145,11 @@ def _entries(project):
             "apply": {"type": "boolean", "description": "false (default): report only. true: ask the user to confirm, then hide duplicate copies, restyle population rasters and save scratch layers."},
         },
     },
+
+    keywords=[
+        "clean up the layer list", "tidy the layer list", "tidy up the layers", "clean up the layers", "organise the layers",
+        "organize the layers", "sort out the layers",
+    ],
 )
 def tidy_project_layers(apply=False, confirmed=False):
     if not QGIS_AVAILABLE:
