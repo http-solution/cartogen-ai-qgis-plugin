@@ -124,6 +124,7 @@ def select_by_expression(layer_name, expression, mode="replace"):
     {"type": "object", "properties": {"layer_name": {"type": "string"}}, "required": ["layer_name"]},
     keywords=[
         "select all features", "select everything", "select all the features", "select all records",
+        "pick everything", "select it all", "pick all", "choose everything",
     ],
 )
 def select_all_features(layer_name):
@@ -217,6 +218,7 @@ def delete_features(layer_name, expression=None, only_selected=False, confirmed=
     keywords=[
         "change the value", "set the value", "edit the value", "update the value", "set the field", "change the attribute",
         "edit the attribute", "change the population of", "set its", "update the attribute", "fill the field",
+        "change the name of", "change the value of", "set the value of",
     ],
 )
 def set_attribute_value(layer_name, field, value, feature_id=None, expression=None, confirmed=False):
