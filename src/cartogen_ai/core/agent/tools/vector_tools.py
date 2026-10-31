@@ -262,6 +262,8 @@ def run_query(layer_name, expression):
     keywords=[
         "buffer", "buffers", "distance around", "within a distance of", "area around", "zone around", "radius around",
         "ring around",
+        "shrink the", "grow the", "expand the polygons", "negative buffer", "metres around",
+        "meters around",
     ],
 )
 def buffer_analysis(layer_name, distance, only_selected=False, output_name=None):
@@ -473,6 +475,8 @@ def zoom_to_layer(layer_name):
         "hide the layer", "show the layer", "turn off the layer", "turn on the layer", "make the layer visible",
         "make the layer invisible", "switch off the layer", "switch on the layer", "untick the layer", "tick the layer",
         "hide it", "unhide",
+        "hide the ", "hide layer", "hide a layer", "turn off the ", "turn on the ",
+        "switch off the ", "switch on the ", "layer again", "make it visible", "make the layer visible",
     ],
 )
 def toggle_visibility(layer_name, visible=True):
@@ -1310,6 +1314,8 @@ def apply_labels(layer_name, target_field=None, expression=None, font_size=10, p
 @register_tool("clip_layer", "Clip vector layer by mask layer.", {"type": "object", "properties": {"input_layer": {"type": "string"}, "mask_layer": {"type": "string"}}, "required": ["input_layer", "mask_layer"]},
     keywords=[
         "clip the", "clip layer", "cut the layer to", "crop the layer", "clip to the boundary", "clip by the boundary",
+        "cut the ", "cut out", "trim the ", "crop the", "crop to",
+        "cut to the",
     ],
 )
 def clip_layer(input_layer, mask_layer):
@@ -1682,6 +1688,8 @@ def _compute_field_statistics(values):
     keywords=[
         "statistics of the", "statistics for the", "summary statistics", "basic statistics", "mean of the", "average of the",
         "sum of the", "minimum of", "maximum of", "unique values", "how many unique", "min and max",
+        "average values of", "average of each column", "mean of each column", "summary of the columns", "column statistics",
+        "statistics of each column", "min and max of",
     ],
 )
 def field_statistics(layer_name, field):
@@ -2110,6 +2118,8 @@ def centroid(layer_name):
     keywords=[
         "reproject", "re-project", "change the projection", "transform the layer to", "convert the layer to epsg", "to utm",
         "to epsg", "change the crs of the layer to", "convert to utm",
+        "different coordinate system", "another coordinate system", "other coordinate system", "convert to another crs", "switch the crs",
+        "change the crs",
     ],
 )
 def reproject_layer(layer_name, crs_code):

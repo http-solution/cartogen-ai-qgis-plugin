@@ -974,6 +974,7 @@ def apply_rule_based_style(layer_name, field, rules):
     keywords=[
         "crowded", "crowding", "where people are concentrated", "where most", "concentrated", "density map", "hot spots",
         "hotspots", "busy areas", "clusters of",
+        "heat map", "heatmap", "hot spot map", "hotspot map",
     ],
 )
 def apply_heatmap_style(layer_name, field=None):
