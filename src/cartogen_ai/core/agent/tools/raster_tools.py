@@ -1486,6 +1486,9 @@ def _cell_area_km2(raster):
         },
         "required": ["population_raster_layer", "area_layer"],
     },
+    keywords=[
+        "who lives near", "people living near", "how many people live", "people near the", "population near the",
+    ],
 )
 def estimate_population_exposure(population_raster_layer, area_layer, output_layer_name=None, raster_unit="people_per_cell"):
     if not QGIS_AVAILABLE:

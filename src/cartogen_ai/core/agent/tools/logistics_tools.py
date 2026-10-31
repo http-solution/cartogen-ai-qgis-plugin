@@ -905,6 +905,10 @@ def _rank_hub_candidates(candidate_distances, max_distance=None):
         },
         "required": ["candidate_layer", "demand_layer"],
     },
+    keywords=[
+        "where should we put", "where should i put", "where to put", "where to place", "where should we place",
+        "best location for", "best place for", "best site for", "site a new", "locate a new",
+    ],
 )
 def optimal_hub_siting(candidate_layer, demand_layer, max_distance=None):
     if not QGIS_AVAILABLE:

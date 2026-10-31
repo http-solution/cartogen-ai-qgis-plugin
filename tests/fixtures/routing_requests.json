@@ -29,5 +29,89 @@
       ]
     ],
     "source": "wording variant of the medical report"
+  },
+  {
+    "prompt": "hide the roads layer",
+    "tools": [
+      "toggle_visibility"
+    ],
+    "source": "HT-7 audit 2026-10-31"
+  },
+  {
+    "prompt": "show the districts layer again",
+    "tools": [
+      "toggle_visibility"
+    ],
+    "source": "HT-7 audit 2026-10-31"
+  },
+  {
+    "prompt": "turn off the clinics",
+    "tools": [
+      "toggle_visibility"
+    ],
+    "source": "HT-7 audit 2026-10-31"
+  },
+  {
+    "prompt": "where should we put a new warehouse",
+    "tools": [
+      "optimal_hub_siting"
+    ],
+    "source": "HT-7 audit 2026-10-31"
+  },
+  {
+    "prompt": "best location for a new clinic",
+    "tools": [
+      "optimal_hub_siting"
+    ],
+    "source": "HT-7 audit 2026-10-31"
+  },
+  {
+    "prompt": "make a heat map of the incidents",
+    "tools": [
+      "apply_heatmap_style"
+    ],
+    "source": "HT-7 audit 2026-10-31"
+  },
+  {
+    "prompt": "what are the average values of each column",
+    "tools": [
+      "field_statistics"
+    ],
+    "source": "HT-7 audit 2026-10-31"
+  },
+  {
+    "prompt": "shrink the polygons by 100 metres",
+    "tools": [
+      "buffer_analysis"
+    ],
+    "source": "HT-7 audit 2026-10-31"
+  },
+  {
+    "prompt": "cut the roads with the district boundary",
+    "tools": [
+      "clip_layer"
+    ],
+    "source": "HT-7 audit 2026-10-31"
+  },
+  {
+    "prompt": "crop the raster to the district",
+    "tools": [
+      "clip_layer"
+    ],
+    "source": "HT-7 audit 2026-10-31"
+  },
+  {
+    "prompt": "switch the layer to a different coordinate system",
+    "tools": [
+      "reproject_layer"
+    ],
+    "source": "HT-7 audit 2026-10-31"
+  },
+  {
+    "prompt": "who lives near the flooded area",
+    "tools": [
+      "estimate_population_exposure"
+    ],
+    "source": "HT-7 audit 2026-10-31"
   }
 ]
