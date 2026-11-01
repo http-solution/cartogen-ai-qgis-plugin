@@ -96,6 +96,10 @@ TASK_MANAGEMENT_TOOLS = frozenset({
 # dispatch above would block the QGIS GUI for the duration of the HTTP
 # request(s). Instead, _execute_two_phase_tool runs only the fast QGIS-touching
 # part on the main thread, and the network part on the calling (background) thread.
+# find_tools lookups: schemas kept per lookup and per turn (see AgentOrchestrator._offer_found_tools for the measured reason)
+MAX_FOUND_TOOLS_PER_CALL = 5
+MAX_FOUND_TOOLS_PER_TURN = 12
+
 TWO_PHASE_TOOLS = frozenset({
     "add_layer_from_path", "fetch_geoboundaries", "fetch_hdx_admin_boundaries", "fetch_building_footprints",
     "fetch_worldpop_population", "gemini_grounded_search", "openai_grounded_search",
@@ -1726,14 +1730,25 @@ class CartogenAi:
             return json.dumps({"error": f"Could not serialize tool result: {e}"})
 
     @staticmethod
-    def _offer_found_tools(active_tools, tool_result):
-        """The model asked for tools its list did not cover: offer them for the rest of this turn (bounded, deduplicated)."""
+    def _offer_found_tools(active_tools, tool_result, base_names=None):
+        """The model asked for tools its list did not cover: offer them for the rest of this turn (deduplicated), at most
+        MAX_FOUND_TOOLS_PER_CALL per lookup and MAX_FOUND_TOOLS_PER_TURN over the whole turn. `base_names` is the router's own list
+        for this turn, so the cap counts only what lookups added. Why a cap: a real 24-call run (owner, 2026-11-01: hospitals per
+        district on a printable map) called find_tools five times; every lookup kept up to eight schemas for the rest of the turn, so
+        the tool list grew from 28 to about 65 (about 260 tokens each), every later model call re-sent them, and the turn hit its
+        450,000-token budget before it finished. That is consistent with the run's token use, not proven (no per-call log)."""
         offered = {t.get("function", {}).get("name") for t in active_tools}
-        for wanted in (tool_result.get("tool_names") or [])[:8]:
+        base = set(base_names) if base_names is not None else set(offered)
+        room = MAX_FOUND_TOOLS_PER_TURN - len(offered - base)
+        added = 0
+        for wanted in tool_result.get("tool_names") or []:
+            if added >= room or added >= MAX_FOUND_TOOLS_PER_CALL:     # already-offered names do not count against either limit
+                break
             schema = next((t for t in TOOLS_SCHEMA if t.get("function", {}).get("name") == wanted), None)
             if schema is not None and wanted not in offered:
                 active_tools = [*list(active_tools), schema]
                 offered.add(wanted)
+                added += 1
         return active_tools
 
     @staticmethod
@@ -1868,6 +1883,7 @@ class CartogenAi:
         # even reach, so the router's selection has to exist first. Nothing else depended on the
         # old ordering (confirmed by reading this whole function before reordering it).
         active_tools, _active_tool_names, system_prompt_content = self._prepare_turn_prompt(user_query, map_context)
+        base_tool_names = {t.get("function", {}).get("name") for t in active_tools}     # what the router chose; find_tools additions are capped against it
 
         self._remember_grounding(user_query)
         self._remember_grounding(map_context)
@@ -2013,7 +2029,7 @@ class CartogenAi:
                 guard.record_call(name, arguments, is_error, tool_results.error_of(tool_result) or "",
                                   tool_operations.get_tool_operation_type(name))
                 if name == "find_tools" and not is_error and isinstance(tool_result, dict):
-                    active_tools = self._offer_found_tools(active_tools, tool_result)
+                    active_tools = self._offer_found_tools(active_tools, tool_result, base_tool_names)
                 self._recent_tools = (tuple(dict.fromkeys(n for n, _e, _m in turn_tool_log))[-8:], self._turn_counter)
                 _status = tool_results.status_of(tool_result)
                 if _status in response_guard.NOT_RUN_STATUSES:

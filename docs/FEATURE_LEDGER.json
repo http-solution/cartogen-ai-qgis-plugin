@@ -1769,6 +1769,23 @@
     ],
     "hand_verified": "not verified: CI only, and NOT reviewed by a fluent speaker. The phrases were written by the assistant; spelling, dialect (Yemeni Arabic) and idiom need a native check. Offline the 40 Arabic and French test requests are offered their tools and every phrase offers its own tool; no model was run.",
     "hand_row": "type 'اعرض المستشفيات في تعز' and 'Montre les hôpitaux à Taïz' in the chat: expect the OSM tool to be called (ML-1)"
+  },
+  {
+    "id": "found-tools-capped",
+    "feature": "tools added by find_tools stay bounded: at most 5 schemas per lookup and 12 per turn, counted against the router's own list, so a long request does not carry dozens of extra schemas into every later model call; task 6.02 (hospitals and clinics) now starts with fetch_osm_features",
+    "issues": [],
+    "since": "1.18.6",
+    "sources": [
+      "src/cartogen_ai/core/agent/agent_orchestrator.py",
+      "src/cartogen_ai/core/agent/task_register.json"
+    ],
+    "guards": [
+      "tests/test_found_tools_are_capped.py::TestFoundToolsAreCapped::test_repeated_lookups_stop_at_the_per_turn_limit",
+      "tests/test_found_tools_are_capped.py::TestFoundToolsAreCapped::test_one_lookup_keeps_at_most_the_per_call_limit",
+      "tests/test_found_tools_are_capped.py::TestHospitalTaskFetchesData::test_task_6_02_starts_with_a_data_fetch_tool"
+    ],
+    "hand_verified": "not verified: CI only. The cap is checked offline; whether it brings the owner's 24-call run under the 450,000-token budget is NOT shown (the run's per-call log was not available, so the cause is inferred from the tool list growth and the tokens per call).",
+    "hand_row": "repeat the Taiz request ('hospitals and clinics in Taiz ... printable map with a legend') and note the tool-call count and whether it stops at the token budget (DEF-21)"
   }
  ]
 }
