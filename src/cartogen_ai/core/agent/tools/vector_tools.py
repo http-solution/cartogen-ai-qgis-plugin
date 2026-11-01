@@ -1523,6 +1523,11 @@ def delaunay_triangulation(layer_name):
         },
         "required": ["input_layer", "near_layer"],
     },
+
+    keywords=[
+        "closest health centre", "closest health center", "closest clinic", "nearest clinic", "closest hospital",
+        "nearest hospital", "nearest health", "closest to each", "nearest to each",
+    ],
 )
 def find_nearest_features(input_layer, near_layer, neighbors=1):
     if not QGIS_AVAILABLE:
@@ -1747,6 +1752,7 @@ _SELECT_METHODS = {"new": 0, "add": 1, "remove": 2, "intersect": 3}
         "select by location", "select the points inside", "select points inside", "select features inside",
         "select features within", "select the features within", "select the features that intersect",
         "select features that intersect", "select the ones inside", "intersecting the",
+        "that are over water", "that fall inside the", "that touch the", "that intersect the",
     ],
 )
 def select_by_location(target_layer, reference_layer, predicate="intersects", method="new"):
@@ -2195,6 +2201,7 @@ def select_by_attribute(layer_name, field, value):
         "calculate a field", "calculate the field", "add a field", "new field", "field calculator", "update the field",
         "fill the field", "set the field", "calculate a new field", "with an expression", "using an expression",
         "from an expression", "compute a field", "add a column", "new column",
+        "number them", "unique id", "unique number", "sequential number", "number each",
     ],
 )
 def field_calculator(layer_name, new_field, expression, confirmed: bool = False):

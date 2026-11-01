@@ -59,6 +59,7 @@ LOOK_DESCRIPTIONS = {
         "map the severity phases", "which districts still need a decision", "which units are pending",
         "where the group still has to decide", "map the pending", "colour the phases", "color the phases", "highlight the worst",
         "show the worst", "areas that need help most", "where help is needed most", "most in need on the map",
+        "official colours", "official colors", "official severity scale", "same colours as the", "humanitarian colours",
     ],
 )
 def apply_humanitarian_look(layer_name, look, field, top_k=None):
