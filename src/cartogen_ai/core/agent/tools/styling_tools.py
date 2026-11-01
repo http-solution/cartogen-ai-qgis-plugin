@@ -620,6 +620,7 @@ def _mark_no_data(layer, renderer, field):
         "colour the districts by", "color the districts by", "shade the districts", "darker where", "darker the more",
         "colour by how many", "color by how many", "from light to dark", "light to dark", "darker for higher", "show how much",
         "show how many",
+        "in red on the map", "map of cases per", "map of rates", "choropleth",
     ],
 )
 def apply_graduated_style(layer_name, field, mode="auto", opacity=None, cluster=None, breaks=None, num_classes=5, color_from=None, color_to=None):
@@ -1058,6 +1059,7 @@ def _heatmap_algorithm_id():
     keywords=[
         "dbscan", "density clusters", "clusters of incidents", "hot spots",
         "hotspots", "find hotspots", "cluster analysis",
+        "where they cluster", "where incidents cluster", "where the incidents are concentrated", "clustering of",
     ],
 )
 def hotspot_analysis(point_layer, radius, pixel_size=None, weight_field=None):

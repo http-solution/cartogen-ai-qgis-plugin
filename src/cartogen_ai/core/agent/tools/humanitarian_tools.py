@@ -2164,6 +2164,10 @@ def _keep_or_say_temporary(layer, result):
         },
         "required": ["layer_name", "points"],
     },
+
+    keywords=[
+        "load it as points", "as points on the map", "latitude and longitude columns", "csv with latitude", "csv of villages",
+    ],
 )
 def add_point_layer(layer_name: str, points: list, crs: str | None = None, crs_stated_by_user: bool = False):
     if not QGIS_AVAILABLE:

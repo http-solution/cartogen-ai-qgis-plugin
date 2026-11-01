@@ -648,5 +648,317 @@
       "create_print_layout"
     ],
     "source": "ML-1 Arabic and French 2026-11-01"
+  },
+  {
+    "prompt": "Show me all the hospitals and clinics in Taiz governorate, count how many fall inside each district, colour the districts by that count and put the result on a printable map with a legend.",
+    "tools": [
+      [
+        "ingest_osm_features",
+        "fetch_osm_features"
+      ],
+      [
+        "spatial_join",
+        "find_processing_algorithm",
+        "run_allowlisted_processing_algorithm"
+      ],
+      "apply_graduated_style",
+      "create_print_layout"
+    ],
+    "source": "HT-7 audit round 5 (long multi-step requests) 2026-11-01"
+  },
+  {
+    "prompt": "Download the latest earthquakes and wildfires for Turkey, put them on the map, tell me which provinces are affected most and export a short report I can send to my manager.",
+    "tools": [
+      "fetch_usgs_earthquakes",
+      "fetch_nasa_active_fires",
+      [
+        "generate_report",
+        "generate_spatial_report"
+      ]
+    ],
+    "source": "HT-7 audit round 5 (long multi-step requests) 2026-11-01"
+  },
+  {
+    "prompt": "I have a csv of villages with latitude and longitude, load it as points, join the population from the district layer, then find the villages more than five kilometres from the nearest clinic.",
+    "tools": [
+      [
+        "add_layer_from_path",
+        "add_point_layer"
+      ],
+      [
+        "spatial_join",
+        "join_by_attribute"
+      ],
+      [
+        "population_access_gap",
+        "find_nearest_features",
+        "buffer_analysis"
+      ]
+    ],
+    "source": "HT-7 audit round 5 (long multi-step requests) 2026-11-01"
+  },
+  {
+    "prompt": "Take the flood extent layer, work out how many people live inside it using the worldpop raster, and show the districts with the highest exposure in red on the map and in a table.",
+    "tools": [
+      "estimate_population_exposure",
+      "fetch_worldpop_population",
+      [
+        "apply_graduated_style",
+        "apply_categorized_style"
+      ]
+    ],
+    "source": "HT-7 audit round 5 (long multi-step requests) 2026-11-01"
+  },
+  {
+    "prompt": "Reproject the roads and the districts to UTM 38N, clip the roads to the study area, calculate the total road length per district and export the table to excel.",
+    "tools": [
+      "reproject_layer",
+      "clip_layer",
+      "calculate_length",
+      [
+        "export_layers_to_spreadsheet",
+        "export_to_csv"
+      ]
+    ],
+    "source": "HT-7 audit round 5 (long multi-step requests) 2026-11-01"
+  },
+  {
+    "prompt": "Find the best place to put three new distribution hubs so that most villages are within two hours, then draw the delivery routes from each hub to the villages it serves.",
+    "tools": [
+      "optimal_hub_siting",
+      [
+        "optimize_delivery_route",
+        "location_allocation"
+      ]
+    ],
+    "source": "HT-7 audit round 5 (long multi-step requests) 2026-11-01"
+  },
+  {
+    "prompt": "Get the building footprints for Aden, calculate the area of each building, remove the ones smaller than ten square metres and give me the number of buildings in each neighbourhood.",
+    "tools": [
+      "fetch_building_footprints",
+      "calculate_area",
+      [
+        "select_by_expression",
+        "delete_features"
+      ],
+      [
+        "spatial_join",
+        "find_processing_algorithm"
+      ]
+    ],
+    "source": "HT-7 audit round 5 (long multi-step requests) 2026-11-01"
+  },
+  {
+    "prompt": "Search humanitarian data exchange for the latest cholera cases by district, load the file, join it to the admin boundaries and make a map of cases per ten thousand people.",
+    "tools": [
+      "search_hdx_datasets",
+      "join_by_attribute",
+      "apply_graduated_style"
+    ],
+    "source": "HT-7 audit round 5 (long multi-step requests) 2026-11-01"
+  },
+  {
+    "prompt": "Look at the satellite images from before and after the storm, work out where the water has spread and tell me the area of the flooded cropland in hectares.",
+    "tools": [
+      "search_stac_satellite_imagery",
+      [
+        "calculate_raster_change_detection",
+        "calculate_ndwi"
+      ],
+      [
+        "calculate_area",
+        "zonal_statistics"
+      ]
+    ],
+    "source": "HT-7 audit round 5 (long multi-step requests) 2026-11-01"
+  },
+  {
+    "prompt": "Rank the districts by need using population, food insecurity and access to water, weight food insecurity twice as high, and show the top ten on a map with labels.",
+    "tools": [
+      [
+        "calculate_mcda_ranking",
+        "calculate_severity_index"
+      ],
+      "apply_labels"
+    ],
+    "source": "HT-7 audit round 5 (long multi-step requests) 2026-11-01"
+  },
+  {
+    "prompt": "Make a hillshade and slope map of the study area from the dem, extract the contour lines every twenty metres and put the contours on top of the hillshade with the labels turned on.",
+    "tools": [
+      [
+        "hillshade",
+        "create_shaded_relief"
+      ],
+      "slope_analysis",
+      "generate_contours",
+      "apply_labels"
+    ],
+    "source": "HT-7 audit round 5 (long multi-step requests) 2026-11-01"
+  },
+  {
+    "prompt": "Check the project for layers with missing files, fix the broken paths, make sure all layers have a coordinate system and then save the project and make a backup package for offline use.",
+    "tools": [
+      "find_broken_layers",
+      "repair_layer_source",
+      [
+        "get_crs",
+        "verify_crs_compatibility",
+        "assign_layer_crs"
+      ],
+      "package_layers_offline"
+    ],
+    "source": "HT-7 audit round 5 (long multi-step requests) 2026-11-01"
+  },
+  {
+    "prompt": "Create a layout in A3 landscape with the map, a title, a north arrow, a scale bar and a legend, and then export it as a pdf and as a png image.",
+    "tools": [
+      "create_print_layout",
+      "add_layout_item",
+      "set_layout_page",
+      "export_layout"
+    ],
+    "source": "HT-7 audit round 5 (long multi-step requests) 2026-11-01"
+  },
+  {
+    "prompt": "Take the incident points from the last three months, find where they cluster, tell me whether the number of incidents is going up or down in each district and write the findings up.",
+    "tools": [
+      "hotspot_analysis",
+      [
+        "analyze_incident_trend",
+        "forecast_trend"
+      ],
+      [
+        "generate_report",
+        "generate_spatial_report"
+      ]
+    ],
+    "source": "HT-7 audit round 5 (long multi-step requests) 2026-11-01"
+  },
+  {
+    "prompt": "Split the study area into one kilometre squares for the mappers, remove the squares that are over water and number them so that each mapper gets a unique id.",
+    "tools": [
+      "generate_mapping_task_grid",
+      [
+        "select_by_location",
+        "clip_layer",
+        "difference_layers"
+      ],
+      [
+        "field_calculator",
+        "add_field"
+      ]
+    ],
+    "source": "HT-7 audit round 5 (long multi-step requests) 2026-11-01"
+  },
+  {
+    "prompt": "Check that the place codes in the boundary layer are unique and nest correctly from district up to governorate, and list any codes that are duplicated or missing a parent.",
+    "tools": [
+      "check_pcode_uniqueness",
+      "check_pcode_hierarchy"
+    ],
+    "source": "HT-7 audit round 5 (long multi-step requests) 2026-11-01"
+  },
+  {
+    "prompt": "Mark the layer with the survivor locations as confidential, blur the points so they cannot be identified, and export only the blurred version for sharing with partners.",
+    "tools": [
+      "set_layer_sensitivity",
+      "obfuscate_sensitive_points",
+      "export_layer"
+    ],
+    "source": "HT-7 audit round 5 (long multi-step requests) 2026-11-01"
+  },
+  {
+    "prompt": "Calculate how many people in need there are in each district using the severity phase results, show the districts in the same colours as the official severity scale and print the map.",
+    "tools": [
+      [
+        "calculate_population_in_need",
+        "compute_jiaf_preliminary"
+      ],
+      [
+        "apply_categorized_style",
+        "apply_graduated_style",
+        "apply_humanitarian_look"
+      ],
+      [
+        "create_print_layout",
+        "print_map"
+      ]
+    ],
+    "source": "HT-7 audit round 5 (long multi-step requests) 2026-11-01"
+  },
+  {
+    "prompt": "Where is the closest health centre to each of these twenty villages by road, how long would it take to drive there and which villages are more than an hour away?",
+    "tools": [
+      [
+        "find_nearest_features",
+        "calculate_service_area"
+      ],
+      "travel_time_matrix",
+      "population_access_gap"
+    ],
+    "source": "HT-7 audit round 5 (long multi-step requests) 2026-11-01"
+  },
+  {
+    "prompt": "Close the bridge on the main road, recalculate which villages can still be reached from the hub and tell me which ones become cut off.",
+    "tools": [
+      "apply_network_barriers",
+      "calculate_service_area",
+      "analyze_critical_links"
+    ],
+    "source": "HT-7 audit round 5 (long multi-step requests) 2026-11-01"
+  },
+  {
+    "prompt": "Find news and fact checks about the reported airstrike in Dhale last week, summarise what the sources say and add the location to the map as an incident.",
+    "tools": [
+      [
+        "search_fact_checks",
+        "find_incident_reports",
+        "search_web",
+        "web_research"
+      ],
+      "add_incident_point"
+    ],
+    "source": "HT-7 audit round 5 (long multi-step requests) 2026-11-01"
+  },
+  {
+    "prompt": "Interpolate the rainfall measurements from the stations into a smooth surface, calculate the average rainfall for each district and colour the districts by it.",
+    "tools": [
+      "interpolate_surface",
+      "zonal_statistics",
+      "apply_graduated_style"
+    ],
+    "source": "HT-7 audit round 5 (long multi-step requests) 2026-11-01"
+  },
+  {
+    "prompt": "Merge the three district layers into one, dissolve them by governorate, simplify the boundaries so the file is smaller and save the result as a geopackage.",
+    "tools": [
+      "merge_layers",
+      "dissolve_layer",
+      "simplify_geometry",
+      [
+        "save_layer_as",
+        "export_layer"
+      ]
+    ],
+    "source": "HT-7 audit round 5 (long multi-step requests) 2026-11-01"
+  },
+  {
+    "prompt": "Classify the sentinel image into water, vegetation and built-up using training polygons, and calculate how much of each class is inside each district.",
+    "tools": [
+      "supervised_classification",
+      "zonal_statistics"
+    ],
+    "source": "HT-7 audit round 5 (long multi-step requests) 2026-11-01"
+  },
+  {
+    "prompt": "Every week check for new fires within fifty kilometres of the camp and tell me if there are any, and stop the check when the camp closes.",
+    "tools": [
+      "schedule_recurring_workflow",
+      "fetch_nasa_active_fires",
+      "stop_recurring_workflow"
+    ],
+    "source": "HT-7 audit round 5 (long multi-step requests) 2026-11-01"
   }
 ]

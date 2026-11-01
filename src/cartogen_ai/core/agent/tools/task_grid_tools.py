@@ -211,6 +211,7 @@ def _raster_sums(cells_metric, raster_layer, metric):
     keywords=[
         "tasking manager", "mapping task", "task grid", "mapswipe", "remote mapping", "crowd mapping", "mapathon",
         "split the area into", "divide the area into",
+        "squares for the mappers", "kilometre squares", "kilometer squares", "km squares", "grid for the mappers",
     ],
 )
 def generate_mapping_task_grid(aoi_layer, cell_size_m=2000, priority_points_layer=None, population_raster_layer=None,

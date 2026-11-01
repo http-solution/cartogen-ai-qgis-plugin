@@ -36,7 +36,7 @@ class TestRoutingRequestsData(unittest.TestCase):
                     self.assertIn(name, registered, row["prompt"])
 
     def test_size_pin(self):
-        self.assertGreaterEqual(len(ROWS), 91)  # raise when you add rows; never lower it without a stated reason
+        self.assertGreaterEqual(len(ROWS), 116)  # raise when you add rows; never lower it without a stated reason
 
 
 if __name__ == "__main__":

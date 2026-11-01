@@ -96,6 +96,7 @@ def _unsaved_note(owned):
         "select by expression", "select with an expression", "select where", "select all features where",
         "select the features where", "add to the selection", "remove from the selection", "narrow the selection",
         "select features with",
+        "remove the ones smaller than", "remove those smaller than", "remove the ones larger than", "remove the small", "drop the ones",
     ],
 )
 def select_by_expression(layer_name, expression, mode="replace"):

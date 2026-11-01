@@ -280,6 +280,7 @@ def set_project_crs(crs):
     keywords=[
         "assign projection", "assign the crs", "assign crs", "layer has no crs", "wrong crs on the layer", "set the layer crs",
         "set the crs of the layer", "define the crs",
+        "have a coordinate system", "layers have a crs", "missing coordinate system", "no coordinate system",
     ],
 )
 def assign_layer_crs(layer_name, crs, confirmed=False):

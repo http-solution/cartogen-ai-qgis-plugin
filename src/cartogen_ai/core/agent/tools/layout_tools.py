@@ -639,6 +639,10 @@ def _remember_profile(layout, profile, name=None):
         },
         "required": ["title"],
     },
+
+    keywords=[
+        "printable map", "print the map", "printed map", "map for printing", "map with a legend",
+    ],
 )
 def create_print_layout(title: str, page_orientation: str | None = None, output_path: str = "", dpi: int | None = None, body_text: str = "", zoom_to_layer: str = "", include_inset_map: bool = True, template: str = "standard", key_figures=None, sources=None, key_figures_from=None, confirmed: bool = False, preset: str | None = None, output_format: str = "pdf", page_size: str | None = None, profile: str | None = None):
     requested_output = output_path

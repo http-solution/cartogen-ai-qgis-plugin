@@ -2456,6 +2456,7 @@ def _with_matrix_options(result, speed_field, closed_segments, direction_field):
 
     keywords=[
         "how long does it take to drive", "drive time between", "travel time between", "driving time between", "how far by road",
+        "how long would it take to drive", "how long it takes to drive", "how long to drive", "time to drive",
     ],
 )
 def travel_time_matrix(origins_layer, destinations_layer, road_network_layer, strategy="shortest", default_speed=50,
@@ -3097,6 +3098,7 @@ def _style_reach_figures(figures, headline, facility_layer):
         "cash assistance", "voucher assistance", "cash and voucher", "cva feasib", "cva viable",
         "communities are far from", "far from clinics", "far from hospitals", "far from health", "no clinic nearby",
         "without a clinic", "underserved communities",
+        "hour away", "hours away", "more than an hour", "too far from", "longer than an hour",
     ],
 )
 def population_access_gap(facility_layer, road_network_layer, population_raster_layer, area_layer, travel_cost, strategy="shortest", default_speed=50,

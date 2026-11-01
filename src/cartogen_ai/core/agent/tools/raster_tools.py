@@ -781,6 +781,8 @@ def _zonal_stats_into_layer(raster, polygon_layer):
     keywords=[
         "average elevation per", "mean elevation per", "average of the raster per", "raster values per district", "statistics for each district",
         "per district from the raster",
+        "average rainfall for each", "average for each district", "mean for each district", "average per district", "how much of each class",
+        "area of each class",
     ],
 )
 def zonal_statistics(raster_layer, vector_layer):
@@ -877,7 +879,11 @@ def unsupervised_classification(layer_name, num_classes, seed=0):
         return {"error": f"unsupervised_classification failed: {e}"}
 
 
-@register_tool("supervised_classification", "Supervised classification using training polygons.", {"type": "object", "properties": {"layer_name": {"type": "string"}, "training_layer": {"type": "string"}}, "required": ["layer_name", "training_layer"]})
+@register_tool("supervised_classification", "Supervised classification using training polygons.", {"type": "object", "properties": {"layer_name": {"type": "string"}, "training_layer": {"type": "string"}}, "required": ["layer_name", "training_layer"]},
+    keywords=[
+        "training polygons", "training areas", "training samples", "classify the sentinel image", "classify the image into",
+    ],
+)
 def supervised_classification(layer_name, training_layer):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
