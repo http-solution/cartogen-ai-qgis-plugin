@@ -170,6 +170,11 @@ def apply_recommended_representation(layer_name: str, representation_id: str, ta
         },
         "required": ["layer_name"],
     },
+
+    keywords=[
+        "why does the map look", "why is the map", "explain the map", "explain the symbology", "why are the colours",
+        "why are the colors",
+    ],
 )
 def explain_current_representation(layer_name: str) -> dict[str, Any]:
     layer = _get_layer(layer_name)

@@ -1057,6 +1057,7 @@ def _heatmap_algorithm_id():
     },
     keywords=[
         "dbscan", "density clusters", "clusters of incidents", "hot spots",
+        "hotspots", "find hotspots", "cluster analysis",
     ],
 )
 def hotspot_analysis(point_layer, radius, pixel_size=None, weight_field=None):

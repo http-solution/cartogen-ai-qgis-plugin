@@ -78,6 +78,11 @@ def _derive_sidecar_path(layer, output_path):
         "properties": {"layer_name": {"type": "string"}},
         "required": ["layer_name"],
     },
+
+    keywords=[
+        "where does the data come from", "where does this data come from", "where did this data come from", "source of this layer", "layer's data come from",
+        "who made this data", "where is this layer from",
+    ],
 )
 def get_provenance_record(layer_name):
     if not QGIS_AVAILABLE:
