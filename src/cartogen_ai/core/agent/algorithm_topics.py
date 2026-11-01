@@ -172,9 +172,13 @@ ANALYSIS_VERBS = re.compile(
     r"find|identif\w*|convert\w*|reclassif\w*|resampl\w*|reproject\w*|rasteri[sz]\w*|vectori[sz]\w*|cluster\w*|dissolv\w*|"
     r"smooth\w*|simplif\w*|merg\w*|union|intersect\w*)\b", re.IGNORECASE)
 STRONG_SCORE = 8.0
-# Tasks whose tools only load and style existing data: they cannot do the computation the request asks for.
+# Tasks whose tools only load, fetch and style existing data: they cannot do the computation the request asks for. The fetch tools are
+# here because TR-1 (2026-11-01) put one at the front of the 'Map ...' tasks: "Create thiessen polygons around the health facilities" went back
+# to matching "Map health facilities" the moment that task started with fetch_osm_features.
 DISPLAY_ONLY_TOOLS = frozenset({"add_layer_from_path", "apply_categorized_style", "apply_graduated_style", "zoom_to_layer",
-                                "add_basemap", "get_layers", "style_layer", "apply_single_style"})
+                                "add_basemap", "get_layers", "style_layer", "apply_single_style",
+                                "fetch_osm_features", "search_hdx_datasets", "fetch_gdacs_disaster_alerts",
+                                "fetch_worldpop_population", "fetch_nasa_active_fires"})
 
 
 def computation_request(query, task_tools=()):

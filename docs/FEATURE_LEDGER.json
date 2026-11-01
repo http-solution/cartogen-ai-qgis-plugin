@@ -1889,6 +1889,26 @@
     ],
     "hand_verified": "not verified: CI only (scripted fake model client). Whether a real model writes an honest account when its tools are taken away is NOT shown; the nudge text asks it to say what is finished and what is not, and the existing reconcile note about failed tool calls is still appended. Side effect to know: a turn that would have used its very last round for one more tool call now spends that round on an answer instead.",
     "hand_row": "repeat the Taiz request; if it reaches the tool-call limit or Overpass is down, check the final message says what exists on the map and what is missing, instead of a bare [Agent stopped]"
+  },
+  {
+    "id": "map-tasks-start-with-a-fetch-tool",
+    "feature": "162 of the 'Map ...' tasks in the task register now begin their tool order with a data-fetch tool that fits the subject (fetch_osm_features for physical features such as facilities, water points, markets and routes; search_hdx_datasets for data-themed subjects such as disease, hazards, conflict and food security; fetch_gdacs_disaster_alerts, fetch_worldpop_population and fetch_nasa_active_fires for three specific ones), derived by tools/derive_task_fetch.py; assessments of features (damage, status, capacity, coverage) and 97 subjects with no honest fit are left alone",
+    "issues": [],
+    "since": "1.18.6",
+    "sources": [
+      "tools/derive_task_fetch.py",
+      "src/cartogen_ai/core/agent/task_register.json",
+      "src/cartogen_ai/core/agent/algorithm_topics.py"
+    ],
+    "guards": [
+      "tests/test_task_fetch_tools.py::TestTaskFetchTools::test_the_committed_register_matches_the_derivation",
+      "tests/test_task_fetch_tools.py::TestTaskFetchTools::test_every_added_tool_is_a_registered_tool",
+      "tests/test_task_fetch_tools.py::TestTaskFetchTools::test_most_map_tasks_now_have_a_fetch_tool",
+      "tests/test_task_fetch_tools.py::TestTaskFetchTools::test_assessments_of_features_are_not_sent_to_openstreetmap",
+      "tests/test_task_fetch_tools.py::TestTaskFetchTools::test_a_fetch_and_show_task_still_cannot_answer_a_computation"
+    ],
+    "hand_verified": "not verified: CI only. The rules are keyword heuristics over the task titles, reviewed by reading the 76 OpenStreetMap and 82 HDX matches (a few are debatable, e.g. 'hazard-prone settlements', 'households with disabilities'); whether the model then fetches the data and does it well is NOT shown. search_hdx_datasets finds a dataset but the user may still need to pick one.",
+    "hand_row": "ask 'map water points in <district>' and 'map cholera cases in <governorate>' and check the task card's tool order starts with fetch_osm_features / search_hdx_datasets and the model fetches instead of asking for a file"
   }
  ]
 }
