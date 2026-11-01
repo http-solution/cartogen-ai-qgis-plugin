@@ -1871,6 +1871,24 @@
     ],
     "hand_verified": "not verified: CI only. The text is unit-tested; the live test runs the real algorithms but was written without a QGIS install (its first run is CI). The cause of the owner's two 0-feature results in the Taiz run is NOT known (the log held no arguments); this only makes the next occurrence explain itself.",
     "hand_row": "repeat the Taiz request; if an extraction returns 0 features, check the reply's why_empty names the values or the CRS mismatch"
+  },
+  {
+    "id": "turn-wrap-up-answer-round",
+    "feature": "a request ends with an answer, not a bare stop: the last allowed round (when the cap is 4 or more) is a tool-less answer round that says what is finished and what is not, a tool result flagged retryable_later (data source down) triggers one tool-less answer round, and the stop text at the round cap lists what was done",
+    "issues": [],
+    "since": "1.18.6",
+    "sources": [
+      "src/cartogen_ai/core/agent/agent_orchestrator.py",
+      "src/cartogen_ai/core/agent/loop_guard.py"
+    ],
+    "guards": [
+      "tests/test_turn_wrap_up.py::TestTurnWrapUp::test_the_last_round_is_an_answer_round_with_no_tools",
+      "tests/test_turn_wrap_up.py::TestTurnWrapUp::test_a_tiny_cap_has_no_wrap_up_round",
+      "tests/test_turn_wrap_up.py::TestTurnWrapUp::test_a_data_source_that_is_down_ends_the_turn_with_one_answer_round",
+      "tests/test_turn_wrap_up.py::TestTurnWrapUp::test_pure_helpers"
+    ],
+    "hand_verified": "not verified: CI only (scripted fake model client). Whether a real model writes an honest account when its tools are taken away is NOT shown; the nudge text asks it to say what is finished and what is not, and the existing reconcile note about failed tool calls is still appended. Side effect to know: a turn that would have used its very last round for one more tool call now spends that round on an answer instead.",
+    "hand_row": "repeat the Taiz request; if it reaches the tool-call limit or Overpass is down, check the final message says what exists on the map and what is missing, instead of a bare [Agent stopped]"
   }
  ]
 }

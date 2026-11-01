@@ -128,6 +128,41 @@ def budget_exceeded(turn_tokens, budget, next_call_estimate=None):
     return (turn_tokens + (next_call_estimate or 0)) > budget
 
 
+# DEF-21 (owner's Taiz run, 2026-11-01): the turn ended at the tool-call limit with a generic "[Agent stopped]" and the user got no account of
+# what existed on the map. The LAST round is now kept for a tool-less answer, and a data source that is down ends the turn the same way.
+LAST_ROUND_NUDGE = (
+    "This is the last step allowed for this request: no more tools can be called. Answer now from the results above. Say plainly what is "
+    "finished and what is not (layers created, values found, steps not reached), name any layer the user can already use, and say what to "
+    "ask for next. Do not claim anything the results do not show.")
+DATA_SOURCE_DOWN_NUDGE = (
+    "A data source the request needs is temporarily unavailable (the tool said so). Do not call any more tools and do not rebuild the data "
+    "another way. Answer now: say what is finished, what could not be done and why, and suggest trying again in a few minutes or loading "
+    "the user's own layer. Do not claim anything the results do not show.")
+
+
+def last_round_due(iteration_index, max_rounds):
+    """True on the final allowed round of a turn that has room for a real wrap-up (4 or more rounds). Pure."""
+    return bool(max_rounds and max_rounds >= 4 and iteration_index == max_rounds - 1)
+
+
+def data_source_down(tool_result):
+    """True when a tool result says its data source is temporarily unavailable (the `retryable_later` flag ingest_osm_features sets
+    after its retries and mirrors fail). Pure."""
+    return isinstance(tool_result, dict) and tool_result.get("retryable_later") is True
+
+
+def answer_round_due(iteration_index, max_rounds, data_source_is_down, already_sent=False):
+    """(nudge, log status) when the next model call should be a tool-less answer round, else None. A data source that is down comes
+    first (the tool already told the model to stop), then the last allowed round; never twice in one turn. Pure."""
+    if already_sent:
+        return None
+    if data_source_is_down:
+        return DATA_SOURCE_DOWN_NUDGE, "data_source_down_wrap_up"
+    if last_round_due(iteration_index, max_rounds):
+        return LAST_ROUND_NUDGE, "last_round_wrap_up"
+    return None
+
+
 WRAP_UP_NUDGE = (
     "You have gathered what you can with the tools. Do not call any more tools. Answer the user's request now from the results above: "
     "state what you found, name the sources (titles or URLs) you actually received, and say plainly what you could not find or "
