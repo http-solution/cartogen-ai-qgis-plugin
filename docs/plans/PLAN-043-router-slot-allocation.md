@@ -1,6 +1,6 @@
 # PLAN-043: How the router fills its 28 slots (proposal, not built)
 
-Status: measured, B and C built and NOT shipped (no measured benefit); the cause is vocabulary, see the status log
+Status: in progress
 
 ## Goal
 A long request with several steps ("count the clinics per district, colour the districts by the count, put it on a printable map") is offered a tool for EVERY step, not only for the step that happens to score highest. Today that depends on which tools win ties, and on phrases patched one wording at a time (PLAN-042 rounds 1 to 5: 271 requests, 60 misses fixed). This plan proposes changing how slots are filled so the misses stop appearing, and says how to prove it before and after.
