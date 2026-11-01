@@ -1750,6 +1750,25 @@
     ],
     "hand_verified": "not verified: CI only. Offline the ranking and the offer are checked; whether a model now calls find_tools instead of refusing (rule 56) is unproven and needs a real run.",
     "hand_row": "'list medical service in Al Maharah' in the chat with a CLI or API connection (OWN-16 list): expect a find_tools call, then ingest_osm_features or a geocoder"
+  },
+  {
+    "id": "arabic-french-routing-phrases",
+    "feature": "Arabic and French everyday requests for the 59 most used tools are offered those tools: phrases live in core/services/routing_languages.json (one table per language, for a fluent reviewer) and are matched after folding French accents and Arabic spelling variants (alef forms, ta marbuta, diacritics) on both sides",
+    "issues": [],
+    "since": "1.18.6",
+    "sources": [
+      "src/cartogen_ai/core/services/tool_router.py",
+      "src/cartogen_ai/core/services/routing_languages.json"
+    ],
+    "guards": [
+      "tests/test_tool_keywords.py::TestLanguagePhrases::test_an_arabic_or_french_request_is_offered_its_tool_and_english_is_unchanged",
+      "tests/test_tool_keywords.py::TestLanguagePhrases::test_folding_makes_spelling_variants_meet",
+      "tests/test_tool_keywords.py::TestLanguagePhrases::test_every_tool_is_registered_and_every_phrase_is_long_enough_once_folded",
+      "tests/test_routing_requests_data.py::TestRoutingRequestsData::test_every_request_is_offered_its_tools",
+      "tests/test_tool_router_basics.py::TestEveryAliasStillOffersItsOwnTool::test_each_alias_phrase_offers_the_tool_it_belongs_to"
+    ],
+    "hand_verified": "not verified: CI only, and NOT reviewed by a fluent speaker. The phrases were written by the assistant; spelling, dialect (Yemeni Arabic) and idiom need a native check. Offline the 40 Arabic and French test requests are offered their tools and every phrase offers its own tool; no model was run.",
+    "hand_row": "type 'اعرض المستشفيات في تعز' and 'Montre les hôpitaux à Taïz' in the chat: expect the OSM tool to be called (ML-1)"
   }
  ]
 }

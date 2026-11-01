@@ -6,9 +6,11 @@ to prevent LLM system prompt context overload.
 
 import contextlib
 import difflib
+import functools
 import json
 import os
 import re
+import unicodedata
 
 
 # Curated phrase synonyms for tools whose real-world paraphrases don't share
@@ -62,6 +64,30 @@ def expand_phrases(phrases):
     return tuple(out)
 
 
+_LANGUAGES_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "routing_languages.json")
+_languages_cache: dict = {}
+# Arabic spellings that vary between writers: alef maqsura / ya, ta marbuta / ha, tatweel. Harakat and the hamza on an alef are combining
+# marks, removed by the accent strip below, so "أين" and "اين", "مستشفى" and "مستشفي" meet at the same folded text.
+_FOLD_TABLE = str.maketrans({"\u0649": "\u064a", "\u0629": "\u0647", "\u0640": ""})
+
+
+@functools.cache
+def fold(text):
+    """Lower-case, accent-free, Arabic-spelling-tolerant form of a phrase or request, used on BOTH sides of a phrase match, so French
+    accents ("hôpital" / "hopital") and Arabic diacritics or alef forms do not decide whether a phrase hits. English text is unaffected."""
+    decomposed = unicodedata.normalize("NFKD", text.lower())
+    return "".join(c for c in decomposed if not unicodedata.combining(c)).translate(_FOLD_TABLE)
+
+
+def _language_phrases(name):
+    """Arabic and French phrases for a tool from routing_languages.json ({"ar": {tool: [phrases]}, "fr": {...}}); a fluent reviewer can edit
+    one file per language. Empty if the file cannot be read."""
+    if not _languages_cache:
+        with contextlib.suppress(Exception), open(_LANGUAGES_PATH, encoding="utf-8") as handle:
+            _languages_cache.update(json.load(handle))
+    return tuple(p for table in _languages_cache.values() for p in table.get(name, ()))
+
+
 def _declared_keywords(name):
     """Phrases a tool declares beside its own @register_tool (PLAN-042 step 2), concept references expanded; empty if the registry is
     unavailable."""
@@ -73,12 +99,15 @@ def _declared_keywords(name):
 
 def routing_phrases(name):
     """Every curated phrase for a tool: its declared keywords plus any in _TOOL_ALIASES, concept references expanded."""
-    return (*expand_phrases(_TOOL_ALIASES.get(name, ())), *_declared_keywords(name))
+    return (*expand_phrases(_TOOL_ALIASES.get(name, ())), *_declared_keywords(name), *_language_phrases(name))
 
 
 def routing_phrase_tools():
     """Names of the tools that have at least one curated phrase."""
     names = set(_TOOL_ALIASES)
+    _language_phrases("")    # loads the language file
+    for table in _languages_cache.values():
+        names |= set(table)
     with contextlib.suppress(Exception):
         from ..agent.tools.registry import TOOL_KEYWORDS
         names |= set(TOOL_KEYWORDS)
@@ -249,7 +278,7 @@ def _score_tool(name, desc, query_words, long_query, alias_query_lower, algorith
 
     # Curated alias/synonym match score
     for alias in routing_phrases(name):
-        if alias in alias_query_lower:
+        if fold(alias) in alias_query_lower:
             score += _ALIAS_MATCH_SCORE
     if algorithm_topic_match and name in _PROCESSING_GENERIC_TOOLS:
         score += _ALIAS_MATCH_SCORE
@@ -278,7 +307,7 @@ class ToolRouter:
         # Alias matching only -- see _FUZZY_TYPO_VOCAB's docstring. Never touches query_words
         # itself, so name/description scoring (and every existing test asserting on it) is
         # unaffected; only the alias substring check below sees the corrected words.
-        alias_query_lower = _expand_query_with_fuzzy_corrections(query_words, query_lower)
+        alias_query_lower = fold(_expand_query_with_fuzzy_corrections(query_words, query_lower))
 
         # Tools explicitly requested by exact name in user_query/follow-up prompt get guaranteed inclusion
         explicit_tool_names = {

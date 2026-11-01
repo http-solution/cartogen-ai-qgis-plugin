@@ -5,7 +5,7 @@ import unittest
 from cartogen_ai.core.agent.tools import TOOLS_SCHEMA
 from cartogen_ai.core.agent.tools.registry import TOOL_KEYWORDS
 from cartogen_ai.core.services import tool_router
-from cartogen_ai.core.services.tool_router import _TOOL_ALIASES, ToolRouter, _concepts, expand_phrases
+from cartogen_ai.core.services.tool_router import _TOOL_ALIASES, ToolRouter, _concepts, expand_phrases, fold
 
 
 class TestToolKeywords(unittest.TestCase):
@@ -68,6 +68,58 @@ class TestConceptGroups(unittest.TestCase):
         for name in ("geocode_and_enrich", "geocode_batch", "ingest_osm_features"):
             self.assertLessEqual(group, set(tool_router._declared_keywords(name)), name)
         self.assertEqual(expand_phrases(["concept:no_such_group", "x"]), ("x",))
+
+
+class TestLanguagePhrases(unittest.TestCase):
+    """ML-1: Arabic and French phrases for the top tools (core/services/routing_languages.json), matched after folding accents and Arabic spellings."""
+
+    @classmethod
+    def setUpClass(cls):
+        import json
+        path = tool_router._LANGUAGES_PATH
+        with open(path, encoding="utf-8") as handle:
+            cls.table = json.load(handle)
+
+    def test_both_languages_are_present_and_cover_the_same_tools(self):
+        self.assertEqual(set(self.table), {"ar", "fr"})
+        self.assertEqual(set(self.table["ar"]), set(self.table["fr"]))
+        self.assertGreaterEqual(len(self.table["ar"]), 50)
+
+    def test_every_tool_is_registered_and_every_phrase_is_long_enough_once_folded(self):
+        registered = {t["function"]["name"] for t in TOOLS_SCHEMA}
+        for lang, tools in self.table.items():
+            for name, phrases in tools.items():
+                self.assertIn(name, registered, f"{lang}: {name}")
+                self.assertTrue(phrases, f"{lang}: {name}")
+                for phrase in phrases:
+                    # a 2-letter Arabic root would match inside unrelated words
+                    self.assertGreaterEqual(len(fold(phrase).strip()), 3, f"{lang} {name}: {phrase!r}")
+
+    def test_arabic_phrases_are_arabic_and_french_phrases_are_not(self):
+        arabic = lambda text: any("\u0600" <= c <= "\u06ff" for c in text)   # noqa: E731
+        for phrases in self.table["ar"].values():
+            for phrase in phrases:
+                self.assertTrue(arabic(phrase) or phrase.isascii(), phrase)   # 'csv' and 'pdf' stay Latin inside Arabic phrases
+        for phrases in self.table["fr"].values():
+            for phrase in phrases:
+                self.assertFalse(arabic(phrase), phrase)
+
+    def test_folding_makes_spelling_variants_meet(self):
+        self.assertEqual(fold("أين"), fold("اين"))
+        self.assertEqual(fold("مستشفى"), fold("مستشفي"))
+        self.assertEqual(fold("المنطقة"), fold("المنطقه"))
+        self.assertEqual(fold("Hôpitaux"), fold("hopitaux"))
+        self.assertEqual(fold("English text stays"), "english text stays")
+
+    def test_the_language_phrases_reach_the_merged_phrase_list(self):
+        self.assertIn("masquer la couche", tool_router.routing_phrases("toggle_visibility"))
+        self.assertIn("calculate_area", tool_router.routing_phrase_tools())
+
+    def test_an_arabic_or_french_request_is_offered_its_tool_and_english_is_unchanged(self):
+        router = ToolRouter(TOOLS_SCHEMA)
+        for query, need in (("اعرض المستشفيات في تعز", "ingest_osm_features"), ("Montre les hôpitaux à Taïz", "ingest_osm_features"),
+                            ("هل هناك زلازل اليوم", "fetch_usgs_earthquakes"), ("masquer la couche des routes", "toggle_visibility")):
+            self.assertIn(need, {t["function"]["name"] for t in router.filter_relevant_tools(query)}, query)
 
 
 if __name__ == "__main__":

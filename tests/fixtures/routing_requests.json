@@ -368,5 +368,285 @@
       "population_access_gap"
     ],
     "source": "HT-7 audit round 4 2026-11-01"
+  },
+  {
+    "prompt": "اعرض المستشفيات في تعز",
+    "tools": [
+      "ingest_osm_features"
+    ],
+    "source": "ML-1 Arabic and French 2026-11-01"
+  },
+  {
+    "prompt": "أخف طبقة الطرق",
+    "tools": [
+      "toggle_visibility"
+    ],
+    "source": "ML-1 Arabic and French 2026-11-01"
+  },
+  {
+    "prompt": "احسب المساحة لكل منطقة",
+    "tools": [
+      "calculate_area"
+    ],
+    "source": "ML-1 Arabic and French 2026-11-01"
+  },
+  {
+    "prompt": "ابحث عن بيانات إنسانية عن الكوليرا",
+    "tools": [
+      "search_hdx_datasets"
+    ],
+    "source": "ML-1 Arabic and French 2026-11-01"
+  },
+  {
+    "prompt": "أين تقع صنعاء",
+    "tools": [
+      "geocode_and_enrich"
+    ],
+    "source": "ML-1 Arabic and French 2026-11-01"
+  },
+  {
+    "prompt": "اعمل خريطة حرارية للحوادث",
+    "tools": [
+      "apply_heatmap_style"
+    ],
+    "source": "ML-1 Arabic and French 2026-11-01"
+  },
+  {
+    "prompt": "هل هناك زلازل اليوم",
+    "tools": [
+      "fetch_usgs_earthquakes"
+    ],
+    "source": "ML-1 Arabic and French 2026-11-01"
+  },
+  {
+    "prompt": "أين توجد الحرائق النشطة",
+    "tools": [
+      "fetch_nasa_active_fires"
+    ],
+    "source": "ML-1 Arabic and French 2026-11-01"
+  },
+  {
+    "prompt": "صدر الطبقة إلى ملف csv",
+    "tools": [
+      "export_to_csv"
+    ],
+    "source": "ML-1 Arabic and French 2026-11-01"
+  },
+  {
+    "prompt": "غير نظام الإحداثيات للطبقة",
+    "tools": [
+      "reproject_layer"
+    ],
+    "source": "ML-1 Arabic and French 2026-11-01"
+  },
+  {
+    "prompt": "دمج الطبقات في طبقة واحدة",
+    "tools": [
+      "merge_layers"
+    ],
+    "source": "ML-1 Arabic and French 2026-11-01"
+  },
+  {
+    "prompt": "أضف عمود جديد للجدول",
+    "tools": [
+      "add_field"
+    ],
+    "source": "ML-1 Arabic and French 2026-11-01"
+  },
+  {
+    "prompt": "أفضل موقع لمستودع جديد",
+    "tools": [
+      "optimal_hub_siting"
+    ],
+    "source": "ML-1 Arabic and French 2026-11-01"
+  },
+  {
+    "prompt": "اقصر طريق للتوزيع بين القرى",
+    "tools": [
+      "optimize_delivery_route"
+    ],
+    "source": "ML-1 Arabic and French 2026-11-01"
+  },
+  {
+    "prompt": "تراجع عن آخر عملية",
+    "tools": [
+      "undo_last_operation"
+    ],
+    "source": "ML-1 Arabic and French 2026-11-01"
+  },
+  {
+    "prompt": "احفظ المشروع",
+    "tools": [
+      "save_project"
+    ],
+    "source": "ML-1 Arabic and French 2026-11-01"
+  },
+  {
+    "prompt": "نقاط ساخنة للحوادث",
+    "tools": [
+      "hotspot_analysis"
+    ],
+    "source": "ML-1 Arabic and French 2026-11-01"
+  },
+  {
+    "prompt": "الحدود الإدارية لليمن",
+    "tools": [
+      "fetch_hdx_admin_boundaries"
+    ],
+    "source": "ML-1 Arabic and French 2026-11-01"
+  },
+  {
+    "prompt": "كم شخصا يعيش قرب منطقة الفيضان",
+    "tools": [
+      "estimate_population_exposure"
+    ],
+    "source": "ML-1 Arabic and French 2026-11-01"
+  },
+  {
+    "prompt": "خريطة قابلة للطباعة",
+    "tools": [
+      "create_print_layout"
+    ],
+    "source": "ML-1 Arabic and French 2026-11-01"
+  },
+  {
+    "prompt": "Montre les hôpitaux à Taïz",
+    "tools": [
+      "ingest_osm_features"
+    ],
+    "source": "ML-1 Arabic and French 2026-11-01"
+  },
+  {
+    "prompt": "masquer la couche des routes",
+    "tools": [
+      "toggle_visibility"
+    ],
+    "source": "ML-1 Arabic and French 2026-11-01"
+  },
+  {
+    "prompt": "calculer la superficie de chaque district",
+    "tools": [
+      "calculate_area"
+    ],
+    "source": "ML-1 Arabic and French 2026-11-01"
+  },
+  {
+    "prompt": "chercher des données humanitaires sur le choléra",
+    "tools": [
+      "search_hdx_datasets"
+    ],
+    "source": "ML-1 Arabic and French 2026-11-01"
+  },
+  {
+    "prompt": "où se trouve Sanaa",
+    "tools": [
+      "geocode_and_enrich"
+    ],
+    "source": "ML-1 Arabic and French 2026-11-01"
+  },
+  {
+    "prompt": "faire une carte de chaleur des incidents",
+    "tools": [
+      "apply_heatmap_style"
+    ],
+    "source": "ML-1 Arabic and French 2026-11-01"
+  },
+  {
+    "prompt": "y a-t-il des tremblements de terre aujourd'hui",
+    "tools": [
+      "fetch_usgs_earthquakes"
+    ],
+    "source": "ML-1 Arabic and French 2026-11-01"
+  },
+  {
+    "prompt": "montre les incendies actifs",
+    "tools": [
+      "fetch_nasa_active_fires"
+    ],
+    "source": "ML-1 Arabic and French 2026-11-01"
+  },
+  {
+    "prompt": "exporter la couche en csv",
+    "tools": [
+      "export_to_csv"
+    ],
+    "source": "ML-1 Arabic and French 2026-11-01"
+  },
+  {
+    "prompt": "changer la projection de la couche",
+    "tools": [
+      "reproject_layer"
+    ],
+    "source": "ML-1 Arabic and French 2026-11-01"
+  },
+  {
+    "prompt": "fusionner les couches des districts",
+    "tools": [
+      "merge_layers"
+    ],
+    "source": "ML-1 Arabic and French 2026-11-01"
+  },
+  {
+    "prompt": "ajouter une colonne au tableau",
+    "tools": [
+      "add_field"
+    ],
+    "source": "ML-1 Arabic and French 2026-11-01"
+  },
+  {
+    "prompt": "meilleur emplacement pour un entrepôt",
+    "tools": [
+      "optimal_hub_siting"
+    ],
+    "source": "ML-1 Arabic and French 2026-11-01"
+  },
+  {
+    "prompt": "itinéraire de livraison entre les villages",
+    "tools": [
+      "optimize_delivery_route"
+    ],
+    "source": "ML-1 Arabic and French 2026-11-01"
+  },
+  {
+    "prompt": "annuler la dernière opération",
+    "tools": [
+      "undo_last_operation"
+    ],
+    "source": "ML-1 Arabic and French 2026-11-01"
+  },
+  {
+    "prompt": "enregistrer le projet",
+    "tools": [
+      "save_project"
+    ],
+    "source": "ML-1 Arabic and French 2026-11-01"
+  },
+  {
+    "prompt": "points chauds des incidents",
+    "tools": [
+      "hotspot_analysis"
+    ],
+    "source": "ML-1 Arabic and French 2026-11-01"
+  },
+  {
+    "prompt": "limites administratives du Yémen",
+    "tools": [
+      "fetch_hdx_admin_boundaries"
+    ],
+    "source": "ML-1 Arabic and French 2026-11-01"
+  },
+  {
+    "prompt": "combien de personnes vivent près de la zone inondée",
+    "tools": [
+      "estimate_population_exposure"
+    ],
+    "source": "ML-1 Arabic and French 2026-11-01"
+  },
+  {
+    "prompt": "carte imprimable en pdf",
+    "tools": [
+      "create_print_layout"
+    ],
+    "source": "ML-1 Arabic and French 2026-11-01"
   }
 ]
