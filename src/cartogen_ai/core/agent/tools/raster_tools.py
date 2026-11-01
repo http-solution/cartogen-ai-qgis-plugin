@@ -953,7 +953,12 @@ def mosaic_rasters(raster_layers_list):
     )
 
 
-@register_tool("band_composite", "Create RGB band composite from single band rasters.", {"type": "object", "properties": {"layer_name": {"type": "string"}, "red_band": {"type": "string"}, "green_band": {"type": "string"}, "blue_band": {"type": "string"}}, "required": ["layer_name", "red_band", "green_band", "blue_band"]})
+@register_tool("band_composite", "Create RGB band composite from single band rasters.", {"type": "object", "properties": {"layer_name": {"type": "string"}, "red_band": {"type": "string"}, "green_band": {"type": "string"}, "blue_band": {"type": "string"}}, "required": ["layer_name", "red_band", "green_band", "blue_band"]},
+    keywords=[
+        "combine bands", "combine the bands", "colour image from bands", "color image from bands", "false colour",
+        "false color", "rgb composite",
+    ],
+)
 def band_composite(layer_name, red_band, green_band, blue_band):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}

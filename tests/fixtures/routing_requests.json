@@ -256,5 +256,117 @@
       "apply_network_barriers"
     ],
     "source": "HT-7 audit round 3 2026-11-01"
+  },
+  {
+    "prompt": "make the boundaries less detailed",
+    "tools": [
+      "simplify_geometry"
+    ],
+    "source": "HT-7 audit round 4 2026-11-01"
+  },
+  {
+    "prompt": "repair the broken polygons",
+    "tools": [
+      "fix_geometries"
+    ],
+    "source": "HT-7 audit round 4 2026-11-01"
+  },
+  {
+    "prompt": "check the layer for overlaps and gaps",
+    "tools": [
+      "diagnose_topology"
+    ],
+    "source": "HT-7 audit round 4 2026-11-01"
+  },
+  {
+    "prompt": "remove the lake area from the district polygons",
+    "tools": [
+      "difference_layers"
+    ],
+    "source": "HT-7 audit round 4 2026-11-01"
+  },
+  {
+    "prompt": "which parts of the roads are inside the flood zone",
+    "tools": [
+      "intersect_layers"
+    ],
+    "source": "HT-7 audit round 4 2026-11-01"
+  },
+  {
+    "prompt": "attach the district name to each point",
+    "tools": [
+      "spatial_join"
+    ],
+    "source": "HT-7 audit round 4 2026-11-01"
+  },
+  {
+    "prompt": "how long is each road",
+    "tools": [
+      "calculate_length"
+    ],
+    "source": "HT-7 audit round 4 2026-11-01"
+  },
+  {
+    "prompt": "will these two layers line up",
+    "tools": [
+      "verify_crs_compatibility"
+    ],
+    "source": "HT-7 audit round 4 2026-11-01"
+  },
+  {
+    "prompt": "find hotspots of incidents",
+    "tools": [
+      "hotspot_analysis"
+    ],
+    "source": "HT-7 audit round 4 2026-11-01"
+  },
+  {
+    "prompt": "why does the map look like this",
+    "tools": [
+      "explain_current_representation"
+    ],
+    "source": "HT-7 audit round 4 2026-11-01"
+  },
+  {
+    "prompt": "save this combination of visible layers",
+    "tools": [
+      "create_map_theme"
+    ],
+    "source": "HT-7 audit round 4 2026-11-01"
+  },
+  {
+    "prompt": "combine bands into a color image",
+    "tools": [
+      "band_composite"
+    ],
+    "source": "HT-7 audit round 4 2026-11-01"
+  },
+  {
+    "prompt": "what schemas can i check against",
+    "tools": [
+      "list_schema_contracts"
+    ],
+    "source": "HT-7 audit round 4 2026-11-01"
+  },
+  {
+    "prompt": "check the table has the right columns",
+    "tools": [
+      "validate_schema"
+    ],
+    "source": "HT-7 audit round 4 2026-11-01"
+  },
+  {
+    "prompt": "where does this layer's data come from",
+    "tools": [
+      "get_provenance_record"
+    ],
+    "source": "HT-7 audit round 4 2026-11-01"
+  },
+  {
+    "prompt": "which communities are far from clinics",
+    "tools": [
+      "population_access_gap"
+    ],
+    "source": "HT-7 audit round 4 2026-11-01"
   }
 ]

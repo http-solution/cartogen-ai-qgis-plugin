@@ -3095,6 +3095,8 @@ def _style_reach_figures(figures, headline, facility_layer):
     },
     keywords=[
         "cash assistance", "voucher assistance", "cash and voucher", "cva feasib", "cva viable",
+        "communities are far from", "far from clinics", "far from hospitals", "far from health", "no clinic nearby",
+        "without a clinic", "underserved communities",
     ],
 )
 def population_access_gap(facility_layer, road_network_layer, population_raster_layer, area_layer, travel_cost, strategy="shortest", default_speed=50,

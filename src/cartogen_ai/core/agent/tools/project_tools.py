@@ -151,6 +151,10 @@ def load_project(file_path: str, confirmed: bool = False):
         },
         "required": ["theme_name"],
     },
+
+    keywords=[
+        "save this combination", "save the visible layers", "save current layer visibility", "remember which layers are visible", "save a theme",
+    ],
 )
 def create_map_theme(theme_name: str):
     if not QGIS_AVAILABLE:

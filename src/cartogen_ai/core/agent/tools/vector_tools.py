@@ -1342,6 +1342,7 @@ def clip_layer(input_layer, mask_layer):
 @register_tool("intersect_layers", "Intersection of two vector layers.", {"type": "object", "properties": {"layer1": {"type": "string"}, "layer2": {"type": "string"}}, "required": ["layer1", "layer2"]},
     keywords=[
         "intersect the", "intersection of", "where the two layers overlap", "overlap of the", "common area of",
+        "inside the flood", "that are inside the", "overlap between", "where the layers overlap",
     ],
 )
 def intersect_layers(layer1, layer2):
@@ -1407,6 +1408,7 @@ def union_layers(layer1, layer2):
     },
     keywords=[
         "difference of", "difference between the layers", "erase the", "cut out the", "subtract the", "everything outside",
+        "remove the lake area", "cut out the area of", "take away the area",
     ],
 )
 def difference_layers(input_layer, overlay_layer, symmetric=False):
@@ -1624,6 +1626,7 @@ def convert_to_singlepart(layer_name):
     },
     keywords=[
         "simplify", "generalize", "generalise", "reduce the vertices", "reduce the number of vertices", "reduce detail",
+        "less detailed", "make the boundaries simpler", "generalise the", "generalize the", "simplify the",
     ],
 )
 def simplify_geometry(layer_name, tolerance):
@@ -1843,6 +1846,8 @@ def merge_layers(layer_names_list):
     keywords=[
         "spatial join", "join by location", "join based on location", "join the attributes by location",
         "which polygon each point", "assign the district to each", "tag each point with",
+        "attach the name", "attach the district", "add the district name to each", "which district each point is in", "copy the attributes from",
+        "transfer the attributes",
     ],
 )
 def spatial_join(target_layer, join_layer):
@@ -2077,7 +2082,12 @@ def calculate_area(layer_name, confirmed: bool = False):
 @register_tool("calculate_length", "Calculate line length in meters and write it into a new "
     "'length_m' field on the layer. Destructive action requiring UI confirmation -- same underlying "
     "operation as field_calculator (in-place attribute mutation on the live layer).",
-    {"type": "object", "properties": {"layer_name": {"type": "string"}}, "required": ["layer_name"]})
+    {"type": "object", "properties": {"layer_name": {"type": "string"}}, "required": ["layer_name"]},
+    keywords=[
+        "how long is each", "length of each", "length of the roads", "total length", "length in kilometres",
+        "length in meters",
+    ],
+)
 def calculate_length(layer_name, confirmed: bool = False):
     if not confirmed:
         return {
@@ -2142,6 +2152,7 @@ def reproject_layer(layer_name, crs_code):
     keywords=[
         "fix geometries", "fix invalid", "repair the geometries", "repair invalid", "invalid geometries",
         "make the geometries valid", "fix the geometry errors",
+        "repair the broken", "fix the broken", "invalid polygons", "repair geometry",
     ],
 )
 def fix_geometries(layer_name):
@@ -2357,6 +2368,10 @@ def get_crs(layer_name):
         },
         "required": ["layer_name"],
     },
+
+    keywords=[
+        "overlaps and gaps", "check the topology", "topology errors", "gaps and overlaps", "slivers",
+    ],
 )
 def diagnose_topology(layer_name, min_area=None):
     if not QGIS_AVAILABLE:
@@ -2449,7 +2464,12 @@ def diagnose_topology(layer_name, min_area=None):
     return result
 
 
-@register_tool("verify_crs_compatibility", "Check if two layers share compatible Coordinate Reference Systems.", {"type": "object", "properties": {"layer1": {"type": "string"}, "layer2": {"type": "string"}}, "required": ["layer1", "layer2"]})
+@register_tool("verify_crs_compatibility", "Check if two layers share compatible Coordinate Reference Systems.", {"type": "object", "properties": {"layer1": {"type": "string"}, "layer2": {"type": "string"}}, "required": ["layer1", "layer2"]},
+    keywords=[
+        "line up", "same projection", "same coordinate system", "compatible projections", "crs match",
+        "do the layers match",
+    ],
+)
 def verify_crs_compatibility(layer1, layer2):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}

@@ -35,6 +35,10 @@ def _find_layer_by_name(name):
     "fields (by acceptable name aliases, since real-world admin/pcode field names vary by source), "
     "expected field types, and optional controlled-vocabulary domains.",
     {"type": "object", "properties": {}, "required": []},
+
+    keywords=[
+        "what schemas", "which schemas", "list the schemas", "available schemas", "schema contracts",
+    ],
 )
 def list_schema_contracts():
     return {"success": True, "contracts": _sc.list_contracts()}
@@ -58,6 +62,11 @@ def list_schema_contracts():
         },
         "required": ["layer_name", "contract_name"],
     },
+
+    keywords=[
+        "has the right columns", "right columns", "required columns", "check the schema", "validate the table",
+        "column check", "validate the schema",
+    ],
 )
 def validate_schema(layer_name, contract_name):
     if not QGIS_AVAILABLE:
