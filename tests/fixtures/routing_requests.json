@@ -960,5 +960,285 @@
       "stop_recurring_workflow"
     ],
     "source": "HT-7 audit round 5 (long multi-step requests) 2026-11-01"
+  },
+  {
+    "prompt": "كم يستغرق الوصول بالسيارة من تعز إلى عدن",
+    "tools": [
+      "travel_time_matrix"
+    ],
+    "source": "ML-1 more tools, Arabic and French 2026-11-01"
+  },
+  {
+    "prompt": "combien de temps en voiture de Taïz à Aden",
+    "tools": [
+      "travel_time_matrix"
+    ],
+    "source": "ML-1 more tools, Arabic and French 2026-11-01"
+  },
+  {
+    "prompt": "بسط الحدود الإدارية",
+    "tools": [
+      "simplify_geometry"
+    ],
+    "source": "ML-1 more tools, Arabic and French 2026-11-01"
+  },
+  {
+    "prompt": "simplifie les contours des districts",
+    "tools": [
+      "simplify_geometry"
+    ],
+    "source": "ML-1 more tools, Arabic and French 2026-11-01"
+  },
+  {
+    "prompt": "أقرب مستشفى لكل قرية",
+    "tools": [
+      "find_nearest_features"
+    ],
+    "source": "ML-1 more tools, Arabic and French 2026-11-01"
+  },
+  {
+    "prompt": "hôpital le plus proche de chaque village",
+    "tools": [
+      "find_nearest_features"
+    ],
+    "source": "ML-1 more tools, Arabic and French 2026-11-01"
+  },
+  {
+    "prompt": "ملخص إحصائي لحقل السكان",
+    "tools": [
+      "field_statistics"
+    ],
+    "source": "ML-1 more tools, Arabic and French 2026-11-01"
+  },
+  {
+    "prompt": "statistiques de base du champ population",
+    "tools": [
+      "field_statistics"
+    ],
+    "source": "ML-1 more tools, Arabic and French 2026-11-01"
+  },
+  {
+    "prompt": "اتجاه المنحدر في هذه المنطقة",
+    "tools": [
+      "aspect_analysis"
+    ],
+    "source": "ML-1 more tools, Arabic and French 2026-11-01"
+  },
+  {
+    "prompt": "orientation des pentes dans cette zone",
+    "tools": [
+      "aspect_analysis"
+    ],
+    "source": "ML-1 more tools, Arabic and French 2026-11-01"
+  },
+  {
+    "prompt": "حدد الكل في طبقة المدارس",
+    "tools": [
+      "select_all_features"
+    ],
+    "source": "ML-1 more tools, Arabic and French 2026-11-01"
+  },
+  {
+    "prompt": "sélectionne tout dans la couche des écoles",
+    "tools": [
+      "select_all_features"
+    ],
+    "source": "ML-1 more tools, Arabic and French 2026-11-01"
+  },
+  {
+    "prompt": "غير القيمة في حقل الاسم",
+    "tools": [
+      "set_attribute_value"
+    ],
+    "source": "ML-1 more tools, Arabic and French 2026-11-01"
+  },
+  {
+    "prompt": "change la valeur du champ nom",
+    "tools": [
+      "set_attribute_value"
+    ],
+    "source": "ML-1 more tools, Arabic and French 2026-11-01"
+  },
+  {
+    "prompt": "اصلح الاشكال غير الصالحة في الطبقة",
+    "tools": [
+      "fix_geometries"
+    ],
+    "source": "ML-1 more tools, Arabic and French 2026-11-01"
+  },
+  {
+    "prompt": "répare les géométries invalides de la couche",
+    "tools": [
+      "fix_geometries"
+    ],
+    "source": "ML-1 more tools, Arabic and French 2026-11-01"
+  },
+  {
+    "prompt": "خطوط الكنتور كل 20 مترا",
+    "tools": [
+      "generate_contours"
+    ],
+    "source": "ML-1 more tools, Arabic and French 2026-11-01"
+  },
+  {
+    "prompt": "courbes de niveau tous les 20 mètres",
+    "tools": [
+      "generate_contours"
+    ],
+    "source": "ML-1 more tools, Arabic and French 2026-11-01"
+  },
+  {
+    "prompt": "ما هو نظام الاحداثيات لهذه الطبقة",
+    "tools": [
+      "get_crs"
+    ],
+    "source": "ML-1 more tools, Arabic and French 2026-11-01"
+  },
+  {
+    "prompt": "quel est le système de coordonnées de cette couche",
+    "tools": [
+      "get_crs"
+    ],
+    "source": "ML-1 more tools, Arabic and French 2026-11-01"
+  },
+  {
+    "prompt": "احفظ الطبقة باسم جديد بنظام احداثيات اخر",
+    "tools": [
+      "save_layer_as"
+    ],
+    "source": "ML-1 more tools, Arabic and French 2026-11-01"
+  },
+  {
+    "prompt": "enregistrer la couche sous un autre nom dans un autre crs",
+    "tools": [
+      "save_layer_as"
+    ],
+    "source": "ML-1 more tools, Arabic and French 2026-11-01"
+  },
+  {
+    "prompt": "حدد النقاط داخل حدود المديرية",
+    "tools": [
+      "select_by_location"
+    ],
+    "source": "ML-1 more tools, Arabic and French 2026-11-01"
+  },
+  {
+    "prompt": "sélectionne les points à l'intérieur du district",
+    "tools": [
+      "select_by_location"
+    ],
+    "source": "ML-1 more tools, Arabic and French 2026-11-01"
+  },
+  {
+    "prompt": "احذف العناصر المحددة",
+    "tools": [
+      "delete_features"
+    ],
+    "source": "ML-1 more tools, Arabic and French 2026-11-01"
+  },
+  {
+    "prompt": "supprime les entités sélectionnées",
+    "tools": [
+      "delete_features"
+    ],
+    "source": "ML-1 more tools, Arabic and French 2026-11-01"
+  },
+  {
+    "prompt": "ابحث عن صور الاقمار الصناعية لتعز",
+    "tools": [
+      "search_stac_satellite_imagery"
+    ],
+    "source": "ML-1 more tools, Arabic and French 2026-11-01"
+  },
+  {
+    "prompt": "chercher des images satellite de Taïz",
+    "tools": [
+      "search_stac_satellite_imagery"
+    ],
+    "source": "ML-1 more tools, Arabic and French 2026-11-01"
+  },
+  {
+    "prompt": "اضف شعار الى التخطيط",
+    "tools": [
+      "add_layout_item"
+    ],
+    "source": "ML-1 more tools, Arabic and French 2026-11-01"
+  },
+  {
+    "prompt": "ajouter un logo à la mise en page",
+    "tools": [
+      "add_layout_item"
+    ],
+    "source": "ML-1 more tools, Arabic and French 2026-11-01"
+  },
+  {
+    "prompt": "اطبع الخريطة الحالية",
+    "tools": [
+      "print_map"
+    ],
+    "source": "ML-1 more tools, Arabic and French 2026-11-01"
+  },
+  {
+    "prompt": "imprimer la carte actuelle",
+    "tools": [
+      "print_map"
+    ],
+    "source": "ML-1 more tools, Arabic and French 2026-11-01"
+  },
+  {
+    "prompt": "توقع الاتجاه للسنوات القادمة",
+    "tools": [
+      "forecast_trend"
+    ],
+    "source": "ML-1 more tools, Arabic and French 2026-11-01"
+  },
+  {
+    "prompt": "prévoir la tendance pour les prochaines années",
+    "tools": [
+      "forecast_trend"
+    ],
+    "source": "ML-1 more tools, Arabic and French 2026-11-01"
+  },
+  {
+    "prompt": "جسر مدمر على الطريق الرئيسي",
+    "tools": [
+      "apply_network_barriers"
+    ],
+    "source": "ML-1 more tools, Arabic and French 2026-11-01"
+  },
+  {
+    "prompt": "pont détruit sur la route principale",
+    "tools": [
+      "apply_network_barriers"
+    ],
+    "source": "ML-1 more tools, Arabic and French 2026-11-01"
+  },
+  {
+    "prompt": "احزم الطبقات للاستخدام دون اتصال",
+    "tools": [
+      "package_layers_offline"
+    ],
+    "source": "ML-1 more tools, Arabic and French 2026-11-01"
+  },
+  {
+    "prompt": "empaqueter les couches pour une utilisation hors ligne",
+    "tools": [
+      "package_layers_offline"
+    ],
+    "source": "ML-1 more tools, Arabic and French 2026-11-01"
+  },
+  {
+    "prompt": "رتب المناطق حسب مؤشر الاحتياجات",
+    "tools": [
+      "calculate_severity_index"
+    ],
+    "source": "ML-1 more tools, Arabic and French 2026-11-01"
+  },
+  {
+    "prompt": "classer les districts selon l'indice des besoins",
+    "tools": [
+      "calculate_severity_index"
+    ],
+    "source": "ML-1 more tools, Arabic and French 2026-11-01"
   }
 ]

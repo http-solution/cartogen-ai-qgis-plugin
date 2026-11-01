@@ -83,7 +83,7 @@ class TestLanguagePhrases(unittest.TestCase):
     def test_both_languages_are_present_and_cover_the_same_tools(self):
         self.assertEqual(set(self.table), {"ar", "fr"})
         self.assertEqual(set(self.table["ar"]), set(self.table["fr"]))
-        self.assertGreaterEqual(len(self.table["ar"]), 50)
+        self.assertGreaterEqual(len(self.table["ar"]), 90)
 
     def test_every_tool_is_registered_and_every_phrase_is_long_enough_once_folded(self):
         registered = {t["function"]["name"] for t in TOOLS_SCHEMA}
