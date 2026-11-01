@@ -1803,6 +1803,21 @@
     ],
     "hand_verified": "not verified: CI only. Checked on the 240 routing requests I wrote (no needed tool dropped) and on the one real run whose per-call log the owner sent (eight unused tools at score 8 removed). It is tuned on those, so a tool that only matches on description words is now reached through find_tools or a phrase; the owner's held-out prompts (PLAN-043) are the real test.",
     "hand_row": "repeat the Taiz request and compare est_tools_tokens in the log with the 2026-11-01 run (10,544 at call 0)"
+  },
+  {
+    "id": "task-tools-always-offered",
+    "feature": "when the task register recognises a request with confidence, the tools its directive prescribes (up to six) are always offered, so the model is not told to prefer a tool it cannot call",
+    "issues": [],
+    "since": "1.18.6",
+    "sources": [
+      "src/cartogen_ai/core/services/tool_router.py"
+    ],
+    "guards": [
+      "tests/test_task_tools_offered.py::TestTaskToolsOffered::test_taiz_request_is_offered_the_tools_its_task_names",
+      "tests/test_task_tools_offered.py::TestTaskToolsOffered::test_an_unrelated_request_is_not_widened"
+    ],
+    "hand_verified": "not verified: CI only. Offline replay of the Taiz request shows the four task-6.02 tools now offered; whether the model then uses them is NOT shown.",
+    "hand_row": "repeat the Taiz request and check the call-0 tool_names in the log include fetch_osm_features, add_layer_from_path, apply_categorized_style, zoom_to_layer"
   }
  ]
 }
