@@ -4,7 +4,10 @@ The tool router sends a bounded list per request. When the model identifies a st
 splitting a road by zones) it used to have two bad options: give up or improvise with a script. find_tools returns the matching
 tools by name and description, and the agent loop adds their schemas to the tools offered for the rest of the turn, so the next call
 can use them. Read-only; it never runs anything."""
+import contextlib
+import json
 import re
+from pathlib import Path
 
 from .registry import register_tool, TOOLS_SCHEMA
 
@@ -15,10 +18,30 @@ _STOP = frozenset({"the", "a", "an", "and", "or", "of", "to", "for", "with", "in
                    "that", "this", "how", "can", "do", "i", "me", "my", "all", "any"})
 
 
+_SYNONYMS_PATH = Path(__file__).resolve().parents[2] / "services" / "routing_synonyms.json"
+_synonyms_cache: dict[str, list[str]] = {}
+
+
+def _synonyms():
+    """{plain word: [words the tool names and descriptions use for it]} from core/services/routing_synonyms.json; {} if unreadable."""
+    if not _synonyms_cache:
+        with contextlib.suppress(Exception), open(_SYNONYMS_PATH, encoding="utf-8") as handle:
+            _synonyms_cache.update(json.load(handle))
+    return _synonyms_cache
+
+
+def expand_words(words):
+    """`words` plus the tool-vocabulary words their plain-language synonyms map to ("colour" -> style, graduated, ...). Pure given the file.
+    Measured 2026-11-01: a need written as "colour polygons by value" never reached apply_graduated_style because no tool name or description says
+    "colour"; the same hole the router has, in the one place the model writes the wording itself."""
+    table = _synonyms()
+    return set(words).union(*(table.get(word, ()) for word in words))
+
+
 def rank_tools(query, schemas, limit=MAX_RESULTS):
     """[(score, name, description)] best first for `query` over `schemas` (OpenAI-style function schemas). Name words count 4x a
     description word; each curated routing phrase found in the query adds PHRASE_SCORE; capability-table tools for the named steps come first. Pure."""
-    words = {w for w in _WORD.findall((query or "").lower()) if w not in _STOP and len(w) > 2}
+    words = expand_words({w for w in _WORD.findall((query or "").lower()) if w not in _STOP and len(w) > 2})
     try:
         from ..capabilities import required_tools
         preferred = required_tools(query)
@@ -56,7 +79,7 @@ def rank_tools(query, schemas, limit=MAX_RESULTS):
     "Look up which tools can do a step you were not given a tool for (for example 'contour lines', 'split a line by polygons', "
     "'download elevation'). Returns the best matching tool names with a one-line description each, and makes them available for the "
     "rest of this request. Use it BEFORE writing a script. It only searches; it changes nothing.",
-    {"type": "object", "properties": {"need": {"type": "string", "description": "The step you need to do, in plain English words, even when the user wrote in another language: tool names and descriptions are English, so an Arabic or French phrase finds nothing."}},
+    {"type": "object", "properties": {"need": {"type": "string", "description": "The operation you need, in plain English words, even when the user wrote in another language (tool names and descriptions are English, so an Arabic or French phrase finds nothing). Name the operation, not the goal: 'graduated colour style for polygons by a number', 'clip lines to polygons', 'count points in each polygon', 'turn a layer on and off'."}},
      "required": ["need"]},
     keywords=[
         "which tool", "what tool", "is there a tool", "is there a way to", "what can you do", "list the tools", "what tools",

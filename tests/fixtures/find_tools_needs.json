@@ -1,0 +1,352 @@
+[
+ {
+  "need": "show a layer as graduated colours by population",
+  "tools": [
+   "apply_graduated_style"
+  ],
+  "set": "blind"
+ },
+ {
+  "need": "clip a roads layer to a district boundary",
+  "tools": [
+   "clip_layer"
+  ],
+  "set": "blind"
+ },
+ {
+  "need": "buffer points by 500 m",
+  "tools": [
+   "buffer_analysis"
+  ],
+  "set": "blind"
+ },
+ {
+  "need": "make a heat map from incident points",
+  "tools": [
+   "apply_heatmap_style"
+  ],
+  "set": "blind"
+ },
+ {
+  "need": "put labels on polygons",
+  "tools": [
+   "apply_labels"
+  ],
+  "set": "blind"
+ },
+ {
+  "need": "reproject a layer to UTM",
+  "tools": [
+   "reproject_layer"
+  ],
+  "set": "blind"
+ },
+ {
+  "need": "join a table to a layer by a code field",
+  "tools": [
+   "join_by_attribute"
+  ],
+  "set": "blind"
+ },
+ {
+  "need": "count points that fall in each polygon",
+  "tools": [
+   "spatial_join",
+   "aggregate_data",
+   "run_allowlisted_processing_algorithm",
+   "zonal_statistics",
+   "find_processing_algorithm"
+  ],
+  "set": "blind"
+ },
+ {
+  "need": "work out the distance from each village to the nearest clinic",
+  "tools": [
+   "find_nearest_features"
+  ],
+  "set": "blind"
+ },
+ {
+  "need": "convert polygons to centre points",
+  "tools": [
+   "centroid"
+  ],
+  "set": "blind"
+ },
+ {
+  "need": "merge two layers into one",
+  "tools": [
+   "merge_layers"
+  ],
+  "set": "blind"
+ },
+ {
+  "need": "draw a legend and scale bar on a printable page",
+  "tools": [
+   "create_print_layout"
+  ],
+  "set": "blind"
+ },
+ {
+  "need": "save the map as a PDF",
+  "tools": [
+   "export_layout",
+   "print_map"
+  ],
+  "set": "blind"
+ },
+ {
+  "need": "get the elevation data for an area",
+  "tools": [
+   "fetch_dem"
+  ],
+  "set": "blind"
+ },
+ {
+  "need": "calculate slope from elevation",
+  "tools": [
+   "slope_analysis"
+  ],
+  "set": "blind"
+ },
+ {
+  "need": "show only features where population is above 1000",
+  "tools": [
+   "set_layer_filter",
+   "select_by_attribute",
+   "select_by_expression"
+  ],
+  "set": "blind"
+ },
+ {
+  "need": "change the symbol colour of a layer to red",
+  "tools": [
+   "change_layer_color",
+   "set_layer_symbol"
+  ],
+  "set": "blind"
+ },
+ {
+  "need": "remove a layer from the project",
+  "tools": [
+   "remove_layer"
+  ],
+  "set": "blind"
+ },
+ {
+  "need": "turn a layer on and off",
+  "tools": [
+   "toggle_visibility"
+  ],
+  "set": "blind"
+ },
+ {
+  "need": "show a satellite background",
+  "tools": [
+   "add_basemap"
+  ],
+  "set": "blind"
+ },
+ {
+  "need": "dissolve polygons by a field",
+  "tools": [
+   "dissolve_layer"
+  ],
+  "set": "blind"
+ },
+ {
+  "need": "calculate the length of road lines",
+  "tools": [
+   "calculate_length"
+  ],
+  "set": "blind"
+ },
+ {
+  "need": "find hot spots of incidents",
+  "tools": [
+   "hotspot_analysis"
+  ],
+  "set": "blind"
+ },
+ {
+  "need": "total of a field per polygon from a raster",
+  "tools": [
+   "zonal_statistics"
+  ],
+  "set": "blind"
+ },
+ {
+  "need": "make a chart of values by district",
+  "tools": [
+   "generate_chart"
+  ],
+  "set": "blind"
+ },
+ {
+  "need": "download hospitals from OpenStreetMap",
+  "tools": [
+   "fetch_osm_features",
+   "ingest_osm_features"
+  ],
+  "set": "blind"
+ },
+ {
+  "need": "how many people live in this area",
+  "tools": [
+   "fetch_worldpop_population",
+   "estimate_population_exposure",
+   "zonal_statistics"
+  ],
+  "set": "blind"
+ },
+ {
+  "need": "split a line layer by polygons",
+  "tools": [
+   "split_lines_by_zones"
+  ],
+  "set": "blind"
+ },
+ {
+  "need": "group layers into a folder in the layer panel",
+  "tools": [
+   "create_layer_group",
+   "move_layers_to_group"
+  ],
+  "set": "blind"
+ },
+ {
+  "need": "zoom the map to a layer",
+  "tools": [
+   "zoom_to_layer"
+  ],
+  "set": "blind"
+ },
+ {
+  "need": "shade polygons darker by a numeric value",
+  "tools": [
+   "apply_graduated_style"
+  ],
+  "set": "designed"
+ },
+ {
+  "need": "find Sentinel satellite scenes for an area and date",
+  "tools": [
+   "search_stac_satellite_imagery"
+  ],
+  "set": "designed"
+ },
+ {
+  "need": "colour districts by a score",
+  "tools": [
+   "apply_graduated_style"
+  ],
+  "set": "designed"
+ },
+ {
+  "need": "label features with their names",
+  "tools": [
+   "apply_labels"
+  ],
+  "set": "designed"
+ },
+ {
+  "need": "export the map as a PNG image",
+  "tools": [
+   "export_layout",
+   "print_map"
+  ],
+  "set": "designed"
+ },
+ {
+  "need": "rename a layer",
+  "tools": [
+   "rename_layer"
+  ],
+  "set": "designed"
+ },
+ {
+  "need": "hide or show layers",
+  "tools": [
+   "toggle_visibility"
+  ],
+  "set": "designed"
+ },
+ {
+  "need": "cut lines by polygons to get length per district",
+  "tools": [
+   "split_lines_by_zones",
+   "clip_layer",
+   "intersect_layers"
+  ],
+  "set": "designed"
+ },
+ {
+  "need": "colour polygons by value in a blue ramp",
+  "tools": [
+   "apply_graduated_style"
+  ],
+  "set": "designed"
+ },
+ {
+  "need": "add an aerial imagery basemap",
+  "tools": [
+   "add_basemap"
+  ],
+  "set": "designed"
+ },
+ {
+  "need": "calculate the area of polygons",
+  "tools": [
+   "calculate_area"
+  ],
+  "set": "designed"
+ },
+ {
+  "need": "save a layer to a GeoPackage file",
+  "tools": [
+   "export_layer",
+   "save_layer_as"
+  ],
+  "set": "designed"
+ },
+ {
+  "need": "colour polygons by area",
+  "tools": [
+   "apply_graduated_style"
+  ],
+  "set": "designed"
+ },
+ {
+  "need": "print layout A4 with legend",
+  "tools": [
+   "create_print_layout"
+  ],
+  "set": "designed"
+ },
+ {
+  "need": "select points inside polygons",
+  "tools": [
+   "select_by_location",
+   "intersect_layers",
+   "spatial_join"
+  ],
+  "set": "designed"
+ },
+ {
+  "need": "select lines that intersect polygons",
+  "tools": [
+   "intersect_layers",
+   "clip_layer",
+   "select_by_location"
+  ],
+  "set": "designed"
+ },
+ {
+  "need": "count buildings inside an area",
+  "tools": [
+   "fetch_building_footprints",
+   "spatial_join"
+  ],
+  "set": "designed"
+ }
+]
