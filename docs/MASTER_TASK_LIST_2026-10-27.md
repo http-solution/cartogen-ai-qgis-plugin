@@ -62,7 +62,7 @@ One list to follow up and plan from. It replaces the session task list (101 entr
 | DEF-21 | Owner run 2026-11-01 ('hospitals and clinics in Taiz per district on a printable map'): 24 tool calls, then stopped at the 450,000-token turn budget with the request incomplete. Causes seen: five find_tools lookups each kept up to eight schemas for the rest of the turn (tool list about 28 to 65, fixed by a cap in this change), the OpenStreetMap download timed out four times (DEF-7, mirrors still open), and after the tool said not to retry the model kept trying other routes (virtual layer, HDX search, more processing). | A long request ends unfinished and expensive. | Claude | DEF-7 | M | P1 | In progress | owner transcript 2026-11-01 |
 | DEF-22 | Owner run 2026-11-01 (log): native:extractbyexpression returned 0 features twice for the Taiz districts (10:38:16 and 10:41:04), after get_attributes and run_query; the model then moved on. Cause unknown (the log holds no arguments). When a filter returns 0 features, the result should say which field values exist so the model can correct the spelling (Taiz, Taizz, Ta'izz). | A silent 0 sends the model down other routes and spends tokens. | Claude |  | S | P2 | In progress | owner log 2026-11-01 |
 | BUD-1 | Decide how the per-turn token budget (max_turn_tokens, default 450,000) counts cached tokens. Today input plus output tokens are counted in full; in the owner's 2026-11-01 run 55 percent of the input (241,830 of 439,564 tokens) was served from cache, which providers bill at a fraction. Options: keep, count cached tokens at 10 percent, or show both numbers and budget on billed tokens. | The budget stopped a run that, counted by cost, was less than half used. | You |  | S | P2 | In progress | owner log 2026-11-01 |
-| TR-1 | Task register tool order has no data-fetch tool for 261 of 302 'Map ...' tasks (checked 2026-11-01); the chat then says 'Prefer these tools, in order: add_layer_from_path, ...', which steers the model away from fetching. Only 6.02 (hospitals and clinics) was fixed, to start with fetch_osm_features like 1.02 and 1.05. Derive the fetch tool from the task's keywords (facilities, roads, buildings, boundaries, population, hazards) with a check script, as tools/derive_task_io.py does for file types. | The suggested tool order is wrong for most map tasks. | Claude |  | M | P2 | Not started | owner transcript 2026-11-01 |
+| TR-1 | Task register tool order has no data-fetch tool for 261 of 302 'Map ...' tasks (checked 2026-11-01); the chat then says 'Prefer these tools, in order: add_layer_from_path, ...', which steers the model away from fetching. Only 6.02 (hospitals and clinics) was fixed, to start with fetch_osm_features like 1.02 and 1.05. Derive the fetch tool from the task's keywords (facilities, roads, buildings, boundaries, population, hazards) with a check script, as tools/derive_task_io.py does for file types. | The suggested tool order is wrong for most map tasks. | Claude |  | M | P2 | In progress | owner transcript 2026-11-01 |
 
 ## C. Open defects and observations
 
@@ -170,8 +170,8 @@ Source: the owner's analysis document of nine flagship QGIS AI plugins, checked 
 
 | Status | Rows |
 |---|---|
-| Not started | 32 |
-| In progress | 26 |
+| Not started | 31 |
+| In progress | 27 |
 | Decision needed | 15 |
 | Waiting on you | 13 |
 | Blocked | 5 |
@@ -266,3 +266,4 @@ Newest last. One line per status change; written by `tools/master_list.py set`.
 - 2026-11-01: BUD-1 Decision needed -> In progress. Cached input now counts at 10 percent in the per-request budget (this PR, CI only); default 450,000 unchanged. Open: whether the ceiling itself is right (needs more real runs).
 - 2026-11-01: DEF-22 Not started -> In progress. Zero-feature extractions now say why (field values, empty layer, CRS, extents) via why_empty. Cause of the Taiz 0-feature results still unknown.
 - 2026-11-01: DEF-21 In progress -> In progress. Wrap-up built: last round is a tool-less answer round; a down data source (retryable_later) ends the turn with one answer round; cap stop text lists what was done. CI only (scripted client). Open: model behaviour, and the 261 'Map ...' tasks without a fetch tool (TR-1).
+- 2026-11-01: TR-1 Not started -> In progress. 162 of 302 'Map ...' tasks now lead with a fetch tool (76 OSM, 82 HDX search, 4 specific); 97 left without one on purpose (assessments, services, no honest source). Derived by tools/derive_task_fetch.py with a check test. CI only; keyword heuristics.
