@@ -1,4 +1,4 @@
-# PLAN-043: How the router fills its 28 slots (proposal, not built)
+# PLAN-043: How the router fills its 28 slots (measured 2026-11-01: slots are not the cause, see the status log)
 
 Status: in progress
 
