@@ -944,11 +944,12 @@ Compute pixel-wise differential change between two temporal rasters (after minus
 
 ### `inspect_canvas_visually`
 
-Capture current map canvas view and return visual inspection context.
+LOOK at the current map: captures the map canvas as a picture you can see (at most 1,280 pixels on the long edge), sent to you right after this result together with the legend and the visible layers as text. Use it for 'what is wrong with this map', 'does it look right', 'what does the map show'. Optional extent_layer: look at that layer's extent instead of the current view (the canvas is not moved). If the model cannot see pictures you get the legend and layer list as text instead.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
 | `prompt_guidance` | string | no |  |
+| `extent_layer` | string | no | Optional: name of a layer; the picture shows that layer's extent instead of the current view. |
 
 ### `search_stac_satellite_imagery` _(network-only)_
 

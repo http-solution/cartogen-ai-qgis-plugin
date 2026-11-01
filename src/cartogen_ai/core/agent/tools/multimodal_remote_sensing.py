@@ -8,6 +8,7 @@ import contextlib
 import datetime
 import json
 import time
+from ...logger import log_event
 from ...net import urlopen as _qgis_urlopen
 from .registry import register_tool
 from ...net import build_request as _net_build_request
@@ -120,25 +121,96 @@ def search_stac_satellite_imagery(bbox: list, start_date: str, end_date: str, li
         return {"error": f"STAC API query failed: {e}"}
 
 
-@register_tool("inspect_canvas_visually", "Capture current map canvas view and return visual inspection context.", {"type": "object", "properties": {"prompt_guidance": {"type": "string"}}, "required": []},
+_LEGEND_MAX_CHARS = 1500
+_LEGEND_ITEMS_PER_LAYER = 6
+
+
+def _legend_text(layers):
+    """One short line per visible layer: its name and the legend labels of its renderer (or 'raster'). Best effort, never raises: the picture is
+    the point, the text is a help beside it."""
+    lines = []
+    for layer in layers:
+        label = layer.name()
+        with contextlib.suppress(Exception):
+            renderer = layer.renderer() if hasattr(layer, "renderer") else None
+            items = [i.label() for i in renderer.legendSymbolItems()][:_LEGEND_ITEMS_PER_LAYER] if renderer is not None else []
+            label += f": {', '.join(items)}" if items else (": raster" if getattr(layer, "rasterType", None) else "")
+        lines.append(label)
+    return "; ".join(lines)[:_LEGEND_MAX_CHARS]
+
+
+def _render_capped(canvas, extent_layer=None):
+    """Renders what the canvas shows (or the extent of `extent_layer`) off-screen at no more than 1,280 pixels on the long edge, without moving the
+    canvas. Returns {"image_b64", "mime", "width", "height", "blank", "legend_text", "layers_text"}. MAIN THREAD. Raises on any failure so the caller
+    can fall back to the plain screenshot."""
+    import base64
+    from qgis.core import QgsCoordinateTransform, QgsMapRendererParallelJob, QgsMapSettings, QgsProject
+    from qgis.PyQt.QtCore import QBuffer, QIODevice, QSize
+    from ...services.canvas_capture import fit_size
+    settings = QgsMapSettings(canvas.mapSettings())
+    size = canvas.size()
+    width, height = fit_size(size.width(), size.height())
+    settings.setOutputSize(QSize(width, height))
+    if extent_layer:
+        found = QgsProject.instance().mapLayersByName(extent_layer)
+        if not found:
+            raise ValueError(f"Layer '{extent_layer}' not found")
+        box = QgsCoordinateTransform(found[0].crs(), settings.destinationCrs(), QgsProject.instance()).transformBoundingBox(found[0].extent())
+        box.scale(1.1)
+        settings.setExtent(box)
+    job = QgsMapRendererParallelJob(settings)
+    job.start()
+    job.waitForFinished()
+    image = job.renderedImage()
+    if image.isNull():
+        raise ValueError("the canvas rendered no image")
+    background = settings.backgroundColor().rgba()
+    blank = all(image.pixel(int(x * (width - 1) / 31), int(y * (height - 1) / 31)) == background for x in range(32) for y in range(32))
+    buffer = QBuffer()
+    buffer.open(QIODevice.OpenModeFlag.WriteOnly)
+    image.save(buffer, "PNG")
+    layers = list(settings.layers())
+    return {"image_b64": base64.b64encode(bytes(buffer.data())).decode(), "mime": "png", "width": width, "height": height, "blank": blank,
+            "legend_text": _legend_text(layers), "layers_text": ", ".join(layer.name() for layer in layers)}
+
+
+@register_tool("inspect_canvas_visually",
+    "LOOK at the current map: captures the map canvas as a picture you can see (at most 1,280 pixels on the long edge), sent to you right after "
+    "this result together with the legend and the visible layers as text. Use it for 'what is wrong with this map', 'does it look right', "
+    "'what does the map show'. Optional extent_layer: look at that layer's extent instead of the current view (the canvas is not moved). If the "
+    "model cannot see pictures you get the legend and layer list as text instead.",
+    {"type": "object", "properties": {"prompt_guidance": {"type": "string"},
+     "extent_layer": {"type": "string", "description": "Optional: name of a layer; the picture shows that layer's extent instead of the current view."}},
+     "required": []},
     keywords=[
         "look at the map", "look at the canvas", "see the map", "screenshot of the map", "what does the map look like",
-        "inspect the canvas", "check how the map looks", "view the canvas",
+        "inspect the canvas", "check how the map looks", "view the canvas", "what is wrong with this map", "what's wrong with the map",
+        "does the map look right", "describe the map",
     ],
 )
-def inspect_canvas_visually(prompt_guidance: str = "Analyze visible map layers"):
-    """Captures map canvas image for multimodal vision inspection."""
+def inspect_canvas_visually(prompt_guidance: str = "Analyze visible map layers", extent_layer: str | None = None):
+    """Captures the map canvas for the model to look at. The picture is taken out of this result by the agent loop and sent as an image part
+    (core/services/canvas_capture.py); it is NOT meant to be read as text."""
     if not QGIS_AVAILABLE or iface is None:
         return {"error": "QGIS map canvas interface not available"}
 
     try:
+        canvas = iface.mapCanvas()
+        try:
+            return {"success": True, "prompt_guidance": prompt_guidance, **_render_capped(canvas, extent_layer),
+                    "message": "Canvas image captured successfully for vision model evaluation."}
+        except ValueError as e:
+            return {"error": f"inspect_canvas_visually failed: {e}"}
+        except Exception as e:
+            # The off-screen render needs the real QGIS API; if it is not available (or fails) take the plain screenshot of the canvas, as before.
+            log_event("canvas_render_fallback", tag="Tools", error_class=type(e).__name__, error=True)
         import base64
+        import os
         import tempfile
         fd, path = tempfile.mkstemp(suffix=".png")
-        import os
         os.close(fd)
 
-        iface.mapCanvas().saveAsImage(path)
+        canvas.saveAsImage(path)
         with open(path, "rb") as f:
             b64 = base64.b64encode(f.read()).decode()
 

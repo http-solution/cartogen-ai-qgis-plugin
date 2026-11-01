@@ -94,7 +94,7 @@ One list to follow up and plan from. It replaces the session task list (101 entr
 | ID | Task | Why | Who | Depends on | Size | Pri | Status | Source |
 |---|---|---|---|---|---|---|---|---|
 | RM-A | Verified result gate: after each analysis that writes a layer or field, run applicable checks (CRS, geometry, not-all-null or constant, value range and unit, no stale field) and add them to the result; the answer must quote a failed check. | Three result errors in three hand runs were silent; this is the defensible differentiator. | Claude | OWN-5 | L | P1 | In progress | ROADMAP_AUDIT step A, session task 97 |
-| RM-B | Attach the map canvas (or a region) plus legend text and layer list to the next message as an image part. | inspect_canvas_visually sends the map as base64 text in a tool result; the chat clients already accept image parts. | Claude | OWN-5 | M | P1 | Decision needed | ROADMAP_AUDIT step B, task 98 |
+| RM-B | Attach the map canvas (or a region) plus legend text and layer list to the next message as an image part. | inspect_canvas_visually sends the map as base64 text in a tool result; the chat clients already accept image parts. | Claude | OWN-5 | M | P1 | In progress | ROADMAP_AUDIT step B, task 98 |
 | RM-C | Record source URL, licence, retrieval date and coverage on every fetch result, the provenance sidecar and the report. | Needed for donors and for the verified workflow report. | Claude | OWN-5 | M | P1 | Decision needed | ROADMAP_AUDIT step C, task 99 |
 | RM-D | Verified workflow report: sources, parameters, checks, assumptions and limitations, a rerun recipe, for one worked example (service coverage). | The lead feature; mostly assembly once A and C exist. | Claude | RM-A, RM-C | M | P1 | Not started | ROADMAP_AUDIT step D, task 100 |
 | RM-E | Data discovery ranking (licence, coverage, freshness); STAC scene load, change detection and a validation step; one-prompt report. | Builds on D. | Claude | RM-D | L | P2 | Not started | ROADMAP_AUDIT step E, task 101 |
@@ -170,10 +170,10 @@ Source: the owner's analysis document of nine flagship QGIS AI plugins, checked 
 
 | Status | Rows |
 |---|---|
+| In progress | 31 |
 | Not started | 31 |
-| In progress | 30 |
 | Waiting on you | 13 |
-| Decision needed | 11 |
+| Decision needed | 10 |
 | Blocked | 5 |
 | Closed | 3 |
 | Closed (record) | 1 |
@@ -275,3 +275,4 @@ Newest last. One line per status change; written by `tools/master_list.py set`.
 - 2026-11-01: RM-A Decision needed -> In progress. PLAN-031 slice 1 part 1: pure checks module (6 checks, 14 tests, 3 of 5 historical defects reproduced). Not hooked into any tool yet.
 - 2026-11-01: RM-A In progress -> In progress. PLAN-031 slice 1: pure checks (merged) plus adapter and hook (this PR): ordinary tools are gated when the result names layer_name; reply guard; off switch; sampled at 5,000 features. CRS and stale checks not enabled (false-alarm risk). fetch_* not gated. Live tests unrun until CI; hand test pending.
 - 2026-11-01: RM-A In progress -> In progress. PLAN-031 slices 1 and 2 merged (#537, #538). Live run on real QGIS: 7 of 7 passed, 50,000 features in 0.02 s. Open: gate the damage, allocation and service-area results; fetch_* tools; per-tool CRS and stale checks; hand test (severity index on equal indicators, then switch off).
+- 2026-11-01: RM-B Decision needed -> In progress. PLAN-032 slice 1: inspect_canvas_visually sends a real picture (capped 1,280 px, legend and layers as text, newest picture only, text fallback for non-vision models, egress gate for visible protected layers). Offline tested; live render written, CI first run pending. Open: chat button, live vision hand test on Gemini and Claude, run_steps inner calls.
