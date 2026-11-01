@@ -376,6 +376,224 @@
    "عدد المحتاجين",
    "السكان المحتاجين",
    "الأشخاص المحتاجين"
+  ],
+  "travel_time_matrix": [
+   "وقت القيادة بين",
+   "مدة الرحلة بالسيارة",
+   "كم يستغرق الوصول بالسيارة",
+   "المسافة بالطريق بين"
+  ],
+  "location_allocation": [
+   "وزع القرى على",
+   "اربط كل قرية بأقرب مستودع",
+   "أقرب مستودع لكل",
+   "توزيع الطلب على المرافق"
+  ],
+  "simplify_geometry": [
+   "بسط الحدود",
+   "تبسيط الحدود",
+   "قلل عدد الرؤوس",
+   "تبسيط الاشكال"
+  ],
+  "difference_layers": [
+   "اطرح طبقة من",
+   "اطرح المنطقة من",
+   "احذف المنطقة المتداخلة",
+   "كل ما هو خارج"
+  ],
+  "find_nearest_features": [
+   "اقرب مستشفى",
+   "أقرب عيادة",
+   "اقرب مركز صحي",
+   "اقرب عنصر"
+  ],
+  "field_statistics": [
+   "إحصائيات الحقل",
+   "ملخص إحصائي",
+   "متوسط قيم",
+   "مجموع قيم"
+  ],
+  "aspect_analysis": [
+   "اتجاه المنحدر",
+   "اتجاه الانحدار",
+   "أي جهة تواجه المنحدرات",
+   "تحليل اتجاه السفح"
+  ],
+  "select_all_features": [
+   "حدد الكل",
+   "اختر الكل",
+   "حدد كل العناصر",
+   "حدد كل المعالم"
+  ],
+  "set_attribute_value": [
+   "غير القيمة",
+   "عدل القيمة",
+   "حدث القيمة",
+   "غير قيمة الحقل"
+  ],
+  "merge_features": [
+   "ادمج العناصر المحددة",
+   "دمج المعالم",
+   "ادمج المعالم",
+   "اجمع العناصر المحددة في عنصر واحد"
+  ],
+  "set_layer_filter": [
+   "تصفية الطبقة",
+   "اضبط مرشح الطبقة",
+   "مرشح الطبقة",
+   "استعلام التعريف"
+  ],
+  "fix_geometries": [
+   "اصلح الاشكال",
+   "إصلاح الهندسة",
+   "اشكال غير صالحة",
+   "اصلح الهندسة غير الصالحة"
+  ],
+  "create_map_theme": [
+   "احفظ هذا العرض",
+   "احفظ الطبقات المرئية",
+   "احفظ سمة الخريطة"
+  ],
+  "band_composite": [
+   "دمج الحزم",
+   "تركيب الحزم",
+   "صورة ملونة من الحزم",
+   "تركيب لوني كاذب"
+  ],
+  "add_point_layer": [
+   "اعرضها كنقاط",
+   "ملف csv فيه خطوط الطول",
+   "اضف طبقة نقاط",
+   "انشئ طبقة نقاط"
+  ],
+  "delete_features": [
+   "احذف العناصر المحددة",
+   "احذف المعالم",
+   "حذف السجلات",
+   "احذف الصفوف"
+  ],
+  "search_stac_satellite_imagery": [
+   "صور الاقمار الصناعية",
+   "ابحث عن صور سنتينل",
+   "مشاهد الاقمار الصناعية",
+   "صور فضائية لمنطقة"
+  ],
+  "calculate_ndwi": [
+   "مؤشر المياه",
+   "المياه السطحية",
+   "امتداد المياه",
+   "هل يوجد فيضان"
+  ],
+  "calculate_severity_index": [
+   "مؤشر الشدة",
+   "رتب المناطق",
+   "الاكثر تضررا",
+   "مؤشر الاحتياجات"
+  ],
+  "create_shaded_relief": [
+   "تضاريس مظللة",
+   "خريطة تضاريس",
+   "تظليل التضاريس"
+  ],
+  "generate_contours": [
+   "خطوط الكنتور",
+   "منحنيات التسوية",
+   "خطوط الارتفاع",
+   "انشئ خطوط كنتور"
+  ],
+  "get_crs": [
+   "ما هو نظام الاحداثيات",
+   "اي نظام احداثيات",
+   "ما هو الاسقاط",
+   "نظام الاحداثيات للطبقة"
+  ],
+  "assign_layer_crs": [
+   "عين نظام الاحداثيات للطبقة",
+   "الطبقة بدون نظام احداثيات",
+   "نظام احداثيات خاطئ",
+   "حدد الاسقاط للطبقة"
+  ],
+  "package_layers_offline": [
+   "حزمة للاستخدام دون اتصال",
+   "احزم الطبقات",
+   "اجمع الطبقات في ملف واحد",
+   "نسخة للعمل دون انترنت"
+  ],
+  "add_layout_item": [
+   "اضف شعار الى التخطيط",
+   "اضف صورة الى التخطيط",
+   "اضف مربع نص",
+   "اضف عنوانا الى التخطيط"
+  ],
+  "analyze_incident_trend": [
+   "الوضع يزداد سوءا",
+   "هل يزداد الخطر",
+   "اتجاه الحوادث",
+   "تزايد الحوادث"
+  ],
+  "forecast_trend": [
+   "توقع الاتجاه",
+   "تنبؤ بالاتجاه",
+   "توقع القيم القادمة",
+   "اسقاط الاتجاه"
+  ],
+  "select_by_location": [
+   "حدد حسب الموقع",
+   "حدد النقاط داخل",
+   "اختر العناصر داخل",
+   "حدد العناصر التي تتقاطع"
+  ],
+  "add_incident_point": [
+   "سجل حادثة",
+   "اضف حادثة على الخريطة",
+   "ضع نقطة حادث",
+   "علم موقع الحادث"
+  ],
+  "interpolate_surface": [
+   "استيفاء النقاط",
+   "سطح مستمر من النقاط",
+   "تقدير القيم بين النقاط"
+  ],
+  "save_layer_as": [
+   "احفظ الطبقة باسم",
+   "احفظ بنظام احداثيات اخر",
+   "احفظ المحدد فقط",
+   "صدر الطبقة بنظام"
+  ],
+  "supervised_classification": [
+   "تصنيف موجه",
+   "مضلعات التدريب",
+   "مناطق التدريب",
+   "صنف الصورة الى"
+  ],
+  "print_map": [
+   "اطبع الخريطة",
+   "صدر الخريطة الى pdf",
+   "احفظ الخريطة كصورة",
+   "اطبع الخريطة الحالية"
+  ],
+  "set_layer_editing": [
+   "ابدأ التحرير",
+   "ابدا التحرير",
+   "احفظ التعديلات",
+   "تجاهل التعديلات",
+   "وضع التحرير"
+  ],
+  "tidy_project_layers": [
+   "نظف قائمة الطبقات",
+   "رتب الطبقات",
+   "ازل الطبقات المكررة"
+  ],
+  "apply_network_barriers": [
+   "جسر مدمر",
+   "طريق مغلق",
+   "طريق مقطوع",
+   "حاجز على الطريق"
+  ],
+  "estimate_road_speeds": [
+   "سرعة المركبات على الطرق",
+   "سرعات الطرق",
+   "كم سرعة السير"
   ]
  },
  "fr": {
@@ -673,6 +891,224 @@
   "calculate_population_in_need": [
    "personnes dans le besoin",
    "population dans le besoin"
+  ],
+  "travel_time_matrix": [
+   "temps de trajet entre",
+   "temps de conduite entre",
+   "combien de temps en voiture",
+   "distance par la route entre"
+  ],
+  "location_allocation": [
+   "affecter chaque village",
+   "affecte chaque village",
+   "entrepôt le plus proche de chaque",
+   "répartir la demande"
+  ],
+  "simplify_geometry": [
+   "simplifier les contours",
+   "simplifie les géométries",
+   "réduire le nombre de sommets",
+   "généraliser la couche",
+   "simplifie les contours"
+  ],
+  "difference_layers": [
+   "soustraire la couche",
+   "soustrais la zone",
+   "tout sauf la zone",
+   "tout ce qui est en dehors de"
+  ],
+  "find_nearest_features": [
+   "hôpital le plus proche",
+   "clinique la plus proche",
+   "centre de santé le plus proche",
+   "l'élément le plus proche"
+  ],
+  "field_statistics": [
+   "statistiques du champ",
+   "statistiques de base",
+   "résumé statistique",
+   "moyenne des valeurs"
+  ],
+  "aspect_analysis": [
+   "exposition des pentes",
+   "orientation des pentes",
+   "aspect du relief",
+   "direction de la pente"
+  ],
+  "select_all_features": [
+   "sélectionner tout",
+   "tout sélectionner",
+   "sélectionner toutes les entités",
+   "sélectionne tout"
+  ],
+  "set_attribute_value": [
+   "changer la valeur",
+   "modifier la valeur",
+   "mettre à jour la valeur",
+   "change la valeur du champ"
+  ],
+  "merge_features": [
+   "fusionner les entités",
+   "fusionne les entités sélectionnées",
+   "regrouper les entités en une seule"
+  ],
+  "set_layer_filter": [
+   "filtrer la couche",
+   "filtre de la couche",
+   "définir un filtre",
+   "requête de définition"
+  ],
+  "fix_geometries": [
+   "réparer les géométries",
+   "répare les géométries",
+   "géométries invalides",
+   "corriger les géométries"
+  ],
+  "create_map_theme": [
+   "enregistrer ce thème",
+   "sauvegarder les couches visibles",
+   "enregistrer le thème de carte"
+  ],
+  "band_composite": [
+   "composition colorée",
+   "combiner les bandes",
+   "fausses couleurs",
+   "composite rgb"
+  ],
+  "add_point_layer": [
+   "afficher en points",
+   "charger comme points",
+   "csv avec latitude et longitude",
+   "ajouter une couche de points"
+  ],
+  "delete_features": [
+   "supprimer les entités",
+   "supprime les entités sélectionnées",
+   "supprimer les enregistrements",
+   "effacer les entités"
+  ],
+  "search_stac_satellite_imagery": [
+   "images satellite",
+   "chercher des images sentinel",
+   "scènes satellite",
+   "imagerie satellitaire"
+  ],
+  "calculate_ndwi": [
+   "indice d'eau",
+   "eau de surface",
+   "étendue de l'eau",
+   "y a-t-il des inondations"
+  ],
+  "calculate_severity_index": [
+   "indice de sévérité",
+   "classer les districts",
+   "les plus touchés",
+   "indice des besoins"
+  ],
+  "create_shaded_relief": [
+   "relief ombré",
+   "carte de relief",
+   "ombrage du relief"
+  ],
+  "generate_contours": [
+   "courbes de niveau",
+   "lignes de niveau",
+   "générer des courbes de niveau",
+   "isohypses"
+  ],
+  "get_crs": [
+   "quel est le système de coordonnées",
+   "quel système de coordonnées",
+   "quelle projection",
+   "quel crs"
+  ],
+  "assign_layer_crs": [
+   "attribuer le crs",
+   "définir le crs de la couche",
+   "couche sans crs",
+   "mauvais crs"
+  ],
+  "package_layers_offline": [
+   "empaqueter les couches",
+   "paquet hors ligne",
+   "regrouper les couches dans un geopackage",
+   "utiliser hors ligne"
+  ],
+  "add_layout_item": [
+   "ajouter un logo à la mise en page",
+   "ajouter une image à la mise en page",
+   "ajouter une zone de texte",
+   "ajouter une étiquette à la mise en page"
+  ],
+  "analyze_incident_trend": [
+   "la situation empire",
+   "les incidents augmentent",
+   "tendance des incidents",
+   "évolution des incidents"
+  ],
+  "forecast_trend": [
+   "prévoir la tendance",
+   "projeter la tendance",
+   "prévision linéaire",
+   "extrapoler la tendance"
+  ],
+  "select_by_location": [
+   "sélectionner par localisation",
+   "sélectionne les points à l'intérieur",
+   "sélectionner les entités dans",
+   "sélectionner celles qui intersectent"
+  ],
+  "add_incident_point": [
+   "enregistrer un incident",
+   "ajouter un incident sur la carte",
+   "placer un point d'incident",
+   "marquer le lieu de l'incident"
+  ],
+  "interpolate_surface": [
+   "interpolation",
+   "surface continue à partir de points",
+   "estimer les valeurs entre les points"
+  ],
+  "save_layer_as": [
+   "enregistrer la couche sous",
+   "sauvegarder dans un autre crs",
+   "enregistrer uniquement la sélection",
+   "exporter dans un autre crs"
+  ],
+  "supervised_classification": [
+   "classification supervisée",
+   "polygones d'entraînement",
+   "zones d'entraînement",
+   "classer l'image en"
+  ],
+  "print_map": [
+   "imprimer la carte",
+   "exporter la carte en pdf",
+   "enregistrer la carte comme image",
+   "exporter la carte actuelle"
+  ],
+  "set_layer_editing": [
+   "démarrer l'édition",
+   "commencer la modification",
+   "enregistrer les modifications",
+   "annuler les modifications",
+   "mode édition"
+  ],
+  "tidy_project_layers": [
+   "nettoyer la liste des couches",
+   "ranger les couches",
+   "supprimer les couches en double"
+  ],
+  "apply_network_barriers": [
+   "pont détruit",
+   "route bloquée",
+   "route coupée",
+   "barrage routier"
+  ],
+  "estimate_road_speeds": [
+   "vitesse sur les routes",
+   "vitesses routières",
+   "à quelle vitesse peuvent rouler les véhicules"
   ]
  }
 }

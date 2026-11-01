@@ -1909,6 +1909,25 @@
     ],
     "hand_verified": "not verified: CI only. The rules are keyword heuristics over the task titles, reviewed by reading the 76 OpenStreetMap and 82 HDX matches (a few are debatable, e.g. 'hazard-prone settlements', 'households with disabilities'); whether the model then fetches the data and does it well is NOT shown. search_hdx_datasets finds a dataset but the user may still need to pick one.",
     "hand_row": "ask 'map water points in <district>' and 'map cholera cases in <governorate>' and check the task card's tool order starts with fetch_osm_features / search_hdx_datasets and the model fetches instead of asking for a file"
+  },
+  {
+    "id": "arabic-french-more-tools-and-review-sheet",
+    "feature": "Arabic and French routing phrases now cover 96 tools (37 more, written by the assistant: travel times, nearest feature, statistics, selecting, editing and deleting features, fixing geometries, contours, CRS questions, save-as, satellite imagery search, layout items, road barriers and others), with 40 more Arabic and French requests in the replay table; tools/language_review.py writes a plain CSV sheet (phrase, English description of the tool, verdict) for a fluent reader and applies the marked sheet back, refusing a sheet that would leave the two languages covering different tools",
+    "issues": [],
+    "since": "1.18.6",
+    "sources": [
+      "src/cartogen_ai/core/services/routing_languages.json",
+      "tools/language_review.py"
+    ],
+    "guards": [
+      "tests/test_tool_keywords.py::TestLanguagePhrases::test_both_languages_are_present_and_cover_the_same_tools",
+      "tests/test_language_review_tool.py::TestLanguageReviewTool::test_an_unmarked_sheet_changes_nothing",
+      "tests/test_language_review_tool.py::TestLanguageReviewTool::test_fix_remove_and_add",
+      "tests/test_language_review_tool.py::TestLanguageReviewTool::test_a_bad_sheet_is_refused_whole",
+      "tests/test_routing_requests_data.py::TestRoutingRequestsData::test_every_request_is_offered_its_tools"
+    ],
+    "hand_verified": "not verified: CI only, and NOT read by a fluent Arabic or French speaker. The phrases are Modern Standard Arabic and standard French written by the assistant; Yemeni dialect is not covered. A wrong phrase either never matches or offers the wrong tool. The review sheet exists so that a reader can check them without opening JSON.",
+    "hand_row": "a fluent Arabic reader and a fluent French reader mark the review sheet (OK, FIX, REMOVE, ADD); then run python tools/language_review.py apply SHEET.csv and the routing tests"
   }
  ]
 }
