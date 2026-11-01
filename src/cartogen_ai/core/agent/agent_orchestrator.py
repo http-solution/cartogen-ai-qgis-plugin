@@ -51,7 +51,7 @@ from . import api_trace, arg_repair, evidence, look_followup, step_runner, tool_
 from ..models.transactions import TurnTransactionLog
 from ..models.plan_gate import PlanValidationGate
 from ..models import egress_gate
-from ..services import coordinate_provenance, learning, response_guard
+from ..services import canvas_capture, coordinate_provenance, learning, response_guard
 from . import onboarding_profile
 from ..logger import log_event
 from ...infrastructure.settings_keys import (
@@ -603,11 +603,33 @@ class CartogenAi:
                 get_level=get_level,
                 get_sources=get_sources,
                 strict=egress_gate.read_strict(),
+                visible_layer_names=self._visible_layer_names(project) if name in egress_gate.VISIBLE_LAYER_TOOLS else None,
             )
         except Exception:
             if mode == egress_gate.MODE_ENFORCE:
                 return egress_gate.check_failed_decision(name)
             return None
+
+    @staticmethod
+    def _visible_layer_names(project):
+        """Names of the layers whose checkbox is on in the layer tree: what a picture of the map shows (PLAN-032). MAIN THREAD."""
+        return [node.layer().name() for node in project.layerTreeRoot().findLayers() if node.isVisible() and node.layer() is not None]
+
+    def _detach_canvas_image(self, tool_result, image_messages):
+        """Takes the map picture out of a tool result (it would cost hundreds of thousands of tokens as text) and queues it, with its legend and
+        layer list, as a user image message for after this round's tool messages (PLAN-032). Returns the result without the picture."""
+        client = getattr(self, "client", None)
+        vision = canvas_capture.provider_supports_vision(type(client).__name__, getattr(client, "model", None))
+        clean, message = canvas_capture.split_image(tool_result, vision)
+        image_messages.extend([message] if message else [])
+        return clean
+
+    @staticmethod
+    def _add_image_messages(messages, image_messages):
+        """Adds this round's picture message(s) after the tool messages, first replacing any older picture so only the newest is sent again."""
+        if image_messages:
+            canvas_capture.compact_old_images(messages)
+            messages.extend(image_messages)
 
     def _is_plan_gate_enabled(self) -> bool:
         """§1.6 option (b), OFF by default. Mirrors prompt_refiner.is_refinement_enabled()'s
@@ -2011,6 +2033,7 @@ class CartogenAi:
                 self._append_history(user_message, {"role": "assistant", "content": final_text})
                 return final_text
 
+            image_messages = []         # map pictures this round's tools produced, sent after the tool messages (PLAN-032)
             for call in tool_calls:
                 # QGIS-003, 2026-09-13 audit: should_stop was only checked once per LLM
                 # round, at the top of the OUTER loop -- a multi-tool-call batch in one
@@ -2082,6 +2105,7 @@ class CartogenAi:
                 if tool_step_callback is not None:
                     with contextlib.suppress(Exception):
                         tool_step_callback(name, "failed" if is_error else "done", tool_results.error_of(tool_result))
+                tool_result = self._detach_canvas_image(tool_result, image_messages)
                 serialized = self._serialize_tool_result(tool_result)
                 self._remember_grounding(serialized)
                 messages.append({
@@ -2091,6 +2115,7 @@ class CartogenAi:
                     "content": serialized,
                 })
 
+            self._add_image_messages(messages, image_messages)
             guard_stop = guard.end_round() or guard.stop
             guard_stop, active_tools = self._begin_wrap_up(guard, guard_stop, active_tools, messages, iteration_index, correlation_id)
             if guard_stop:

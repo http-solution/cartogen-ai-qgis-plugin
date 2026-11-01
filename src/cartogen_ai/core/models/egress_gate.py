@@ -58,6 +58,10 @@ EXEMPT_TOOLS = frozenset({"set_layer_sensitivity", "get_layer_sensitivity"})
 WORKFLOW_TOOLS = frozenset({"run_monitoring_workflow", "schedule_recurring_workflow"})
 WHOLE_PROJECT_TOOLS = frozenset({"execute_pyqgis_script"}) | WORKFLOW_TOOLS
 
+# inspect_canvas_visually sends a PICTURE of the map to the model (PLAN-032), so what it exposes is whatever layer is visible, not what its
+# arguments name. The caller passes the visible layer names; when it cannot, the whole project is treated as touched (the safe direction).
+VISIBLE_LAYER_TOOLS = frozenset({"inspect_canvas_visually"})
+
 # execute_read_only_sql names its layers INSIDE the query text ("SELECT * FROM \"restricted\""), where the exact-string scan
 # cannot see them (#149). Layer names found in the query are the touched layers; a query that names none and has no database
 # connection runs against the project, so it counts as touching all of it.
@@ -238,7 +242,7 @@ def find_protected(names, get_level, get_sources, strict):
 
 
 def evaluate(*, mode, provider_is_local, tool_name, arguments, project_layer_names,
-             get_level, get_sources, strict):
+             get_level, get_sources, strict, visible_layer_names=None):
     """The decision for one tool call. Returns None when the call may proceed untouched, else
     {"action": "block" | "warn", "layers": {name: reason}, "result": <dict to hand the model>}."""
     if mode not in (MODE_WARN, MODE_ENFORCE) or provider_is_local or tool_name in EXEMPT_TOOLS:
@@ -246,6 +250,8 @@ def evaluate(*, mode, provider_is_local, tool_name, arguments, project_layer_nam
     known = set(project_layer_names)
     if tool_name in WHOLE_PROJECT_TOOLS:
         touched = known
+    elif tool_name in VISIBLE_LAYER_TOOLS:
+        touched = known if visible_layer_names is None else (known & set(visible_layer_names)) | argument_layer_names(tool_name, arguments, known)[0]
     else:
         touched, _unresolved = argument_layer_names(tool_name, arguments, known)
     protected = find_protected(touched, get_level, get_sources, strict)

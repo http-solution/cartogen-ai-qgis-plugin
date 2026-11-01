@@ -2008,6 +2008,28 @@
     ],
     "hand_verified": "not verified: the offline tests are CI; the live tests run on real QGIS layers but were written without a QGIS install (CI's first run is their first execution). Only the main-thread path for ordinary tools is gated: fetch_* tools (network-only or two-phase) and run_steps inner calls that bypass it are not. Only tools whose result carries layer_name get checks, so most CREATE tools are not checked yet. The 'does the model say so in plain words' acceptance needs a person.",
     "hand_row": "run the severity index on a layer whose indicator fields are all equal (the smoke fixtures) and check the answer says the score is the same everywhere; then set cartogen_ai/result_gate=false and confirm no checks appear"
+  },
+  {
+    "id": "model-sees-the-map",
+    "feature": "inspect_canvas_visually renders the canvas off-screen at no more than 1,280 pixels on the long edge (optionally the extent of a named layer, without moving the canvas), flags a blank render, and the agent loop takes the picture out of the tool result and sends it as an image message after the tool messages, followed by the legend and the visible layers as text; only the newest picture is kept in the request; a model that cannot take pictures gets the legend and layers as text with a one-line reason; with the egress gate on, a visible RESTRICTED or SENSITIVE layer blocks the picture to a cloud model until the user confirms",
+    "issues": [],
+    "since": "1.18.6",
+    "sources": [
+      "src/cartogen_ai/core/services/canvas_capture.py",
+      "src/cartogen_ai/core/agent/tools/multimodal_remote_sensing.py",
+      "src/cartogen_ai/core/agent/agent_orchestrator.py",
+      "src/cartogen_ai/core/models/egress_gate.py"
+    ],
+    "guards": [
+      "tests/test_canvas_capture.py::TestPureHelpers::test_the_message_is_image_then_legend_then_layers",
+      "tests/test_canvas_capture.py::TestPureHelpers::test_the_claude_client_converts_the_same_message_to_an_image_block",
+      "tests/test_canvas_capture.py::TestPureHelpers::test_without_vision_the_model_gets_the_text_and_a_reason",
+      "tests/test_canvas_capture.py::TestEgressForAPicture::test_a_visible_protected_layer_blocks_the_picture_to_a_cloud_model",
+      "tests/test_canvas_capture.py::TestAgentLoopSendsThePicture::test_a_vision_model_gets_the_picture_after_the_tool_message_and_not_as_text",
+      "tests/test_canvas_capture_live.py::TestCanvasCaptureLive::test_the_render_is_capped_not_blank_and_described"
+    ],
+    "hand_verified": "not verified: CI only. No live vision call was made on any provider: whether Gemini, Claude, OpenAI, OpenRouter or Ollama models actually read the picture, and whether OpenRouter or Ollama accept it for the chosen model, is NOT shown. Which models can see pictures is a name heuristic (canvas_capture.VISION_MODEL_HINTS), so a vision model with an unlisted name gets the text fallback and a non-vision model with a listed name could get a provider error. The off-screen render was written without a QGIS install (CI's first run is its first execution). The chat button is NOT built: only the model-callable tool exists. Calls made inside run_steps do not detach the picture.",
+    "hand_row": "on Gemini and on Claude, ask 'what is wrong with this map' with three layers visible and check the answer names layers that are visible in the picture; on Ollama with a non-vision model check the text fallback; with a RESTRICTED layer visible and the egress gate on, check a confirmation card appears instead of a picture"
   }
  ]
 }

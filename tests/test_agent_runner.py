@@ -322,7 +322,9 @@ class TestPacingAndCompaction(unittest.TestCase):
         def fake_execute(self, name, args):
             call_count["n"] += 1
             if call_count["n"] == 1:
-                return {"success": True, "image_b64": huge_payload}
+                # Was {"image_b64": ...}: since PLAN-032 the agent loop takes a map picture out of the result before it is sent as text
+                # (tests/test_canvas_capture.py covers that), so the size rule is checked with any other oversized result.
+                return {"success": True, "rows": huge_payload}
             return {"success": True}
 
         client, _ = self._run_looping(fake_execute)
