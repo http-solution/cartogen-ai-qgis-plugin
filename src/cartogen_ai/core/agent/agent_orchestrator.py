@@ -1762,6 +1762,31 @@ class CartogenAi:
         messages.append({"role": "user", "content": loop_guard.WRAP_UP_NUDGE})
         return None, []
 
+    @staticmethod
+    def _request_answer_round(due, active_tools, wrap_up_sent, messages, iteration_index, correlation_id):
+        """Asks for one tool-less answer round when `due` (the (nudge, status) pair from loop_guard.answer_round_due): DEF-21, the last
+        allowed round or a data source that is down. Returns (tools for the next call, whether an answer round has been requested)."""
+        if not due:
+            return active_tools, wrap_up_sent
+        nudge, status = due
+        messages.append({"role": "user", "content": nudge})
+        log_event("turn_guard_stop", tag="Agent", status=status, count=iteration_index + 1, correlation_id=correlation_id)
+        return [], True
+
+    @staticmethod
+    def _limit_reached_text(guard):
+        """The stop text when the round cap ends the turn anyway (the model kept asking for tools on its tool-less last round)."""
+        text = (
+            "[Agent stopped] Reached the tool-call limit for this request before finishing. This usually "
+            "means the request needed many individual actions (e.g. one call per item in a long list). Try "
+            "rephrasing so it can be done in bulk (e.g. \"create one layer with all of them\"), or break the "
+            "request into smaller pieces."
+        )
+        done = list(dict.fromkeys(guard.done))
+        if done:
+            text += "\nDone so far: " + ", ".join(f"`{n}`" for n in done[:12]) + (" ..." if len(done) > 12 else "") + "."
+        return text
+
     def _end_of_round_nudges(self, messages, user_query, turn_tool_log, nudged):
         """Each course-correction fires at most once per turn (tracked in `nudged`)."""
         candidates = (
@@ -1911,6 +1936,8 @@ class CartogenAi:
         nudged = set()   # which one-shot nudges have fired (sandbox, missing_file (#231), drift)
 
         token_budget_hit = False
+        wrap_up_sent = False            # a tool-less answer round was requested (last round, or a data source that is down)
+        data_source_is_down = False
         guard = loop_guard.LoopGuard() if getattr(self, "loop_guard_enabled", True) else loop_guard.LoopGuard(
             max_identical_calls=10 ** 9, max_consecutive_failures=10 ** 9, max_failures=10 ** 9, stall_rounds=10 ** 9)
         guard_stop = None
@@ -1933,6 +1960,11 @@ class CartogenAi:
             # the first place, proportional to how large the task actually is.
             if iteration_index >= PACING_THRESHOLD_ITERATIONS:
                 time.sleep(PACING_DELAY_SECONDS)
+            # The final round answers instead of calling more tools (DEF-21): otherwise the turn ends right after that round's tool
+            # calls with nothing said about what exists. Skipped when a wrap-up round was already sent for another reason.
+            active_tools, wrap_up_sent = self._request_answer_round(
+                loop_guard.answer_round_due(iteration_index, max_rounds, data_source_is_down, wrap_up_sent),
+                active_tools, wrap_up_sent, messages, iteration_index, correlation_id)
             call_started = call_metrics.monotonic()
             try:
                 result = self.client.complete(
@@ -2028,6 +2060,7 @@ class CartogenAi:
                 turn_tool_log.append((name, is_error, tool_results.error_of(tool_result)))
                 guard.record_call(name, arguments, is_error, tool_results.error_of(tool_result) or "",
                                   tool_operations.get_tool_operation_type(name))
+                data_source_is_down = data_source_is_down or loop_guard.data_source_down(tool_result)
                 if name == "find_tools" and not is_error and isinstance(tool_result, dict):
                     active_tools = self._offer_found_tools(active_tools, tool_result, base_tool_names)
                 self._recent_tools = (tuple(dict.fromkeys(n for n, _e, _m in turn_tool_log))[-8:], self._turn_counter)
@@ -2085,11 +2118,6 @@ class CartogenAi:
             final_text += " To allow more, raise the budget in Settings."
             self._append_history(user_message, {"role": "assistant", "content": final_text})
             return final_text
-        final_text = (
-            "[Agent stopped] Reached the tool-call limit for this request before finishing. This usually "
-            "means the request needed many individual actions (e.g. one call per item in a long list). Try "
-            "rephrasing so it can be done in bulk (e.g. \"create one layer with all of them\"), or break the "
-            "request into smaller pieces."
-        )
+        final_text = self._limit_reached_text(guard)
         self._append_history(user_message, {"role": "assistant", "content": final_text})
         return final_text
