@@ -1835,6 +1835,25 @@
     ],
     "hand_verified": "not verified: CI only (mocked HTTP). The sandbox could not reach either mirror (40 s timeouts), and a 2026-09-24 check found some public mirrors slow or failing TLS, so whether they answer on the owner's machine is unknown. The off switch is a QgsSettings value with no settings-dialog control yet.",
     "hand_row": "with the main Overpass server overloaded (or blocked), run 'show hospitals in <area>' and check the log for overpass_mirror_used or overpass_mirror_failed"
+  },
+  {
+    "id": "budget-counts-cached-tokens-at-ten-percent",
+    "feature": "the per-request token budget (cartogen_ai/max_turn_tokens, default 450,000) counts input the provider served from its cache at 10 percent, and the check before each call uses the last call's size counted the same way; providers that report no cache figure count in full; the chat footer and 'This turn' text still show the full token size",
+    "issues": [],
+    "since": "1.18.6",
+    "sources": [
+      "src/cartogen_ai/core/agent/usage_tracker.py",
+      "src/cartogen_ai/core/agent/call_metrics.py",
+      "src/cartogen_ai/core/agent/agent_orchestrator.py"
+    ],
+    "guards": [
+      "tests/test_budget_counts_cached_tokens_at_ten_percent.py::TestBudgetCachedTokens::test_cached_input_counts_at_ten_percent",
+      "tests/test_budget_counts_cached_tokens_at_ten_percent.py::TestBudgetCachedTokens::test_no_cache_figure_counts_in_full",
+      "tests/test_budget_counts_cached_tokens_at_ten_percent.py::TestBudgetCachedTokens::test_next_call_estimate_follows_the_same_rule",
+      "tests/test_budget_counts_cached_tokens_at_ten_percent.py::TestBudgetCachedTokens::test_the_taiz_run_would_not_have_hit_the_budget"
+    ],
+    "hand_verified": "not verified: CI only (unit tests on the arithmetic, plus the existing turn-limit tests). The 10 percent share is Anthropic's cache-read price; OpenAI and Gemini bill cached input at 25 to 50 percent, so for them the budget now runs looser than spend. The default stays 450,000, so a run now has more headroom than before; whether that is the right ceiling is not measured.",
+    "hand_row": "repeat the Taiz request and compare the footer's token figure with whether the run stops at the budget"
   }
  ]
 }

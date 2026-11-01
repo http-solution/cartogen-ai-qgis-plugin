@@ -249,7 +249,7 @@ class CartogenAiSettingsDialog(QDialog):
         self.max_turn_tokens_spin.setSpecialValueText("no limit")
         self.max_turn_tokens_spin.setValue(self._int_setting(MAX_TURN_TOKENS_KEY, DEFAULT_TURN_TOKEN_BUDGET, 0, 5_000_000))
         self.max_turn_tokens_spin.setToolTip(
-            "Stops a request once the model calls in it have used this many tokens (input + output). "
+            "Stops a request once the model calls in it have used this many tokens (input + output; input the provider served from its cache counts at 10 percent). "
             "0 = no limit. The default (450,000) is a provisional guardrail from observed use, not an optimum; the chat footer shows what each request used, so you can pick a number from real use.")
         limits_form.addRow("Max tokens per request:", self.max_turn_tokens_spin)
         self.layout_masthead_edit = QLineEdit()

@@ -120,6 +120,16 @@ def next_call_estimate(records):
     return None
 
 
+def next_call_budget_estimate(records, cached_share=0.1):
+    """next_call_estimate() as the per-request budget counts it: the last call's fresh input plus `cached_share` of its cached input
+    (a call that reported no cached figure counts in full). None until a call has reported usage."""
+    for record in reversed(list(records or [])):
+        if record.get("input_tokens") is not None:
+            cached = min(record.get("cached_tokens") or 0, record["input_tokens"])
+            return round(record["input_tokens"] - cached * (1 - cached_share))
+    return None
+
+
 def turn_usage_line(records):
     """'This turn: 5 calls, 131,878 input (51,200 cached) + 2,100 output tokens; last call 27,400 input' or None. Says plainly when
     some calls reported no usage. Observed numbers only."""
