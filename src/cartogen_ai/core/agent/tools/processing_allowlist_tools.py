@@ -18,6 +18,7 @@ preference, not a replacement.
 """
 
 import contextlib
+import re
 from .registry import register_tool
 from ... import _background_processing as _bg
 from ._processing_allowlist import (ALLOWED_ALGORITHM_IDS, FILE_VECTOR_ALGORITHM_IDS, GRASS_ALGORITHM_IDS, MUTATES_INPUT_ALGORITHM_IDS,
@@ -388,13 +389,84 @@ def single_value_message(alg_id, value):
             f"required size or distance parameters before running it again with the same arguments." + _RADIUS_HINT.get(alg_id, ""))
 
 
-def _output_report(layer, alg_id):
+_EMPTY_HINT_ALGORITHM_IDS = frozenset({"native:extractbyexpression", "native:extractbylocation"})
+
+
+def empty_extract_hint(alg_id, facts):
+    """Why an extraction returned nothing, from plain facts gathered off the layers (pure, so it is testable without QGIS).
+
+    DEF-22, owner's Taiz run (2026-11-01): native:extractbyexpression for the Taiz districts and native:extractbylocation for the facilities
+    both returned 0 features, the reply only said "check the inputs", and the model went on to try other routes. The log held no arguments,
+    so the cause is unknown; what the reply can do is show the model what the layer actually holds, so it can correct a misspelt value or
+    a wrong field. facts: input_name, input_count, fields (list), expression, values {field: [distinct values]}, other_name, other_count,
+    crs_input, crs_other, extents_intersect (True/False/None)."""
+    parts = []
+    name = facts.get("input_name") or "the input layer"
+    if facts.get("input_count") == 0:
+        return f"{name} has 0 features, so nothing could be extracted: the input is empty, not the filter."
+    if alg_id == "native:extractbyexpression":
+        parts.append(f"The expression matched none of the {facts.get('input_count', '?')} features in {name}.")
+        for field, values in (facts.get("values") or {}).items():
+            shown = ", ".join(repr(v) for v in values[:12])
+            more = " ..." if len(values) > 12 else ""
+            parts.append(f"Values of field '{field}': {shown}{more}.")
+        if not facts.get("values") and facts.get("fields"):
+            parts.append("Fields available: " + ", ".join(facts["fields"][:30]) + ".")
+        parts.append("Check the spelling and case of the value and that the field name is quoted with double quotes.")
+    elif alg_id in ("native:extractbylocation", "native:selectbylocation"):
+        other = facts.get("other_name") or "the comparison layer"
+        parts.append(f"No feature of {name} ({facts.get('input_count', '?')} features) satisfied the spatial test against {other} "
+                     f"({facts.get('other_count', '?')} features).")
+        if facts.get("other_count") == 0:
+            parts.append(f"{other} is empty, so nothing can match: fix that layer first.")
+        if facts.get("extents_intersect") is False:
+            parts.append("The two layers' extents do not overlap at all.")
+        if facts.get("crs_input") and facts.get("crs_other") and facts["crs_input"] != facts["crs_other"]:
+            parts.append(f"The layers use different coordinate systems ({facts['crs_input']} and {facts['crs_other']}).")
+    return " ".join(parts)
+
+
+def _gather_empty_extract_facts(alg_id, params):
+    """The facts empty_extract_hint needs, read from the resolved layer objects in `params`. Any failure returns what was read so far."""
+    facts = {}
+    with contextlib.suppress(Exception):
+        layer = params.get("INPUT")
+        facts.update(input_name=layer.name(), input_count=layer.featureCount(), fields=[f.name() for f in layer.fields()],
+                     crs_input=layer.crs().authid())
+        if alg_id == "native:extractbyexpression":
+            expression = str(params.get("EXPRESSION") or "")
+            facts["expression"] = expression
+            values = {}
+            for field in re.findall(r'"([^"]+)"', expression):
+                if field in facts["fields"] and field not in values and len(values) < 3:
+                    seen = []
+                    for feature in layer.getFeatures():
+                        value = feature[field]
+                        if value not in seen and value is not None:
+                            seen.append(value)
+                        if len(seen) >= 40:
+                            break
+                    values[field] = sorted(seen, key=str)
+            facts["values"] = values
+        else:
+            other = params.get("INTERSECT")
+            facts.update(other_name=other.name(), other_count=other.featureCount(), crs_other=other.crs().authid())
+            if facts.get("crs_input") == facts.get("crs_other"):
+                facts["extents_intersect"] = layer.extent().intersects(other.extent())
+    return facts
+
+
+def _output_report(layer, alg_id, params=None):
     """feature_count and, for an empty vector or a one-value raster, a warning. The raster check samples the band (not every cell)."""
     if hasattr(layer, "featureCount"):
         count = layer.featureCount()
         out = {"feature_count": count}
         if count == 0:
             out["warning"] = "The output layer has 0 features -- check the inputs before treating this as a real empty result."
+            if alg_id in _EMPTY_HINT_ALGORITHM_IDS and isinstance(params, dict):
+                hint = empty_extract_hint(alg_id, _gather_empty_extract_facts(alg_id, params))
+                if hint:
+                    out["why_empty"] = hint
         return out
     with contextlib.suppress(Exception):
         from qgis.core import Qgis
@@ -618,7 +690,7 @@ def run_allowlisted_processing_algorithm(alg_id, params, new_layer_name=None):
     if alg_id in FILE_VECTOR_ALGORITHM_IDS:
         result["temporary"] = True
         result["temporary_note"] = ("This result is temporary: it is not saved with the project. Ask to save it (export_layer) to keep it.")
-    result.update(_output_report(new_layer, alg_id))
+    result.update(_output_report(new_layer, alg_id, resolved_params))
 
     # GitHub #163: algorithms with several outputs (for example a lines output AND a points output) return all of them, each as its
     # own layer named <layer_name>_<output key>; the first output keeps the plain name above.
