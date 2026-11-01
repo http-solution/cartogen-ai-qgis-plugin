@@ -260,6 +260,11 @@ def run_monitoring_workflow(preset_name):
         },
         "required": ["preset_name", "interval_minutes"],
     },
+
+    keywords=[
+        "every week", "each week", "weekly check", "every day", "daily check",
+        "every month", "every hour", "check every",
+    ],
 )
 def schedule_recurring_workflow(preset_name, interval_minutes, max_runs=None):
     if not QGIS_AVAILABLE:
@@ -287,6 +292,11 @@ def schedule_recurring_workflow(preset_name, interval_minutes, max_runs=None):
         "properties": {"preset_name": {"type": "string"}},
         "required": ["preset_name"],
     },
+
+    keywords=[
+        "stop the check", "stop the weekly", "stop the daily", "stop the scheduled", "cancel the scheduled",
+        "stop checking",
+    ],
 )
 def stop_recurring_workflow(preset_name):
     if not QGIS_AVAILABLE:
@@ -301,6 +311,10 @@ def stop_recurring_workflow(preset_name):
     "list_scheduled_workflows",
     "List currently active recurring workflow schedules (session-scoped -- cleared when QGIS closes).",
     {"type": "object", "properties": {}, "required": []},
+
+    keywords=[
+        "scheduled jobs", "scheduled checks", "what is scheduled",
+    ],
 )
 def list_scheduled_workflows():
     if not QGIS_AVAILABLE:

@@ -155,7 +155,13 @@ def configured_top_k() -> int:
     except Exception:
         return DEFAULT_TOP_K
     return max(_MIN_TOP_K, min(_MAX_TOP_K, value))
-_LONG_QUERY_MIN_SCORE = 6
+# Was 6, which admits a tool that matched on description words alone (three or more hits, capped at +8). Owner's real 16-call run (2026-11-01,
+# per-call log): eight such tools (analyze_critical_links, apply_network_barriers, classify_facilities_by_access, ...) won their slots on an
+# alphabetical tie at score 8, were never called, and cost about 4,800 tokens on every call: roughly 17 percent of the 440,000 tokens the run
+# used. At 9 a long request needs a name or phrase match (10 or more) to take a slot. Measured over the 240 routing requests: no tool needed by
+# any of them was dropped, and the 38 long ones carry 37 percent fewer tool tokens (9,055 to 5,684 on average). find_tools is always offered
+# for the case where a needed tool only matched on description words.
+_LONG_QUERY_MIN_SCORE = 9
 _DESCRIPTION_HIT_CAP = 4        # at most +8 from description words, however long the request
 # Was 10, the same as ONE generic name-word match. As the registry grew past 230 tools, more than 40 of them had "layer", "create" or "add" in
 # their name, and for a short request ("create layer for Jordan ADM1") the curated alias tool tied with all of them and lost its slot to

@@ -46,3 +46,5 @@ The new allocation sits behind one function; keep the old path selectable by a s
 
 ## Status log
 - 2026-11-01: written after PLAN-042 round 5, from the measurements above. No code. Master list row RT-1 (Decision needed).
+- 2026-11-01 (later): real evidence for the tie-break problem. The owner's per-call log of the Taiz run shows eight never-used tools carried on every call because they tied at score 8 and sorted first alphabetically (about 17 percent of the run's tokens). A first, cheap response is in PLAN-042's log: the long-request floor moved from 6 to 9. That leaves the question of the tie-break order and per-step slots open, and this plan still needs the owner's choice.
+
