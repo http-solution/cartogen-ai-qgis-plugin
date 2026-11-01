@@ -33,7 +33,7 @@ One list to follow up and plan from. It replaces the session task list (101 entr
 | OWN-2 | Send the screenshot of the change-layer legend (row D6: is it blue-to-red, is the no-change area transparent?). | The colour stops are correct in code; without the picture the fault cannot be located. | You | - | XS | P2 | Waiting on you | 1.18.3 hand run D6 |
 | OWN-3 | For the rows that failed without a found cause, send the per-prompt Log Messages text: unrequested layers (A5 country layer, A7 Incident layer), C5 inverted labels, D3, D4, S5. | Last two runs' logs held only the verdict line; the causes of these rows are unknown. | You | OWN-1 | S | P1 | Waiting on you | 1.18.3 hand run |
 | OWN-4 | Run the 1.18.1-bundle rows V3 to V8 so issues #362 (V4, V5, V6) and #380 (V3, V7, V8) can be closed or fixed. | The only two open GitHub issues; waiting since 2026-10-23. | You | - | S | P1 | Waiting on you | PLAN-021, PLAN-022 N0 |
-| OWN-5 | Confirm or change the roadmap order A to G in the roadmap audit (this unlocks plans and issues for RM-A to RM-D). | Nothing in the roadmap can start without it. | You | - | XS | P1 | Decision needed | ROADMAP_AUDIT_2026-10-27.md |
+| OWN-5 | Confirm or change the roadmap order A to G in the roadmap audit (this unlocks plans and issues for RM-A to RM-D). | Nothing in the roadmap can start without it. | You | - | XS | P1 | Closed | ROADMAP_AUDIT_2026-10-27.md |
 | OWN-6 | Answer the PLAN-022 N6 questions: temporary-layer note for incident, hazard and event layers; undo for rename_field and delete_field; add a clean-profile install row; stable versus pre-release channel; architecture items. | Small product choices that block HY work and wording of releases. | You | - | S | P2 | Decision needed | PLAN-022 N6 |
 | OWN-7 | Confirm or change the PLAN-023 defaults (questions Q1 to Q15: persona model 'lens, never a gate', one primary plus one secondary persona, Power BI hand-off files only, assumed speeds only on request, and so on). | Needed before the profile programme starts. | You | - | S | P2 | Decision needed | PLAN-023 (branch claude/pending-work-master-list) |
 | OWN-8 | Decide what happens to branch claude/pending-work-master-list (the earlier master list W-1 to W-58 and PLAN-023): merge for the record, or discard because this list replaces it. | It has never been merged; two lists must not drift apart. | You | - | XS | P2 | Decision needed | docs/PENDING_WORK_AND_PROFILE_ANALYSIS_2026-10-26.md |
@@ -93,7 +93,7 @@ One list to follow up and plan from. It replaces the session task list (101 entr
 
 | ID | Task | Why | Who | Depends on | Size | Pri | Status | Source |
 |---|---|---|---|---|---|---|---|---|
-| RM-A | Verified result gate: after each analysis that writes a layer or field, run applicable checks (CRS, geometry, not-all-null or constant, value range and unit, no stale field) and add them to the result; the answer must quote a failed check. | Three result errors in three hand runs were silent; this is the defensible differentiator. | Claude | OWN-5 | L | P1 | Decision needed | ROADMAP_AUDIT step A, session task 97 |
+| RM-A | Verified result gate: after each analysis that writes a layer or field, run applicable checks (CRS, geometry, not-all-null or constant, value range and unit, no stale field) and add them to the result; the answer must quote a failed check. | Three result errors in three hand runs were silent; this is the defensible differentiator. | Claude | OWN-5 | L | P1 | In progress | ROADMAP_AUDIT step A, session task 97 |
 | RM-B | Attach the map canvas (or a region) plus legend text and layer list to the next message as an image part. | inspect_canvas_visually sends the map as base64 text in a tool result; the chat clients already accept image parts. | Claude | OWN-5 | M | P1 | Decision needed | ROADMAP_AUDIT step B, task 98 |
 | RM-C | Record source URL, licence, retrieval date and coverage on every fetch result, the provenance sidecar and the report. | Needed for donors and for the verified workflow report. | Claude | OWN-5 | M | P1 | Decision needed | ROADMAP_AUDIT step C, task 99 |
 | RM-D | Verified workflow report: sources, parameters, checks, assumptions and limitations, a rerun recipe, for one worked example (service coverage). | The lead feature; mostly assembly once A and C exist. | Claude | RM-A, RM-C | M | P1 | Not started | ROADMAP_AUDIT step D, task 100 |
@@ -155,7 +155,7 @@ Source: the owner's analysis document of nine flagship QGIS AI plugins, checked 
 
 | ID | Task | Why | Who | Depends on | Size | Pri | Status | Source |
 |---|---|---|---|---|---|---|---|---|
-| LEAD-1 | Decide the positioning ('the trusted GIS agent for humanitarian and field work') and the order of PLAN-030: result gate, canvas image, MCP, benchmark, directory listing. Absorbs OWN-5. | Everything in this stream depends on one stated direction. | You | - | XS | P1 | Decision needed | codebase analysis 2026-10-28 |
+| LEAD-1 | Decide the positioning ('the trusted GIS agent for humanitarian and field work') and the order of PLAN-030: result gate, canvas image, MCP, benchmark, directory listing. Absorbs OWN-5. | Everything in this stream depends on one stated direction. | You | - | XS | P1 | In progress | codebase analysis 2026-10-28 |
 | LEAD-2 | Decide whether to support QGIS 3.x (stay 4.2+; current 3.x LTR only; 3.28 upward) after reading the PLAN-036 study. | The listing's audience; the cost is large and unknown until LEAD-3 reports. | You | LEAD-3 | XS | P1 | Decision needed | codebase analysis 2026-10-28 |
 | LEAD-3 | Run the QGIS 3.x feasibility study: Qt5/Qt6 and PyQGIS differences counted by a script kept in tools/, CI cost, three options with a size each. No plugin change. | Replaces a guess with a number; can start before LEAD-2. | Claude | - | M | P2 | Not started | codebase analysis 2026-10-28 |
 | LEAD-4 | Tool-argument drift (PLAN-033): fix the dropped sublayer, extend the drift test to every special-cased branch and to composite tools, build new tools' schemas from the signature. | Three dropped arguments in two days; the registry layer itself is consistent (measured), the orchestrator branches are not. | Claude | - | M | P1 | In progress | codebase analysis 2026-10-28 |
@@ -171,11 +171,11 @@ Source: the owner's analysis document of nine flagship QGIS AI plugins, checked 
 | Status | Rows |
 |---|---|
 | Not started | 31 |
-| In progress | 28 |
-| Decision needed | 14 |
+| In progress | 30 |
 | Waiting on you | 13 |
+| Decision needed | 11 |
 | Blocked | 5 |
-| Closed | 2 |
+| Closed | 3 |
 | Closed (record) | 1 |
 | **Total** | **94** |
 
@@ -270,3 +270,6 @@ Newest last. One line per status change; written by `tools/master_list.py set`.
 - 2026-11-01: ML-1 In progress -> In progress. Review sheet tool built (tools/language_review.py export/apply); coverage now 96 tools, 40 more Arabic/French test requests (156 rows). All still assistant-written: needs a fluent Arabic (Yemeni) reader and a French reader to mark the sheet, and a hand test with a real model.
 - 2026-11-01: RT-1 Decision needed -> In progress. Owner chose B+C. Built and measured: no gain (24/41 held-out long requests miss a tool both ways); 32 of 33 misses are vocabulary, not slots, so B+C were not shipped. About 120 phrases patched (set 1 24 to 2) but a blind set 2 stays at 10/20 misses: patches do not generalise. Decision needed: real long prompts, and whether to try a semantic match or rely on find_tools. See PLAN-043.
 - 2026-11-01: RT-1 In progress -> In progress. Owner chose the find_tools route. find_tools recall measured (26/30 blind needs, 10/17 simulated) and improved with a synonym table (29/30, 17/17 designed-against) plus an operation-not-goal hint in the need parameter. CI only. Open: does a real model call find_tools when a near-miss tool is offered? Needs a hand test; real long prompts still wanted.
+- 2026-11-01: OWN-5 Decision needed -> Closed. Owner confirmed the roadmap order on 2026-11-01 ('Go ahead with the roadmap order'): A verified result gate, B canvas as an image, C provenance and licence on fetch, D verified workflow report, E, F MCP, G needs decisions. Recorded in PLAN-030.
+- 2026-11-01: LEAD-1 Decision needed -> In progress. Order confirmed by the owner on 2026-11-01 (see OWN-5, PLAN-030). The positioning sentence is working wording only until the owner states it publicly. Step A (PLAN-031 verified result gate) started: pure checks module built; adapter, hook, response guard, live tests still to do.
+- 2026-11-01: RM-A Decision needed -> In progress. PLAN-031 slice 1 part 1: pure checks module (6 checks, 14 tests, 3 of 5 historical defects reproduced). Not hooked into any tool yet.

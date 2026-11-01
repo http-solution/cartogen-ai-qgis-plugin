@@ -1,6 +1,6 @@
 # PLAN-031: verified result gate (master list RM-A)
 
-Status: planned
+Status: in progress
 
 ## Goal
 After an analysis that writes a layer or a field, the plugin checks the result itself and puts the outcome in the tool result, so a wrong answer is reported as wrong even when the model would have accepted it. Three classes of silent wrong answer were found by hand runs and not by the model (PLAN-026): degrees treated as metres (class A), a signed value ranked as worse (class B), stale state read as a result (class C). The 1.18.4 run added two more: figures typed into a layout that were not in the data (PLAN-028) and a blocked road network that was silently ignored (PLAN-029 item 4). Each was fixed one at a time; this makes the check general.
@@ -34,3 +34,4 @@ A setting turns the gate off (tools then return no `checks`, as today). Revert t
 
 ## Status log
 - 2026-10-28: plan written (master list RM-A, LEAD-1 decides the order). No code.
+- 2026-11-01: owner said "Go ahead with the roadmap order" (OWN-5, LEAD-1): step A of the roadmap audit starts. Slice 1, part 1 built: `core/validators/result_checks.py`, a pure module (no QGIS import) with six checks over a plain summary of the output layer (CRS in degrees for a distance result, invalid or empty geometries, a written field empty or constant, a value outside its unit's range, a field identical to its previous contents, an empty or wrong-sized output), `run_checks` and `summarize`. Acceptance 1 (a deliberately wrong input fails, a correct one passes) is met offline; acceptance 2 is met for three of the five defects (PLAN-026 classes A, B, C, as inputs the checks flag); the layout-figures defect (PLAN-028) and the ignored blocked network (PLAN-029 item 4) are not layer checks and stay open. NOT built yet: the adapter that reads a real layer into the summary, the dispatcher hook that adds `checks` and `checks_summary` to a tool result, the response-guard rule, the off switch, the live tests and the 50,000-feature timing. So no tool result carries checks and nothing is checked in a real run.

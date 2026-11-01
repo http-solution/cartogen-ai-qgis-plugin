@@ -1967,6 +1967,25 @@
     ],
     "hand_verified": "not verified: CI only, and no real model was run. Top-5 recall of find_tools on 30 blind needs went from 26 to 29; on 17 needs the table was built against, 10 to 17 (NOT evidence of generalisation). The needs are the assistant's guess at how a model phrases a step; given the raw sentence of the request instead, recall is only 6 of 17, so it depends on the model naming the operation. Whether a model calls find_tools at all when a near-miss tool is already offered (it was offered apply_categorized_style, not apply_graduated_style) is NOT shown and is the real risk.",
     "hand_row": "with a real model, send 'make a map of the districts coloured by the number of clinics' and similar; in the log check whether find_tools is called, what need the model wrote, and whether apply_graduated_style is then offered"
+  },
+  {
+    "id": "result-checks-pure",
+    "feature": "a pure module of checks over a summary of a tool's written layer (CRS in degrees for a distance result, invalid or empty geometries, a written field that is empty or constant, a value outside its unit's range, a field identical to its previous contents, an empty or wrong-sized output), each returning pass, warn or fail with a plain-words detail; the three historical silent wrong answers (degrees as metres, a signed difference read as a score, a stale column) are reproduced as inputs it flags. NOT hooked into any tool yet: no tool result carries checks",
+    "issues": [],
+    "since": "1.18.6",
+    "sources": [
+      "src/cartogen_ai/core/validators/result_checks.py"
+    ],
+    "guards": [
+      "tests/test_result_checks.py::TestEachCheck::test_crs_fails_on_a_geographic_layer_only_when_a_distance_was_used",
+      "tests/test_result_checks.py::TestEachCheck::test_value_ranges_by_unit",
+      "tests/test_result_checks.py::TestEachCheck::test_stale_fields",
+      "tests/test_result_checks.py::TestHistoricalWrongAnswersAreFlagged::test_class_a_a_buffer_in_degrees",
+      "tests/test_result_checks.py::TestHistoricalWrongAnswersAreFlagged::test_class_b_a_signed_difference_read_as_a_score",
+      "tests/test_result_checks.py::TestHistoricalWrongAnswersAreFlagged::test_class_c_an_old_column_read_as_this_runs_result"
+    ],
+    "hand_verified": "not verified: CI only (synthetic summaries). Nothing yet reads a real layer into the summary, so nothing is checked in a real run. The two other historical defects named in PLAN-031 (figures typed into a layout that were not in the data; a blocked road network silently ignored) are not covered by these layer checks.",
+    "hand_row": "none: the pure module changes no behaviour; the hook (next slice) gets its own hand row"
   }
  ]
 }

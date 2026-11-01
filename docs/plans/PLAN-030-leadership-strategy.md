@@ -43,3 +43,4 @@ Nothing to roll back. If the owner rejects the positioning, mark this plan aband
 
 ## Status log
 - 2026-10-28: plan written from the owner's analysis document and a check of the repository. Decisions needed: LEAD-1 (positioning and order), LEAD-2 (QGIS 3.x). Nothing built.
+- 2026-11-01: owner said "Go ahead with the roadmap order": the order of this plan and of the roadmap audit (A verified result gate, B canvas as an image, C provenance and licence on fetch, D verified workflow report, then E, F MCP, G needing decisions) is confirmed as the working order, with PLAN-033 (argument drift) alongside and PLAN-036 (QGIS 3.x study) as study only. The positioning sentence ("the trusted GIS agent for humanitarian and field work") is used as working wording in plans and is NOT a public claim until the owner states it. Step A (PLAN-031) started.
