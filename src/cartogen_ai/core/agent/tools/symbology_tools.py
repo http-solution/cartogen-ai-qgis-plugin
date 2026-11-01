@@ -141,6 +141,7 @@ def _apply_to_symbols(symbols, options, colours, pen, brush, shape):
         "fill_style": {"type": "string", "description": "Pattern of a polygon fill, for example hatch_forward."},
     }, "required": ["layer_name"]},
     keywords=[
+        "small red crosses", "as crosses", "as small crosses", "as icons", "blue icons", "brown icons",
         "outline color", "outline colour", "outline width", "outline thickness", "thicker outline", "thinner outline",
         "thin outline", "thick outline", "dashed outline", "dashed line", "dotted line", "dotted outline", "line pattern",
         "line style", "stroke width", "stroke colour", "stroke color", "marker shape", "marker size", "symbol size",

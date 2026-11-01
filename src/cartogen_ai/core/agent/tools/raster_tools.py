@@ -779,6 +779,7 @@ def _zonal_stats_into_layer(raster, polygon_layer):
 
 @register_tool("zonal_statistics", "Compute zonal statistics of raster over vector polygons.", {"type": "object", "properties": {"raster_layer": {"type": "string"}, "vector_layer": {"type": "string"}}, "required": ["raster_layer", "vector_layer"]},
     keywords=[
+        "total population of each district", "population of each district", "average rainfall per district", "average per district", "population in each catchment", "sum per district from the raster", "share of the population living in", "statistics of the raster per",
         "average elevation per", "mean elevation per", "average of the raster per", "raster values per district", "statistics for each district",
         "per district from the raster",
         "average rainfall for each", "average for each district", "mean for each district", "average per district", "how much of each class",

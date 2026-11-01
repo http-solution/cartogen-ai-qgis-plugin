@@ -641,6 +641,7 @@ def _remember_profile(layout, profile, name=None):
     },
 
     keywords=[
+        "one page pdf", "one-page pdf", "a4 poster", "a3 layout", "printable poster", "poster of the", "legend on the right", "north arrow and a scale bar",
         "printable map", "print the map", "printed map", "map for printing", "map with a legend",
     ],
 )

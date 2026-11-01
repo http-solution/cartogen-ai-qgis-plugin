@@ -217,6 +217,7 @@ def delete_features(layer_name, expression=None, only_selected=False, confirmed=
                                       "feature_id": {"type": "integer"}, "expression": {"type": "string"}},
      "required": ["layer_name", "field", "value"]},
     keywords=[
+        "change the status of", "set the status of", "mark the selected as", "change the status to",
         "change the value", "set the value", "edit the value", "update the value", "set the field", "change the attribute",
         "edit the attribute", "change the population of", "set its", "update the attribute", "fill the field",
         "change the name of", "change the value of", "set the value of",

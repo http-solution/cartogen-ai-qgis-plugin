@@ -511,6 +511,7 @@ def load_layout_template(template_path, new_layout_name):
                                       "override_reason": {"type": "string", "description": "with purpose='publication': the USER's stated reason for exporting despite problems. Never invent one; ask."}},
      "required": ["layout_name", "output_path"]},
     keywords=[
+        "as a png for", "export the whole thing", "export the map as an image",
         "export the layout", "export layout", "export the layout as svg", "layout to svg", "save the layout as pdf",
         "save the layout as png", "export the existing layout", "export layout to", "map as a pdf", "map as pdf", "map as a png",
         "map as an image", "map as a jpg", "map to pdf", "pdf of the map", "pdf of the layout", "pdf copy of the map",

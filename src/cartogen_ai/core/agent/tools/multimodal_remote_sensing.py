@@ -172,6 +172,7 @@ _ALIGN_PARAMS_CHANGE = {
     "increase, no change transparent) so the change pattern is visible straight away.",
     {"type": "object", "properties": {"raster_before": {"type": "string"}, "raster_after": {"type": "string"}, **_ALIGN_PARAMS_CHANGE}, "required": ["raster_before", "raster_after"]},
     keywords=[
+        "got worse", "show where it got worse", "between last year and this year", "newly flooded", "before and after the", "compare the vegetation", "change between the two",
         "before and after", "compare images", "what changed", "how much damage", "damage from before to after",
         "satellite comparison",
     ],

@@ -617,6 +617,7 @@ def _mark_no_data(layer, renderer, field):
         "required": ["layer_name", "field"],
     },
     keywords=[
+        "colour the districts from", "color the districts from", "from few to many", "colour the districts by", "color the districts by", "colour them by the", "graduated map", "diverging palette", "style the districts by", "in five classes", "classes with a colour ramp", "shown in a graduated",
         "colour the districts by", "color the districts by", "shade the districts", "darker where", "darker the more",
         "colour by how many", "color by how many", "from light to dark", "light to dark", "darker for higher", "show how much",
         "show how many",
@@ -1170,6 +1171,7 @@ def change_layer_color(layer_name, color_hex, opacity=None):
         "required": ["layer_name", "opacity_percent"],
     },
     keywords=[
+        "with some transparency", "with transparency", "semi-transparent", "make it transparent", "drape the",
         "see-through", "see through", "less solid", "so i can see underneath", "so i can see what is below", "fade the",
         "more transparent",
     ],

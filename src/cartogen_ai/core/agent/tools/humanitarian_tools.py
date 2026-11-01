@@ -2208,6 +2208,7 @@ def _keep_or_say_temporary(layer, result):
     },
 
     keywords=[
+        "put them on the map as points", "import the gps points", "gps columns", "gps points from", "points from the csv", "points from a spreadsheet", "spreadsheet with coordinates",
         "load it as points", "as points on the map", "latitude and longitude columns", "csv with latitude", "csv of villages",
     ],
 )
