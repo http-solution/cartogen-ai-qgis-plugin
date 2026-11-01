@@ -2030,6 +2030,27 @@
     ],
     "hand_verified": "not verified: CI only. No live vision call was made on any provider: whether Gemini, Claude, OpenAI, OpenRouter or Ollama models actually read the picture, and whether OpenRouter or Ollama accept it for the chosen model, is NOT shown. Which models can see pictures is a name heuristic (canvas_capture.VISION_MODEL_HINTS), so a vision model with an unlisted name gets the text fallback and a non-vision model with a listed name could get a provider error. The off-screen render was written without a QGIS install (CI's first run is its first execution). The chat button is NOT built: only the model-callable tool exists. Calls made inside run_steps do not detach the picture.",
     "hand_row": "on Gemini and on Claude, ask 'what is wrong with this map' with three layers visible and check the answer names layers that are visible in the picture; on Ollama with a non-vision model check the text fallback; with a RESTRICTED layer visible and the egress gate on, check a confirmation card appears instead of a picture"
+  },
+  {
+   "id": "fetched-data-source-record",
+   "feature": "a successful result of the ten fetch tools in source_record.SOURCES carries data_source (name, URL, licence from the plugin's table, attribution, retrieval date, coverage asked for, licence_checked=false); the layer it created stores it in the custom property cartogen/sources (a refetch with the same coverage replaces it); get_provenance_record and write_provenance_sidecar include sources (own and inherited through lineage inputs); generate_report and generate_spatial_report print a 'Data source:' line per record. HDX does not claim one licence. Not done: showing a large data set before loading it, reading the licence from the service",
+   "issues": [],
+   "since": "1.18.6",
+   "sources": [
+    "src/cartogen_ai/core/agent/source_record.py",
+    "src/cartogen_ai/core/agent/agent_orchestrator.py",
+    "src/cartogen_ai/core/agent/provenance.py",
+    "src/cartogen_ai/core/agent/tools/export_tools.py"
+   ],
+   "guards": [
+    "tests/test_source_record.py::TestBuild::test_a_successful_fetch_gets_a_record_with_licence_date_and_coverage",
+    "tests/test_source_record.py::TestBuild::test_hdx_does_not_claim_one_licence",
+    "tests/test_source_record.py::TestStore::test_tagging_twice_with_the_same_coverage_replaces_not_duplicates",
+    "tests/test_source_record.py::TestReport::test_markdown_report_lists_a_layers_data_source",
+    "tests/test_source_record_live.py::TestSourceRecordLive::test_the_orchestrator_step_stores_the_record_on_the_named_layer"
+   ],
+   "hand_verified": "not verified: offline tests are CI; the live tests were written without a QGIS install (CI's first run is their first execution). The licence table is hand-written from each service's published terms and was not checked against the services; no real fetch was run.",
+   "hand_row": "fetch admin boundaries for a country with geoBoundaries, run a buffer on it, ask for its provenance record and generate a spatial report with both layers: check the source name, URL, licence, date and coverage appear, and the licence line says it was not checked"
   }
  ]
 }

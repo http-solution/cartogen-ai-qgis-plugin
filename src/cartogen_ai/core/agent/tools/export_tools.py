@@ -795,14 +795,16 @@ def _layer_provenance_entries(source_layers):
     section at all."""
     if not source_layers:
         return []
+    from .. import source_record
     from ..lineage import get_layer_lineage
     entries = []
     for name in source_layers:
         layer = _find_layer_by_name(name)
         if layer is None:
-            entries.append({"layer": name, "found": False, "history": []})
+            entries.append({"layer": name, "found": False, "history": [], "data_sources": []})
             continue
-        entries.append({"layer": name, "found": True, "history": get_layer_lineage(layer)})
+        entries.append({"layer": name, "found": True, "history": get_layer_lineage(layer),
+                        "data_sources": source_record.collect(layer, _find_layer_by_name)})      # PLAN-044: where fetched data came from, own + inherited
     return entries
 
 
@@ -838,6 +840,7 @@ def generate_report(title, content, source_layers=None):
         for paragraph in str(content).split("\n\n"):
             doc.add_paragraph(paragraph)
 
+        from .. import source_record
         entries = _layer_provenance_entries(source_layers)
         if entries:
             doc.add_heading("Data Sources & Provenance", level=1)
@@ -850,6 +853,8 @@ def generate_report(title, content, source_layers=None):
                 else:
                     for h in entry["history"]:
                         doc.add_paragraph(_format_lineage_entry(h), style="List Bullet")
+                for record in entry.get("data_sources", []):
+                    doc.add_paragraph("Data source: " + source_record.describe(record), style="List Bullet")
 
         desktop = os.path.join(os.path.expanduser("~"), "Desktop")
         if not os.path.isdir(desktop):
@@ -889,6 +894,7 @@ def generate_report(title, content, source_layers=None):
 def generate_spatial_report(title, insights, source_layers=None):
     report = f"## 📊 Spatial Report: {title}\n\n{insights}"
 
+    from .. import source_record
     entries = _layer_provenance_entries(source_layers)
     if entries:
         lines = ["", "### Data Sources & Provenance"]
@@ -900,6 +906,7 @@ def generate_spatial_report(title, insights, source_layers=None):
             else:
                 lines.append(f"- **{entry['layer']}**:")
                 lines.extend(f"  - {_format_lineage_entry(h)}" for h in entry["history"])
+            lines.extend(f"  - Data source: {source_record.describe(r)}" for r in entry.get("data_sources", []))
         report += "\n\n" + "\n".join(lines)
 
     return {"message": "Report generated successfully.", "report": report}
