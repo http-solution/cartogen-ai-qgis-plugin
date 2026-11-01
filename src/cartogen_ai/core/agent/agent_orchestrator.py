@@ -136,7 +136,7 @@ FAILURE_ACK_KEYWORDS = (
 # tight and caused "Maximum iterations reached" on legitimate requests before
 # they could produce a final answer.
 MAX_ITERATIONS = 20
-# Provisional per-request token budget (input + output, all calls of one request), applied when the user has not set one. Chosen from
+# Provisional per-request token budget (input + output, all calls of one request; cached input counts at 10 percent, BUD-1), applied when the user has not set one. Chosen from
 # the evidence on hand, not from a calibrated optimum: the rc22 hand-test logs show tool calls per request of 1,1,1,1,2,2,2,2,5,8,10,
 # 11,14,15 (median 2, p90 11, max 15 -- the two 14-15 call requests were simple tasks that wandered), and the footers showed about
 # 21,700-26,000 tokens per model call (5.49M tokens over 253 calls). 450,000 is ~17 calls at the upper figure: above every request
@@ -1918,8 +1918,8 @@ class CartogenAi:
             # Checked BEFORE the request: tokens already spent this turn plus the observed size of the last call (the next call
             # cannot be smaller, the history only grows) must fit the budget -- not merely "already over".
             if max_turn_tokens and iteration_index > 0 and loop_guard.budget_exceeded(
-                    self._get_usage_tracker().turn_tokens(), max_turn_tokens,
-                    call_metrics.next_call_estimate(self._get_call_log().turn_records(turn_id))):
+                    self._get_usage_tracker().turn_budget_tokens(), max_turn_tokens,
+                    call_metrics.next_call_budget_estimate(self._get_call_log().turn_records(turn_id))):
                 token_budget_hit = True
                 break
             if should_stop is not None and should_stop():
