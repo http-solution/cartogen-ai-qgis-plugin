@@ -227,6 +227,25 @@ def _add_capability_tools(always_include, user_query, known_names):
                 always_include |= {st["tool"] for st in chain["steps"] if st["tool"] in known_names}
 
 
+_MAX_TASK_TOOLS = 6
+
+
+def _add_task_tools(always_include, user_query, known_names):
+    """Adds to `always_include` (in place) the tools a recognised task prescribes ("Prefer these tools, in order: ..." in the task
+    directive). The directive told the model to start with fetch_osm_features, add_layer_from_path, apply_categorized_style and
+    zoom_to_layer for task 6.02, but none of them was in the turn's tool list (owner's Taiz run, 2026-11-01, call 0: the list held
+    ingest_osm_features instead), so the model improvised and spent a find_tools round per step. Same confidence test as
+    _algorithm_topic_match, so an uncertain match does not widen the list. Bounded; only registered names count; a failure keeps
+    what was already added."""
+    with contextlib.suppress(Exception):
+        from ..agent.task_matcher import classify
+        verdict = classify(user_query)
+        best = verdict.get("best")
+        if not best or (verdict["ambiguous"] and verdict["reason"] == "below confidence floor"):
+            return
+        always_include |= set([n for n in best.get("tools") or [] if n in known_names][:_MAX_TASK_TOOLS])
+
+
 def _algorithm_topic_match(user_query):
     """A request that describes WHAT is wanted ("fill the gaps in my elevation raster", "which areas are visible from this point") rather
     than naming an algorithm: the topic index (core/agent/algorithm_topics.py) finds the approved algorithms that fit, and the two generic
@@ -340,6 +359,7 @@ class ToolRouter:
         # scoring: a long request used to fill the slots with weak description matches (a dashboard, PDF-table and NDWI tool for a
         # water-service request) and leave out the tools the steps actually needed. Bounded, and only registered names count.
         _add_capability_tools(always_include, user_query, known_names)
+        _add_task_tools(always_include, user_query, known_names)
         # At most six carried tools, so a long previous turn cannot crowd the relevant ones out of top_k.
         always_include |= {n for n in tuple(carry_over_tools or ())[:6] if n in known_names and n != "execute_pyqgis_script"}
         fallback_tool = "execute_pyqgis_script"
