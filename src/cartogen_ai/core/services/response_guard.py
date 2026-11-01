@@ -438,3 +438,31 @@ def apply_unconfirmed_style_note(final_text, turn_tool_log, evidence=""):
         return final_text
     return (f"{str(final_text).rstrip()}\n\n\u2139\ufe0f **{_STYLE_MARKER}:** no styling tool finished successfully in this turn, so the "
             "colours or classes described above may not be on the layer. Check the map and ask again if it still looks unstyled.")
+
+
+def failed_checks(calls):
+    """[(tool, detail)] for every check that FAILED in this turn's tool results (PLAN-031). `calls` is the turn's (name, args, result) list; a
+    result carries `checks` only when the result gate ran on it. Pure; tolerates None and results that are not dicts."""
+    found = []
+    for call in calls or []:
+        name, result = call[0], call[2] if len(call) > 2 else None
+        checks = (result.get("checks") if isinstance(result, dict) else None) or []
+        found.extend((name, str(check["detail"])) for check in checks
+                     if isinstance(check, dict) and check.get("status") == "fail" and check.get("detail"))
+    return found
+
+
+def apply_failed_checks_note(final_text, failed):
+    """`final_text` with a visible warning for each failed result check the reply does not already repeat, or unchanged. A reply "repeats" a
+    failure when it contains the first 40 characters of the check's detail (the model quoting it) or says the check failed in its own words
+    ("check failed", "failed check"). Without this a model can accept a result the gate flagged and report it as correct."""
+    if not failed:
+        return final_text
+    lower = (final_text or "").lower()
+    if "check failed" in lower or "failed check" in lower or "checks failed" in lower:
+        return final_text
+    missing = [(tool, detail) for tool, detail in failed if detail[:40].lower() not in lower]
+    if not missing:
+        return final_text
+    lines = [f"- {tool}: {detail}" for tool, detail in missing[:5]]
+    return (final_text or "") + "\n\n\u26a0\ufe0f A result check failed in this request, and the answer above does not say so:\n" + "\n".join(lines)
