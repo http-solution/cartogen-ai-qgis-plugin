@@ -3287,7 +3287,7 @@ Look up which tools can do a step you were not given a tool for (for example 'co
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
-| `need` | string | yes | The step you need to do, in plain words. |
+| `need` | string | yes | The step you need to do, in plain English words, even when the user wrote in another language: tool names and descriptions are English, so an Arabic or French phrase finds nothing. |
 
 ### `run_steps`
 

@@ -56,7 +56,7 @@ def rank_tools(query, schemas, limit=MAX_RESULTS):
     "Look up which tools can do a step you were not given a tool for (for example 'contour lines', 'split a line by polygons', "
     "'download elevation'). Returns the best matching tool names with a one-line description each, and makes them available for the "
     "rest of this request. Use it BEFORE writing a script. It only searches; it changes nothing.",
-    {"type": "object", "properties": {"need": {"type": "string", "description": "The step you need to do, in plain words."}},
+    {"type": "object", "properties": {"need": {"type": "string", "description": "The step you need to do, in plain English words, even when the user wrote in another language: tool names and descriptions are English, so an Arabic or French phrase finds nothing."}},
      "required": ["need"]},
     keywords=[
         "which tool", "what tool", "is there a tool", "is there a way to", "what can you do", "list the tools", "what tools",

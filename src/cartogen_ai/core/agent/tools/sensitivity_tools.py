@@ -52,6 +52,11 @@ def _find_layer_by_name(name):
         },
         "required": ["layer_name", "level"],
     },
+
+    keywords=[
+        "mark this layer as confidential", "mark as confidential", "mark the layer as sensitive", "confidential", "make this layer private",
+        "restrict this layer",
+    ],
 )
 def set_layer_sensitivity(layer_name, level, reason=None, confirmed=False):
     if not QGIS_AVAILABLE:
@@ -97,6 +102,10 @@ def set_layer_sensitivity(layer_name, level, reason=None, confirmed=False):
     "set_layer_sensitivity. Returns level=null if never tagged -- not the same as PUBLIC, just "
     "unclassified.",
     {"type": "object", "properties": {"layer_name": {"type": "string"}}, "required": ["layer_name"]},
+
+    keywords=[
+        "who can see this layer", "is this layer sensitive", "is this layer confidential", "sensitivity of the layer",
+    ],
 )
 def get_layer_sensitivity(layer_name):
     if not QGIS_AVAILABLE:

@@ -562,7 +562,7 @@ _ALL_RULES = {
     ),
     56: (
         '56. The tools you were given are a selection for this request, not every tool that exists. If none of them fits what the user asked, '
-        'call `find_tools(need)` with the step in plain words BEFORE telling the user a capability is missing or writing a script. Only say '
+        'call `find_tools(need)` with the step in plain English words (translate it if the user wrote in another language) BEFORE telling the user a capability is missing or writing a script. Only say '
         'something cannot be done after `find_tools` returned nothing suitable.\n'
     ),
     55: (

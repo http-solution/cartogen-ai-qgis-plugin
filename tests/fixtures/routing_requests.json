@@ -200,5 +200,61 @@
       "tidy_project_layers"
     ],
     "source": "HT-7 audit round 2 2026-10-31"
+  },
+  {
+    "prompt": "show what was decided about the severity results",
+    "tools": [
+      "get_jiaf_decisions"
+    ],
+    "source": "HT-7 audit round 3 2026-11-01"
+  },
+  {
+    "prompt": "look this up online",
+    "tools": [
+      "search_web"
+    ],
+    "source": "HT-7 audit round 3 2026-11-01"
+  },
+  {
+    "prompt": "which sectors are covered in each district",
+    "tools": [
+      "generate_sector_coverage_report"
+    ],
+    "source": "HT-7 audit round 3 2026-11-01"
+  },
+  {
+    "prompt": "mark this layer as confidential",
+    "tools": [
+      "set_layer_sensitivity"
+    ],
+    "source": "HT-7 audit round 3 2026-11-01"
+  },
+  {
+    "prompt": "who can see this layer",
+    "tools": [
+      "get_layer_sensitivity"
+    ],
+    "source": "HT-7 audit round 3 2026-11-01"
+  },
+  {
+    "prompt": "estimate how many houses were damaged",
+    "tools": [
+      "calculate_damage_exposure_severity"
+    ],
+    "source": "HT-7 audit round 3 2026-11-01"
+  },
+  {
+    "prompt": "what is the best way to show this data",
+    "tools": [
+      "recommend_visualization_method"
+    ],
+    "source": "HT-7 audit round 3 2026-11-01"
+  },
+  {
+    "prompt": "this bridge is out so avoid it",
+    "tools": [
+      "apply_network_barriers"
+    ],
+    "source": "HT-7 audit round 3 2026-11-01"
   }
 ]

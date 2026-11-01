@@ -57,6 +57,7 @@ One list to follow up and plan from. It replaces the session task list (101 entr
 | HT-5 | Re-check 'partly' ledger entries (5) and wave E1, DXF and Excel export and the 20 later routing additions by hand. | Only 21 algorithms were ever hand-tested. | Both | OWN-1 | M | P3 | Not started | W-2, W-3 |
 | HT-6 | Prove tools/collect_evidence.py in a real QGIS 4.2 session (written without QGIS, never run) and fix what breaks; then add it to the repo with a live test. | The agent-edition smoke package depends on it for logs, screenshots and layer tables; until run, evidence may fall back to manual capture. | Claude | OWN-1 | S | P1 | In progress | smoke package 2026-10-27 |
 | HT-7 | Routing vocabulary audit: replay everyday synonyms and alternative wordings of each tool family through the real router and list the requests that are offered none of the right tools (found: 'list medical service in Al Maharah' offered no OSM or geocoding tool). Fix with aliases and a ratchet test. | The model tells the truth about the tools it is given, so a wording the router misses reads as 'I cannot do that'; the owner hit it in the first real chat through the CLI. | Claude | - | M | P2 | In progress | PR 508 |
+| ML-1 | Decide which languages the tool router must serve beyond English (Arabic first, French?), then add their phrases for the most used tools as concept groups in routing_concepts.json. Measured 2026-11-01: an Arabic or French request is offered only the 10 always-on tools; the model understands the language, but the router and find_tools match English words only. | Users in Yemen and francophone Africa will write in their own language; today the tools are not offered and only the model's translation in a find_tools call can recover. | You | HT-7 | M | P2 | Decision needed | HT-7 audit round 3 |
 
 ## C. Open defects and observations
 
@@ -166,12 +167,12 @@ Source: the owner's analysis document of nine flagship QGIS AI plugins, checked 
 |---|---|
 | Not started | 32 |
 | In progress | 21 |
-| Decision needed | 14 |
+| Decision needed | 15 |
 | Waiting on you | 13 |
 | Blocked | 5 |
 | Closed | 2 |
 | Closed (record) | 1 |
-| **Total** | **88** |
+| **Total** | **89** |
 
 ## How to keep it current
 
@@ -244,3 +245,5 @@ Newest last. One line per status change; written by `tools/master_list.py set`.
 - 2026-10-31: HY-3 Not started -> In progress. release.yml status_note input done (PR open, CI only, workflow not run). Left: pin windows-latest (renames the 'test (windows-latest, 3.11)' check, which branch protection may require by name; owner can confirm), upload-artifact vs Node 24 notice, README test count generated.
 - 2026-10-31: HT-7 In progress -> In progress. First audit round done (PR open): 30 everyday wordings replayed with real tool names, 11 missed the right tool, fixed by phrases beside 8 tools and 12 rows in routing_requests.json. More families to audit (rasters, layout, hazards, logistics, editing); and the hand test that a model calls find_tools (ledger entry find-tools-fallback).
 - 2026-10-31: HT-7 In progress -> In progress. Audit rounds 1 and 2 done: 91 everyday wordings replayed with real tool names, 23 missed the right tool and are fixed (phrases beside 20 tools) and kept as rows in routing_requests.json (27). Still to audit: JIAF and survey tools, web research, imagery extraction, reporting, non-English wording; plus the hand test that a model calls find_tools (ledger entry find-tools-fallback).
+- 2026-11-01: HT-7 In progress -> In progress. Rounds 1 to 3 done: 160 everyday wordings, 31 misses fixed, kept as 35 rows. Open: non-English routing (Arabic and French get only the 10 always-on tools; mitigation in the round 3 PR tells the model to call find_tools in English, unverified; real fix needs the languages decided, see new row ML-1), plus the hand test that a model calls find_tools.
+- 2026-11-01: ML-1 Decision needed -> Decision needed. Which languages (Arabic, French) should the router serve? Owner choice.
