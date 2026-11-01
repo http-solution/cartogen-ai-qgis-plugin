@@ -1803,6 +1803,23 @@
     ],
     "hand_verified": "not verified: CI only. Checked on the 240 routing requests I wrote (no needed tool dropped) and on the one real run whose per-call log the owner sent (eight unused tools at score 8 removed). It is tuned on those, so a tool that only matches on description words is now reached through find_tools or a phrase; the owner's held-out prompts (PLAN-043) are the real test.",
     "hand_row": "repeat the Taiz request and compare est_tools_tokens in the log with the 2026-11-01 run (10,544 at call 0)"
+  },
+  {
+    "id": "overpass-mirror-fallback",
+    "feature": "when the main Overpass server fails with a transient error (429, 502, 503, 504, timeout) after its four attempts, ingest_osm_features tries two public mirrors once each (overpass.kumi.systems, overpass.private.coffee); a bad query (400) never goes to a mirror; the QgsSettings value cartogen_ai/overpass_mirrors=false turns the mirrors off",
+    "issues": [],
+    "since": "1.18.6",
+    "sources": [
+      "src/cartogen_ai/core/agent/tools/humanitarian_tools.py"
+    ],
+    "guards": [
+      "tests/test_ingest_osm_features.py::TestOverpassResilience::test_a_mirror_answers_when_the_main_server_is_overloaded",
+      "tests/test_ingest_osm_features.py::TestOverpassResilience::test_every_mirror_failing_still_ends_with_the_stop_message",
+      "tests/test_ingest_osm_features.py::TestOverpassResilience::test_mirrors_off_means_the_main_server_only",
+      "tests/test_ingest_osm_features.py::TestOverpassResilience::test_a_bad_query_does_not_go_to_the_mirrors"
+    ],
+    "hand_verified": "not verified: CI only (mocked HTTP). The sandbox could not reach either mirror (40 s timeouts), and a 2026-09-24 check found some public mirrors slow or failing TLS, so whether they answer on the owner's machine is unknown. The off switch is a QgsSettings value with no settings-dialog control yet.",
+    "hand_row": "with the main Overpass server overloaded (or blocked), run 'show hospitals in <area>' and check the log for overpass_mirror_used or overpass_mirror_failed"
   }
  ]
 }

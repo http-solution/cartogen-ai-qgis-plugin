@@ -297,6 +297,32 @@ def fetch_osm_features(key: str, value: str, bbox: list):
 _OSM_LINEAR_KEYS = frozenset({"highway", "railway", "waterway", "aerialway"})
 _OVERPASS_RETRIES = 3            # 4 attempts in total
 _OVERPASS_BACKOFF_SECONDS = 3.0  # waits of 3, 6 and 9 s between them
+# Public community Overpass servers tried once each, in order, after the main server has failed with a transient error (DEF-7: the owner's
+# Taiz runs on 2026-11-01 waited about 90 to 124 s on the main server and then failed). UNVERIFIED: the sandbox that wrote this could not
+# reach either host (40 s timeouts), and an earlier check (2026-09-24, comment in ingest_osm_features_network_phase) found some public
+# mirrors slow or failing TLS, so whether these two help is for the owner's machine to show. They receive the same area-of-interest query
+# the main server does; the setting below turns them off.
+_OVERPASS_MIRRORS = (
+    "https://overpass.kumi.systems/api/interpreter",
+    "https://overpass.private.coffee/api/interpreter",
+)
+
+
+def _overpass_mirrors_enabled():
+    """True unless the user turned mirrors off (QgsSettings cartogen_ai/overpass_mirrors, default on). Outside QGIS: on."""
+    if not QGIS_AVAILABLE:
+        return True
+    try:
+        from qgis.core import QgsSettings
+        return bool(QgsSettings().value("cartogen_ai/overpass_mirrors", True, type=bool))
+    except Exception:
+        return True
+
+
+def _is_transient_overpass_error(error):
+    if isinstance(error, urllib.error.HTTPError):
+        return error.code in (429, 502, 503, 504)
+    return isinstance(error, (TimeoutError, urllib.error.URLError))
 
 
 def _osm_feature(elem, clean_key, clean_value, geometry):
@@ -378,17 +404,33 @@ def ingest_osm_features_network_phase(
             data=overpass_ql.encode('utf-8'),
             headers={'User-Agent': 'QGIS-AI-Assistant'}
         )
-        with urlopen_with_retry(req, timeout=35, max_retries=_OVERPASS_RETRIES,
-                                backoff_seconds=_OVERPASS_BACKOFF_SECONDS) as response:
-            res_json = json.loads(_read_capped(response).decode("utf-8"))
+        try:
+            with urlopen_with_retry(req, timeout=35, max_retries=_OVERPASS_RETRIES,
+                                    backoff_seconds=_OVERPASS_BACKOFF_SECONDS) as response:
+                res_json = json.loads(_read_capped(response).decode("utf-8"))
+        except Exception as main_error:
+            # Only a transient failure of the main server tries the mirrors; a 400 (bad query) would fail on them too.
+            if not (_is_transient_overpass_error(main_error) and _overpass_mirrors_enabled()):
+                raise
+            res_json = None
+            for mirror in _OVERPASS_MIRRORS:
+                try:
+                    mirror_req = _net_build_request(mirror, data=overpass_ql.encode('utf-8'),
+                                                    headers={'User-Agent': 'QGIS-AI-Assistant'})
+                    with urlopen_with_retry(mirror_req, timeout=35, max_retries=0,
+                                            backoff_seconds=_OVERPASS_BACKOFF_SECONDS) as response:
+                        res_json = json.loads(_read_capped(response).decode("utf-8"))
+                    log_event("overpass_mirror_used", tag="humanitarian_tools", host=mirror.split("/")[2])
+                    break
+                except Exception as mirror_error:
+                    log_event("overpass_mirror_failed", tag="humanitarian_tools", host=mirror.split("/")[2],
+                              error_class=type(mirror_error).__name__, error=True)
+            if res_json is None:
+                raise main_error
     except Exception as fetch_error:
         # HTTPError is a URLError subclass, so check the status first: a 400 (bad query) must
         # not be reported as "overloaded, try later".
-        if isinstance(fetch_error, urllib.error.HTTPError):
-            transient = fetch_error.code in (429, 502, 503, 504)
-        else:
-            transient = isinstance(fetch_error, (TimeoutError, urllib.error.URLError))
-        if transient:
+        if _is_transient_overpass_error(fetch_error):
             return {"error": (
                 f"The OpenStreetMap Overpass server is overloaded right now ({fetch_error}); tried "
                 f"{_OVERPASS_RETRIES + 1} times with waits in between. Don't call ingest_osm_features "

@@ -74,7 +74,7 @@ One list to follow up and plan from. It replaces the session task list (101 entr
 | DEF-4 | C5 labels reported inverted: find which layer and labels. | Reported without detail. | Claude | OWN-3 | S | P2 | Blocked | 1.18.2 hand run |
 | DEF-5 | Zonal-statistics columns (chg_mean, chg2_mean...) stay on the admin layer after the damage tool runs; remove them or run on a copy. | Side effect on the user's layer; a file-based layer keeps them. | Claude | - | S | P2 | In progress | PLAN-026 class C |
 | DEF-6 | Nationwide 5 km task grid is refused above 5,000 cells: add a 'suggest a cell size' path. | Clear message today; a design choice. | Claude | OWN-6 | S | P3 | Decision needed | 1.18.2 hand run B1 |
-| DEF-7 | OSM Overpass road download answered HTTP 502 after 4 retries: consider a mirror fallback and a clearer message. | Server side; the fixtures covered it in the test. | Claude | - | S | P3 | Not started | 1.18.2 hand run C1 |
+| DEF-7 | OSM Overpass road download answered HTTP 502 after 4 retries: consider a mirror fallback and a clearer message. | Server side; the fixtures covered it in the test. | Claude | - | S | P3 | In progress | 1.18.2 hand run C1 |
 | DEF-8 | Quiet-release clean-up: 24 unused noqa comments; the baseline of 504 broad-except handlers (none silent) recorded for review. | Lint hygiene. | Claude | - | S | P3 | In progress | PLAN-026 class G, H |
 | DEF-9 | Evidence collector captured no log text in QGIS 4.2.3: log_cartogenai.txt and log_all.txt were empty for every row, so the tools each row called are not in the CSV. Cause not found (the signal connects; nothing arrives). Try the explicit overload messageReceived[str, str, Qgis.MessageLevel], and read tool calls from the plugin's own evidence folders (steps.jsonl) instead. | Every row's 'tools called' column is blank without it. | Claude | HT-6 | S | P1 | In progress | 1.18.4 smoke run 2026-10-27/28 |
 | DEF-10 | A13: Sentinel-2 STAC search not executed ('tool execution stopped', no scenes, no layer). Read evidence/A13 steps and the plugin_evidence folder to find the failing call; add a failing test. | 1.18.4 added the cloud filter; its first live run failed. | Claude | - | M | P1 | In progress | 1.18.4 smoke run 2026-10-27/28 |
@@ -170,8 +170,8 @@ Source: the owner's analysis document of nine flagship QGIS AI plugins, checked 
 
 | Status | Rows |
 |---|---|
-| Not started | 34 |
-| In progress | 23 |
+| Not started | 33 |
+| In progress | 24 |
 | Decision needed | 16 |
 | Waiting on you | 13 |
 | Blocked | 5 |
@@ -261,3 +261,4 @@ Newest last. One line per status change; written by `tools/master_list.py set`.
 - 2026-11-01: DEF-22 Not started -> Not started. From the owner's per-call log.
 - 2026-11-01: BUD-1 Decision needed -> Decision needed. Count cached tokens at 10 percent? Recommended yes when the provider reports them.
 - 2026-11-01: DEF-21 In progress -> In progress. Per-call log read: budget hit at 439,564 input tokens over 16 calls. Measured causes: unused description-only tools carried every call (about 17 percent; long-request floor 6 to 9 in this PR), find_tools growth (5.5 percent; capped in this PR), system prompt 7,400 tokens per call (27 percent, untouched), 2 minute OSM timeout (DEF-7), two empty filters (DEF-22). Cached-token counting is BUD-1.
+- 2026-11-01: DEF-7 Not started -> In progress. Mirror fallback added (kumi.systems, private.coffee; one try each after the main server's four). CI only; mirrors unreachable from the sandbox, so unverified. Off switch is a QgsSettings value (no dialog control yet).
