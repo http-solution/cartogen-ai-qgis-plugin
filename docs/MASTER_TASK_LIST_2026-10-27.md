@@ -57,7 +57,7 @@ One list to follow up and plan from. It replaces the session task list (101 entr
 | HT-5 | Re-check 'partly' ledger entries (5) and wave E1, DXF and Excel export and the 20 later routing additions by hand. | Only 21 algorithms were ever hand-tested. | Both | OWN-1 | M | P3 | Not started | W-2, W-3 |
 | HT-6 | Prove tools/collect_evidence.py in a real QGIS 4.2 session (written without QGIS, never run) and fix what breaks; then add it to the repo with a live test. | The agent-edition smoke package depends on it for logs, screenshots and layer tables; until run, evidence may fall back to manual capture. | Claude | OWN-1 | S | P1 | In progress | smoke package 2026-10-27 |
 | HT-7 | Routing vocabulary audit: replay everyday synonyms and alternative wordings of each tool family through the real router and list the requests that are offered none of the right tools (found: 'list medical service in Al Maharah' offered no OSM or geocoding tool). Fix with aliases and a ratchet test. | The model tells the truth about the tools it is given, so a wording the router misses reads as 'I cannot do that'; the owner hit it in the first real chat through the CLI. | Claude | - | M | P2 | In progress | PR 508 |
-| ML-1 | Decide which languages the tool router must serve beyond English (Arabic first, French?), then add their phrases for the most used tools as concept groups in routing_concepts.json. Measured 2026-11-01: an Arabic or French request is offered only the 10 always-on tools; the model understands the language, but the router and find_tools match English words only. | Users in Yemen and francophone Africa will write in their own language; today the tools are not offered and only the model's translation in a find_tools call can recover. | You | HT-7 | M | P2 | Decision needed | HT-7 audit round 3 |
+| ML-1 | Decide which languages the tool router must serve beyond English (Arabic first, French?), then add their phrases for the most used tools as concept groups in routing_concepts.json. Measured 2026-11-01: an Arabic or French request is offered only the 10 always-on tools; the model understands the language, but the router and find_tools match English words only. | Users in Yemen and francophone Africa will write in their own language; today the tools are not offered and only the model's translation in a find_tools call can recover. | You | HT-7 | M | P2 | In progress | HT-7 audit round 3 |
 
 ## C. Open defects and observations
 
@@ -166,8 +166,8 @@ Source: the owner's analysis document of nine flagship QGIS AI plugins, checked 
 | Status | Rows |
 |---|---|
 | Not started | 32 |
-| In progress | 21 |
-| Decision needed | 15 |
+| In progress | 22 |
+| Decision needed | 14 |
 | Waiting on you | 13 |
 | Blocked | 5 |
 | Closed | 2 |
@@ -248,3 +248,4 @@ Newest last. One line per status change; written by `tools/master_list.py set`.
 - 2026-11-01: HT-7 In progress -> In progress. Rounds 1 to 3 done: 160 everyday wordings, 31 misses fixed, kept as 35 rows. Open: non-English routing (Arabic and French get only the 10 always-on tools; mitigation in the round 3 PR tells the model to call find_tools in English, unverified; real fix needs the languages decided, see new row ML-1), plus the hand test that a model calls find_tools.
 - 2026-11-01: ML-1 Decision needed -> Decision needed. Which languages (Arabic, French) should the router serve? Owner choice.
 - 2026-11-01: HT-7 In progress -> In progress. Rounds 1 to 4 done: 246 everyday wordings, 47 misses fixed, kept as 51 rows; every user-facing tool has now been named in at least one wording. Open: non-English routing (ML-1) and the hand test that a model calls find_tools and then chooses the right tool.
+- 2026-11-01: ML-1 Decision needed -> In progress. Owner chose Arabic and French. Phrases for the 59 top tools are in routing_languages.json with 40 test requests (PR open). Still needed: a native Arabic (Yemeni) and French reader to check the phrases, more tools beyond the top 59, and the hand test with a real model.

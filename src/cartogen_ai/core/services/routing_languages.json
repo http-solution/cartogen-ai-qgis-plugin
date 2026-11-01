@@ -1,0 +1,678 @@
+{
+ "ar": {
+  "ingest_osm_features": [
+   "مستشفى",
+   "مستشفيات",
+   "عيادة",
+   "عيادات",
+   "مدرسة",
+   "مدارس",
+   "صيدلية",
+   "صيدليات",
+   "مركز صحي",
+   "مراكز صحية",
+   "خدمات طبية",
+   "المرافق الصحية",
+   "شبكة الطرق"
+  ],
+  "fetch_osm_features": [
+   "مستشفيات",
+   "عيادات",
+   "مدارس",
+   "شبكة الطرق"
+  ],
+  "geocode_and_enrich": [
+   "أين تقع",
+   "اين تقع",
+   "أين تقع مدينة",
+   "إحداثيات",
+   "احداثيات",
+   "حدد موقع"
+  ],
+  "geocode_batch": [
+   "قائمة المواقع",
+   "عدة مواقع",
+   "حدد مواقع هذه المدن",
+   "مواقع هذه المدن"
+  ],
+  "buffer_analysis": [
+   "منطقة عازلة",
+   "نطاق حول",
+   "مسافة حول",
+   "حرم",
+   "أمتار حول",
+   "امتار حول"
+  ],
+  "clip_layer": [
+   "قص الطبقة",
+   "اقتطاع الطبقة",
+   "اقتص الطبقة",
+   "قص الطرق",
+   "قص حسب",
+   "قص طبقة",
+   "اقتطاع طبقة",
+   "اقتص طبقة"
+  ],
+  "reproject_layer": [
+   "نظام الإحداثيات",
+   "نظام الاحداثيات",
+   "غير الإسقاط",
+   "غير الاسقاط",
+   "إعادة إسقاط",
+   "اعادة اسقاط"
+  ],
+  "merge_layers": [
+   "دمج الطبقات",
+   "ادمج الطبقات",
+   "اجمع الطبقات"
+  ],
+  "dissolve_layer": [
+   "إذابة",
+   "اذابة",
+   "دمج المضلعات حسب"
+  ],
+  "spatial_join": [
+   "ربط مكاني",
+   "اربط مكانيا",
+   "أضف اسم المنطقة لكل نقطة",
+   "اضف اسم المنطقة لكل نقطة"
+  ],
+  "join_by_attribute": [
+   "ربط الجدول",
+   "اربط الجدول",
+   "ربط ملف csv",
+   "ضم الجدول"
+  ],
+  "intersect_layers": [
+   "تقاطع الطبقات",
+   "الأجزاء المتقاطعة",
+   "الاجزاء المتقاطعة",
+   "داخل منطقة الفيضان"
+  ],
+  "calculate_area": [
+   "احسب المساحة",
+   "حساب المساحة",
+   "مساحة كل"
+  ],
+  "calculate_length": [
+   "احسب الطول",
+   "حساب الطول",
+   "طول كل"
+  ],
+  "zoom_to_layer": [
+   "تكبير إلى الطبقة",
+   "تكبير الى الطبقة",
+   "قرب إلى الطبقة",
+   "اذهب إلى الطبقة",
+   "اذهب الى الطبقة",
+   "تكبير إلى طبقة",
+   "تكبير الى طبقة",
+   "قرب إلى طبقة",
+   "اذهب إلى طبقة",
+   "اذهب الى طبقة"
+  ],
+  "toggle_visibility": [
+   "اخف الطبقة",
+   "إخفاء الطبقة",
+   "اخفاء الطبقة",
+   "اظهر الطبقة",
+   "إظهار الطبقة",
+   "اظهار الطبقة",
+   "أطفئ الطبقة",
+   "اخف طبقة",
+   "إخفاء طبقة",
+   "اخفاء طبقة",
+   "اظهر طبقة",
+   "إظهار طبقة",
+   "اظهار طبقة",
+   "أطفئ طبقة"
+  ],
+  "remove_layer": [
+   "احذف الطبقة",
+   "حذف الطبقة",
+   "أزل الطبقة",
+   "ازل الطبقة",
+   "احذف طبقة",
+   "حذف طبقة",
+   "أزل طبقة",
+   "ازل طبقة"
+  ],
+  "rename_layer": [
+   "غير اسم الطبقة",
+   "إعادة تسمية الطبقة",
+   "اعادة تسمية الطبقة",
+   "غير اسم طبقة",
+   "إعادة تسمية طبقة",
+   "اعادة تسمية طبقة"
+  ],
+  "export_layer": [
+   "صدر الطبقة",
+   "تصدير الطبقة",
+   "احفظ الطبقة",
+   "صدر طبقة",
+   "تصدير طبقة",
+   "احفظ طبقة"
+  ],
+  "export_to_csv": [
+   "تصدير إلى csv",
+   "تصدير الى csv",
+   "ملف csv"
+  ],
+  "export_layers_to_spreadsheet": [
+   "ملف إكسل",
+   "ملف اكسل",
+   "جدول إكسل",
+   "جدول اكسل"
+  ],
+  "add_layer_from_path": [
+   "افتح ملف",
+   "أضف طبقة من ملف",
+   "اضف طبقة من ملف",
+   "تحميل طبقة من"
+  ],
+  "apply_labels": [
+   "أضف تسميات",
+   "اضف تسميات",
+   "تسميات",
+   "اظهر الأسماء",
+   "اظهر الاسماء"
+  ],
+  "apply_categorized_style": [
+   "لون حسب النوع",
+   "لون حسب الفئة",
+   "تصنيف الألوان",
+   "تصنيف الالوان",
+   "لون مختلف لكل"
+  ],
+  "apply_graduated_style": [
+   "لون حسب القيمة",
+   "تدرج لوني",
+   "تدرج الألوان",
+   "تدرج الالوان",
+   "ظلل حسب"
+  ],
+  "apply_heatmap_style": [
+   "خريطة حرارية",
+   "خريطة الكثافة"
+  ],
+  "change_layer_color": [
+   "غير لون الطبقة",
+   "لون الطبقة",
+   "غير لون طبقة",
+   "لون طبقة"
+  ],
+  "create_print_layout": [
+   "خريطة للطباعة",
+   "تخطيط الطباعة",
+   "صفحة طباعة",
+   "خريطة قابلة للطباعة"
+  ],
+  "export_layout": [
+   "تصدير الخريطة",
+   "احفظ الخريطة كصورة",
+   "الخريطة كملف pdf"
+  ],
+  "select_by_expression": [
+   "حدد المناطق التي",
+   "اختر العناصر التي",
+   "حدد العناصر التي"
+  ],
+  "field_calculator": [
+   "احسب حقلا",
+   "حقل محسوب",
+   "عمود محسوب",
+   "أضف عمودا محسوبا",
+   "اضف عمودا محسوبا"
+  ],
+  "add_field": [
+   "أضف حقل",
+   "اضف حقل",
+   "أضف عمود",
+   "اضف عمود",
+   "حقل جديد",
+   "عمود جديد"
+  ],
+  "delete_field": [
+   "احذف الحقل",
+   "احذف العمود"
+  ],
+  "hotspot_analysis": [
+   "نقاط ساخنة",
+   "بؤر",
+   "تحليل النقاط الساخنة"
+  ],
+  "calculate_service_area": [
+   "منطقة الخدمة",
+   "نطاق الخدمة",
+   "مدى الوصول"
+  ],
+  "population_access_gap": [
+   "بعيدة عن العيادة",
+   "بعيدة عن المستشفى",
+   "لا توجد عيادة قريبة",
+   "مجتمعات محرومة من الخدمات"
+  ],
+  "estimate_population_exposure": [
+   "كم شخصا يعيش",
+   "عدد السكان المتأثرين",
+   "عدد السكان المتاثرين",
+   "السكان المعرضين"
+  ],
+  "fetch_gdacs_disaster_alerts": [
+   "تنبيهات الكوارث",
+   "ما الكوارث",
+   "كوارث"
+  ],
+  "fetch_usgs_earthquakes": [
+   "زلازل",
+   "زلزال",
+   "هزات أرضية",
+   "هزات ارضية"
+  ],
+  "fetch_nasa_active_fires": [
+   "حرائق نشطة",
+   "حرائق"
+  ],
+  "fetch_ucdp_conflict_events": [
+   "أحداث النزاع",
+   "احداث النزاع",
+   "نزاع",
+   "أعمال عنف",
+   "اعمال عنف"
+  ],
+  "find_incident_reports": [
+   "تقارير عن عنف",
+   "حوادث أمنية",
+   "حوادث امنية"
+  ],
+  "search_hdx_datasets": [
+   "بيانات إنسانية",
+   "بيانات انسانية",
+   "مجموعات بيانات",
+   "ابحث عن بيانات"
+  ],
+  "fetch_worldpop_population": [
+   "بيانات السكان",
+   "كثافة السكان",
+   "عدد السكان"
+  ],
+  "fetch_hdx_admin_boundaries": [
+   "الحدود الإدارية",
+   "الحدود الادارية",
+   "حدود المحافظات",
+   "حدود المديريات"
+  ],
+  "fetch_building_footprints": [
+   "بصمات المباني",
+   "تحميل المباني",
+   "مباني"
+  ],
+  "generate_html_dashboard": [
+   "لوحة معلومات",
+   "داشبورد"
+  ],
+  "generate_report": [
+   "اكتب تقريرا",
+   "اعمل تقريرا",
+   "تقرير عن التحليل"
+  ],
+  "undo_last_operation": [
+   "تراجع",
+   "الغ آخر عملية",
+   "الغ اخر عملية"
+  ],
+  "save_project": [
+   "احفظ المشروع",
+   "حفظ المشروع"
+  ],
+  "add_basemap": [
+   "خريطة الأساس",
+   "خريطة الاساس",
+   "خلفية الأقمار",
+   "خلفية الاقمار",
+   "خلفية خريطة"
+  ],
+  "calculate_ndvi": [
+   "الغطاء النباتي",
+   "صحة النبات",
+   "نباتات"
+  ],
+  "hillshade": [
+   "تظليل التضاريس",
+   "ظلال التضاريس"
+  ],
+  "slope_analysis": [
+   "الانحدار",
+   "درجة الانحدار"
+  ],
+  "zonal_statistics": [
+   "إحصاءات المناطق",
+   "احصاءات المناطق",
+   "متوسط الارتفاع لكل",
+   "المتوسط لكل منطقة"
+  ],
+  "optimal_hub_siting": [
+   "أفضل موقع",
+   "افضل موقع",
+   "أين نضع",
+   "اين نضع",
+   "أفضل مكان",
+   "افضل مكان"
+  ],
+  "optimize_delivery_route": [
+   "مسار التوصيل",
+   "خطة توزيع",
+   "أقصر طريق للتوزيع",
+   "اقصر طريق للتوزيع"
+  ],
+  "search_web": [
+   "ابحث في الإنترنت",
+   "ابحث في الانترنت",
+   "ابحث عبر الإنترنت",
+   "ابحث عبر الانترنت",
+   "ابحث في الويب"
+  ],
+  "calculate_population_in_need": [
+   "عدد المحتاجين",
+   "السكان المحتاجين",
+   "الأشخاص المحتاجين"
+  ]
+ },
+ "fr": {
+  "ingest_osm_features": [
+   "hôpital",
+   "hôpitaux",
+   "clinique",
+   "cliniques",
+   "école",
+   "écoles",
+   "pharmacie",
+   "centre de santé",
+   "réseau routier",
+   "établissements de santé",
+   "services médicaux"
+  ],
+  "fetch_osm_features": [
+   "hôpitaux",
+   "cliniques",
+   "écoles",
+   "réseau routier"
+  ],
+  "geocode_and_enrich": [
+   "où se trouve",
+   "coordonnées de",
+   "localiser la ville"
+  ],
+  "geocode_batch": [
+   "liste de lieux",
+   "plusieurs lieux",
+   "localiser ces villes"
+  ],
+  "buffer_analysis": [
+   "zone tampon",
+   "tampon de",
+   "mètres autour",
+   "metres autour",
+   "autour de chaque"
+  ],
+  "clip_layer": [
+   "découper la couche",
+   "decouper la couche",
+   "couper la couche",
+   "rogner la couche"
+  ],
+  "reproject_layer": [
+   "changer la projection",
+   "reprojeter",
+   "autre système de coordonnées",
+   "changer le système de coordonnées"
+  ],
+  "merge_layers": [
+   "fusionner les couches",
+   "fusionne les couches"
+  ],
+  "dissolve_layer": [
+   "dissoudre",
+   "regrouper les polygones"
+  ],
+  "spatial_join": [
+   "jointure spatiale",
+   "joindre spatialement"
+  ],
+  "join_by_attribute": [
+   "joindre le tableau",
+   "joindre le csv",
+   "jointure attributaire"
+  ],
+  "intersect_layers": [
+   "intersection des couches",
+   "parties qui se chevauchent",
+   "à l'intérieur de la zone inondée"
+  ],
+  "calculate_area": [
+   "calculer la superficie",
+   "calcule la superficie",
+   "superficie de chaque",
+   "surface de chaque"
+  ],
+  "calculate_length": [
+   "calculer la longueur",
+   "longueur de chaque"
+  ],
+  "zoom_to_layer": [
+   "zoomer sur la couche",
+   "zoom sur la couche",
+   "centrer sur la couche"
+  ],
+  "toggle_visibility": [
+   "masquer la couche",
+   "cacher la couche",
+   "afficher la couche",
+   "masque la couche"
+  ],
+  "remove_layer": [
+   "supprimer la couche",
+   "retirer la couche",
+   "enlever la couche"
+  ],
+  "rename_layer": [
+   "renommer la couche"
+  ],
+  "export_layer": [
+   "exporter la couche",
+   "enregistrer la couche"
+  ],
+  "export_to_csv": [
+   "exporter en csv",
+   "fichier csv"
+  ],
+  "export_layers_to_spreadsheet": [
+   "exporter vers excel",
+   "fichier excel",
+   "tableur"
+  ],
+  "add_layer_from_path": [
+   "ouvrir le fichier",
+   "ajouter une couche depuis",
+   "charger le fichier"
+  ],
+  "apply_labels": [
+   "étiquettes",
+   "étiqueter",
+   "afficher les noms"
+  ],
+  "apply_categorized_style": [
+   "colorier par type",
+   "couleur par catégorie",
+   "style catégorisé"
+  ],
+  "apply_graduated_style": [
+   "colorier selon la valeur",
+   "dégradé de couleurs",
+   "style gradué"
+  ],
+  "apply_heatmap_style": [
+   "carte de chaleur",
+   "carte thermique"
+  ],
+  "change_layer_color": [
+   "changer la couleur de la couche",
+   "couleur de la couche"
+  ],
+  "create_print_layout": [
+   "mise en page",
+   "carte imprimable",
+   "carte à imprimer"
+  ],
+  "export_layout": [
+   "exporter la carte",
+   "carte en pdf"
+  ],
+  "select_by_expression": [
+   "sélectionner les",
+   "selectionner les",
+   "sélectionne les"
+  ],
+  "field_calculator": [
+   "calculer un champ",
+   "calculatrice de champ",
+   "nouveau champ calculé"
+  ],
+  "add_field": [
+   "ajouter un champ",
+   "ajouter une colonne",
+   "nouvelle colonne"
+  ],
+  "delete_field": [
+   "supprimer le champ",
+   "supprimer la colonne"
+  ],
+  "hotspot_analysis": [
+   "points chauds",
+   "zones chaudes",
+   "hotspots"
+  ],
+  "calculate_service_area": [
+   "zone de desserte",
+   "zone de service",
+   "aire de service"
+  ],
+  "population_access_gap": [
+   "loin d'une clinique",
+   "loin des cliniques",
+   "loin d'un hôpital",
+   "communautés mal desservies",
+   "sans clinique"
+  ],
+  "estimate_population_exposure": [
+   "combien de personnes vivent",
+   "population exposée",
+   "personnes exposées"
+  ],
+  "fetch_gdacs_disaster_alerts": [
+   "alertes de catastrophe",
+   "catastrophes en cours",
+   "quelles catastrophes"
+  ],
+  "fetch_usgs_earthquakes": [
+   "tremblements de terre",
+   "tremblement de terre",
+   "séismes",
+   "séisme"
+  ],
+  "fetch_nasa_active_fires": [
+   "incendies actifs",
+   "feux actifs",
+   "incendies de forêt",
+   "feux de forêt"
+  ],
+  "fetch_ucdp_conflict_events": [
+   "événements de conflit",
+   "evenements de conflit",
+   "conflits récents"
+  ],
+  "find_incident_reports": [
+   "rapports d'incidents",
+   "incidents signalés"
+  ],
+  "search_hdx_datasets": [
+   "jeux de données humanitaires",
+   "chercher des données",
+   "données humanitaires"
+  ],
+  "fetch_worldpop_population": [
+   "données de population",
+   "nombre d'habitants",
+   "densité de population"
+  ],
+  "fetch_hdx_admin_boundaries": [
+   "limites administratives",
+   "limites des districts",
+   "frontières des provinces"
+  ],
+  "fetch_building_footprints": [
+   "empreintes de bâtiments",
+   "télécharger les bâtiments"
+  ],
+  "generate_html_dashboard": [
+   "tableau de bord"
+  ],
+  "generate_report": [
+   "rédiger un rapport",
+   "faire un rapport",
+   "rapport de l'analyse"
+  ],
+  "undo_last_operation": [
+   "annuler la dernière",
+   "annule ça",
+   "revenir en arrière"
+  ],
+  "save_project": [
+   "enregistrer le projet",
+   "sauvegarder le projet"
+  ],
+  "add_basemap": [
+   "fond de carte",
+   "image satellite en fond",
+   "fond satellite"
+  ],
+  "calculate_ndvi": [
+   "indice de végétation",
+   "santé de la végétation",
+   "végétation"
+  ],
+  "hillshade": [
+   "ombrage du relief",
+   "ombrage"
+  ],
+  "slope_analysis": [
+   "carte des pentes",
+   "pente du terrain"
+  ],
+  "zonal_statistics": [
+   "statistiques par zone",
+   "moyenne par district",
+   "altitude moyenne par"
+  ],
+  "optimal_hub_siting": [
+   "où placer",
+   "où installer",
+   "meilleur emplacement",
+   "meilleur site pour"
+  ],
+  "optimize_delivery_route": [
+   "itinéraire de livraison",
+   "tournée de livraison",
+   "chemin le plus court pour livrer"
+  ],
+  "search_web": [
+   "chercher sur internet",
+   "recherche sur le web",
+   "cherche en ligne"
+  ],
+  "calculate_population_in_need": [
+   "personnes dans le besoin",
+   "population dans le besoin"
+  ]
+ }
+}
