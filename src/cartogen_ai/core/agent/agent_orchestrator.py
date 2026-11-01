@@ -37,7 +37,7 @@ from ...infrastructure.providers.cartogen import FALLBACK_MODELS as CARTOGEN_FAL
 from ..model_selector import AUTO_SENTINEL, classify_complexity, is_cheap_tier, pick_model_for_complexity
 from .tool_dispatcher import ToolDispatcher
 from .usage_tracker import UsageTracker
-from . import call_metrics, loop_guard
+from . import call_metrics, loop_guard, result_gate
 from .history_manager import HistoryManager
 from .memory import SpatialMemoryManager
 from .task_manager import AgentTaskManager
@@ -1041,7 +1041,7 @@ class CartogenAi:
             ids_before, snap = self._capture_before(name, parsed_arguments)
             res = self._guarded_dispatch(name, arguments)
             self._record_after(name, operation_type, res, ids_before, snap)
-            return res
+            return result_gate.attach_checks(name, res, operation_type)     # PLAN-031: checks on a result that wrote a layer; never raises
 
         result = self._run_on_main_thread(command, None)
         # Only a MISSING result is a failure. #138 (rc12) tested isinstance(result, dict) here, but get_layers, get_attributes and
@@ -1642,6 +1642,7 @@ class CartogenAi:
         final_text = response_guard.apply_unconfirmed_style_note(
             final_text, turn_tool_log, "\n".join(getattr(self, "_grounding_texts", [])))
         final_text = coordinate_provenance.apply_final_note(final_text, getattr(self, "_turn_unverified_points", 0))
+        final_text = response_guard.apply_failed_checks_note(final_text, response_guard.failed_checks(getattr(self, "_turn_calls", None)))
         if pending:
             # F14: the app shows its own confirmation card for a pending call; drop the model's look-alike.
             final_text = response_guard.strip_confirmation_prose(final_text)

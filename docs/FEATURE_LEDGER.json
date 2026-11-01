@@ -1986,6 +1986,28 @@
     ],
     "hand_verified": "not verified: CI only (synthetic summaries). Nothing yet reads a real layer into the summary, so nothing is checked in a real run. The two other historical defects named in PLAN-031 (figures typed into a layout that were not in the data; a blocked road network silently ignored) are not covered by these layer checks.",
     "hand_row": "none: the pure module changes no behaviour; the hook (next slice) gets its own hand row"
+  },
+  {
+    "id": "result-gate-hook",
+    "feature": "after a tool classified CREATE or MODIFY returns a successful result that names its output layer (layer_name), the output layer is read (first 5,000 features) and checked on the main thread: not empty, geometries valid, and, when the result names output_field, that field is not empty and not one value everywhere; the result gains checks, checks_summary and, on a failure, a checks_note telling the model to say so; the final reply gets a visible warning if a failed check is not mentioned; the QgsSettings value cartogen_ai/result_gate=false turns it off. The CRS-in-degrees and stale-field checks exist but are not enabled for any tool",
+    "issues": [],
+    "since": "1.18.6",
+    "sources": [
+      "src/cartogen_ai/core/agent/result_gate.py",
+      "src/cartogen_ai/core/agent/agent_orchestrator.py",
+      "src/cartogen_ai/core/services/response_guard.py"
+    ],
+    "guards": [
+      "tests/test_result_gate.py::TestEligibility::test_only_a_successful_create_or_modify_result_that_names_a_layer",
+      "tests/test_result_gate.py::TestAttach::test_a_failed_check_adds_a_note_the_model_must_act_on",
+      "tests/test_result_gate.py::TestReplyGuard::test_a_reply_that_leaves_the_failure_out_gets_a_visible_warning",
+      "tests/test_result_gate.py::TestReplyGuard::test_the_agents_final_guard_appends_it",
+      "tests/test_result_gate_live.py::TestResultGateLive::test_a_score_that_is_the_same_everywhere_fails",
+      "tests/test_result_gate_live.py::TestResultGateLive::test_a_real_tool_result_carries_checks",
+      "tests/test_result_gate_live.py::TestResultGateLive::test_the_cost_on_a_50000_feature_layer_is_bounded_and_the_sample_is_stated"
+    ],
+    "hand_verified": "not verified: the offline tests are CI; the live tests run on real QGIS layers but were written without a QGIS install (CI's first run is their first execution). Only the main-thread path for ordinary tools is gated: fetch_* tools (network-only or two-phase) and run_steps inner calls that bypass it are not. Only tools whose result carries layer_name get checks, so most CREATE tools are not checked yet. The 'does the model say so in plain words' acceptance needs a person.",
+    "hand_row": "run the severity index on a layer whose indicator fields are all equal (the smoke fixtures) and check the answer says the score is the same everywhere; then set cartogen_ai/result_gate=false and confirm no checks appear"
   }
  ]
 }
