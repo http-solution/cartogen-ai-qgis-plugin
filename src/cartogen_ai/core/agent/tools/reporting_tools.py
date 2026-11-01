@@ -472,6 +472,10 @@ def aggregate_data(rows, group_by_field, value_field=None, agg="sum"):
         },
         "required": ["rows", "group_by_field", "reached_field"],
     },
+
+    keywords=[
+        "sectors are covered", "sector coverage", "which sectors", "who covers which sector", "coverage by sector",
+    ],
 )
 def generate_sector_coverage_report(rows, group_by_field, reached_field, target_field=None, title=None, output_path=None):
     output_path = resolve_output_path(output_path)   # rc22 smoke N3/N8/N9: anchor relative paths to the project (see _paths.py)

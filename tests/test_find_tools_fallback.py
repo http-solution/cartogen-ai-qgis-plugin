@@ -30,6 +30,13 @@ class TestRuleFiftySix(unittest.TestCase):
         self.assertIn("find_tools", prompts._ALL_RULES[56])
         self.assertIn("BEFORE telling the user a capability is missing", prompts._ALL_RULES[56])
 
+    def test_the_model_is_told_to_write_the_need_in_english(self):
+        """Measured 2026-11-01: Arabic and French requests were offered only the 10 always-on tools, and find_tools ranks English words, so
+        a need written in Arabic finds nothing. The model translates; the router and find_tools do not."""
+        self.assertIn("plain English", prompts._ALL_RULES[56])
+        props = next(t for t in TOOLS_SCHEMA if t["function"]["name"] == "find_tools")["function"]["parameters"]["properties"]
+        self.assertIn("English", props["need"]["description"])
+
     def test_the_rule_is_in_the_assembled_prompt_even_for_a_small_tool_set(self):
         self.assertIn("56. The tools you were given are a selection", prompts._assemble_base_prompt({"get_layers"}))
 

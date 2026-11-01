@@ -230,6 +230,11 @@ def _recommend_for_geometry(geometry_kind, field_present, field_numeric, cardina
         },
         "required": ["layer_name"],
     },
+
+    keywords=[
+        "best way to show", "how should i show", "how should i visualise", "how should i visualize", "which map type",
+        "best way to map", "best way to display",
+    ],
 )
 def recommend_visualization_method(layer_name, field=None, intended_message=None):
     if not _styling_tools.QGIS_AVAILABLE:

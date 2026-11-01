@@ -198,6 +198,8 @@ def _affected_layer(network, hit, mode, speed_field, name):
     keywords=[
         "destroyed bridge", "damaged bridge", "blocked road", "road closure", "closed road", "flooded road", "checkpoint",
         "barrier", "impassable", "avoid the", "cut off road",
+        "bridge is out", "road is closed", "avoid this road", "avoid the bridge", "block the road",
+        "road is blocked", "bridge is down",
     ],
 )
 def apply_network_barriers(road_network_layer, barrier_layer, buffer_m=50, mode="block", penalty_factor=0.25,

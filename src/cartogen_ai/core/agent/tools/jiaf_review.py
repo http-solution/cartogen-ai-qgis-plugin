@@ -327,6 +327,7 @@ def record_jiaf_decisions(pin_decisions=None, severity_decisions=None, replace=F
     {"type": "object", "properties": {}},
     keywords=[
         "show the jiaf decisions", "stored jiaf decisions",
+        "what was decided about", "decisions about the severity", "show the decisions", "recorded decisions",
     ],
 )
 def get_jiaf_decisions():

@@ -971,6 +971,11 @@ def _absolute_change_raster(change_raster):
         },
         "required": ["admin_layer", "unit_name_field", "raster_before", "raster_after", "building_footprints_layer"],
     },
+
+    keywords=[
+        "how many houses were damaged", "damaged houses", "damaged buildings", "estimate the damage", "houses damaged",
+        "buildings damaged",
+    ],
 )
 def calculate_damage_exposure_severity(admin_layer, unit_name_field, raster_before, raster_after,
                                         building_footprints_layer, hazard_intensity_raster=None,
