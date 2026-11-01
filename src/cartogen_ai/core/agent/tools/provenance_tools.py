@@ -90,7 +90,7 @@ def get_provenance_record(layer_name):
     layer = _find_layer_by_name(layer_name)
     if layer is None:
         return {"error": f"Layer '{layer_name}' not found"}
-    record = _prov.build_provenance_record(layer)
+    record = _prov.build_provenance_record(layer, _find_layer_by_name)
     if "error" in record:
         return record
     return {"success": True, **record}
@@ -123,7 +123,7 @@ def write_provenance_sidecar(layer_name, output_path=None):
     layer = _find_layer_by_name(layer_name)
     if layer is None:
         return {"error": f"Layer '{layer_name}' not found"}
-    record = _prov.build_provenance_record(layer)
+    record = _prov.build_provenance_record(layer, _find_layer_by_name)
     if "error" in record:
         return record
 

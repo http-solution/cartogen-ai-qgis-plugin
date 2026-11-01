@@ -44,7 +44,7 @@ def _qgis_version():
         return None
 
 
-def build_provenance_record(layer) -> dict:
+def build_provenance_record(layer, lookup=None) -> dict:
     """Builds a machine-readable provenance record for a layer:
 
         {
@@ -53,6 +53,7 @@ def build_provenance_record(layer) -> dict:
             "qgis_version": <str or None>,
             "lineage": [...],     # lineage.py's get_layer_lineage(layer)
             "qa_status": {...},   # dataset_status.py's get_dataset_status(layer)
+            "sources": [...],     # source_record.py: where fetched data came from (own + inherited through lineage when `lookup(name)` is given)
         }
 
     Pure computation, no file I/O. Duck-typed on layer.name() plus
@@ -65,6 +66,7 @@ def build_provenance_record(layer) -> dict:
 
     from .lineage import get_layer_lineage
     from ..models.dataset_status import get_dataset_status
+    from . import source_record
 
     return {
         "layer_name": layer.name(),
@@ -72,4 +74,5 @@ def build_provenance_record(layer) -> dict:
         "qgis_version": _qgis_version(),
         "lineage": get_layer_lineage(layer),
         "qa_status": get_dataset_status(layer),
+        "sources": source_record.collect(layer, lookup),
     }
