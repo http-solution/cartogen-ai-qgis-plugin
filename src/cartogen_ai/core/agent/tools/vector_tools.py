@@ -1074,6 +1074,10 @@ def _load_excel_as_geometry_layer(file_path, name, sheet_name, x_field, y_field,
         },
         "required": ["file_path"],
     },
+
+    keywords=[
+        "survey results in", "load the csv", "import the csv", "the csv with the", "results in smoke", "spreadsheet of",
+    ],
 )
 def load_tabular_data_as_layer(file_path, layer_name=None, x_field=None, y_field=None, wkt_field=None, sheet_name=None, crs="EPSG:4326", delimiter=",",
                                as_table=False):
@@ -1208,6 +1212,7 @@ def load_tabular_data_as_layer(file_path, layer_name=None, x_field=None, y_field
         "required": ["layer_name"],
     },
     keywords=[
+        "with their names", "as labels", "with the names as labels", "label of the minutes", "with a label", "with the camp names", "with the town names",
         "put the names", "show the names", "names on the map", "write the names", "name next to", "label each",
         "show the name of each",
     ],
@@ -1694,6 +1699,7 @@ def _compute_field_statistics(values):
         "required": ["layer_name", "field"],
     },
     keywords=[
+        "count the people with the population column", "sum of the population column", "total of the pop column",
         "statistics of the", "statistics for the", "summary statistics", "basic statistics", "mean of the", "average of the",
         "sum of the", "minimum of", "maximum of", "unique values", "how many unique", "min and max",
         "average values of", "average of each column", "mean of each column", "summary of the columns", "column statistics",
@@ -1749,6 +1755,7 @@ _SELECT_METHODS = {"new": 0, "add": 1, "remove": 2, "intersect": 3}
         "required": ["target_layer", "reference_layer"],
     },
     keywords=[
+        "fall inside", "fall within", "which towns fall", "inside the flood extent", "are inside the flood", "select the villages inside", "those circles",
         "select by location", "select the points inside", "select points inside", "select features inside",
         "select features within", "select the features within", "select the features that intersect",
         "select features that intersect", "select the ones inside", "intersecting the",
@@ -1807,6 +1814,7 @@ def invert_selection(layer_name):
 
 @register_tool("dissolve_layer", "Dissolve vector features optionally grouped by field.", {"type": "object", "properties": {"layer_name": {"type": "string"}, "field": {"type": "string"}}, "required": ["layer_name"]},
     keywords=[
+        "into one study area", "one study area polygon", "merge them into one polygon", "into a single polygon", "into one polygon",
         "dissolve", "merge the polygons by", "aggregate the polygons", "combine the polygons by",
     ],
 )
@@ -1850,6 +1858,7 @@ def merge_layers(layer_names_list):
 
 @register_tool("spatial_join", "Join attributes from one layer to another by spatial location.", {"type": "object", "properties": {"target_layer": {"type": "string"}, "join_layer": {"type": "string"}}, "required": ["target_layer", "join_layer"]},
     keywords=[
+        "count them per district", "count them in each", "how many in each district", "number of facilities per district", "facilities each district has", "facilities per district",
         "spatial join", "join by location", "join based on location", "join the attributes by location",
         "which polygon each point", "assign the district to each", "tag each point with",
         "attach the name", "attach the district", "add the district name to each", "which district each point is in", "copy the attributes from",

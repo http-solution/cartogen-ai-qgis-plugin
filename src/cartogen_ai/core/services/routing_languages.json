@@ -189,7 +189,10 @@
    "تدرج لوني",
    "تدرج الألوان",
    "تدرج الالوان",
-   "ظلل حسب"
+   "ظلل حسب",
+   "لون المديريات حسب",
+   "ملونة حسب العدد",
+   "لون المناطق حسب"
   ],
   "apply_heatmap_style": [
    "خريطة حرارية",
@@ -205,7 +208,9 @@
    "خريطة للطباعة",
    "تخطيط الطباعة",
    "صفحة طباعة",
-   "خريطة قابلة للطباعة"
+   "خريطة قابلة للطباعة",
+   "اطبع الخريطة مع مفتاح",
+   "مفتاح الخريطة وشريط المقياس"
   ],
   "export_layout": [
    "تصدير الخريطة",
@@ -594,6 +599,10 @@
    "سرعة المركبات على الطرق",
    "سرعات الطرق",
    "كم سرعة السير"
+  ],
+  "run_allowlisted_processing_algorithm": [
+   "احسب عددها في كل",
+   "عدد النقاط في كل مديرية"
   ]
  },
  "fr": {
@@ -727,7 +736,10 @@
   "apply_graduated_style": [
    "colorier selon la valeur",
    "dégradé de couleurs",
-   "style gradué"
+   "style gradué",
+   "colorer les districts selon",
+   "colorer selon ce nombre",
+   "colorer les districts par"
   ],
   "apply_heatmap_style": [
    "carte de chaleur",
@@ -740,7 +752,10 @@
   "create_print_layout": [
    "mise en page",
    "carte imprimable",
-   "carte à imprimer"
+   "carte à imprimer",
+   "carte imprimable en pdf",
+   "exporter une carte imprimable",
+   "avec une légende et une échelle"
   ],
   "export_layout": [
    "exporter la carte",
@@ -1109,6 +1124,11 @@
    "vitesse sur les routes",
    "vitesses routières",
    "à quelle vitesse peuvent rouler les véhicules"
+  ],
+  "run_allowlisted_processing_algorithm": [
+   "compter par district",
+   "compter les hôpitaux par",
+   "nombre de points par district"
   ]
  }
 }

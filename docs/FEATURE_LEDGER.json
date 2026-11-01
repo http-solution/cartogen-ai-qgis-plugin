@@ -1928,6 +1928,26 @@
     ],
     "hand_verified": "not verified: CI only, and NOT read by a fluent Arabic or French speaker. The phrases are Modern Standard Arabic and standard French written by the assistant; Yemeni dialect is not covered. A wrong phrase either never matches or offers the wrong tool. The review sheet exists so that a reader can check them without opening JSON.",
     "hand_row": "a fluent Arabic reader and a fluent French reader mark the review sheet (OK, FIX, REMOVE, ADD); then run python tools/language_review.py apply SHEET.csv and the routing tests"
+  },
+  {
+    "id": "heldout-long-request-replay",
+    "feature": "two sets of long multi-step requests (41 written blind, patched to fit afterwards; 20 written after the patch and never fitted) are replayed against the router, with a pin that the blind set may not get worse (10 of 20 miss a needed tool today); about 120 everyday phrases were added beside 23 tools (colour the districts by, graduated map, minutes of a drive, printable poster, put them on the map as points, total population of each district, fall inside, ...) which took set 1 from 24 of 41 misses to 2",
+    "issues": [],
+    "since": "1.18.6",
+    "sources": [
+      "tests/fixtures/routing_heldout_long.json",
+      "tests/fixtures/routing_blind_long_2.json",
+      "src/cartogen_ai/core/agent/tools/styling_tools.py",
+      "src/cartogen_ai/core/agent/tools/layout_tools.py"
+    ],
+    "guards": [
+      "tests/test_heldout_routing_replay.py::TestHeldOutRoutingReplay::test_set_1_stays_patched",
+      "tests/test_heldout_routing_replay.py::TestHeldOutRoutingReplay::test_set_2_blind_does_not_get_worse",
+      "tests/test_heldout_routing_replay.py::TestHeldOutRoutingReplay::test_the_offered_list_is_deterministic",
+      "tests/test_routing_requests_data.py::TestRoutingRequestsData::test_every_request_is_offered_its_tools"
+    ],
+    "hand_verified": "not verified: CI only, and NOT real user prompts: both sets were written by the assistant. The needed-tool lists are the assistant's judgement of what each step needs. The vocabulary patch did NOT generalise: the blind set 2 missed 10 of 20 before the patch and 10 of 20 after it, so wording gaps keep appearing; the structural answer is not in this change.",
+    "hand_row": "send about 40 real long prompts (chat exports) so a third, real set can replace these"
   }
  ]
 }

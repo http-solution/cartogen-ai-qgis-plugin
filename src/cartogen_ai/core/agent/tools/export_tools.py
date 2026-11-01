@@ -713,6 +713,10 @@ def export_to_csv(layer_name, output_path=None, only_selected=None, wkt_geometry
             }
         },
     },
+
+    keywords=[
+        "image for whatsapp", "map view as an image", "screenshot of the map", "export the map view",
+    ],
 )
 def print_map(output_path=None):
     output_path = resolve_output_path(output_path)   # rc22 smoke N3/N8/N9: anchor relative paths to the project (see _paths.py)

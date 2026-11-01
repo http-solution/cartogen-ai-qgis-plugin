@@ -1,0 +1,261 @@
+[
+  {
+    "prompt": "We have a list of boreholes with their coordinates in an Excel export. Show them on the map, work out which villages are further than two kilometres from the nearest borehole and shade those villages darker the further away they are.",
+    "tools": [
+      [
+        "add_point_layer",
+        "load_tabular_data_as_layer"
+      ],
+      [
+        "find_nearest_features",
+        "buffer_analysis",
+        "measure_distance"
+      ],
+      "apply_graduated_style"
+    ],
+    "source": "PLAN-043 blind set 2, written 2026-11-01 AFTER the vocabulary patch for set 1"
+  },
+  {
+    "prompt": "Open the Taiz district layer, keep only the districts with more than one hundred thousand people, make a thin black outline for them and print the result on an A4 sheet with a title and my organisation name.",
+    "tools": [
+      [
+        "select_by_attribute",
+        "select_by_expression"
+      ],
+      [
+        "set_layer_symbol",
+        "change_layer_color"
+      ],
+      "create_print_layout"
+    ],
+    "source": "PLAN-043 blind set 2, written 2026-11-01 AFTER the vocabulary patch for set 1"
+  },
+  {
+    "prompt": "I would like to see all primary schools in Aden from OpenStreetMap, count how many fall in each district, and rank the districts from the most schools to the fewest in a small table that I can copy into an email.",
+    "tools": [
+      [
+        "ingest_osm_features",
+        "fetch_osm_features"
+      ],
+      [
+        "spatial_join",
+        "aggregate_data",
+        "run_allowlisted_processing_algorithm",
+        "find_processing_algorithm",
+        "zonal_statistics"
+      ]
+    ],
+    "source": "PLAN-043 blind set 2, written 2026-11-01 AFTER the vocabulary patch for set 1"
+  },
+  {
+    "prompt": "Pull in the Sentinel scenes of Marib from last month, work out the water index, mark the pixels that are water, convert them to polygons and tell me the total surface of open water in hectares.",
+    "tools": [
+      "search_stac_satellite_imagery",
+      "calculate_ndwi",
+      [
+        "calculate_area",
+        "zonal_statistics"
+      ]
+    ],
+    "source": "PLAN-043 blind set 2, written 2026-11-01 AFTER the vocabulary patch for set 1"
+  },
+  {
+    "prompt": "Our drivers need directions: starting from the depot in Sanaa, visit the six clinics in smoke_clinics in a sensible order along the roads, draw the route, and give me the total kilometres and the estimated hours.",
+    "tools": [
+      "optimize_delivery_route"
+    ],
+    "source": "PLAN-043 blind set 2, written 2026-11-01 AFTER the vocabulary patch for set 1"
+  },
+  {
+    "prompt": "Take last week's earthquake list from USGS for Iran, show it as circles sized by magnitude on top of the country boundary, label the strongest ones and write two sentences about what happened.",
+    "tools": [
+      "fetch_usgs_earthquakes",
+      [
+        "fetch_hdx_admin_boundaries",
+        "fetch_geoboundaries"
+      ],
+      "apply_labels"
+    ],
+    "source": "PLAN-043 blind set 2, written 2026-11-01 AFTER the vocabulary patch for set 1"
+  },
+  {
+    "prompt": "Import the shapefile of camp blocks, check that the geometries are valid and repair them if not, then calculate the area of each block in square metres and save everything as a new GeoPackage.",
+    "tools": [
+      [
+        "add_layer_from_path"
+      ],
+      "fix_geometries",
+      "calculate_area",
+      [
+        "export_layer",
+        "save_layer_as"
+      ]
+    ],
+    "source": "PLAN-043 blind set 2, written 2026-11-01 AFTER the vocabulary patch for set 1"
+  },
+  {
+    "prompt": "Where are the people who are most in need? Combine the severity of damage, the poverty rate and the distance to the nearest hospital into one score for every district and show the top ten on a map.",
+    "tools": [
+      [
+        "calculate_severity_index",
+        "calculate_mcda_ranking",
+        "weighted_overlay_analysis"
+      ],
+      "apply_graduated_style"
+    ],
+    "source": "PLAN-043 blind set 2, written 2026-11-01 AFTER the vocabulary patch for set 1"
+  },
+  {
+    "prompt": "Make me a clean map of Yemen with only the governorate borders, no fill, a light grey basemap below, the governorate names on top in dark grey, and export it as a high resolution PNG with a transparent background.",
+    "tools": [
+      [
+        "fetch_hdx_admin_boundaries",
+        "fetch_geoboundaries"
+      ],
+      "add_basemap",
+      "apply_labels",
+      [
+        "export_layout",
+        "print_map"
+      ]
+    ],
+    "source": "PLAN-043 blind set 2, written 2026-11-01 AFTER the vocabulary patch for set 1"
+  },
+  {
+    "prompt": "The flood layer is in the wrong projection. Reproject it to match the districts, clip it to Hodeidah, calculate how many square kilometres are flooded in each district and list the three worst affected districts.",
+    "tools": [
+      "reproject_layer",
+      "clip_layer",
+      [
+        "calculate_area",
+        "zonal_statistics"
+      ]
+    ],
+    "source": "PLAN-043 blind set 2, written 2026-11-01 AFTER the vocabulary patch for set 1"
+  },
+  {
+    "prompt": "Plot the incidents I received by email as points using the latitude and longitude columns in smoke_incidents.csv, colour them by type, and show me the month with the highest number as a chart.",
+    "tools": [
+      "add_point_layer",
+      "apply_categorized_style",
+      "generate_chart"
+    ],
+    "source": "PLAN-043 blind set 2, written 2026-11-01 AFTER the vocabulary patch for set 1"
+  },
+  {
+    "prompt": "Where would a new health post help the most people? Use the population raster, the existing clinics in smoke_clinics, and find the area with most people living more than five kilometres away from any clinic.",
+    "tools": [
+      [
+        "population_access_gap",
+        "optimal_hub_siting",
+        "calculate_presence_gap",
+        "fetch_worldpop_population"
+      ]
+    ],
+    "source": "PLAN-043 blind set 2, written 2026-11-01 AFTER the vocabulary patch for set 1"
+  },
+  {
+    "prompt": "Give the layers in my project better names, move the boundary layers into a group called Admin, hide all layers except the districts and the roads, and then save the project as taiz_response.",
+    "tools": [
+      "rename_layer",
+      "move_layers_to_group",
+      "toggle_visibility",
+      "save_project"
+    ],
+    "source": "PLAN-043 blind set 2, written 2026-11-01 AFTER the vocabulary patch for set 1"
+  },
+  {
+    "prompt": "Compute the total length of rivers inside each district of smoke_admin, and calculate the density of rivers per square kilometre, then show the districts with the highest density in a darker blue.",
+    "tools": [
+      [
+        "clip_layer",
+        "intersect_layers",
+        "split_lines_by_zones"
+      ],
+      "calculate_length",
+      "apply_graduated_style"
+    ],
+    "source": "PLAN-043 blind set 2, written 2026-11-01 AFTER the vocabulary patch for set 1"
+  },
+  {
+    "prompt": "Find the critical bridges: if each bridge in smoke_bridges were closed, which villages would lose their road access to the clinics? Show the villages and mark the bridges that matter most.",
+    "tools": [
+      [
+        "analyze_critical_links",
+        "apply_network_barriers",
+        "calculate_service_area"
+      ]
+    ],
+    "source": "PLAN-043 blind set 2, written 2026-11-01 AFTER the vocabulary patch for set 1"
+  },
+  {
+    "prompt": "Je voudrais ajouter une photo aérienne, tracer une zone tampon de deux kilomètres autour de chaque camp, calculer la surface totale couverte et enregistrer le résultat dans un fichier GeoPackage",
+    "tools": [
+      "add_basemap",
+      "buffer_analysis",
+      [
+        "calculate_area"
+      ],
+      [
+        "export_layer",
+        "save_layer_as"
+      ]
+    ],
+    "source": "PLAN-043 blind set 2, written 2026-11-01 AFTER the vocabulary patch for set 1"
+  },
+  {
+    "prompt": "أريد تحميل حدود المحافظات في اليمن وإضافة خريطة الأساس وحساب مساحة كل محافظة ثم تلوينها حسب المساحة وطباعتها بحجم A4",
+    "tools": [
+      [
+        "fetch_hdx_admin_boundaries",
+        "fetch_geoboundaries"
+      ],
+      "add_basemap",
+      "calculate_area",
+      "apply_graduated_style",
+      "create_print_layout"
+    ],
+    "source": "PLAN-043 blind set 2, written 2026-11-01 AFTER the vocabulary patch for set 1"
+  },
+  {
+    "prompt": "Check which of the settlements are inside the conflict hotspots, tell me the population of each hotspot, and turn the hotspots into a dashboard page I can host on a website for the partners.",
+    "tools": [
+      "hotspot_analysis",
+      [
+        "select_by_location",
+        "intersect_layers",
+        "spatial_join"
+      ],
+      "generate_html_dashboard"
+    ],
+    "source": "PLAN-043 blind set 2, written 2026-11-01 AFTER the vocabulary patch for set 1"
+  },
+  {
+    "prompt": "Overlay the landslide susceptibility with the roads and the settlements, take only the roads that cross high susceptibility, buffer them by one hundred metres and give me the number of houses inside the buffer.",
+    "tools": [
+      [
+        "intersect_layers",
+        "clip_layer",
+        "select_by_location"
+      ],
+      "buffer_analysis",
+      [
+        "fetch_building_footprints",
+        "spatial_join"
+      ]
+    ],
+    "source": "PLAN-043 blind set 2, written 2026-11-01 AFTER the vocabulary patch for set 1"
+  },
+  {
+    "prompt": "Fetch the vector tiles basemap, add the field hospitals as red crosses with a label for the name and capacity, and zoom to the layer so that I can screenshot it for the morning briefing.",
+    "tools": [
+      [
+        "add_basemap",
+        "add_vector_tile_layer"
+      ],
+      "apply_labels",
+      "zoom_to_layer"
+    ],
+    "source": "PLAN-043 blind set 2, written 2026-11-01 AFTER the vocabulary patch for set 1"
+  }
+]

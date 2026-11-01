@@ -212,6 +212,7 @@ def _resolve_svg(path):
         "font_family": {"type": "string"}, "character": {"type": "string"}, "size_mm": {"type": "number"}, "color": {"type": "string"}},
      "required": ["layer_name", "kind"]},
     keywords=[
+        "small red crosses", "as crosses", "as icons", "blue icons",
         "svg marker", "svg icon", "use an svg", "picture marker", "icon for the points", "use an icon", "font marker",
         "use a symbol font", "use the svg", "marker from svg",
     ],

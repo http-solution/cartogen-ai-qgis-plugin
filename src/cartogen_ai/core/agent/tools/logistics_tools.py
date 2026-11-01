@@ -906,6 +906,7 @@ def _rank_hub_candidates(candidate_distances, max_distance=None):
         "required": ["candidate_layer", "demand_layer"],
     },
     keywords=[
+        "plan how to serve", "from the two warehouses", "serve the distribution points", "total driving is smallest", "where should we put", "best sites for",
         "where should we put", "where should i put", "where to put", "where to place", "where should we place",
         "best location for", "best place for", "best site for", "site a new", "locate a new",
     ],
@@ -1050,6 +1051,7 @@ def _greedy_p_median(candidate_distances, demand_weights, num_facilities):
     },
 
     keywords=[
+        "serve the distribution points", "from the two warehouses", "how many trucks", "which warehouse serves",
         "assign each village", "assign each point to", "nearest warehouse", "nearest facility to each", "allocate demand",
         "assign villages to",
     ],
@@ -1756,6 +1758,10 @@ def _degenerate_hull_fallback(lines_layer, travel_cost):
         },
         "required": ["facility_layer", "road_network_layer", "travel_cost"],
     },
+
+    keywords=[
+        "minutes of a drive", "minutes drive", "within thirty minutes", "within 30 minutes", "drive from each", "driving distance around", "reach within",
+    ],
 )
 def calculate_service_area(facility_layer, road_network_layer, travel_cost, strategy="shortest", default_speed=50,
                             speed_field=None, direction_field=None,

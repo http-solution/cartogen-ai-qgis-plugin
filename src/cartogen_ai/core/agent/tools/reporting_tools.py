@@ -425,6 +425,10 @@ def _aggregate_rows(rows, group_by_field, value_field, agg):
         },
         "required": ["rows", "group_by_field"],
     },
+
+    keywords=[
+        "per district", "percent of households", "aggregate the percent", "by district",
+    ],
 )
 def aggregate_data(rows, group_by_field, value_field=None, agg="sum"):
     agg = (agg or "sum").lower()

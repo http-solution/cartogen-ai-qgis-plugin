@@ -183,6 +183,10 @@ def _summarize_diffs(preset_name, result):
         },
         "required": ["preset_name"],
     },
+
+    keywords=[
+        "monthly report pack", "report pack", "refresh the incident layer", "update the dashboard and export",
+    ],
 )
 def run_monitoring_workflow(preset_name):
     if not QGIS_AVAILABLE:
