@@ -44,6 +44,21 @@ class UsageTracker:
         u = self.usage
         return ((u["input_tokens"] - start["input_tokens"]) + (u["output_tokens"] - start["output_tokens"]))
 
+    # A cache hit is billed at a fraction of a fresh token (Anthropic reads 10 percent, OpenAI and Gemini 25 to 50 percent), so the
+    # per-request budget, which is a cost guardrail, counts a cached input token at this share. turn_tokens()/turn_text() keep the full
+    # figure: what the user is shown is the size of the request, the budget is about spend. Owner decision BUD-1, 2026-11-01.
+    CACHED_TOKEN_BUDGET_SHARE = 0.1
+
+    def turn_budget_tokens(self):
+        """Tokens this request has spent, as the per-request budget counts them: fresh input + output + CACHED_TOKEN_BUDGET_SHARE of the
+        cached input. Providers that report no cache figures count in full, so the guardrail never loosens without evidence."""
+        start = getattr(self, "_turn_start", None)
+        if start is None:
+            return 0
+        u = self.usage
+        cached = min(u["cached_tokens"] - start["cached_tokens"], u["input_tokens"] - start["input_tokens"])
+        return round(self.turn_tokens() - cached * (1 - self.CACHED_TOKEN_BUDGET_SHARE))
+
     def turn_text(self):
         """'This turn ~12,400 tokens (5 calls)', or None when no call this turn reported usage -- never a
         made-up figure. Calls that reported no usage are said, not counted."""
