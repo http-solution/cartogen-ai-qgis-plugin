@@ -1835,6 +1835,23 @@
     ],
     "hand_verified": "not verified: CI only (mocked HTTP). The sandbox could not reach either mirror (40 s timeouts), and a 2026-09-24 check found some public mirrors slow or failing TLS, so whether they answer on the owner's machine is unknown. The off switch is a QgsSettings value with no settings-dialog control yet.",
     "hand_row": "with the main Overpass server overloaded (or blocked), run 'show hospitals in <area>' and check the log for overpass_mirror_used or overpass_mirror_failed"
+  },
+  {
+    "id": "empty-extract-says-why",
+    "feature": "when native:extractbyexpression or native:extractbylocation returns 0 features, the result carries why_empty: the values the filtered field really holds, an empty input or comparison layer, different coordinate systems, or non-overlapping extents, so the model can correct the filter instead of moving on",
+    "issues": [],
+    "since": "1.18.6",
+    "sources": [
+      "src/cartogen_ai/core/agent/tools/processing_allowlist_tools.py"
+    ],
+    "guards": [
+      "tests/test_empty_extract_says_why.py::TestEmptyExtractSaysWhy::test_an_expression_miss_lists_the_values_the_field_holds",
+      "tests/test_empty_extract_says_why.py::TestEmptyExtractSaysWhy::test_a_location_miss_names_different_crs_and_non_overlap",
+      "tests/test_empty_extract_says_why.py::TestEmptyExtractSaysWhy::test_an_empty_input_is_blamed_not_the_filter",
+      "tests/test_empty_extract_live.py::TestEmptyExtractLive::test_an_expression_that_matches_nothing_lists_the_field_values"
+    ],
+    "hand_verified": "not verified: CI only. The text is unit-tested; the live test runs the real algorithms but was written without a QGIS install (its first run is CI). The cause of the owner's two 0-feature results in the Taiz run is NOT known (the log held no arguments); this only makes the next occurrence explain itself.",
+    "hand_row": "repeat the Taiz request; if an extraction returns 0 features, check the reply's why_empty names the values or the CRS mismatch"
   }
  ]
 }
