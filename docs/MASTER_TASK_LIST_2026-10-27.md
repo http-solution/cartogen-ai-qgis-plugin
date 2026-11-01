@@ -58,6 +58,7 @@ One list to follow up and plan from. It replaces the session task list (101 entr
 | HT-6 | Prove tools/collect_evidence.py in a real QGIS 4.2 session (written without QGIS, never run) and fix what breaks; then add it to the repo with a live test. | The agent-edition smoke package depends on it for logs, screenshots and layer tables; until run, evidence may fall back to manual capture. | Claude | OWN-1 | S | P1 | In progress | smoke package 2026-10-27 |
 | HT-7 | Routing vocabulary audit: replay everyday synonyms and alternative wordings of each tool family through the real router and list the requests that are offered none of the right tools (found: 'list medical service in Al Maharah' offered no OSM or geocoding tool). Fix with aliases and a ratchet test. | The model tells the truth about the tools it is given, so a wording the router misses reads as 'I cannot do that'; the owner hit it in the first real chat through the CLI. | Claude | - | M | P2 | In progress | PR 508 |
 | ML-1 | Decide which languages the tool router must serve beyond English (Arabic first, French?), then add their phrases for the most used tools as concept groups in routing_concepts.json. Measured 2026-11-01: an Arabic or French request is offered only the 10 always-on tools; the model understands the language, but the router and find_tools match English words only. | Users in Yemen and francophone Africa will write in their own language; today the tools are not offered and only the model's translation in a find_tools call can recover. | You | HT-7 | M | P2 | In progress | HT-7 audit round 3 |
+| RT-1 | Decide how the router fills its 28 tool slots (PLAN-043): keep patching phrases (A), better tie-break plus per-step slots (B and C, recommended), or a bigger k for long requests (D). Also supply about 40 real long prompts as a held-out test set. | Measured: in 178 of 240 test requests the cut is decided by an alphabetical tie, and 13 of 25 long multi-step requests were missing a tool before phrase patches. Phrase patching has diminishing returns. | You | HT-7 | M | P2 | Decision needed | PLAN-043 |
 | DEF-21 | Owner run 2026-11-01 ('hospitals and clinics in Taiz per district on a printable map'): 24 tool calls, then stopped at the 450,000-token turn budget with the request incomplete. Causes seen: five find_tools lookups each kept up to eight schemas for the rest of the turn (tool list about 28 to 65, fixed by a cap in this change), the OpenStreetMap download timed out four times (DEF-7, mirrors still open), and after the tool said not to retry the model kept trying other routes (virtual layer, HDX search, more processing). | A long request ends unfinished and expensive. | Claude | DEF-7 | M | P1 | In progress | owner transcript 2026-11-01 |
 | TR-1 | Task register tool order has no data-fetch tool for 261 of 302 'Map ...' tasks (checked 2026-11-01); the chat then says 'Prefer these tools, in order: add_layer_from_path, ...', which steers the model away from fetching. Only 6.02 (hospitals and clinics) was fixed, to start with fetch_osm_features like 1.02 and 1.05. Derive the fetch tool from the task's keywords (facilities, roads, buildings, boundaries, population, hazards) with a check script, as tools/derive_task_io.py does for file types. | The suggested tool order is wrong for most map tasks. | Claude |  | M | P2 | Not started | owner transcript 2026-11-01 |
 
@@ -169,12 +170,12 @@ Source: the owner's analysis document of nine flagship QGIS AI plugins, checked 
 |---|---|
 | Not started | 33 |
 | In progress | 23 |
-| Decision needed | 14 |
+| Decision needed | 15 |
 | Waiting on you | 13 |
 | Blocked | 5 |
 | Closed | 2 |
 | Closed (record) | 1 |
-| **Total** | **91** |
+| **Total** | **92** |
 
 ## How to keep it current
 
@@ -252,5 +253,6 @@ Newest last. One line per status change; written by `tools/master_list.py set`.
 - 2026-11-01: HT-7 In progress -> In progress. Rounds 1 to 4 done: 246 everyday wordings, 47 misses fixed, kept as 51 rows; every user-facing tool has now been named in at least one wording. Open: non-English routing (ML-1) and the hand test that a model calls find_tools and then chooses the right tool.
 - 2026-11-01: ML-1 Decision needed -> In progress. Owner chose Arabic and French. Phrases for the 59 top tools are in routing_languages.json with 40 test requests (PR open). Still needed: a native Arabic (Yemeni) and French reader to check the phrases, more tools beyond the top 59, and the hand test with a real model.
 - 2026-11-01: HT-7 In progress -> In progress. Rounds 1 to 5 done: 271 requests (short wordings for every user-facing tool, then 25 long multi-step requests), 60 misses fixed, kept as 116 rows. Open: the structural weakness (top_k 28, ties at score 6 broken alphabetically) if misses keep appearing; Arabic and French beyond the top 59 tools (ML-1); the hand test that a model calls find_tools and then the right tools.
+- 2026-11-01: RT-1 Decision needed -> Decision needed. Router slot allocation proposal (PLAN-043) written; needs your choice A/B+C/D and about 40 real long prompts.
 - 2026-11-01: DEF-21 Not started -> In progress. Found-tool cap added (max 5 per lookup, 12 per turn); effect on tokens not measured. Open: wrap up after a terminal data failure; DEF-7.
 - 2026-11-01: TR-1 Not started -> Not started. Added after the owner's 2026-11-01 run; 6.02 fixed by hand.
