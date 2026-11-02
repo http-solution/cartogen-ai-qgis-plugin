@@ -2091,6 +2091,31 @@
    ],
    "hand_verified": "not verified against the live HDX API; the field names come from CKAN's documented package schema. The weights are my choice, not measured on real searches.",
    "hand_row": "ask for 'find a dataset of health facilities in Yemen' and check the first result is open-licensed, recent and lists Yemen, the 'why' lines are accurate against its HDX page, and a data set with no licence stated says so"
+  },
+  {
+   "id": "mcp-server-read-only",
+   "feature": "a person can start a local MCP server from the plugin menu (off at every QGIS start, plain warning, one-time token shown once, ephemeral port, 127.0.0.1 only, POST /mcp with JSON replies). It lists and runs only 24 allowlisted read tools on the QGIS main thread; every other tool is refused with NOT_RUN and nothing runs; arguments the tool does not advertise are dropped; every call passes the egress gate in enforce mode with the client counted as non-local regardless of the user's own setting, so RESTRICTED/SENSITIVE layers are never returned; a request needs the loopback Host, a loopback Origin if any, and the bearer token (constant-time compare)",
+   "issues": [],
+   "since": "1.18.6",
+   "sources": [
+    "src/cartogen_ai/core/agent/mcp_policy.py",
+    "src/cartogen_ai/core/agent/mcp_server.py",
+    "plugin_main.py",
+    "docs/plans/PLAN-034-mcp-server.md"
+   ],
+   "guards": [
+    "tests/test_mcp_server.py::TestAllowlist::test_every_allowed_tool_exists_and_is_classified_read",
+    "tests/test_mcp_server.py::TestAllowlist::test_dangerous_read_classified_tools_are_not_on_the_list",
+    "tests/test_mcp_server.py::TestCheckRequest::test_wrong_host_is_refused_before_the_token_is_looked_at",
+    "tests/test_mcp_server.py::TestCheckRequest::test_a_foreign_browser_origin_is_refused",
+    "tests/test_mcp_server.py::TestHandle::test_a_write_tool_is_refused_and_never_called",
+    "tests/test_mcp_server.py::TestArguments::test_unadvertised_arguments_are_dropped",
+    "tests/test_mcp_server.py::TestHttp::test_no_token_wrong_token_wrong_host_wrong_origin",
+    "tests/test_mcp_server_live.py::TestMcpServerLive::test_a_sensitive_layer_is_refused_even_with_the_users_gate_off",
+    "tests/test_mcp_server_live.py::TestMcpServerLive::test_a_write_tool_is_refused_and_the_project_is_unchanged"
+   ],
+   "hand_verified": "not verified in any real MCP client (Claude Code, Claude Desktop, Cursor): the protocol is written from the specification text. The menu dialogs were never run. The live tests were written without a QGIS install (CI's first run is their first execution). The threat model in PLAN-034 is the author's, not an independent review. Writes over MCP do not exist yet.",
+   "hand_row": "in QGIS choose Cartogen AI > MCP server (local, read-only)..., accept the warning, run the shown 'claude mcp add' command in a terminal, then in Claude Code ask it to list the layers and read the attributes of one; mark a layer SENSITIVE and ask again (must be refused); ask it to buffer a layer (must be refused); choose the menu item again and check the client can no longer connect"
   }
  ]
 }
