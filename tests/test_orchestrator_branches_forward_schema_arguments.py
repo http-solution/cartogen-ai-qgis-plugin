@@ -17,7 +17,7 @@ from cartogen_ai.core.agent.agent_orchestrator import TWO_PHASE_TOOLS
 from cartogen_ai.core.agent.tools import TOOLS_SCHEMA
 
 ORCH = Path(__file__).resolve().parents[1] / "src" / "cartogen_ai" / "core" / "agent" / "agent_orchestrator.py"
-DISPATCH, CLEANUP = "_execute_two_phase_tool", "_execute_two_phase_with_cleanup"
+DISPATCH, CLEANUP = "_run_two_phase_tool", "_execute_two_phase_with_cleanup"
 ARGS = "filtered_args"
 
 # {tool: {schema property: why the orchestrator branch does not forward it}}. Empty until a drop is shown to be deliberate.

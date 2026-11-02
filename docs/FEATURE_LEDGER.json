@@ -2230,6 +2230,25 @@
    ],
    "hand_verified": "not verified by a person: nobody has looked at the dialog, run a file from another machine, watched the chat during a run, or tried Confirm-then-continue. The live tests were written without a QGIS install (CI's first run is their first execution); the real-tool run uses a bare agent with the dispatcher bypassed, so it does not exercise the worker-thread path.",
    "hand_row": "Hand-test rows W9-import-good, W10-import-bad, W11-import-egress, W12-guide (1.18.5 hand-test package, PLAN-050): export a workflow (see workflow-file-export), open it from Plugins > Cartogen AI > Open workflow file... on another profile or machine, read the dialog (warning, checksum, every step), map the roles, press Run, watch the steps in the chat, and compare the result; then try a file with a step that needs Confirm and continue from the next step"
+  },
+  {
+    "id": "gates-on-fetch-and-confirm-paths",
+    "feature": "the egress gate runs before every fetch tool (TWO_PHASE_TOOLS) too, and a call the person confirms with the Apply button is wrapped like an ordinary call: result checks, source record and transaction record (Undo) are applied to it",
+    "issues": [],
+    "since": "1.18.6",
+    "sources": [
+      "src/cartogen_ai/core/agent/agent_orchestrator.py",
+      "src/cartogen_ai/core/ui/chat_tab_widget.py"
+    ],
+    "guards": [
+      "tests/test_confirm_and_fetch_gates.py::TestFetchToolsAskTheEgressGate::test_every_two_phase_tool_is_stopped_with_a_confirmable_card_before_anything_is_fetched",
+      "tests/test_confirm_and_fetch_gates.py::TestFetchToolsAskTheEgressGate::test_a_gate_that_fails_blocks_rather_than_lets_the_fetch_through",
+      "tests/test_confirm_and_fetch_gates.py::TestConfirmedCallsGoThroughTheSameWrapper::test_the_result_gate_and_the_transaction_record_run_for_a_confirmed_write",
+      "tests/test_confirm_and_fetch_gates.py::TestConfirmedCallsGoThroughTheSameWrapper::test_the_apply_button_calls_the_wrapper_not_the_bare_tool",
+      "tests/test_egress_flow_live.py::TestFetchToolStopsAtTheCardForAProtectedLayer::test_the_fetch_stops_with_a_confirmable_card_and_nothing_is_downloaded"
+    ],
+    "hand_verified": "not verified: found by the 2026-11-03 hand-test run (rows W11 and W1 failed), fixed and tested offline; the live test was written without a QGIS install (CI's first run is its first execution). Not yet re-run by hand. Known gap, not fixed: a confirmed fetch tool still runs its download on the UI thread (the Apply path calls the tool directly), and the stray-fragment and plan gates are still not asked for fetch tools.",
+    "hand_row": "rows W1-gate-on and W11-import-egress of the 1.18.5 hand-test package (rerun both with the fixed build; W1 now needs cartogen/checks on smoke_admin after Apply)"
   }
- ]
+]
 }

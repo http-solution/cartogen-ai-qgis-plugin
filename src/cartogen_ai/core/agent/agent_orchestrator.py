@@ -697,6 +697,26 @@ class CartogenAi:
         except Exception:
             return False
 
+    def _egress_precheck(self, name, args, filtered_args, user_confirmed):
+        """The egress gate's verdict for one call, shared by every dispatch path so none can skip it. Returns (blocked result or None, the gate's
+        decision or None, whether a person's confirmation overrode a block). A block registers the confirmable card, exactly as before. MAIN THREAD
+        when it can reach QgsProject (the callers marshal it). PLAN-051: _execute_two_phase_tool used to have no call to this at all."""
+        egress = self._egress_gate_decision(name, filtered_args)
+        egress_overridable = egress is not None and egress["action"] == "block" and bool(egress.get("layers"))
+        egress_override_applied = egress_overridable and user_confirmed
+        if egress is not None and egress["action"] == "block" and not egress_override_applied:
+            log_event("egress_blocked", tag="Agent", tool=name, layer_count=len(egress.get("layers") or {}))
+            if egress_overridable:
+                # The confirmable task MUST be registered here: without it nothing confirmable exists, a typed "confirm" reaches the model
+                # instead of the plugin, and the model improvises (rc7 smoke test F02/F03, 2026-09-30).
+                blocked = egress_gate.preview_required(name, filtered_args, egress)
+                self._register_preview_task(name, args, blocked)
+                return blocked, egress, False
+            return egress["result"], egress, False
+        if egress_override_applied:
+            log_event("egress_override_confirmed", tag="Agent", tool=name, layer_count=len(egress["layers"]))
+        return None, egress, bool(egress_override_applied)
+
     def _real_execute_tool(self, name, arguments, user_confirmed: bool = False):
         func = TOOL_REGISTRY.get(name)
         if func is None:
@@ -752,22 +772,9 @@ class CartogenAi:
         # already confirmed the override via the SAME UI Confirm-button path destructive
         # actions use (user_confirmed=True never comes from the model; see filtered_args'
         # own "confirmed" handling above). IMPLEMENTATION_TRACKER.md §1.4 decision 2.
-        egress = self._egress_gate_decision(name, filtered_args)
-        egress_overridable = egress is not None and egress["action"] == "block" and bool(egress.get("layers"))
-        egress_override_applied = egress_overridable and user_confirmed
-        if egress is not None and egress["action"] == "block" and not egress_override_applied:
-            log_event("egress_blocked", tag="Agent", tool=name, layer_count=len(egress.get("layers") or {}))
-            if egress_overridable:
-                # The confirmable task MUST be registered here: this branch returns before the
-                # generic PREVIEW_REQUIRED handling further down, so without it nothing
-                # confirmable exists, a typed "confirm" reaches the model instead of the
-                # plugin, and the model improvises (rc7 smoke test F02/F03, 2026-09-30).
-                blocked = egress_gate.preview_required(name, filtered_args, egress)
-                self._register_preview_task(name, args, blocked)
-                return blocked
-            return egress["result"]
-        if egress_override_applied:
-            log_event("egress_override_confirmed", tag="Agent", tool=name, layer_count=len(egress["layers"]))
+        blocked, egress, egress_override_applied = self._egress_precheck(name, args, filtered_args, user_confirmed)
+        if blocked is not None:
+            return blocked
 
         try:
             layers_before = self._loaded_layer_ids()
@@ -998,6 +1005,27 @@ class CartogenAi:
                 return step_runner.final_result(total, summaries, stopped="Stopped by the loop guard.")
         return step_runner.final_result(total, summaries)
 
+    def execute_confirmed(self, name, arguments):
+        """What the Apply button runs (PLAN-051, hand-test row W1): the tool with a person's confirmation, wrapped like an ordinary call. The button
+        used to call _real_execute_tool directly, so a confirmed write had no result checks and no transaction record (no Undo). MAIN THREAD (the UI).
+        The after-steps never hide the tool's own result."""
+        try:
+            parsed = arguments if isinstance(arguments, dict) else json.loads(arguments or "{}")
+        except (TypeError, ValueError):
+            parsed = {}
+        if not isinstance(parsed, dict):
+            parsed = {}
+        operation_type = tool_operations.get_tool_operation_type(name)
+        ids_before, snapshot = self._capture_before(name, parsed)
+        result = self._real_execute_tool(name, arguments, user_confirmed=True)
+        try:
+            if name in NETWORK_ONLY_TOOLS or name in TWO_PHASE_TOOLS:
+                result = source_record.attach(name, parsed, result)
+            self._record_after(name, operation_type, result, ids_before, snapshot)
+        except Exception as e:
+            log_event("swallowed_exception", tag="Agent", tool="execute_confirmed", error_class=type(e).__name__, error=True)
+        return result_gate.attach_checks(name, result, operation_type)
+
     def _execute_tool(self, name, arguments):
         """Single entry point for every tool call in run()'s loop, regardless
         of which of the three dispatch paths below actually executes it --
@@ -1219,6 +1247,30 @@ class CartogenAi:
         return res
 
     def _execute_two_phase_tool(self, name, arguments):
+        """TWO_PHASE_TOOLS dispatch with the egress gate in front (PLAN-051, hand-test row W11: this path used to skip the gate, so a fetch over a
+        RESTRICTED layer went out with no card). The check is marshalled to the main thread because it reads the project; a check that fails
+        blocks. A person's override reaches these tools through execute_confirmed -> _real_execute_tool, which already passed the gate."""
+        try:
+            args = arguments if isinstance(arguments, dict) else json.loads(arguments or "{}")
+        except (TypeError, ValueError) as e:
+            return {"error": f"Invalid tool arguments: {e}"}
+        if not isinstance(args, dict):
+            return {"error": f"Invalid tool arguments: expected an object, got {type(args).__name__}."}
+        schema_props = self._get_schema_props(name)
+        filtered_args = {k: v for k, v in args.items() if k in schema_props}
+        verdict = self._run_on_main_thread(lambda _a: self._egress_precheck(name, args, filtered_args, False), None)
+        if not (isinstance(verdict, tuple) and len(verdict) == 3):
+            log_event("swallowed_exception", tag="Agent", tool="egress_precheck", error=True)
+            return {"error": f"'{name}' was not run: the data-protection check could not be completed, and this deployment blocks rather than guesses."}
+        blocked, egress, _applied = verdict
+        if blocked is not None:
+            return blocked
+        result = self._run_two_phase_tool(name, arguments)
+        if egress is not None and egress["action"] == "warn" and isinstance(result, dict):
+            result["egress_warning"] = egress["warning"]
+        return result
+
+    def _run_two_phase_tool(self, name, arguments):
         """Handles TWO_PHASE_TOOLS (see module-level comment): runs the network
         fetch on the calling thread (background, when invoked from run()), then
         bounces only the fast, local-disk-only QGIS layer-creation step to the
