@@ -269,6 +269,7 @@ TOOL_OPERATION_TYPES = {
     "get_provenance_record": READ,
     "write_provenance_sidecar": PUBLISH,
     "write_workflow_report": PUBLISH,
+    "export_workflow_file": PUBLISH,
 
     # -- qa_checklist_tools.py --
     "generate_map_product_qa_checklist": READ,

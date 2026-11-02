@@ -2172,6 +2172,30 @@
    ],
    "hand_verified": "not verified by a person: there is no entry point yet (export, import dialog and runner are stages 2 to 4 of PLAN-048), so there is nothing to try by hand. Offline tests only. The worked example file was written by hand and never run.",
    "hand_row": "none: no entry point exists yet; the hand test for the whole feature is written with stage 3 (export a service-coverage run, open the file on another profile, read the dialog, map the roles, run it)"
+  },
+  {
+   "id": "workflow-file-export",
+   "feature": "export_workflow_file (PUBLISH) turns the recorded history of named result layers into a shareable workflow file: one step per recorded call in time order; layers the chain did not make become @role placeholders (role name, geometry and field names, never values); only schema-advertised arguments, never `confirmed`; steps whose tool is not on the shareable list or that contain a path-like value are left out and reported; data sources come from the source records; the document must pass the workflow-file validator. The first call returns the whole file as a PREVIEW_REQUIRED card and nothing is written until the person confirms (confirmed is not advertised to the model); the file is .cgworkflow.json in the project's exports/workflows folder unless a path is given. No tool opens or runs a workflow file",
+   "issues": [],
+   "since": "1.18.6",
+   "sources": [
+    "src/cartogen_ai/core/agent/workflow_export.py",
+    "src/cartogen_ai/core/agent/tools/workflow_file_tools.py",
+    "src/cartogen_ai/core/tool_operations.py",
+    "docs/plans/PLAN-048-shareable-workflow-file.md"
+   ],
+   "guards": [
+    "tests/test_workflow_export.py::TestRoundTrip::test_an_exported_history_validates_and_keeps_the_order",
+    "tests/test_workflow_export.py::TestRoundTrip::test_a_layer_the_chain_did_not_make_becomes_a_role_and_made_layers_keep_their_names",
+    "tests/test_workflow_export.py::TestRoundTrip::test_no_path_no_confirmed_and_no_fingerprint_key_in_the_document",
+    "tests/test_workflow_export.py::TestWhatIsLeftOut::test_a_step_with_a_path_in_it_is_skipped_not_written",
+    "tests/test_workflow_export.py::TestWhatIsLeftOut::test_a_layer_made_only_by_a_skipped_step_becomes_a_role",
+    "tests/test_workflow_export.py::TestToolHelpers::test_confirmed_is_not_advertised_so_the_model_cannot_approve_its_own_preview",
+    "tests/test_workflow_export.py::TestToolHelpers::test_no_tool_opens_or_runs_a_workflow_file",
+    "tests/test_workflow_export_live.py::TestWorkflowExportLive::test_preview_first_then_a_file_that_the_validator_accepts"
+   ],
+   "hand_verified": "not verified by a person: never run in a real session; the preview card as a user sees it, a multi-layer many-step export and a share between two machines are untried. The live test was written without a QGIS install (CI's first run is its first execution). Recorded arguments are the ones the model sent, so a later repair of an argument is not reflected.",
+   "hand_row": "run a short analysis (for example fetch boundaries, buffer facilities, join), ask 'export this workflow as a file', read the preview (steps, roles, no paths), confirm, open the .cgworkflow.json in a text editor and check it has no data, no file paths and no credentials"
   }
  ]
 }

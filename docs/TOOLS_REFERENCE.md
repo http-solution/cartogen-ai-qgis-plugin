@@ -1,6 +1,6 @@
 # Tool Reference
 
-Auto-generated from the live tool registry (297 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
+Auto-generated from the live tool registry (298 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
 
 Flags: **network-only** tools bypass the main-thread QGIS dispatcher entirely (pure HTTP, safe from any background thread); **two-phase** tools split a network fetch (background thread) from the QGIS-touching part (main thread); **task-management** tools are excluded from auto-advance in the Task Manager.
 
@@ -3394,3 +3394,16 @@ Search the internet and get back real results with their SOURCES: title, URL, ou
 | `kind` | string | no | 'web' (default) or 'news'. |
 | `max_results` | integer | no | How many results (default 8, at most 25). |
 | `days` | integer | no | For kind='news': how many days back (1 to 30, default 7). |
+
+## workflow_file_tools
+
+### `export_workflow_file`
+
+Save the steps that made one or more result layers as a shareable workflow file (.cgworkflow.json) that a colleague can open, read and run on their own layers. Built only from the recorded history of the named layers: the tools used, their arguments, and the data sources. Layers the analysis started from become named roles that the colleague maps to their own layers; no data, file paths or credentials are written. A step that cannot be shared (a tool not on the shareable list, or an argument that looks like a file path) is left out and reported. The user sees the whole file and confirms before anything is written. output_path is optional: omit it to save under the project's exports/workflows folder.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_names` | array[string] | yes | The result layer(s) whose history to export. |
+| `name` | string | no | A short title for the workflow. |
+| `description` | string | no | One or two sentences on what it does. |
+| `output_path` | string | no |  |

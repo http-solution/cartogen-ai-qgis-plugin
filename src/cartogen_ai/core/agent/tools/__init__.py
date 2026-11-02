@@ -45,6 +45,7 @@ from . import dataset_status_tools
 from . import schema_contract_tools
 from . import pcode_validation_tools
 from . import provenance_tools
+from . import workflow_file_tools
 from . import qa_checklist_tools
 from . import sensitivity_tools
 from . import tool_operations_tools
@@ -153,4 +154,5 @@ __all__ = [
     "vector_tools",
     "watershed_tools",
     "web_research_tools",
+    "workflow_file_tools",
 ]
