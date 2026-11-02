@@ -31,7 +31,7 @@ Not covered, on purpose: a real MCP client (Claude Code, Claude Desktop, Cursor)
    `python 6_tools\check_workflow_file.py 3_test_files\bad_*.cgworkflow.json --expect-invalid --json results\outputs\W10\expected.json`
    Both must exit 0. `expected.json` (create the folder `results\outputs\W10` first) is the sentence each bad file should give in the dialog (row W10).
 2. **Set up once.** Install the zip in `1_plugin` into a fresh QGIS profile, configure ONE provider (a cheaper model is fine; these rows check the plugin's records, not answer quality), tick "Save an evidence folder for each request", copy `3_test_files` to a writable folder and open the copy of `smoke_start.qgz`.
-2b. In the QGIS Python console, once per session: `exec(open(r"<bundle>\6_tools\collect_evidence.py", encoding="utf-8").read()); setup(r"<bundle>\results")`.
+2b. In the QGIS Python console, once per session: `exec(open(r"<bundle>\6_tools\collect_evidence.py", encoding="utf-8").read()); begin(r"<bundle>")`.
 3. **No-model rows next: W6, W10, W9.** They need no API credit. W6 is the only row a script can run alone.
 4. **Model rows: W1, W2, W3, W4, W8, W5, W11, in that order of value.** One row, one new chat (history is billed again on every call). Never chain rows in one chat: each starts from the state it names.
 5. **People rows last: W7 (dialog), W12 (reader).**
@@ -39,7 +39,7 @@ Not covered, on purpose: a real MCP client (Claude Code, Claude Desktop, Cursor)
 
 If a model row fails because of the model's wording (wrong tool for the prompt, not a plugin fault), run it ONCE more in a new chat; a second failure is a result, not noise. Do not retry network failures more than once.
 
-## Evidence layout (everything lands under `results/`)
+## Evidence layout (everything lands under `results/`; in the bundle the folders already exist, one per row, each with a `CHECKLIST.txt`; the short how-to is `EVIDENCE_HOWTO.txt`)
 
 ```
 results/

@@ -165,4 +165,33 @@ class TestBundleHoldsEverythingTheRowsNeed(unittest.TestCase):
             self.assertIn(f"3_test_files/{name}", names)
         for script in set(re.findall(r"\b(mcp_probe|check_workflow_file|collect_evidence|summarize_usage_log)\.py", sheet + readme)):
             self.assertIn(f"6_tools/{script}.py", names)
+        for row in rows:
+            for folder in ("evidence", "outputs"):
+                self.assertTrue(any(n.startswith(f"results/{folder}/{row['id']}/") for n in names), (folder, row["id"]))
+            self.assertIn(f"results/evidence/{row['id']}/CHECKLIST.txt", names)
+        self.assertIn("EVIDENCE_HOWTO.txt", names)
+        self.assertIn("EVIDENCE_HOWTO.txt", readme)
+        self.assertIn("begin(", readme)
         self.assertIn("WORKFLOW_FILES.md", sheet)       # W12 hands this to the reader; it must be shipped (checked above)
+
+
+class TestEvidenceFolders(unittest.TestCase):
+    def test_a_snap_name_lands_in_its_rows_folder_and_unknown_names_do_not_vanish(self):
+        collector = load("collect_evidence")
+        root = tempfile.mkdtemp()
+        for name in ("W1-gate-on", "W2-gate-fetch", "V3-contour"):
+            (Path(root) / "evidence" / name).mkdir(parents=True)
+        collector._STATE["out"] = root
+        rel = lambda row: Path(collector._row_folder(row)).relative_to(root).as_posix()      # noqa: E731
+        self.assertEqual(rel("W1a"), "evidence/W1-gate-on/W1a")
+        self.assertEqual(rel("W2"), "evidence/W2-gate-fetch/W2")
+        self.assertEqual(rel("V3"), "evidence/V3-contour/V3")
+        self.assertEqual(rel("zzz"), "evidence/zzz")
+        collector._STATE["out"] = None
+
+    def test_every_checklist_says_what_to_save_and_how_to_judge(self):
+        builder = load("build_hand_test_v2")
+        for row in builder.rows():
+            text = builder.checklist(row, builder.version())
+            for must in ("SAVE", "PASS IF", "4_RESULTS.csv", "results\\screens"):
+                self.assertIn(must, text, row["id"])

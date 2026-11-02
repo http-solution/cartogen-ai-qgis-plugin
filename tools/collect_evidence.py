@@ -27,6 +27,7 @@ import datetime
 import json
 import os
 import platform
+import re
 import shutil
 import traceback
 
@@ -42,6 +43,23 @@ def _err(text):
 
 def _on_message(message, tag, level):
     _STATE["lines"].append((datetime.datetime.now().strftime("%H:%M:%S"), tag, int(level), message))
+
+
+def begin(bundle):
+    """The one line a tester pastes: begin(r"<bundle folder>"). Evidence goes to <bundle>\\results, where the bundle already has one folder per row."""
+    return setup(os.path.join(bundle, "results"))
+
+
+def _row_folder(row):
+    """results/evidence/<full row id>/ for a snap name such as 'W1a' (the bundle ships one folder per row, named by the row id). Falls back to the
+    snap name when no folder matches. Pure."""
+    head = re.match(r"^(W\d+|V\d+)", str(row))
+    base = os.path.join(_STATE["out"], "evidence")
+    if head and os.path.isdir(base):
+        for name in sorted(os.listdir(base)):
+            if name.startswith(head.group(1) + "-"):
+                return os.path.join(base, name, str(row))
+    return os.path.join(base, str(row))
 
 
 def setup(out_dir):
@@ -134,7 +152,7 @@ def snap(row, note=""):
     from qgis.utils import iface
     if not _STATE["out"]:
         raise RuntimeError("call setup(<results folder>) first")
-    out = os.path.join(_STATE["out"], "evidence", str(row))
+    out = _row_folder(row)
     os.makedirs(out, exist_ok=True)
     try:
         lines = _STATE["lines"]
@@ -196,5 +214,9 @@ def snap(row, note=""):
     if note:
         with open(os.path.join(out, "note.txt"), "w", encoding="utf-8") as fh:
             fh.write(note + "\n")
+    expected = ["window.png", "layers.txt", "layer_properties.json", "log_cartogenai.txt", "project.json"]
+    missing = [name for name in expected if not os.path.isfile(os.path.join(out, name))]
     print(f"collect_evidence: {row} saved to {out}")
+    print("collect_evidence: still yours to add by hand: see CHECKLIST.txt in the row's folder (output files go to results\\outputs\\<row>, screenshots to results\\screens)."
+          + (f" NOT SAVED this time: {', '.join(missing)} (see snap_errors.txt)." if missing else ""))
     return out
