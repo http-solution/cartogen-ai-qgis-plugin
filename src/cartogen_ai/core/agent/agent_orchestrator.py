@@ -932,7 +932,7 @@ class CartogenAi:
         return result
 
     def _run_steps(self, arguments, active_tools, turn_tool_log, turn_pending, guard, tool_step_callback, should_stop,
-                   correlation_id, provider_name):
+                   correlation_id, provider_name, image_messages=None):
         """Run a validated chain of tool calls inside ONE model round trip (see step_runner's docstring for why).
 
         Every inner call goes through _execute_tool exactly like a call the model made on its own, so confirmations, the egress gate,
@@ -968,6 +968,8 @@ class CartogenAi:
                     tool_step_callback(tool, "running", None)
             started = time.monotonic()
             result = response_guard.annotate_not_run(self._exec_recorded(tool, json.dumps(resolved, default=str)))
+            if image_messages is not None:
+                result = self._detach_canvas_image(result, image_messages)       # PLAN-032: a map picture inside a chain reaches the model as a picture too
             failed = tool_results.is_error(result)
             turn_tool_log.append((tool, failed, tool_results.error_of(result)))
             guard.record_call(tool, resolved, failed, tool_results.error_of(result) or "", tool_operations.get_tool_operation_type(tool))
@@ -1051,8 +1053,11 @@ class CartogenAi:
             if not (isinstance(before, tuple) and len(before) == 2):
                 before = (set(), None)
             result = source_record.attach(name, parsed_arguments, self._guarded_dispatch(name, arguments))     # PLAN-044: pure, worker thread is fine
-            self._run_on_main_thread(
-                lambda _a: self._record_after(name, operation_type, result, before[0], before[1]), None)
+
+            def after(_a):
+                self._record_after(name, operation_type, result, before[0], before[1])
+                result_gate.attach_checks(name, result, operation_type)       # PLAN-031: the fetch tools that create a layer are checked too
+            self._run_on_main_thread(after, None)
             return result
 
         def command(_unused):
@@ -2084,7 +2089,7 @@ class CartogenAi:
                 _tool_start = time.monotonic()
                 if name == "run_steps":
                     tool_result = self._run_steps(arguments, active_tools, turn_tool_log, turn_pending, guard, tool_step_callback,
-                                                  should_stop, correlation_id, provider_name)
+                                                  should_stop, correlation_id, provider_name, image_messages)
                 else:
                     tool_result = self._exec_recorded(name, arguments)
                 _duration_ms = int((time.monotonic() - _tool_start) * 1000)

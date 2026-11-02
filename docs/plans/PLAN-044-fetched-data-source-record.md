@@ -26,3 +26,4 @@ Remove the `source_record.attach` call in `agent_orchestrator._execute_tool`; no
 
 ## Status log
 - 2026-11-01: built. Offline tests pass; the live test has not run (CI first run). Not verified with a real fetch in QGIS: hand row added to the ledger.
+- 2026-11-02: `fetch_osm_features` and `fetch_fts_funding_data` added to the table (twelve tools). Still not done: showing a large data set to the user before loading it (needs a UI decision), and the search tools.

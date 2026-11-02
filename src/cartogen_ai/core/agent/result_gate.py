@@ -5,15 +5,18 @@ The checks are pure (core/validators/result_checks.py). This module is the part 
 checking, reads the output layer into the plain summary the checks take, and attaches `checks`, `checks_summary` and a note to the result.
 
 What runs today, honestly:
-  * Eligible: a tool classified CREATE or MODIFY (tool_operations.py) whose successful result names an output layer in `layer_name`. A tool
-    inherits the gate by being classified and returning that key; nothing is registered per tool.
+  * Eligible: a tool classified CREATE or MODIFY (tool_operations.py) whose successful result names an output layer in `layer_name` or in the list
+    `layers_created` (the first five are checked). A tool inherits the gate by being classified and returning one of those keys; nothing is
+    registered per tool.
   * Always: output not empty, geometries valid. When the result also names `output_field` (the tools that write a score into a layer): that
     field is not empty, not one value everywhere.
   * NOT enabled for any tool yet: the CRS-in-degrees check (DISTANCE_BASED_TOOLS is empty on purpose) and the stale-field check. A tool
     that computes in a projected CRS and reprojects its output back to EPSG:4326 would be reported as "computed in degrees", a false
     alarm on a correct result, and a rerun with the same inputs legitimately writes identical values. Each needs a tool-by-tool decision
     from a real run before it is switched on; the pure checks exist and are tested.
-  * Tools that run through the network-only or two-phase paths (fetch_* tools) are not gated yet.
+  * Tools on the network-only and two-phase paths (the fetch_* tools that create a layer) are gated too, in the main-thread step after the call
+    (agent_orchestrator._execute_tool). An empty fetch is reported as the failed check "The output has 0 features". Calls made inside `run_steps`
+    go through the same `_execute_tool`, so they are gated too. A raster output is not read (the checks are for vector layers).
 Large layers are sampled (SAMPLE_CAP features) so the gate has a bounded cost; the summary says so. Switched off by the QgsSettings value
 cartogen_ai/result_gate = false. Never raises: a failure inside the gate must not fail the tool call that already succeeded."""
 import contextlib
@@ -49,11 +52,27 @@ def output_layer_name(result):
     return name if isinstance(name, str) and name.strip() else None
 
 
+MAX_LAYERS_CHECKED = 5      # a result that lists several created layers (service area: one per cost band) has its first few checked
+
+
+def output_layer_names(result):
+    """Every project layer name a result says it wrote: `layer_name`, then the strings in `layers_created`. First MAX_LAYERS_CHECKED, no duplicates. Pure."""
+    names = []
+    first = output_layer_name(result)
+    if first:
+        names.append(first)
+    created = result.get("layers_created") if isinstance(result, dict) else None
+    for item in created if isinstance(created, list) else []:
+        if isinstance(item, str) and item.strip() and item not in names:
+            names.append(item)
+    return names[:MAX_LAYERS_CHECKED]
+
+
 def eligible(operation_type, result):
-    """True for a successful CREATE/MODIFY result that names its output layer. Pure."""
+    """True for a successful CREATE/MODIFY result that names at least one output layer. Pure."""
     if operation_type not in GATED_OPERATIONS or not isinstance(result, dict) or "error" in result or result.get("success") is False:
         return False
-    return output_layer_name(result) is not None
+    return bool(output_layer_names(result))
 
 
 def context_for(name, result):
@@ -138,22 +157,42 @@ def summarize_layer(layer, written_fields, cap=SAMPLE_CAP):
     return summary, ((seen, total) if total > seen else None)
 
 
+def _checks_for_layer(name, result, layer_name):
+    """(checks, sampled_of) for one named layer of a result, or None when it is not a readable vector layer. MAIN THREAD."""
+    layers = QgsProject.instance().mapLayersByName(layer_name)
+    layer = next((candidate for candidate in layers if isinstance(candidate, QgsVectorLayer) and candidate.isValid()), None)
+    if layer is None:
+        return None
+    context = context_for(name, result)
+    if layer_name != output_layer_name(result):
+        context["written_fields"] = {}              # `output_field` belongs to the layer named in `layer_name`, not to the others listed
+    summary, sampled_of = summarize_layer(layer, list(context["written_fields"]))
+    checks = result_checks.run_checks(summary, context)
+    if checks:
+        record_checks(layer, name, checks, sampled_of)
+    return checks, sampled_of
+
+
 def attach_checks(name, result, operation_type):
-    """The hook: returns `result`, with checks attached when it is eligible. MAIN THREAD ONLY. Never raises."""
+    """The hook: returns `result`, with checks attached when it is eligible. MAIN THREAD ONLY. Never raises. A result naming several layers has
+    each checked; with more than one, every check id and detail is prefixed with its layer's name."""
     try:
         if not QGIS_AVAILABLE or not gate_enabled() or not eligible(operation_type, result):
             return result
-        layers = QgsProject.instance().mapLayersByName(output_layer_name(result))
-        layer = next((candidate for candidate in layers if isinstance(candidate, QgsVectorLayer) and candidate.isValid()), None)
-        if layer is None:
-            return result
-        context = context_for(name, result)
-        summary, sampled_of = summarize_layer(layer, list(context["written_fields"]))
-        checks = result_checks.run_checks(summary, context)
-        if checks:
-            attach(result, checks, sampled_of)
-            record_checks(layer, name, checks, sampled_of)
-            log_event("result_gate", tag="Agent", tool=name, status="failed" if any(c["status"] == "fail" for c in checks) else "ok")
+        names = output_layer_names(result)
+        all_checks, sampled = [], None
+        for layer_name in names:
+            found = _checks_for_layer(name, result, layer_name)
+            if found is None or not found[0]:
+                continue
+            checks, sampled_of = found
+            sampled = sampled or sampled_of
+            if len(names) > 1:
+                checks = [{**c, "id": f"{layer_name}: {c['id']}", "detail": f"{layer_name}: {c['detail']}"} for c in checks]
+            all_checks.extend(checks)
+        if all_checks:
+            attach(result, all_checks, sampled)
+            log_event("result_gate", tag="Agent", tool=name, status="failed" if any(c["status"] == "fail" for c in all_checks) else "ok")
     except Exception as e:
-        log_event("swallowed_exception", tag="Agent", tool="result_gate", error_class=type(e).__name__, error=True)
+        log_event("swallowed_exception", tag="Agent", tool="result_gate", error=True, error_class=type(e).__name__)
     return result
