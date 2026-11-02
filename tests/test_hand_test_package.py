@@ -195,3 +195,20 @@ class TestEvidenceFolders(unittest.TestCase):
             text = builder.checklist(row, builder.version())
             for must in ("SAVE", "PASS IF", "4_RESULTS.csv", "results\\screens"):
                 self.assertIn(must, text, row["id"])
+
+
+class TestFixesFromTheFirstRealRun(unittest.TestCase):
+    """The first real run (2026-11-03) found these faults in the package itself."""
+
+    def test_the_checker_prints_the_value_the_import_dialog_shows(self):
+        document, _problems, _warnings = validate_one((INPUTS / "smoke_reach.cgworkflow.json").read_text(encoding="utf-8"))
+        self.assertEqual(checker.check_file(INPUTS / "smoke_reach.cgworkflow.json", validate_one, workflow_module)["fingerprint"], document["fingerprint"])
+
+    def test_the_start_project_ships_with_every_file_it_opens(self):
+        import re
+        import zipfile
+        with zipfile.ZipFile(ROOT / "docs" / "release_smoke_assets" / "inputs" / "smoke_start.qgz") as z:
+            text = z.read(next(n for n in z.namelist() if n.endswith(".qgs"))).decode("utf-8")
+        wanted = {re.sub(r"^\./", "", d).split("|")[0] for d in re.findall(r"<datasource>(.*?)</datasource>", text) if d.startswith("./")}
+        self.assertTrue(wanted)
+        self.assertLessEqual(wanted, set(load("build_hand_test_v2").PROJECT_FILES))

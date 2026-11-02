@@ -16,6 +16,7 @@ ROWS_FILE = REPO / "docs" / "HAND_TEST_V2_ROWS.json"
 INPUTS = REPO / "docs" / "release_smoke_assets" / "inputs"          # the pinned smoke fixtures (docs/FULL_LIVE_TEST_rc34_INPUTS.sha256), never added to
 EXTRA_INPUTS = REPO / "docs" / "hand_test_v2_inputs"                 # fixtures only the v2 rows use
 FIXTURE_NAME = r"smoke_[A-Za-z_]+\.(?:qgz|gpkg|tif|csv|pdf|docx)"        # an input file a row names in its text; a row's `files` list names the others (workflow files)
+PROJECT_FILES = ("smoke_start.qgz", "smoke_data.gpkg", "smoke_dem.tif", "smoke_image.tif")      # smoke_start.qgz opens layers by relative path from its own folder: all must ship beside it
 TOOLS_FOLDER = ("collect_evidence.py", "mcp_probe.py", "check_workflow_file.py", "summarize_usage_log.py")      # 6_tools/: what the W rows run (PLAN-050)
 STALE = ("1.16.1", "rc40", "rc39", "Task Manager")      # words that went stale in the 1.18.0 sheet; a row naming one is probably out of date
 
@@ -188,7 +189,7 @@ def main():
         z.writestr(f"{top}/results/README.txt", "Everything the run produces goes here: evidence/, outputs/, screens/, logs/. How: see ../EVIDENCE_HOWTO.txt.\r\n")
         z.write(REPO / "tools" / "check_evidence.py", f"{top}/5_check_evidence.py")
         z.write(ROWS_FILE, f"{top}/3_ROWS.json")
-        needed = set(re.findall(FIXTURE_NAME, text)) | {name for row in rows() for name in row.get("files", [])}
+        needed = set(re.findall(FIXTURE_NAME, text)) | set(PROJECT_FILES) | {name for row in rows() for name in row.get("files", [])}
         for name in sorted(needed):
             source = next((folder / name for folder in (INPUTS, EXTRA_INPUTS) if (folder / name).is_file()), None)
             if source is None:

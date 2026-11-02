@@ -73,7 +73,7 @@ def check_file(path, validate, module):
     document, problems, warnings = validate(text)
     return {
         "file": str(path), "accepted": not problems, "problems": list(problems), "warnings": list(warnings),
-        "fingerprint": module.fingerprint(document) if document else None,
+        "fingerprint": document["fingerprint"] if document else None,       # the value the import dialog shows; hashing `document` again would include its own fingerprint field
         "tools": [s.get("tool") for s in (document or {}).get("steps", [])],
         "leaks": leak_scan(text),
     }

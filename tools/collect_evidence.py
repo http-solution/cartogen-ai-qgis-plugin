@@ -189,7 +189,7 @@ def snap(row, note=""):
         for lyr in QgsProject.instance().mapLayers().values():
             found = {}
             for key in lyr.customProperties().keys():  # noqa: SIM118  (QgsObjectCustomProperties is not a dict; it has no __iter__)
-                if str(key).startswith("cartogen/"):
+                if str(key).startswith(("cartogen/", "cartogen_ai/")):          # checks/sources use cartogen/, lineage and sensitivity cartogen_ai/
                     found[str(key)] = lyr.customProperty(key)
             if found:
                 properties[lyr.name()] = found

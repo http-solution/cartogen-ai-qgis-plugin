@@ -286,7 +286,7 @@
       "needs": "person",
       "inputs": "smoke_reach.cgworkflow.json",
       "outputs": "layer hand_test_reach (5 features)",
-      "pass_if": "layers.txt shows hand_test_reach with features=5; layer_properties.json lineage entry holds the fingerprint 181c6cbe04b1d60e268bbfd7df29ab8246170ebc6f326853cbcf7f5bf6b135ad (this equals python tools/check_workflow_file.py on the file).",
+      "pass_if": "layers.txt shows hand_test_reach with features=5; layer_properties.json lineage entry holds the fingerprint 530ce23c6048d0308bd4136a0bff2c705d3a6c2f2e20dfcf5ae9b2b410fd8444 (the same value the import dialog shows as 'Checksum (SHA-256)' and check_workflow_file.py prints).",
       "cost": "model-free apart from the provenance question",
       "files": [
         "smoke_reach.cgworkflow.json"
