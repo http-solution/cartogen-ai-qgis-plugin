@@ -2073,6 +2073,24 @@
    ],
    "hand_verified": "not verified: offline tests are CI; the live test was written without a QGIS install (CI's first run is its first execution). The service-coverage worked example has not been run with a real project; reruns giving the same numbers is not shown.",
    "hand_row": "run a service-coverage analysis (fetch boundaries, population, health facilities, service area), then ask for a workflow report on the final layer: check failed checks come first, sources/licence/date/coverage are listed, the steps are in order with the right inputs, and layers never checked are named as unchecked"
+  },
+  {
+   "id": "hdx-search-ranked",
+   "feature": "search_hdx_datasets ranks what HDX returns (up to 3x the asked rows, max 50) by licence (open 40, none stated 0, stated not open 0, unrecognised 10), recency (steps at 1, 3 and 6 years) and coverage (country listed, spatial file) and returns licence, months_since_change, score and three plain reasons per data set, best first; ties keep HDX's order; unknown fields are reported as unknown. Optional country parameter. The file is not opened and the licence is not checked beyond the HDX record",
+   "issues": [],
+   "since": "1.18.6",
+   "sources": [
+    "src/cartogen_ai/core/agent/dataset_ranking.py",
+    "src/cartogen_ai/core/agent/tools/humanitarian_tools.py"
+   ],
+   "guards": [
+    "tests/test_dataset_ranking.py::TestParts::test_open_unknown_and_non_open_licences",
+    "tests/test_dataset_ranking.py::TestParts::test_freshness_steps_and_unknown_date",
+    "tests/test_dataset_ranking.py::TestRank::test_open_current_local_beats_stale_unlicensed",
+    "tests/test_dataset_ranking.py::TestTool::test_the_tool_returns_the_best_first_with_licence_and_reasons"
+   ],
+   "hand_verified": "not verified against the live HDX API; the field names come from CKAN's documented package schema. The weights are my choice, not measured on real searches.",
+   "hand_row": "ask for 'find a dataset of health facilities in Yemen' and check the first result is open-licensed, recent and lists Yemen, the 'why' lines are accurate against its HDX page, and a data set with no licence stated says so"
   }
  ]
 }

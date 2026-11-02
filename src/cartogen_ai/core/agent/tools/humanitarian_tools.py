@@ -85,24 +85,32 @@ BOUNDARY_NO_SUBSTITUTE = (" Do NOT substitute anything for the missing boundarie
                           "offer to try the other source or to load a boundary file they already have (add_layer_from_path).")
 
 
-@register_tool("search_hdx_datasets", "Search Humanitarian Data Exchange (HDX) for datasets by query.", {"type": "object", "properties": {"query": {"type": "string"}, "limit": {"type": "integer"}}, "required": ["query"]})
-def search_hdx_datasets(query: str, limit: int = 5):
-    """Queries HDX CKAN API for spatial/humanitarian datasets."""
-    cache_key = ("hdx", query, limit)
+@register_tool("search_hdx_datasets", "Search Humanitarian Data Exchange (HDX) for datasets by query. Results are ranked: each has a score and plain reasons about its licence "
+               "(open, none stated, not open), how recently it changed and whether it lists the country asked for and has a usable file. Pass country (name or ISO3) to prefer data sets about it.",
+               {"type": "object", "properties": {"query": {"type": "string"}, "limit": {"type": "integer"}, "country": {"type": "string", "description": "Optional country name or ISO3 code; data sets that list it rank higher."}}, "required": ["query"]})
+def search_hdx_datasets(query: str, limit: int = 5, country: str | None = None):
+    """Queries HDX CKAN API for spatial/humanitarian datasets, then ranks what came back (dataset_ranking.py)."""
+    cache_key = ("hdx", query, limit, country)
     cached = _LOOKUP_CACHE.get(cache_key)
     if cached is not None:
         return {**cached, "cached": True}
 
     encoded = urllib.parse.quote(query)
-    url = f"https://data.humdata.org/api/3/action/package_search?q={encoded}&rows={limit}"
+    try:
+        want = max(1, int(limit))
+    except (TypeError, ValueError):
+        want = 5
+    fetch_rows = min(50, max(want, want * 3))       # rank a wider list, then keep the best `want`
+    url = f"https://data.humdata.org/api/3/action/package_search?q={encoded}&rows={fetch_rows}"
 
     try:
         req = _net_build_request(url, headers={'User-Agent': 'QGIS-AI-Assistant'})
         with _qgis_urlopen(req, timeout=15) as response:
             data = json.loads(_read_capped(response).decode())
             results = data.get("result", {}).get("results", [])
+            from .. import dataset_ranking
             output = []
-            for item in results:
+            for item in dataset_ranking.rank(results, country=country)[:want]:
                 resources = [
                     {"name": r.get("name"), "format": r.get("format"), "url": r.get("url")}
                     for r in item.get("resources", [])
@@ -111,11 +119,16 @@ def search_hdx_datasets(query: str, limit: int = 5):
                 output.append({
                     "title": item.get("title"),
                     "name": item.get("name"),
-                    "organization": item.get("organization", {}).get("title"),
-                    "spatial": item.get("subnational") or item.get("groups", [{}])[0].get("title"),
+                    "organization": (item.get("organization") or {}).get("title"),
+                    "spatial": item.get("subnational") or (item.get("groups") or [{}])[0].get("title"),
                     "resources": resources,
+                    "licence": item["ranking"]["licence"],
+                    "months_since_change": item["ranking"]["months_since_change"],
+                    "score": item["ranking"]["score"],
+                    "why": item["ranking"]["why"],
                 })
-            result = {"success": True, "query": query, "datasets": output}
+            result = {"success": True, "query": query, "datasets": output,
+                      "ranking_note": "Ranked by licence, recency and coverage from the data set's own HDX record; the file was not opened and the licence was not checked beyond what HDX lists."}
             _LOOKUP_CACHE.set(cache_key, result)
             return result
     except Exception as e:
