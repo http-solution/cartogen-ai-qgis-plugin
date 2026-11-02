@@ -1,6 +1,6 @@
 # Tool Reference
 
-Auto-generated from the live tool registry (296 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
+Auto-generated from the live tool registry (297 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
 
 Flags: **network-only** tools bypass the main-thread QGIS dispatcher entirely (pure HTTP, safe from any background thread); **two-phase** tools split a network fetch (background thread) from the QGIS-touching part (main thread); **task-management** tools are excluded from auto-advance in the Task Manager.
 
@@ -2964,6 +2964,17 @@ Write a layer's machine-readable provenance record (QGIS version, tool-execution
 |---|---|---|---|
 | `layer_name` | string | yes |  |
 | `output_path` | string | no | Optional explicit file path for the sidecar. Omit to derive one from the layer's own source, or fall back to Desktop. |
+
+### `write_workflow_report`
+
+Write a verified workflow report (Markdown) for one or more result layers, built only from what the plugin recorded: result checks (failed ones first), data sources with licence/date/coverage, the steps that made the layers in order with their parameters (a rerun recipe), and the assumptions and limitations, including every gap (layers never checked, origin unknown). Pass the layer(s) that hold the final answer; upstream layers are followed through lineage. Use it for 'document how this result was made', 'method note' or 'show the evidence for this map'. It does not prove a rerun gives the same numbers.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `title` | string | yes |  |
+| `layer_names` | array[string] | yes | The result layer(s) to document. |
+| `assumptions` | array[string] | no | Optional assumptions or limits the analyst states (one sentence each); added to the report as given. |
+| `output_path` | string | no | Optional file path (.md). Omit for Desktop. |
 
 ## qa_checklist_tools
 

@@ -142,3 +142,49 @@ def write_provenance_sidecar(layer_name, output_path=None):
             "of beside the source data."
         )
     return result
+
+
+@register_tool(
+    "write_workflow_report",
+    "Write a verified workflow report (Markdown) for one or more result layers, built only from what the plugin recorded: result checks "
+    "(failed ones first), data sources with licence/date/coverage, the steps that made the layers in order with their parameters (a rerun "
+    "recipe), and the assumptions and limitations, including every gap (layers never checked, origin unknown). Pass the layer(s) that hold "
+    "the final answer; upstream layers are followed through lineage. Use it for 'document how this result was made', 'method note' or "
+    "'show the evidence for this map'. It does not prove a rerun gives the same numbers.",
+    {
+        "type": "object",
+        "properties": {
+            "title": {"type": "string"},
+            "layer_names": {"type": "array", "items": {"type": "string"}, "description": "The result layer(s) to document."},
+            "assumptions": {"type": "array", "items": {"type": "string"}, "description": "Optional assumptions or limits the analyst states (one sentence each); added to the report as given."},
+            "output_path": {"type": "string", "description": "Optional file path (.md). Omit for Desktop."},
+        },
+        "required": ["title", "layer_names"],
+    },
+    keywords=["workflow report", "method note", "verified report", "how was this result made", "document the analysis steps", "evidence for this map"],
+)
+def write_workflow_report(title, layer_names, assumptions=None, output_path=None):
+    output_path = resolve_output_path(output_path)
+    if not QGIS_AVAILABLE:
+        return {"error": "QGIS not available"}
+    from .. import workflow_report as _wr
+    names = [n for n in (layer_names or []) if isinstance(n, str) and n.strip()]
+    if not names:
+        return {"error": "Give at least one layer name."}
+    entries = _wr.gather(names, _find_layer_by_name)
+    if not any(e["found"] for e in entries):
+        return {"error": "None of the named layers is in the project."}
+    text = _wr.build_markdown(str(title), entries, assumptions)
+    if not output_path:
+        desktop = os.path.join(os.path.expanduser("~"), "Desktop")
+        if not os.path.isdir(desktop):
+            desktop = os.path.expanduser("~")
+        output_path = os.path.join(desktop, f"{_sanitize_filename(title)}.workflow-report.md")
+    try:
+        with open(output_path, "w", encoding="utf-8") as f:
+            f.write(text)
+    except Exception as e:
+        return {"error": f"Failed to write the report: {e}"}
+    failed = sum(1 for e in entries for run in e["checks"][-1:] for c in run.get("checks", []) if c.get("status") == "fail")
+    return {"success": True, "path": output_path, "layers": len(entries), "steps": len(_wr.steps(entries)), "failed_checks": failed,
+            "limitations": _wr.limitations(entries, assumptions)}
