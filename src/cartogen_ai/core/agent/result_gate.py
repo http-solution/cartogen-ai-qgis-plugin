@@ -65,6 +65,30 @@ def context_for(name, result):
     return {"distance_based": name in DISTANCE_BASED_TOOLS, "one_to_one": name in ONE_TO_ONE_TOOLS, "written_fields": written}
 
 
+CHECKS_PROPERTY_KEY = "cartogen/checks"
+MAX_STORED_CHECK_RUNS = 10
+
+
+def record_checks(layer, tool, checks, sampled_of=None, now=None):
+    """PLAN-045: keeps the checks of the latest runs on the layer itself (custom property), so a report written later can say what was checked.
+    MAIN THREAD ONLY. Returns True when written; never raises."""
+    import json
+    import time
+    try:
+        try:
+            runs = json.loads(layer.customProperty(CHECKS_PROPERTY_KEY, "[]") or "[]")
+        except ValueError:
+            runs = []
+        runs = [r for r in runs if isinstance(r, dict)]
+        runs.append({"tool": tool, "at": now or time.strftime("%Y-%m-%d %H:%M:%S"),
+                     "sampled_of": list(sampled_of) if sampled_of else None,
+                     "checks": [{k: c.get(k) for k in ("id", "status", "detail")} for c in checks]})
+        layer.setCustomProperty(CHECKS_PROPERTY_KEY, json.dumps(runs[-MAX_STORED_CHECK_RUNS:]))
+        return True
+    except Exception:
+        return False
+
+
 def attach(result, checks, sampled_of=None):
     """`result` with the checks, a one-line summary and, when something failed, a note the model must act on. Mutates and returns it. Pure."""
     text, failed = result_checks.summarize(checks)
@@ -128,6 +152,7 @@ def attach_checks(name, result, operation_type):
         checks = result_checks.run_checks(summary, context)
         if checks:
             attach(result, checks, sampled_of)
+            record_checks(layer, name, checks, sampled_of)
             log_event("result_gate", tag="Agent", tool=name, status="failed" if any(c["status"] == "fail" for c in checks) else "ok")
     except Exception as e:
         log_event("swallowed_exception", tag="Agent", tool="result_gate", error_class=type(e).__name__, error=True)

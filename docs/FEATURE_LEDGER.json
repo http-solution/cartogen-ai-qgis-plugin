@@ -2051,6 +2051,28 @@
    ],
    "hand_verified": "not verified: offline tests are CI; the live tests were written without a QGIS install (CI's first run is their first execution). The licence table is hand-written from each service's published terms and was not checked against the services; no real fetch was run.",
    "hand_row": "fetch admin boundaries for a country with geoBoundaries, run a buffer on it, ask for its provenance record and generate a spatial report with both layers: check the source name, URL, licence, date and coverage appear, and the licence line says it was not checked"
+  },
+  {
+   "id": "verified-workflow-report",
+   "feature": "write_workflow_report writes a Markdown report for the named result layers from recorded facts only: failed result checks first, a per-layer checks table, data sources with licence/date/coverage, the steps in time order with inputs and parameters (rerun recipe, upstream layers followed through lineage), and assumptions and limitations listing every gap found (no checks recorded, origin unknown, layer missing, sampled checks, licence table not verified). The result gate stores the checks of its last 10 runs on the layer (cartogen/checks). It does not claim a rerun gives the same numbers",
+   "issues": [],
+   "since": "1.18.6",
+   "sources": [
+    "src/cartogen_ai/core/agent/workflow_report.py",
+    "src/cartogen_ai/core/agent/tools/provenance_tools.py",
+    "src/cartogen_ai/core/agent/result_gate.py",
+    "src/cartogen_ai/core/tool_operations.py"
+   ],
+   "guards": [
+    "tests/test_workflow_report.py::TestKeys::test_the_checks_key_matches_the_gate",
+    "tests/test_workflow_report.py::TestRecordChecks::test_keeps_the_latest_runs_only",
+    "tests/test_workflow_report.py::TestGatherAndBuild::test_the_recipe_is_in_time_order_with_inputs_and_parameters",
+    "tests/test_workflow_report.py::TestGatherAndBuild::test_unchecked_layers_are_said_to_be_unchecked",
+    "tests/test_workflow_report.py::TestGatherAndBuild::test_a_failed_check_is_listed_before_the_table",
+    "tests/test_workflow_report_live.py::TestWorkflowReportLive::test_a_two_step_chain_with_a_failed_check_is_documented"
+   ],
+   "hand_verified": "not verified: offline tests are CI; the live test was written without a QGIS install (CI's first run is its first execution). The service-coverage worked example has not been run with a real project; reruns giving the same numbers is not shown.",
+   "hand_row": "run a service-coverage analysis (fetch boundaries, population, health facilities, service area), then ask for a workflow report on the final layer: check failed checks come first, sources/licence/date/coverage are listed, the steps are in order with the right inputs, and layers never checked are named as unchecked"
   }
  ]
 }
