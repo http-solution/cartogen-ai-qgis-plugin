@@ -11,6 +11,7 @@ by hand; if you add or move a doc, update both.
 | [USER_GUIDE.md](USER_GUIDE.md) | Chat, Task Manager, memory, file attachments, settings |
 | [TOOLS_REFERENCE.md](TOOLS_REFERENCE.md) | All 165 tools, auto-generated from the live registry — see `generate_tools_reference.py` below |
 | [WORKFLOW_FILES.md](WORKFLOW_FILES.md) | Sharing an analysis as a workflow file: export, open, what it can and cannot do, the file format |
+| [HAND_TEST_PACKAGE_1.18.5.md](HAND_TEST_PACKAGE_1.18.5.md) | How to run the hand-test rows W1 to W12 for the 1.18.5 features: order, evidence layout, scripts, how each row is judged |
 | [../site/](../site/) | The documentation site's generator and authored pages. It mirrors the living documents listed here and generates the tool reference, task register table and a document index; run `python site/build.py --check` to build it |
 
 ## Security & compliance

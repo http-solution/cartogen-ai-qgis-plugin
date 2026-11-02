@@ -15,6 +15,8 @@ REPO = Path(__file__).resolve().parent.parent
 ROWS_FILE = REPO / "docs" / "HAND_TEST_V2_ROWS.json"
 INPUTS = REPO / "docs" / "release_smoke_assets" / "inputs"          # the pinned smoke fixtures (docs/FULL_LIVE_TEST_rc34_INPUTS.sha256), never added to
 EXTRA_INPUTS = REPO / "docs" / "hand_test_v2_inputs"                 # fixtures only the v2 rows use
+FIXTURE_NAME = r"smoke_[A-Za-z_]+\.(?:qgz|gpkg|tif|csv|pdf|docx)"        # an input file a row names in its text; a row's `files` list names the others (workflow files)
+TOOLS_FOLDER = ("collect_evidence.py", "mcp_probe.py", "check_workflow_file.py", "summarize_usage_log.py")      # 6_tools/: what the W rows run (PLAN-050)
 STALE = ("1.16.1", "rc40", "rc39", "Task Manager")      # words that went stale in the 1.18.0 sheet; a row naming one is probably out of date
 
 
@@ -55,7 +57,8 @@ def readme(v, row_count):
             "3_SHEET.md           the rows that still need you\n"
             "3_test_files/        input data some rows use\n"
             "4_RESULTS.csv        fill in the result and notes\n"
-            "5_check_evidence.py  not for you: it reads what you send back\n\n"
+            "5_check_evidence.py  not for you: it reads what you send back\n"
+            "6_tools/             collect_evidence.py (QGIS console), mcp_probe.py and check_workflow_file.py (terminal), summarize_usage_log.py\n\n"
             "STEP A - the layout check (about two minutes, no API cost)\n"
             "  Install the plugin (see below), open QGIS, open the Python console (Plugins > Python Console), then type:\n"
             '     exec(open(r"<path to this folder>\\2_layout_check\\layout_check_script.py", encoding="utf-8").read())\n'
@@ -63,6 +66,13 @@ def readme(v, row_count):
             "  the folder it wrote (also in your temp folder). Send that whole folder back.\n\n"
             "STEP B - the rows in 3_SHEET.md (each starts from the state it names; none depends on another)\n"
             "  Tick 'Save an evidence folder for each request' in the Cartogen Settings first, and send the cartogen_evidence folder back.\n\n"
+            "STEP C - evidence after each W row (about ten seconds per row)\n"
+            "  Once per QGIS session, in the QGIS Python console:  exec(open(r\"<this folder>\\6_tools\\collect_evidence.py\", encoding=\"utf-8\").read());"
+            " setup(r\"<this folder>\\results\")\n"
+            "  After each W row's reply:  snap('W1a')  (use the name the row gives). It saves the log, a window screenshot, the layer table, the plugin's\n"
+            "  own records on every layer (layer_properties.json), the project state and the plugin's evidence folders. Then copy any output file the row\n"
+            "  names into results\\outputs\\<row>\\ and any screenshot into results\\screens\\.\n\n"
+            "STEP D - the terminal rows (W6, W7, W10, W8 check): run the scripts in 6_tools with plain Python 3.10+, not inside QGIS. The row gives the command.\n\n"
             "Send back: the layout_check folder, 4_RESULTS.csv, the cartogen_evidence folder, and any screenshots the rows ask for.\n\n"
             + fill(UPDATE_STEPS, v))
 
@@ -74,7 +84,11 @@ def sheet(v):
     for row in rows():
         out += [f"### {row['id']} ({row['issue']}): {fill(row['title'], v)}", "",
                 f"- **Starts from:** {fill(row['starts_from'], v)}", f"- **Do:** {fill(row['do'], v)}",
-                f"- **Expect:** {fill(row['expect'], v)}", f"- **Save:** {fill(row['evidence'], v)}", f"- **Needs:** {row['needs']}", ""]
+                f"- **Expect:** {fill(row['expect'], v)}", f"- **Save:** {fill(row['evidence'], v)}", f"- **Needs:** {row['needs']}"]
+        for key, label in (("inputs", "Inputs"), ("outputs", "Outputs"), ("pass_if", "Pass if"), ("cost", "Cost")):
+            if row.get(key):
+                out.append(f"- **{label}:** {fill(row[key], v)}")
+        out.append("")
     return "\n".join(out)
 
 
@@ -104,10 +118,12 @@ def main():
         z.write(plugin_zip, f"{top}/1_plugin/{plugin_zip.name}")
         z.writestr(f"{top}/1_plugin/checksum_sha256.txt", f"{digest}  {plugin_zip.name}\n")
         z.write(REPO / "tools" / "layout_check_script.py", f"{top}/2_layout_check/layout_check_script.py")
+        for tool in TOOLS_FOLDER:
+            z.write(REPO / "tools" / tool, f"{top}/6_tools/{tool}")
         z.writestr(f"{top}/3_SHEET.md", text)
         z.writestr(f"{top}/4_RESULTS.csv", results)
         z.write(REPO / "tools" / "check_evidence.py", f"{top}/5_check_evidence.py")
-        needed = set(re.findall(r"smoke_[A-Za-z_]+\.[a-z]+", text))
+        needed = set(re.findall(FIXTURE_NAME, text)) | {name for row in rows() for name in row.get("files", [])}
         for name in sorted(needed):
             source = next((folder / name for folder in (INPUTS, EXTRA_INPUTS) if (folder / name).is_file()), None)
             if source is None:

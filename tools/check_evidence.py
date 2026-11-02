@@ -71,6 +71,27 @@ def verdict_for_row(row, requests):
     return "PASS", f"{name}: tools {', '.join(tools) or 'none'}"
 
 
+def record_lines(folder):
+    """One line per saved layer_properties.json (from collect_evidence.snap) and per mcp_probe.json: which plugin records each layer holds, and the probe's
+    failed checks (PLAN-050). Reports what the files show; whether it is the RIGHT record is the row's pass_if, read by a person. Pure."""
+    lines = []
+    for path in sorted(Path(folder).rglob("layer_properties.json")):
+        try:
+            found = json.loads(path.read_text(encoding="utf-8"))
+        except ValueError:
+            lines.append(f"  {path.parent.name}: layer_properties.json is not valid JSON")
+            continue
+        for layer, props in found.items():
+            lines.append(f"  {path.parent.name}: {layer}: " + (", ".join(sorted(k.split("/", 1)[1] for k in props)) or "no cartogen records"))
+        if not found:
+            lines.append(f"  {path.parent.name}: no layer holds a cartogen record")
+    for path in sorted(Path(folder).rglob("mcp_probe.json")):
+        checks = json.loads(path.read_text(encoding="utf-8")).get("checks", [])
+        bad = [c["id"] for c in checks if not c["ok"]]
+        lines.append(f"  {path.parent.name}: mcp probe {len(checks) - len(bad)} of {len(checks)} passed" + (f"; FAILED {', '.join(bad)}" if bad else ""))
+    return lines
+
+
 def main(argv):
     if len(argv) < 2:
         raise SystemExit(__doc__)
@@ -94,6 +115,10 @@ def main(argv):
                 verdict, note = verdict_for_row(row, requests)
                 lines.append(f"  {verdict:11} {row['id']}: {note}")
     print("\n".join(lines))
+    records = record_lines(folder)
+    if records:
+        lines.append("plugin records and probes:")
+        lines.extend(records)
     failed = check is not None and check["failed"]
     return 1 if failed else 0
 

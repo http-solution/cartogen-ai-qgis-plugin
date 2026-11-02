@@ -2012,7 +2012,7 @@
       "tests/test_result_gate_live.py::TestResultGateLive::test_an_empty_created_layer_is_a_failed_check"
     ],
     "hand_verified": "not verified: the offline tests are CI; the live tests run on real QGIS layers but were written without a QGIS install (CI's first run is their first execution). Updated 2026-11-02: the fetch tools that create a layer (network-only and two-phase paths) are gated too, results that list `layers_created` (service area) have each of their first five layers checked, and calls inside run_steps go through the same gate (found by reading: they use _execute_tool). None of that has run in a real session; the live tests are CI's first run. Only tools whose result carries layer_name get checks, so most CREATE tools are not checked yet. The 'does the model say so in plain words' acceptance needs a person.",
-    "hand_row": "run the severity index on a layer whose indicator fields are all equal (the smoke fixtures) and check the answer says the score is the same everywhere; then set cartogen_ai/result_gate=false and confirm no checks appear"
+    "hand_row": "Hand-test rows W1-gate-on, W2-gate-fetch (1.18.5 hand-test package, PLAN-050): run the severity index on a layer whose indicator fields are all equal (the smoke fixtures) and check the answer says the score is the same everywhere; then set cartogen_ai/result_gate=false and confirm no checks appear"
   },
   {
     "id": "model-sees-the-map",
@@ -2056,7 +2056,7 @@
     "tests/test_source_record_live.py::TestSourceRecordLive::test_the_orchestrator_step_stores_the_record_on_the_named_layer"
    ],
    "hand_verified": "not verified: offline tests are CI; the live tests were written without a QGIS install (CI's first run is their first execution). The licence table is hand-written from each service's published terms and was not checked against the services; no real fetch was run.",
-   "hand_row": "fetch admin boundaries for a country with geoBoundaries, run a buffer on it, ask for its provenance record and generate a spatial report with both layers: check the source name, URL, licence, date and coverage appear, and the licence line says it was not checked"
+   "hand_row": "Hand-test rows W2-gate-fetch, W3-provenance (1.18.5 hand-test package, PLAN-050): fetch admin boundaries for a country with geoBoundaries, run a buffer on it, ask for its provenance record and generate a spatial report with both layers: check the source name, URL, licence, date and coverage appear, and the licence line says it was not checked"
   },
   {
    "id": "verified-workflow-report",
@@ -2078,7 +2078,7 @@
     "tests/test_workflow_report_live.py::TestWorkflowReportLive::test_a_two_step_chain_with_a_failed_check_is_documented"
    ],
    "hand_verified": "not verified: offline tests are CI; the live test was written without a QGIS install (CI's first run is its first execution). The service-coverage worked example has not been run with a real project; reruns giving the same numbers is not shown.",
-   "hand_row": "run a service-coverage analysis (fetch boundaries, population, health facilities, service area), then ask for a workflow report on the final layer: check failed checks come first, sources/licence/date/coverage are listed, the steps are in order with the right inputs, and layers never checked are named as unchecked"
+   "hand_row": "Hand-test rows W4-report (1.18.5 hand-test package, PLAN-050): run a service-coverage analysis (fetch boundaries, population, health facilities, service area), then ask for a workflow report on the final layer: check failed checks come first, sources/licence/date/coverage are listed, the steps are in order with the right inputs, and layers never checked are named as unchecked"
   },
   {
    "id": "hdx-search-ranked",
@@ -2096,7 +2096,7 @@
     "tests/test_dataset_ranking.py::TestTool::test_the_tool_returns_the_best_first_with_licence_and_reasons"
    ],
    "hand_verified": "not verified against the live HDX API; the field names come from CKAN's documented package schema. The weights are my choice, not measured on real searches.",
-   "hand_row": "ask for 'find a dataset of health facilities in Yemen' and check the first result is open-licensed, recent and lists Yemen, the 'why' lines are accurate against its HDX page, and a data set with no licence stated says so"
+   "hand_row": "Hand-test rows W5-hdx-ranked (1.18.5 hand-test package, PLAN-050): ask for 'find a dataset of health facilities in Yemen' and check the first result is open-licensed, recent and lists Yemen, the 'why' lines are accurate against its HDX page, and a data set with no licence stated says so"
   },
   {
    "id": "mcp-server-read-only",
@@ -2121,7 +2121,7 @@
     "tests/test_mcp_server_live.py::TestMcpServerLive::test_a_write_tool_is_refused_and_the_project_is_unchanged"
    ],
    "hand_verified": "not verified in any real MCP client (Claude Code, Claude Desktop, Cursor): the protocol is written from the specification text. The menu dialogs were never run. The live tests were written without a QGIS install (CI's first run is their first execution). The threat model in PLAN-034 is the author's, not an independent review. Writes over MCP do not exist yet.",
-   "hand_row": "in QGIS choose Cartogen AI > MCP server (local, read-only)..., accept the warning, run the shown 'claude mcp add' command in a terminal, then in Claude Code ask it to list the layers and read the attributes of one; mark a layer SENSITIVE and ask again (must be refused); ask it to buffer a layer (must be refused); choose the menu item again and check the client can no longer connect"
+   "hand_row": "Hand-test rows W6-mcp-probe (1.18.5 hand-test package, PLAN-050): in QGIS choose Cartogen AI > MCP server (local, read-only)..., accept the warning, run the shown 'claude mcp add' command in a terminal, then in Claude Code ask it to list the layers and read the attributes of one; mark a layer SENSITIVE and ask again (must be refused); ask it to buffer a layer (must be refused); choose the menu item again and check the client can no longer connect"
   },
   {
    "id": "mcp-writes-need-approval",
@@ -2146,7 +2146,7 @@
     "tests/test_mcp_server_live.py::TestApprovalDialogLive::test_nobody_answering_is_a_no"
    ],
    "hand_verified": "not verified in any real MCP client or by a person at the dialog. The dialog test clicks the buttons from a timer; how it looks and reads to a person was never seen. The live tests were written without a QGIS install (CI's first run is their first execution). Not covered: undo of an approved change, the tools that have their own confirmed step, a client that sends many calls while a dialog is open (the extras are refused).",
-   "hand_row": "start the MCP server, connect Claude Code, ask it to buffer a layer by 500 metres: a dialog must appear naming buffer_analysis and the arguments; press Deny (client is told no, nothing created); ask again and press Allow once (layer appears); ask again and leave it for two minutes (refused); mark the layer SENSITIVE and ask again (refused with no dialog)"
+   "hand_row": "Hand-test rows W6-mcp-probe, W7-mcp-dialog (1.18.5 hand-test package, PLAN-050): start the MCP server, connect Claude Code, ask it to buffer a layer by 500 metres: a dialog must appear naming buffer_analysis and the arguments; press Deny (client is told no, nothing created); ask again and press Allow once (layer appears); ask again and leave it for two minutes (refused); mark the layer SENSITIVE and ask again (refused with no dialog)"
   },
   {
    "id": "workflow-file-validator",
@@ -2195,7 +2195,7 @@
     "tests/test_workflow_export_live.py::TestWorkflowExportLive::test_preview_first_then_a_file_that_the_validator_accepts"
    ],
    "hand_verified": "not verified by a person: never run in a real session; the preview card as a user sees it, a multi-layer many-step export and a share between two machines are untried. The live test was written without a QGIS install (CI's first run is its first execution). Recorded arguments are the ones the model sent, so a later repair of an argument is not reflected.",
-   "hand_row": "run a short analysis (for example fetch boundaries, buffer facilities, join), ask 'export this workflow as a file', read the preview (steps, roles, no paths), confirm, open the .cgworkflow.json in a text editor and check it has no data, no file paths and no credentials"
+   "hand_row": "Hand-test rows W8-export (1.18.5 hand-test package, PLAN-050): run a short analysis (for example fetch boundaries, buffer facilities, join), ask 'export this workflow as a file', read the preview (steps, roles, no paths), confirm, open the .cgworkflow.json in a text editor and check it has no data, no file paths and no credentials"
   },
   {
    "id": "workflow-file-import",
@@ -2229,7 +2229,7 @@
     "tests/test_workflow_file_guide.py::TestGuide::test_the_example_file_in_the_guide_is_valid"
    ],
    "hand_verified": "not verified by a person: nobody has looked at the dialog, run a file from another machine, watched the chat during a run, or tried Confirm-then-continue. The live tests were written without a QGIS install (CI's first run is their first execution); the real-tool run uses a bare agent with the dispatcher bypassed, so it does not exercise the worker-thread path.",
-   "hand_row": "export a workflow (see workflow-file-export), open it from Plugins > Cartogen AI > Open workflow file... on another profile or machine, read the dialog (warning, checksum, every step), map the roles, press Run, watch the steps in the chat, and compare the result; then try a file with a step that needs Confirm and continue from the next step"
+   "hand_row": "Hand-test rows W9-import-good, W10-import-bad, W11-import-egress, W12-guide (1.18.5 hand-test package, PLAN-050): export a workflow (see workflow-file-export), open it from Plugins > Cartogen AI > Open workflow file... on another profile or machine, read the dialog (warning, checksum, every step), map the roles, press Run, watch the steps in the chat, and compare the result; then try a file with a step that needs Confirm and continue from the next step"
   }
  ]
 }

@@ -163,6 +163,22 @@ def snap(row, note=""):
     except Exception:
         _err(f"{row}: layers: {traceback.format_exc(limit=2)}")
     try:
+        # PLAN-050: the plugin keeps its checks, data-source records, lineage, sensitivity and status on each layer as `cartogen/*` custom properties.
+        # Dumping them lets a row be judged from a file (did the result gate record checks? is the source record there?) with no clicking. Not verified
+        # in a real QGIS: written without one; a failure goes to snap_errors.txt like every other step.
+        properties = {}
+        for lyr in QgsProject.instance().mapLayers().values():
+            found = {}
+            for key in lyr.customProperties().keys():  # noqa: SIM118  (QgsObjectCustomProperties is not a dict; it has no __iter__)
+                if str(key).startswith("cartogen/"):
+                    found[str(key)] = lyr.customProperty(key)
+            if found:
+                properties[lyr.name()] = found
+        with open(os.path.join(out, "layer_properties.json"), "w", encoding="utf-8") as fh:
+            json.dump(properties, fh, indent=1, default=str)
+    except Exception:
+        _err(f"{row}: layer properties: {traceback.format_exc(limit=2)}")
+    try:
         project = {"row": row, "time": datetime.datetime.now().isoformat(), "project_file": QgsProject.instance().fileName(),
                    "project_crs": QgsProject.instance().crs().authid(), "plugin": _plugin_version(), "qgis": Qgis.version(),
                    "python": platform.python_version(), "os": platform.platform(), "layer_count": len(QgsProject.instance().mapLayers()),
