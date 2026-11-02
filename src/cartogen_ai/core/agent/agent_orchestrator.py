@@ -37,7 +37,7 @@ from ...infrastructure.providers.cartogen import FALLBACK_MODELS as CARTOGEN_FAL
 from ..model_selector import AUTO_SENTINEL, classify_complexity, is_cheap_tier, pick_model_for_complexity
 from .tool_dispatcher import ToolDispatcher
 from .usage_tracker import UsageTracker
-from . import call_metrics, loop_guard, result_gate, source_record
+from . import call_metrics, loop_guard, result_gate, source_record, workflow_file
 from .history_manager import HistoryManager
 from .memory import SpatialMemoryManager
 from .task_manager import AgentTaskManager
@@ -932,7 +932,7 @@ class CartogenAi:
         return result
 
     def _run_steps(self, arguments, active_tools, turn_tool_log, turn_pending, guard, tool_step_callback, should_stop,
-                   correlation_id, provider_name, image_messages=None):
+                   correlation_id, provider_name, image_messages=None, max_steps=step_runner.MAX_STEPS):
         """Run a validated chain of tool calls inside ONE model round trip (see step_runner's docstring for why).
 
         Every inner call goes through _execute_tool exactly like a call the model made on its own, so confirmations, the egress gate,
@@ -942,7 +942,7 @@ class CartogenAi:
         steps, problem = step_runner.parse_steps(arguments)
         schemas = {t.get("function", {}).get("name"): t.get("function", {}).get("parameters", {}) for t in active_tools}
         if problem is None:
-            problem = step_runner.validate_steps(steps, schemas, tool_operations.get_tool_operation_type)
+            problem = step_runner.validate_steps(steps, schemas, tool_operations.get_tool_operation_type, max_steps)
         if problem is None:
             facts = getattr(self, "_turn_facts", None)
             if facts is None:
@@ -1636,7 +1636,11 @@ class CartogenAi:
             source_ids = source_layer_ids(sources, read_layers)
             for created in created_layer_names(res, sources, known):
                 for layer in project.mapLayersByName(created)[:1]:
-                    tag_layer_lineage(layer, name, args, sources, source_ids)
+                    extra = getattr(self, "_workflow_context", None)       # set only while a workflow file runs (PLAN-048)
+                    if extra:
+                        tag_layer_lineage(layer, name, args, sources, source_ids, extra=extra)
+                    else:
+                        tag_layer_lineage(layer, name, args, sources, source_ids)
         except Exception as e:
             log_event("swallowed_exception", tag="Agent", tool="lineage_tagging",
                       error_class=type(e).__name__, error=True)
@@ -1899,6 +1903,38 @@ class CartogenAi:
         final_text = "[Agent stopped] Stopped by user."
         self._append_history(user_message, {"role": "assistant", "content": final_text})
         return final_text
+
+    def run_workflow_steps(self, steps, workflow=None, should_stop=None, tool_step_callback=None):
+        """Runs the steps of a workflow file a person has read and approved (PLAN-048 stage 3): NO model call. Each step goes through the same
+        `_run_steps` chain the model's own run_steps uses, which sends it through `_execute_tool`, so write confirmations, the egress gate,
+        sensitivity, the result gate, undo snapshots and the stale-project check all apply. The chain stops at the first error, the first call
+        waiting for the person's Confirm (the usual card is registered), a Stop request or a guard stop, and says which steps did not run.
+        `steps` are already validated and mapped (workflow_file, workflow_import); `workflow` = {"name", "fingerprint"} is recorded in the lineage
+        of every layer the run creates. Runs on a worker thread. Returns _run_steps' result dict."""
+        from .. import cancel_signal
+        from . import project_session
+        from .tools.registry import TOOLS_SCHEMA
+        captured = project_session.current()
+        self._turn_project_session = captured
+
+        def stop_or_stale():
+            return project_session.is_stale(captured) or bool(should_stop is not None and should_stop())
+
+        wanted = {s.get("tool") for s in steps}
+        active_tools = [t for t in TOOLS_SCHEMA if t.get("function", {}).get("name") in wanted]
+        self._transaction_log.reset()
+        self._plan_gate.reset()
+        self._stray_fragment_turn = False
+        self._turn_calls = []
+        self._turn_unverified_points = 0
+        self._workflow_context = {"workflow": dict(workflow)} if workflow else None
+        token = cancel_signal.begin(stop_or_stale, getattr(self.client, "_emit_status", None))
+        try:
+            return self._run_steps({"steps": steps}, active_tools, [], [], loop_guard.LoopGuard(), tool_step_callback, stop_or_stale,
+                                   uuid.uuid4().hex[:8], "workflow_file", None, max_steps=workflow_file.MAX_STEPS)
+        finally:
+            self._workflow_context = None
+            cancel_signal.end(token)
 
     def _run_impl(self, user_query, map_context=None, should_stop=None, tool_step_callback=None):
         """should_stop, if given, is a zero-arg callable returning True once the

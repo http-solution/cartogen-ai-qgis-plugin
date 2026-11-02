@@ -812,7 +812,9 @@ def _format_lineage_entry(h):
     sources = f" (from: {', '.join(h['sources'])})" if h.get("sources") else ""
     params = h.get("params") or {}
     params_str = f" [{', '.join(f'{k}={v}' for k, v in params.items())}]" if params else ""
-    return f"{h.get('timestamp', 'unknown time')} -- {h.get('tool', 'unknown tool')}{sources}{params_str}"
+    workflow = h.get("workflow") if isinstance(h.get("workflow"), dict) else None
+    from_file = f" [from workflow file '{workflow.get('name', '?')}' sha256 {str(workflow.get('fingerprint', ''))[:12]}]" if workflow else ""
+    return f"{h.get('timestamp', 'unknown time')} -- {h.get('tool', 'unknown tool')}{sources}{params_str}{from_file}"
 
 
 @register_tool(

@@ -72,8 +72,8 @@ def effective_source_names(entry, layers):
     return names
 
 
-def tag_layer_lineage(layer, tool_name: str, params: dict, source_layers: list | None = None, source_ids: list | None = None) -> bool:
-    """Attaches tool execution lineage metadata to a layer's custom properties."""
+def tag_layer_lineage(layer, tool_name: str, params: dict, source_layers: list | None = None, source_ids: list | None = None, extra: dict | None = None) -> bool:
+    """Attaches tool execution lineage metadata to a layer's custom properties. `extra` adds fields to the entry (PLAN-048: the workflow file a run came from)."""
     if not QGIS_AVAILABLE or layer is None:
         return False
 
@@ -93,6 +93,8 @@ def tag_layer_lineage(layer, tool_name: str, params: dict, source_layers: list |
             "source_ids": source_ids or [],
             "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
         }
+        if extra:
+            entry.update({k: v for k, v in extra.items() if k not in entry})
 
         history.append(entry)
         layer.setCustomProperty(LINEAGE_PROPERTY_KEY, json.dumps(history))

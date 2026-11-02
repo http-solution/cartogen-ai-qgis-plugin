@@ -82,7 +82,7 @@ def steps(entries):
                 continue
             keys.add(key)
             found.append({"tool": h.get("tool") or "unknown tool", "params": h.get("params") or {}, "inputs": [s for s in h.get("sources") or [] if isinstance(s, str)],
-                          "output": entry["layer"], "at": h.get("timestamp") or ""})
+                          "output": entry["layer"], "at": h.get("timestamp") or "", "workflow": h.get("workflow") if isinstance(h.get("workflow"), dict) else None})
     return sorted(found, key=lambda s: s["at"])
 
 
@@ -136,7 +136,8 @@ def build_markdown(title, entries, assumptions=None, generated_at=None):
     for n, s in enumerate(ordered, 1):
         inputs = f" from {', '.join(s['inputs'])}" if s["inputs"] else ""
         params = f" [{_params_text(s['params'])}]" if s["params"] else ""
-        lines.append(f"{n}. {s['at']} -- {s['tool']}{inputs} -> {s['output']}{params}")
+        from_file = f" [from workflow file '{s['workflow'].get('name', '?')}' sha256 {str(s['workflow'].get('fingerprint', ''))[:12]}]" if s.get("workflow") else ""
+        lines.append(f"{n}. {s['at']} -- {s['tool']}{inputs} -> {s['output']}{params}{from_file}")
     if not ordered:
         lines.append("- No steps recorded.")
     lines += ["", "## Assumptions and limitations"] + [f"- {t}" for t in limitations(entries, assumptions)]

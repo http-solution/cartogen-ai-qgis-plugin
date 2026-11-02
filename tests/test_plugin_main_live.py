@@ -153,7 +153,7 @@ class TestPluginMainLifecycleLive(unittest.TestCase):
     def test_unload_disconnects_action_signals(self):
         plugin = self._make_plugin()
         actions = list(plugin.actions)
-        self.assertEqual(len(actions), 4, "expected the toolbar action + Connections action + Help action + MCP server action")
+        self.assertEqual(len(actions), 5, "expected the toolbar action + Connections + Help + MCP server + Open workflow file")
 
         for action in actions:
             # A freshly-connected signal has exactly one receiver (initGui's own
