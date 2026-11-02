@@ -99,7 +99,7 @@ One list to follow up and plan from. It replaces the session task list (101 entr
 | RM-D | Verified workflow report: sources, parameters, checks, assumptions and limitations, a rerun recipe, for one worked example (service coverage). | The lead feature; mostly assembly once A and C exist. | Claude | RM-A, RM-C | M | P1 | In progress | ROADMAP_AUDIT step D, task 100 |
 | RM-E | Data discovery ranking (licence, coverage, freshness); STAC scene load, change detection and a validation step; one-prompt report. | Builds on D. | Claude | RM-D | L | P2 | In progress | ROADMAP_AUDIT step E, task 101 |
 | RM-F | MCP transport over the tool registry with the existing write, egress and sensitivity gates intact. | Reach for little code, but only after A so exposed tools inherit the checks. | Claude | RM-A | M | P2 | In progress | ROADMAP_AUDIT step F, task 102 |
-| RM-G | Record owner decisions before designing the workflow builder, specialist agents, cloud workers (no tier gating in this codebase) and a skills marketplace. | Each depends on a product or security decision. | You | - | M | P3 | Decision needed | ROADMAP_AUDIT step G, task 103 |
+| RM-G | Record owner decisions before designing the workflow builder, specialist agents, cloud workers (no tier gating in this codebase) and a skills marketplace. | Each depends on a product or security decision. | You | - | M | P3 | Closed | ROADMAP_AUDIT step G, task 103 |
 
 ## E. Engineering hygiene
 
@@ -173,9 +173,9 @@ Source: the owner's analysis document of nine flagship QGIS AI plugins, checked 
 | In progress | 35 |
 | Not started | 28 |
 | Waiting on you | 13 |
-| Decision needed | 9 |
+| Decision needed | 8 |
 | Blocked | 5 |
-| Closed | 3 |
+| Closed | 4 |
 | Closed (record) | 1 |
 | **Total** | **94** |
 
@@ -281,3 +281,4 @@ Newest last. One line per status change; written by `tools/master_list.py set`.
 - 2026-11-02: RM-E Not started -> In progress. PLAN-046: HDX search ranking built 2026-11-02 (licence, recency, coverage, reasons); STAC scene load, validation step, one-prompt report need owner decisions (see PLAN-046); not run against live HDX
 - 2026-11-02: RM-F Not started -> In progress. PLAN-034 first slice built 2026-11-02: local read-only MCP server (24 allowlisted tools, egress gate forced on, token+Host+Origin checks); writes over MCP do not exist (need an owner decision on an approval dialog); not tried in any real MCP client; live test CI-only
 - 2026-11-02: RM-F In progress -> In progress. PLAN-034 write-approval slice built 2026-11-02: 26 listed write tools, per-call Allow once dialog (default Deny, 120 s refusal), egress before ask, lineage tagging; no undo; not tried in a real client or by a person at the dialog; live tests CI-only
+- 2026-11-02: RM-G Decision needed -> Closed. Owner decided 2026-11-02 (PLAN-047): workflow builder = share as files; agent roles = full team, design plan with measured cost and stop condition first; cloud workers = plugin stays local; marketplace = files, no store. No code started.
