@@ -98,7 +98,7 @@ One list to follow up and plan from. It replaces the session task list (101 entr
 | RM-C | Record source URL, licence, retrieval date and coverage on every fetch result, the provenance sidecar and the report. | Needed for donors and for the verified workflow report. | Claude | OWN-5 | M | P1 | In progress | ROADMAP_AUDIT step C, task 99 |
 | RM-D | Verified workflow report: sources, parameters, checks, assumptions and limitations, a rerun recipe, for one worked example (service coverage). | The lead feature; mostly assembly once A and C exist. | Claude | RM-A, RM-C | M | P1 | In progress | ROADMAP_AUDIT step D, task 100 |
 | RM-E | Data discovery ranking (licence, coverage, freshness); STAC scene load, change detection and a validation step; one-prompt report. | Builds on D. | Claude | RM-D | L | P2 | In progress | ROADMAP_AUDIT step E, task 101 |
-| RM-F | MCP transport over the tool registry with the existing write, egress and sensitivity gates intact. | Reach for little code, but only after A so exposed tools inherit the checks. | Claude | RM-A | M | P2 | Not started | ROADMAP_AUDIT step F, task 102 |
+| RM-F | MCP transport over the tool registry with the existing write, egress and sensitivity gates intact. | Reach for little code, but only after A so exposed tools inherit the checks. | Claude | RM-A | M | P2 | In progress | ROADMAP_AUDIT step F, task 102 |
 | RM-G | Record owner decisions before designing the workflow builder, specialist agents, cloud workers (no tier gating in this codebase) and a skills marketplace. | Each depends on a product or security decision. | You | - | M | P3 | Decision needed | ROADMAP_AUDIT step G, task 103 |
 
 ## E. Engineering hygiene
@@ -170,8 +170,8 @@ Source: the owner's analysis document of nine flagship QGIS AI plugins, checked 
 
 | Status | Rows |
 |---|---|
-| In progress | 34 |
-| Not started | 29 |
+| In progress | 35 |
+| Not started | 28 |
 | Waiting on you | 13 |
 | Decision needed | 9 |
 | Blocked | 5 |
@@ -279,3 +279,4 @@ Newest last. One line per status change; written by `tools/master_list.py set`.
 - 2026-11-01: RM-C Decision needed -> In progress. PLAN-044 built 2026-11-01: source record on fetch results, layers, provenance record and reports; licence from a hand table (not checked against services); large-download preview not done; live test CI-only
 - 2026-11-02: RM-D Not started -> In progress. PLAN-045 built 2026-11-02: write_workflow_report (failed checks, sources, rerun recipe, limitations); rerun-to-same-numbers not shown; live test CI-only; service-coverage worked example not hand-run
 - 2026-11-02: RM-E Not started -> In progress. PLAN-046: HDX search ranking built 2026-11-02 (licence, recency, coverage, reasons); STAC scene load, validation step, one-prompt report need owner decisions (see PLAN-046); not run against live HDX
+- 2026-11-02: RM-F Not started -> In progress. PLAN-034 first slice built 2026-11-02: local read-only MCP server (24 allowlisted tools, egress gate forced on, token+Host+Origin checks); writes over MCP do not exist (need an owner decision on an approval dialog); not tried in any real MCP client; live test CI-only

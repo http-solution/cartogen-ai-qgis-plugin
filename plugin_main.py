@@ -85,6 +85,8 @@ class CartogenAi:
         self.dock_widget = None
         self.toolbar_action = None
         self._help_dialog = None
+        self._mcp_server = None             # PLAN-034: the local read-only MCP server; None until a person starts it from the menu
+        self._mcp_dispatcher = None
         self._agent = None
         self._agent_key = None
         self._first_use_timer = None
@@ -147,6 +149,12 @@ class CartogenAi:
         help_action.triggered.connect(self.show_help)
         self.iface.addPluginToMenu(self.menu, help_action)
         self.actions.append(help_action)
+
+        # PLAN-034 (first slice): a local, read-only MCP server for other AI clients. Off at every start; a person turns it on here.
+        mcp_action = QAction(self.tr("MCP server (local, read-only)..."), self.iface.mainWindow())
+        mcp_action.triggered.connect(self.toggle_mcp_server)
+        self.iface.addPluginToMenu(self.menu, mcp_action)
+        self.actions.append(mcp_action)
         self.initProcessing()
 
         # The agent instance and dock widget are cached/reused across QGIS
@@ -254,6 +262,7 @@ class CartogenAi:
 
     def unload(self):
         log_info("unload()", tag="CartogenAi")
+        self._stop_mcp_server()
         with contextlib.suppress(Exception):
             from cartogen_ai.core.agent import project_session
             project_session.invalidate()
@@ -400,6 +409,56 @@ class CartogenAi:
         self.dock_widget.show()
         self.dock_widget.raise_()
         self.dock_widget.open_connections()
+
+    def _stop_mcp_server(self):
+        if self._mcp_server is not None:
+            with contextlib.suppress(Exception):
+                self._mcp_server.stop()
+        self._mcp_server = None
+        self._mcp_dispatcher = None
+
+    def toggle_mcp_server(self):
+        """Starts or stops the local MCP server (PLAN-034). Starting needs a yes to a plain warning; the address and the one-time token are shown once
+        and are not saved anywhere. Read-only in this version: nothing a client asks for can change the project."""
+        from qgis.PyQt.QtWidgets import QApplication, QMessageBox
+        if self._mcp_server is not None and self._mcp_server.running:
+            self._stop_mcp_server()
+            self.iface.messageBar().pushInfo("Cartogen AI", self.tr("MCP server stopped."))
+            return
+        answer = QMessageBox.question(
+            self.iface.mainWindow(), self.tr("Start the MCP server?"),
+            self.tr("This lets another AI program on THIS computer (for example Claude Code or Claude Desktop) look at your open QGIS project: layer "
+                    "names, field names, feature counts, numeric statistics, extents, metadata and QA status. It cannot change anything, and layers marked RESTRICTED or SENSITIVE are never "
+                    "returned. Whatever the program reads is sent to that program's own AI service.\n\nIt stops when you choose this menu item again "
+                    "or close QGIS. Start it?"))
+        if answer != QMessageBox.StandardButton.Yes:
+            return
+        from cartogen_ai.core.agent.mcp_server import McpServer
+        from cartogen_ai.core.agent.tool_dispatcher import ToolDispatcher
+        dispatcher = ToolDispatcher(None)          # created here, on the main thread, so its slots run here
+
+        def run_on_main(func, arg):
+            result = []
+            dispatcher.request_callable.emit(func, arg, result)
+            return result[0] if result else None
+
+        server = McpServer(run_on_main)
+        try:
+            url = server.start()
+        except OSError as e:
+            QMessageBox.warning(self.iface.mainWindow(), self.tr("MCP server"), self.tr("Could not start the server: %s") % e)
+            return
+        self._mcp_server, self._mcp_dispatcher = server, dispatcher
+        command = f'claude mcp add --transport http cartogen {url} --header "Authorization: Bearer {server.token}"'
+        box = QMessageBox(self.iface.mainWindow())
+        box.setWindowTitle(self.tr("MCP server running"))
+        box.setText(self.tr("Address: %s\n\nThe token below works only until you stop the server or close QGIS. Do not share it.") % url)
+        box.setInformativeText(self.tr("For Claude Code, run:\n\n%s") % command)
+        copy_button = box.addButton(self.tr("Copy command"), QMessageBox.ButtonRole.ActionRole)
+        box.addButton(QMessageBox.StandardButton.Close)
+        box.exec()
+        if box.clickedButton() == copy_button:
+            QApplication.clipboard().setText(command)
 
     def show_help(self):
         """Opens Help in its own dialog rather than the dock -- independent of whether the
