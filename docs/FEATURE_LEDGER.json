@@ -2210,7 +2210,8 @@
     "src/cartogen_ai/core/ui/workflow_import_dialog.py",
     "src/cartogen_ai/core/ui/chat_tab_widget.py",
     "plugin_main.py",
-    "docs/plans/PLAN-048-shareable-workflow-file.md"
+    "docs/plans/PLAN-048-shareable-workflow-file.md",
+    "docs/WORKFLOW_FILES.md"
    ],
    "guards": [
     "tests/test_workflow_import.py::TestApplyMapping::test_roles_become_layer_names_and_references_are_left_for_the_runner",
@@ -2223,7 +2224,9 @@
     "tests/test_workflow_import.py::TestRunner::test_a_step_waiting_for_confirmation_stops_the_run",
     "tests/test_workflow_import.py::TestRunner::test_a_layer_that_is_not_in_the_project_is_refused_before_any_step_runs",
     "tests/test_workflow_import_live.py::TestWorkflowImportLive::test_the_dialog_enables_run_only_when_every_role_is_mapped",
-    "tests/test_workflow_import_live.py::TestWorkflowImportLive::test_the_runner_executes_the_mapped_file_through_the_real_tools_and_records_the_file"
+    "tests/test_workflow_import_live.py::TestWorkflowImportLive::test_the_runner_executes_the_mapped_file_through_the_real_tools_and_records_the_file",
+    "tests/test_workflow_file_guide.py::TestGuide::test_every_tool_a_file_may_use_is_listed_and_no_other_tool_is",
+    "tests/test_workflow_file_guide.py::TestGuide::test_the_example_file_in_the_guide_is_valid"
    ],
    "hand_verified": "not verified by a person: nobody has looked at the dialog, run a file from another machine, watched the chat during a run, or tried Confirm-then-continue. The live tests were written without a QGIS install (CI's first run is their first execution); the real-tool run uses a bare agent with the dispatcher bypassed, so it does not exercise the worker-thread path.",
    "hand_row": "export a workflow (see workflow-file-export), open it from Plugins > Cartogen AI > Open workflow file... on another profile or machine, read the dialog (warning, checksum, every step), map the roles, press Run, watch the steps in the chat, and compare the result; then try a file with a step that needs Confirm and continue from the next step"

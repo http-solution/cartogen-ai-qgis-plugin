@@ -319,6 +319,10 @@ The agent won't apply this automatically — it's a judgment call about the data
 ask which method you want when it looks relevant. Not every point layer needs it (facility
 locations, aggregate counts, and non-identifying incident logs don't).
 
+## Sharing a workflow as a file
+
+Ask *"export this workflow as a file"* after an analysis to save its steps as a `.cgworkflow.json` file (you see the whole file and confirm before it is written). A colleague opens it with **Plugins > Cartogen AI > Open workflow file...**, reads every step, picks their own layers for the roles and presses Run; the plugin then runs the steps itself through the usual checks. A file contains no data, no code and no file paths. See [WORKFLOW_FILES.md](WORKFLOW_FILES.md) for the details and the limits.
+
 ## Interactive HTML dashboards
 
 `generate_html_dashboard` exports one or more layers as a single interactive Leaflet map
