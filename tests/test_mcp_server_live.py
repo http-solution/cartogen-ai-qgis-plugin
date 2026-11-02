@@ -83,14 +83,14 @@ class TestMcpServerLive(unittest.TestCase):
         return body["result"]["isError"], json.loads(body["result"]["content"][0]["text"])
 
     def test_an_open_layer_is_read_on_the_main_thread(self):
-        is_error, payload = self._call("get_attributes", {"layer_name": "open_pts"})
+        is_error, payload = self._call("get_attributes", {"layer_name": "open_pts"})      # get_attributes returns the FIELD NAMES, not values
         self.assertFalse(is_error, payload)
-        self.assertIn("alice", json.dumps(payload))
+        self.assertIn("who", json.dumps(payload))
 
     def test_a_sensitive_layer_is_refused_even_with_the_users_gate_off(self):
         is_error, payload = self._call("get_attributes", {"layer_name": "secret_pts"})
         self.assertTrue(is_error)
-        self.assertNotIn("alice", json.dumps(payload))
+        self.assertNotIn('"who"', json.dumps(payload))
 
     def test_a_write_tool_is_refused_and_the_project_is_unchanged(self):
         before = sorted(layer.name() for layer in QgsProject.instance().mapLayers().values())

@@ -428,7 +428,7 @@ class CartogenAi:
         answer = QMessageBox.question(
             self.iface.mainWindow(), self.tr("Start the MCP server?"),
             self.tr("This lets another AI program on THIS computer (for example Claude Code or Claude Desktop) look at your open QGIS project: layer "
-                    "names, attribute values, extents and QA status. It cannot change anything, and layers marked RESTRICTED or SENSITIVE are never "
+                    "names, field names, feature counts, numeric statistics, extents, metadata and QA status. It cannot change anything, and layers marked RESTRICTED or SENSITIVE are never "
                     "returned. Whatever the program reads is sent to that program's own AI service.\n\nIt stops when you choose this menu item again "
                     "or close QGIS. Start it?"))
         if answer != QMessageBox.StandardButton.Yes:
