@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Checks a .cgworkflow.json file the plugin exported (or one a tester edited), so the export and import rows need no manual reading of JSON (PLAN-050).
 
-    python tools/check_workflow_file.py FILE [FILE ...] [--expect-valid | --expect-invalid] [--json OUT.json]
+    python tools/check_workflow_file.py FILE [FILE ...] [--expect-valid | --expect-invalid] [--json OUT.json] [--plugin-zip PATH]
 
 For each file it reports: whether the plugin's own validator accepts it (and its problems and warnings), its SHA-256 fingerprint, the tool names in
 order, and a LEAK SCAN of the raw text for what an export must never hold: absolute paths, URLs with a query or key, API-key-shaped strings, email
@@ -13,7 +13,29 @@ import sys
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(REPO / "src"))
+
+
+def find_plugin(argv):
+    """Puts the plugin's code on sys.path: the repository's src/ when this runs from a checkout, else the plugin zip of the hand-test bundle (given
+    with --plugin-zip, or found in ../1_plugin). The zip is unpacked to a temporary folder. Returns where it was found; exits with a plain
+    sentence when it is nowhere."""
+    if "--plugin-zip" in argv:
+        candidates = [Path(argv[argv.index("--plugin-zip") + 1])]
+    else:
+        candidates = [REPO / "src", *sorted((REPO / "1_plugin").glob("cartogen_ai_v*.zip"))]
+    for candidate in candidates:
+        if candidate.is_dir() and (candidate / "cartogen_ai").is_dir():
+            sys.path.insert(0, str(candidate))
+            return str(candidate)
+        if candidate.is_file():
+            import tempfile
+            import zipfile
+            target = tempfile.mkdtemp(prefix="cartogen_plugin_")            # cartogen_ai is a namespace package (no __init__.py), which zipimport cannot load
+            with zipfile.ZipFile(candidate) as archive:
+                archive.extractall(target, [n for n in archive.namelist() if n.startswith("cartogen_ai_plugin/src/")])
+            sys.path.insert(0, f"{target}/cartogen_ai_plugin/src")
+            return str(candidate)
+    raise SystemExit("Cannot find the plugin code. Run this from the bundle's 6_tools folder, or add --plugin-zip <path to cartogen_ai_v*.zip>.")
 
 LEAKS = {
     "absolute path": re.compile(r"(?:(?<![A-Za-z])[A-Za-z]:(?:\\{1,2}|/)|\"/(?:home|Users|tmp|var|mnt)/)"),
@@ -35,7 +57,8 @@ def leak_scan(text):
     return found
 
 
-def validator():
+def validator(argv=()):
+    find_plugin(list(argv))
     import cartogen_ai.core.agent.agent_orchestrator  # noqa: F401  (registers every tool)
     from cartogen_ai.core import tool_operations
     from cartogen_ai.core.agent import workflow_file
@@ -57,10 +80,12 @@ def check_file(path, validate, module):
 
 
 def main(argv):
-    files = [a for a in argv[1:] if not a.startswith("--") and argv[argv.index(a) - 1] != "--json"]
+    import glob
+    skip = {argv[i + 1] for i, a in enumerate(argv) if a in ("--json", "--plugin-zip") and i + 1 < len(argv)}
+    files = [f for a in argv[1:] if not a.startswith("--") and a not in skip for f in (sorted(glob.glob(a)) or [a])]       # cmd.exe and PowerShell do not expand *
     if not files:
         raise SystemExit(__doc__)
-    module, validate = validator()
+    module, validate = validator(argv)
     reports = [check_file(f, validate, module) for f in files]
     bad = False
     for r in reports:

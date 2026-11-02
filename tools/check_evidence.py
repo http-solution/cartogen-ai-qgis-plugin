@@ -96,7 +96,7 @@ def main(argv):
     if len(argv) < 2:
         raise SystemExit(__doc__)
     folder = Path(argv[1])
-    rows_file = Path(argv[argv.index("--rows") + 1]) if "--rows" in argv else Path(__file__).resolve().parent.parent / "docs" / "HAND_TEST_V2_ROWS.json"
+    rows_file = Path(argv[argv.index("--rows") + 1]) if "--rows" in argv else next((c for c in (Path(__file__).resolve().parent / "3_ROWS.json", Path(__file__).resolve().parent.parent / "docs" / "HAND_TEST_V2_ROWS.json") if c.is_file()), Path("3_ROWS.json"))
     lines = []
     check = load_layout_check(folder)
     if check is None:

@@ -54,7 +54,9 @@ def readme(v, row_count):
             "=====================================================================================\n\n"
             "1_plugin/            the plugin zip (SHA-256 in checksum_sha256.txt)\n"
             "2_layout_check/      layout_check_script.py: run it ONCE, it makes no model calls and costs nothing\n"
+            "0_GUIDE.md           how to run the W rows: order, evidence layout, how each is judged (read this first)\n"
             "3_SHEET.md           the rows that still need you\n"
+            "3_ROWS.json          the same rows as data (5_check_evidence.py reads it)\n"
             "3_test_files/        input data some rows use\n"
             "4_RESULTS.csv        fill in the result and notes\n"
             "5_check_evidence.py  not for you: it reads what you send back\n"
@@ -108,8 +110,9 @@ def main():
     if bad:
         raise SystemExit(f"the sheet names {bad}, which went stale; fix the rows")
     top = f"cartogen_ai_hand_test_v2_{v}"
-    out = REPO / "dist" / f"{top}.zip"
-    out.parent.mkdir(exist_ok=True)
+    out_dir = Path(sys.argv[sys.argv.index("--out-dir") + 1]).resolve() if "--out-dir" in sys.argv else REPO / "dist"          # tests build into a temp folder
+    out = out_dir / f"{top}.zip"
+    out.parent.mkdir(parents=True, exist_ok=True)
     digest = hashlib.sha256(plugin_zip.read_bytes()).hexdigest()
     results = "id,row,prompt,result (Pass/Partial/Fail/Skip),notes\n" + "".join(
         f"{r['id']},{r['issue']},\"{fill(r['title'], v)}\",,\n" for r in rows())
@@ -122,7 +125,11 @@ def main():
             z.write(REPO / "tools" / tool, f"{top}/6_tools/{tool}")
         z.writestr(f"{top}/3_SHEET.md", text)
         z.writestr(f"{top}/4_RESULTS.csv", results)
+        z.write(REPO / "docs" / "HAND_TEST_PACKAGE_1.18.5.md", f"{top}/0_GUIDE.md")
+        z.write(REPO / "docs" / "WORKFLOW_FILES.md", f"{top}/3_test_files/WORKFLOW_FILES.md")
+        z.writestr(f"{top}/results/README.txt", "Everything the run produces goes here: evidence/, outputs/, screens/, logs/ (see 0_GUIDE.md).\r\n")
         z.write(REPO / "tools" / "check_evidence.py", f"{top}/5_check_evidence.py")
+        z.write(ROWS_FILE, f"{top}/3_ROWS.json")
         needed = set(re.findall(FIXTURE_NAME, text)) | {name for row in rows() for name in row.get("files", [])}
         for name in sorted(needed):
             source = next((folder / name for folder in (INPUTS, EXTRA_INPUTS) if (folder / name).is_file()), None)

@@ -336,7 +336,7 @@
       "issue": "PLAN-048",
       "title": "A reader who has not seen the guide can follow docs/WORKFLOW_FILES.md",
       "starts_from": "a person who did not write it, QGIS with smoke_start.qgz",
-      "do": "Give them docs/WORKFLOW_FILES.md only. Ask them to export and open a file using the guide alone. Time them. Note every place they stop, guess or ask.",
+      "do": "Give them docs/WORKFLOW_FILES.md only (in the bundle: 3_test_files\\WORKFLOW_FILES.md). Ask them to export and open a file using the guide alone. Time them. Note every place they stop, guess or ask.",
       "expect": "They finish without help. Each place they were stuck is written down as a sentence of the guide to change.",
       "evidence": "a notes file results/outputs/W12/notes.txt: time taken, each stuck point, the guide line involved",
       "needs": "person",

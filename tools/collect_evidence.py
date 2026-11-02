@@ -49,6 +49,7 @@ def setup(out_dir):
     os.makedirs(os.path.join(out_dir, "evidence"), exist_ok=True)
     os.makedirs(os.path.join(out_dir, "logs"), exist_ok=True)
     os.makedirs(os.path.join(out_dir, "screens"), exist_ok=True)
+    os.makedirs(os.path.join(out_dir, "outputs"), exist_ok=True)
     _STATE["out"] = out_dir
     if not _STATE["connected"]:
         from qgis.core import Qgis

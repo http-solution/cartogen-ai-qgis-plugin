@@ -129,3 +129,40 @@ class TestEvidenceReader(unittest.TestCase):
         (folder / "o" / "W6").mkdir(parents=True)
         (folder / "o" / "W6" / "mcp_probe.json").write_text(json.dumps({"checks": [{"id": "P1a", "ok": True}, {"id": "P3", "ok": False}]}), encoding="utf-8")
         self.assertEqual(reader.record_lines(folder), ["  W2: Yemen: checks, sources", "  W6: mcp probe 1 of 2 passed; FAILED P3"])
+
+
+class TestBundleHoldsEverythingTheRowsNeed(unittest.TestCase):
+    """The bundle is what a tester gets, with nothing else from the repository: every file a row, the guide or the README names must be inside it."""
+
+    def test_every_named_file_is_in_the_built_bundle(self):
+        import re
+        import sys
+        import zipfile
+        builder = load("build_hand_test_v2")
+        version = builder.version()
+        work = Path(tempfile.mkdtemp())
+        stub = work / f"cartogen_ai_v{version}.zip"
+        with zipfile.ZipFile(stub, "w") as z:
+            z.writestr("x.txt", "x")
+        old = sys.argv
+        sys.argv = ["build_hand_test_v2.py", "--plugin-zip", str(stub), "--out-dir", str(work / "out")]
+        try:
+            builder.main()
+        finally:
+            sys.argv = old
+        with zipfile.ZipFile(work / "out" / f"cartogen_ai_hand_test_v2_{version}.zip") as z:
+            names = {n.split("/", 1)[1] for n in z.namelist() if "/" in n}
+            sheet = z.read(next(n for n in z.namelist() if n.endswith("3_SHEET.md"))).decode("utf-8")
+            readme = z.read(next(n for n in z.namelist() if n.endswith("README_FIRST.txt"))).decode("utf-8")
+        for needed in ("0_GUIDE.md", "3_ROWS.json", "5_check_evidence.py", "results/README.txt", "3_test_files/WORKFLOW_FILES.md", "4_RESULTS.csv",
+                       *(f"6_tools/{t}" for t in builder.TOOLS_FOLDER), "3_test_files/smoke_start.qgz", "3_test_files/smoke_data.gpkg"):
+            self.assertIn(needed, names)
+        rows = json.loads((ROOT / "docs" / "HAND_TEST_V2_ROWS.json").read_text(encoding="utf-8"))["rows"]
+        for row in rows:
+            for name in row.get("files", []):
+                self.assertIn(f"3_test_files/{name}", names, row["id"])
+        for name in set(re.findall(builder.FIXTURE_NAME, sheet)):
+            self.assertIn(f"3_test_files/{name}", names)
+        for script in set(re.findall(r"\b(mcp_probe|check_workflow_file|collect_evidence|summarize_usage_log)\.py", sheet + readme)):
+            self.assertIn(f"6_tools/{script}.py", names)
+        self.assertIn("WORKFLOW_FILES.md", sheet)       # W12 hands this to the reader; it must be shipped (checked above)

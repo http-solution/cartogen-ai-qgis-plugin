@@ -4,6 +4,8 @@ For whoever runs the test: a person at QGIS, or an AI agent driving QGIS and a t
 
 **Status of everything below: written without a QGIS install. The scripts were run against the real server and validator code, not inside QGIS. The first real run is the first test of the package itself; if a step does not work as written, write that down as a finding, do not work around it silently.**
 
+**Paths.** This page is written for the repository. In the bundle the same things are: tools in `6_tools\`, fixtures in `3_test_files\`, the evidence checker `5_check_evidence.py` next to this file, results in `results\`. Run the scripts from inside the unzipped bundle with plain Python 3.10+; they find the plugin code in `1_plugin\` themselves.
+
 ## What this tests, and what it cannot
 
 | Rows | Feature | Needs | Model cost |
@@ -25,15 +27,15 @@ Not covered, on purpose: a real MCP client (Claude Code, Claude Desktop, Cursor)
 ## The efficient order (about 25 model requests in all)
 
 1. **Free first.** Run these before opening QGIS; they cost nothing and catch package faults:
-   `python tools/check_workflow_file.py docs/hand_test_v2_inputs/smoke_reach.cgworkflow.json docs/hand_test_v2_inputs/smoke_egress_stop.cgworkflow.json --expect-valid`
-   `python tools/check_workflow_file.py docs/hand_test_v2_inputs/bad_*.cgworkflow.json --expect-invalid --json W10_expected.json`
-   Both must exit 0. `W10_expected.json` is the sentence each bad file should give in the dialog (row W10).
+   `python 6_tools\check_workflow_file.py 3_test_files\smoke_reach.cgworkflow.json 3_test_files\smoke_egress_stop.cgworkflow.json --expect-valid`  (in a checkout: `python tools/check_workflow_file.py docs/hand_test_v2_inputs/...`)
+   `python 6_tools\check_workflow_file.py 3_test_files\bad_*.cgworkflow.json --expect-invalid --json results\outputs\W10\expected.json`
+   Both must exit 0. `expected.json` (create the folder `results\outputs\W10` first) is the sentence each bad file should give in the dialog (row W10).
 2. **Set up once.** Install the zip in `1_plugin` into a fresh QGIS profile, configure ONE provider (a cheaper model is fine; these rows check the plugin's records, not answer quality), tick "Save an evidence folder for each request", copy `3_test_files` to a writable folder and open the copy of `smoke_start.qgz`.
 2b. In the QGIS Python console, once per session: `exec(open(r"<bundle>\6_tools\collect_evidence.py", encoding="utf-8").read()); setup(r"<bundle>\results")`.
 3. **No-model rows next: W6, W10, W9.** They need no API credit. W6 is the only row a script can run alone.
 4. **Model rows: W1, W2, W3, W4, W8, W5, W11, in that order of value.** One row, one new chat (history is billed again on every call). Never chain rows in one chat: each starts from the state it names.
 5. **People rows last: W7 (dialog), W12 (reader).**
-6. **Finish:** save the CartogenAI log (Log Messages), run `python 6_tools/summarize_usage_log.py cartogen.log --csv usage.csv`, then `python 5_check_evidence.py <bundle>\results`.
+6. **Finish:** save the CartogenAI log (Log Messages), run `python 6_tools\summarize_usage_log.py cartogen.log --csv usage.csv`, then `python 5_check_evidence.py results`.
 
 If a model row fails because of the model's wording (wrong tool for the prompt, not a plugin fault), run it ONCE more in a new chat; a second failure is a result, not noise. Do not retry network failures more than once.
 
