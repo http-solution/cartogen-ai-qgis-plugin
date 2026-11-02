@@ -150,6 +150,11 @@ class _FakeAgent:
         self.real_execute_tool_calls.append((name, arguments, user_confirmed))
         return {"success": True, "layer_name": arguments.get("layer_name", "")}
 
+    def execute_confirmed(self, name, arguments):
+        """What the Apply button runs since PLAN-051; the real one wraps _real_execute_tool(user_confirmed=True) with the result gate and the
+        transaction record. Delegating keeps every existing assertion on real_execute_tool_calls meaningful."""
+        return self._real_execute_tool(name, arguments, user_confirmed=True)
+
     def get_session_usage_text(self):
         return None
 

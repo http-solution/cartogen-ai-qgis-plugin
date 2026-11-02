@@ -133,6 +133,217 @@
         "add_field",
         "undo_last_operation"
       ]
+    },
+    {
+      "id": "W1-gate-on",
+      "issue": "PLAN-043/result gate",
+      "title": "Result checks are recorded on a computed layer, and switch off with the setting",
+      "starts_from": "the copied smoke_start.qgz freshly opened (QGIS closed and reopened since the last row), Cartogen panel open, a new chat, 'Save an evidence folder for each request' ticked",
+      "do": "Send in the chat: Calculate a severity index for the three polygons in smoke_admin using its numeric population and need fields, with admin_name as the unit name. Use equal weights and write the score to severity_smoke. Approve the preview. Then snap('W1a'). Then, in the console: from qgis.core import QgsSettings; QgsSettings().setValue('cartogen_ai/result_gate', False); open a NEW chat and send: Recalculate the severity index for smoke_admin into a field called severity_two. Approve. Then snap('W1b'). Set it back with QgsSettings().setValue('cartogen_ai/result_gate', True).",
+      "expect": "W1a: the reply states how many checks ran and, when any failed or were weak, names them in its own words (it may not say 'all fine' over a failed check). W1b: no new check run is recorded and the reply carries no check statement.",
+      "evidence": "evidence/W1a and evidence/W1b (from snap), each with layer_properties.json, steps.jsonl, window.png; the chat text pasted into notes",
+      "needs": "person and a real model",
+      "prompt": "Calculate a severity index for the three polygons in smoke_admin",
+      "expected_tools": [
+        "calculate_severity_index"
+      ],
+      "inputs": "smoke_start.qgz (smoke_admin)",
+      "outputs": "field severity_smoke, then severity_two, on smoke_admin; no files",
+      "pass_if": "W1a layer_properties.json: smoke_admin has key cartogen/checks with at least 1 run. W1b: its run list is unchanged in length (still the W1a runs). Judge the reply wording by eye.",
+      "cost": "2 model requests, no network"
+    },
+    {
+      "id": "W2-gate-fetch",
+      "issue": "PLAN-043/PLAN-044",
+      "title": "A fetched layer gets result checks and a source record",
+      "starts_from": "the copied smoke_start.qgz freshly opened (QGIS closed and reopened since the last row), Cartogen panel open, a new chat, 'Save an evidence folder for each request' ticked; internet available",
+      "do": "Send: Fetch the admin level 1 boundaries for Yemen from geoBoundaries. Then snap('W2').",
+      "expect": "A new layer appears. Its record holds the source name, URL, licence, date fetched and coverage; the licence line says the licence was NOT checked against the provider. Result checks were recorded.",
+      "evidence": "evidence/W2 (layer_properties.json, layers.txt, window.png, steps.jsonl)",
+      "needs": "person and a real model",
+      "prompt": "Fetch the admin level 1 boundaries for Yemen from geoBoundaries",
+      "expected_tools": [
+        "fetch_geoboundaries"
+      ],
+      "forbidden_tools": [
+        "fetch_hdx_admin_boundaries"
+      ],
+      "inputs": "none (network)",
+      "outputs": "one new layer (Yemen ADM1)",
+      "pass_if": "layer_properties.json for the new layer has cartogen/sources (name, url, licence, licence_checked=false, fetched date) and cartogen/checks.",
+      "cost": "1 model request, 1 network fetch"
+    },
+    {
+      "id": "W3-provenance",
+      "issue": "PLAN-044",
+      "title": "The provenance record and the spatial report print the data source",
+      "starts_from": "a project with internet: any project (the first message fetches the layer), new chat, 'Save an evidence folder for each request' ticked",
+      "do": "Send: Fetch the admin level 1 boundaries for Yemen from geoBoundaries. Then: Show me the provenance record of that layer. Then: Generate a spatial report titled Source check with one insight: the Yemen boundaries come from geoBoundaries. Then snap('W3').",
+      "expect": "The record lists the source name, URL, licence, date and coverage, and says the licence was not checked. The report file has a 'Data source:' line for the layer.",
+      "evidence": "evidence/W3; the report file copied to results/outputs/W3/",
+      "needs": "person and a real model",
+      "prompt": "Show me the provenance record",
+      "expected_tools": [
+        "get_provenance_record"
+      ],
+      "inputs": "none (network)",
+      "outputs": "one new layer and a spatial report file (path is in the reply)",
+      "pass_if": "Open the report: it contains 'Data source:' and the word geoBoundaries and does not say the licence was verified.",
+      "cost": "3 model requests, 1 network fetch"
+    },
+    {
+      "id": "W4-report",
+      "issue": "PLAN-045",
+      "title": "The verified workflow report lists failed checks first, sources, ordered steps and gaps",
+      "starts_from": "the copied smoke_start.qgz freshly opened (QGIS closed and reopened since the last row), Cartogen panel open, a new chat, 'Save an evidence folder for each request' ticked",
+      "do": "Send: Buffer smoke_points by 500 metres and call the result smoke_reach. Then: Join smoke_reach to smoke_zones by location (spatial_join), call it smoke_reach_joined. Then: Write a workflow report titled Smoke reach for smoke_reach_joined. Then snap('W4').",
+      "expect": "A Markdown report is written. Order inside it: failed checks first, then data sources, then the steps in the order they ran with their real arguments, then assumptions and limitations including every gap (layers never checked, origin unknown).",
+      "evidence": "evidence/W4; the report copied to results/outputs/W4/",
+      "needs": "person and a real model",
+      "prompt": "Write a workflow report titled Smoke reach",
+      "expected_tools": [
+        "buffer_analysis",
+        "write_workflow_report"
+      ],
+      "inputs": "smoke_start.qgz (smoke_points, smoke_zones)",
+      "outputs": "layers smoke_reach, smoke_reach_joined; one .md report",
+      "pass_if": "The .md has the buffer step before the join step; 500 appears as the distance; a layer with no recorded check is named as unchecked; nothing in it is a figure the plugin did not record.",
+      "cost": "3 model requests"
+    },
+    {
+      "id": "W5-hdx-ranked",
+      "issue": "PLAN-046",
+      "title": "HDX search puts the open, recent, in-country data set first and explains why",
+      "starts_from": "the copied smoke_start.qgz freshly opened (QGIS closed and reopened since the last row), Cartogen panel open, a new chat, 'Save an evidence folder for each request' ticked; internet available",
+      "do": "Send: find a dataset of health facilities in Yemen. Then snap('W5'). Open the first result's HDX page in a browser and compare.",
+      "expect": "The first result is open-licensed, recently changed and lists Yemen; each 'why' line matches its HDX page (licence, last change, country). A data set that states no licence says so instead of being called open.",
+      "evidence": "evidence/W5; a screenshot of the first result's HDX page saved as results/screens/W5-hdx.png",
+      "needs": "person and a real model",
+      "prompt": "find a dataset of health facilities in Yemen",
+      "expected_tools": [
+        "search_hdx_datasets"
+      ],
+      "inputs": "none (network)",
+      "outputs": "a ranked list in the reply",
+      "pass_if": "Three facts checked against the HDX page of result 1: licence, last-modified date, country. Write all three in notes with the page values.",
+      "cost": "1 model request, 1 network call"
+    },
+    {
+      "id": "W6-mcp-probe",
+      "issue": "PLAN-034",
+      "title": "MCP server refuses wrong token, Host and Origin, and lists only reviewed tools (script, no model)",
+      "starts_from": "QGIS with smoke_start.qgz open. smoke_points is untouched. For P5 first mark smoke_zones SENSITIVE (chat: mark smoke_zones as SENSITIVE because test, approve).",
+      "do": "Plugins > Cartogen AI > MCP server (local)..., accept the warning, copy the address and token from the dialog. In a terminal (not QGIS): python mcp_probe.py <ADDRESS> <TOKEN> results/outputs/W6 --layer smoke_points --sensitive-layer smoke_zones. Then choose the menu item again to stop the server and run the same command once more.",
+      "expect": "All checks print PASS (P1a-c, P2a-c, P3, P4a-b, P5). After stopping the server the second run cannot connect (status 0).",
+      "evidence": "results/outputs/W6/mcp_probe.json and mcp_probe.md; the terminal output; a screenshot of the 'MCP server running' dialog without the token visible",
+      "needs": "script",
+      "inputs": "the running server's address and token",
+      "outputs": "mcp_probe.json, mcp_probe.md",
+      "pass_if": "python tools/check_evidence.py shows no FAIL for this row; mcp_probe.json 'checks' all ok=true; a tools/list reply with fewer than 24 tools or any of execute_pyqgis_script, delete_layer is a FAIL.",
+      "cost": "none (no model)"
+    },
+    {
+      "id": "W7-mcp-dialog",
+      "issue": "PLAN-034",
+      "title": "A write over MCP asks first: Deny, Allow once, timeout and SENSITIVE (person at the dialog)",
+      "starts_from": "As W6, server running, smoke_zones NOT sensitive for this row; a terminal with mcp_probe.py",
+      "do": "Run: python mcp_probe.py <ADDRESS> <TOKEN> results/outputs/W7 --write-tool-check --wait-for-person. It sends a buffer_analysis call. When the dialog appears press DENY; repeat leaving it for 2 minutes. Then use Claude Code or the probe's raw call (see the guide, section MCP) to send buffer_analysis on smoke_points distance 500 output_name mcp_allowed and press ALLOW ONCE. Finally mark smoke_points SENSITIVE and send it again: no dialog may appear.",
+      "expect": "The dialog names buffer_analysis, says it is a change (CREATE) and shows the arguments exactly as sent; Deny and the timeout both come back as not run and make no layer; Allow once makes layer mcp_allowed; on a SENSITIVE layer the call is refused with no dialog.",
+      "evidence": "mcp_probe.json for each attempt; a screenshot of the dialog itself (results/screens/W7-dialog.png); a screenshot of the layers panel after each outcome",
+      "needs": "person",
+      "inputs": "the running server",
+      "outputs": "layer mcp_allowed only after Allow once; mcp_probe.json",
+      "pass_if": "No layer named mcp_probe_should_not_exist or created by a denied/timed-out call exists; exactly one new layer (mcp_allowed) exists after the whole row; the dialog text is readable by a non-technical person (write one line on what confused you).",
+      "cost": "none (no model)"
+    },
+    {
+      "id": "W8-export",
+      "issue": "PLAN-048",
+      "title": "Export a workflow file: preview first, then a file with no data, paths or credentials",
+      "starts_from": "the copied smoke_start.qgz freshly opened, a new chat, 'Save an evidence folder for each request' ticked",
+      "do": "Send: Buffer smoke_points by 500 metres and call the result smoke_reach. Then: Join smoke_reach to smoke_zones by location, call it smoke_reach_joined. Then: Export the workflow that made smoke_reach_joined as a file called Smoke reach. Read the preview card (steps, roles, nothing skipped without a reason), say yes. Copy the saved .cgworkflow.json to results/outputs/W8/. Then snap('W8').",
+      "expect": "A preview card appears BEFORE any file exists; after confirming, one file is written. Roles name the starting layers (smoke_points, smoke_zones); no path, no coordinates, no key.",
+      "evidence": "evidence/W8; results/outputs/W8/<file>.cgworkflow.json; a screenshot of the preview card (results/screens/W8-preview.png)",
+      "needs": "person and a real model",
+      "prompt": "Export the workflow that made smoke_reach_joined",
+      "expected_tools": [
+        "buffer_analysis",
+        "export_workflow_file"
+      ],
+      "inputs": "smoke_start.qgz (smoke_points, smoke_zones)",
+      "outputs": "layers smoke_reach and smoke_reach_joined; one .cgworkflow.json",
+      "pass_if": "python check_workflow_file.py results/outputs/W8/<file> --expect-valid exits 0 (accepted, no LEAK line). Its steps are buffer_analysis then spatial_join, in that order.",
+      "cost": "3 model requests"
+    },
+    {
+      "id": "W9-import-good",
+      "issue": "PLAN-048",
+      "title": "Open a workflow file: read the dialog, map the role, run, and the result is traceable to the file",
+      "starts_from": "the copied smoke_start.qgz freshly opened; the file smoke_reach.cgworkflow.json from 3_test_files",
+      "do": "Plugins > Cartogen AI > Open workflow file..., choose smoke_reach.cgworkflow.json. Read the dialog (warning, checksum, both steps). Map role 'points' to smoke_points. Press Run and watch the chat. Then snap('W9'). Then send: Show me the provenance record of hand_test_reach.",
+      "expect": "The dialog shows the file name, a checksum and both steps in plain words; Run is enabled only after the role is mapped. The chat runs buffer then count in order and ends with a count of 5. The provenance record mentions the workflow file's name and fingerprint.",
+      "evidence": "evidence/W9; a screenshot of the dialog (results/screens/W9-dialog.png); a screenshot of the chat after the run",
+      "needs": "person",
+      "inputs": "smoke_reach.cgworkflow.json",
+      "outputs": "layer hand_test_reach (5 features)",
+      "pass_if": "layers.txt shows hand_test_reach with features=5; layer_properties.json lineage entry holds the fingerprint 530ce23c6048d0308bd4136a0bff2c705d3a6c2f2e20dfcf5ae9b2b410fd8444 (the same value the import dialog shows as 'Checksum (SHA-256)' and check_workflow_file.py prints).",
+      "cost": "model-free apart from the provenance question",
+      "files": [
+        "smoke_reach.cgworkflow.json"
+      ]
+    },
+    {
+      "id": "W10-import-bad",
+      "issue": "PLAN-048",
+      "title": "Six broken files are each refused in a plain sentence and nothing runs",
+      "starts_from": "smoke_start.qgz open, nothing from other rows required; the six bad_*.cgworkflow.json files from 3_test_files",
+      "do": "First, in a terminal: python check_workflow_file.py 3_test_files/bad_*.cgworkflow.json --expect-invalid --json results/outputs/W10/expected.json (this is the free pre-check and lists the sentence each file should give). Then open each of the six files with Plugins > Cartogen AI > Open workflow file... and write down the sentence the dialog shows.",
+      "expect": "Each file is refused with a sentence that says what is wrong (tool not allowed, a file path, more than 20 steps, a newer version, not valid JSON, unknown role). The dialog never offers Run. No layer is added.",
+      "evidence": "results/outputs/W10/expected.json; a screenshot per refusal named results/screens/W10-<filename>.png; layers.txt after the last one (snap('W10'))",
+      "needs": "person",
+      "inputs": "the six bad_*.cgworkflow.json files in 3_test_files",
+      "outputs": "none",
+      "pass_if": "The sentence in each screenshot matches the problem sentence in expected.json; layer_count in project.json is unchanged from the start.",
+      "cost": "none (no model)",
+      "files": [
+        "bad_tool_not_allowed.cgworkflow.json",
+        "bad_has_path.cgworkflow.json",
+        "bad_too_many_steps.cgworkflow.json",
+        "bad_future_version.cgworkflow.json",
+        "bad_not_json.cgworkflow.json",
+        "bad_unknown_role.cgworkflow.json"
+      ]
+    },
+    {
+      "id": "W11-import-egress",
+      "issue": "PLAN-048",
+      "title": "A workflow step that would send a RESTRICTED area stops at the usual card",
+      "starts_from": "smoke_start.qgz freshly opened; smoke_egress_stop.cgworkflow.json from 3_test_files",
+      "do": "Send in the chat: mark smoke_zones as RESTRICTED because test, approve. Then Open workflow file... smoke_egress_stop.cgworkflow.json, map role 'area' to smoke_zones, Run. Then snap('W11').",
+      "expect": "The run stops at the confirmation card the egress gate normally shows; nothing is sent to WorldPop and no layer is made. RECORD the exact card text: this behaviour has never been seen by a person.",
+      "evidence": "evidence/W11; screenshot of the card (results/screens/W11-card.png)",
+      "needs": "person and a real model",
+      "inputs": "smoke_egress_stop.cgworkflow.json",
+      "outputs": "none",
+      "pass_if": "No new layer; steps.jsonl shows no completed fetch_worldpop_population; the card text is pasted into notes.",
+      "cost": "1 model request (marking the layer)",
+      "files": [
+        "smoke_egress_stop.cgworkflow.json"
+      ]
+    },
+    {
+      "id": "W12-guide",
+      "issue": "PLAN-048",
+      "title": "A reader who has not seen the guide can follow docs/WORKFLOW_FILES.md",
+      "starts_from": "a person who did not write it, QGIS with smoke_start.qgz",
+      "do": "Give them docs/WORKFLOW_FILES.md only (in the bundle: 3_test_files\\WORKFLOW_FILES.md). Ask them to export and open a file using the guide alone. Time them. Note every place they stop, guess or ask.",
+      "expect": "They finish without help. Each place they were stuck is written down as a sentence of the guide to change.",
+      "evidence": "a notes file results/outputs/W12/notes.txt: time taken, each stuck point, the guide line involved",
+      "needs": "person",
+      "inputs": "docs/WORKFLOW_FILES.md",
+      "outputs": "notes.txt",
+      "pass_if": "Finished without asking anyone, or the stuck points are listed with the guide line number.",
+      "cost": "none"
     }
   ]
 }

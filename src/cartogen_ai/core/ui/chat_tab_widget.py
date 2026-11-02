@@ -252,7 +252,7 @@ class ChatTabWidget(QWidget):
         if confirmed:
             pending_tool = task.get("pending_tool")
             pending_args = task.get("pending_args", {})
-            exec_res = agent._real_execute_tool(pending_tool, pending_args, user_confirmed=True)
+            exec_res = agent.execute_confirmed(pending_tool, pending_args)
             # A readable line, not the raw dict (rc11 smoke test, #124). The full result stays in the task record.
             readable = summarize_tool_result(exec_res)
             failed = isinstance(exec_res, dict) and bool(exec_res.get("error"))

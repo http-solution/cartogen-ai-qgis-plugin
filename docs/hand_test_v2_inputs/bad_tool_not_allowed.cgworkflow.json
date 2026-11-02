@@ -1,0 +1,29 @@
+{
+ "format": "cartogen-workflow",
+ "version": 1,
+ "name": "Tool that is not allowed",
+ "description": "Buffers the smoke points by 500 m and counts the zones. Runs on the smoke_start project with no network.",
+ "created_with": "1.18.5",
+ "roles": {
+  "points": {
+   "kind": "vector",
+   "geometry": "point",
+   "about": "any point layer in a metric CRS"
+  }
+ },
+ "steps": [
+  {
+   "tool": "execute_pyqgis_script",
+   "arguments": {
+    "code": "print(1)"
+   }
+  },
+  {
+   "tool": "get_feature_count",
+   "arguments": {
+    "layer_name": "$prev.layer_name"
+   },
+   "note": "count the zones"
+  }
+ ]
+}

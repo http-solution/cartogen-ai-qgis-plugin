@@ -101,3 +101,38 @@ class TestProtectedLayerSurvivesMergeAndRenames(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+@unittest.skipUnless(LIVE, "requires real QGIS")
+class TestFetchToolStopsAtTheCardForAProtectedLayer(unittest.TestCase):
+    """PLAN-051 / hand-test row W11 (2026-11-03): fetch_worldpop_population with a RESTRICTED layer as `extent_layer` went out with no card, because
+    the two-phase dispatch never asked the gate. This asks it through the real gate method. Written without a QGIS install: CI's first run is its
+    first execution."""
+
+    def test_the_fetch_stops_with_a_confirmable_card_and_nothing_is_downloaded(self):
+        from cartogen_ai.core.agent import agent_orchestrator as agent_mod
+        from cartogen_ai.core.agent.task_manager import AgentTaskManager
+        from cartogen_ai.core.models import sensitivity
+        from cartogen_ai.infrastructure.settings_keys import SETTINGS_EGRESS_GATE_MODE
+        from unittest.mock import MagicMock
+        from tests.test_network_units_live import _boot
+        why = _boot()
+        if why:
+            self.skipTest(why)
+        QgsProject.instance().clear()
+        self.addCleanup(QgsProject.instance().clear)
+        settings = QgsSettings()
+        previous = settings.value(SETTINGS_EGRESS_GATE_MODE, "off")
+        settings.setValue(SETTINGS_EGRESS_GATE_MODE, "enforce")
+        self.addCleanup(settings.setValue, SETTINGS_EGRESS_GATE_MODE, previous)
+        zones = _points("smoke_zones", [("a", 44, 15)])
+        QgsProject.instance().addMapLayer(zones)
+        self.assertTrue(sensitivity.set_layer_sensitivity(zones, "RESTRICTED", "test"))
+        agent = agent_mod.CartogenAi.__new__(agent_mod.CartogenAi)
+        agent.client = CLOUD
+        agent.task_manager = AgentTaskManager()
+        agent.dispatcher = None
+        agent._run_two_phase_tool = MagicMock(side_effect=AssertionError("the fetch ran"))
+        result = agent._execute_two_phase_tool("fetch_worldpop_population", {"iso3": "YEM", "extent_layer": "smoke_zones"})
+        self.assertEqual(result.get("status"), "PREVIEW_REQUIRED", result)
+        self.assertTrue([t for t in agent.task_manager.tasks if t.get("pending_tool") == "fetch_worldpop_population"])

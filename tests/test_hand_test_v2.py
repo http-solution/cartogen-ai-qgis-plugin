@@ -56,7 +56,7 @@ class TestSheetIsGeneratedAndNotStale(unittest.TestCase):
 
     def test_every_input_file_a_row_names_exists(self):
         text = self.builder.sheet(self.version)
-        for name in set(re.findall(r"smoke_[A-Za-z_]+\.[a-z]+", text)):
+        for name in set(re.findall(self.builder.FIXTURE_NAME, text)) | {n for row in self.builder.rows() for n in row.get("files", [])}:
             self.assertTrue((self.builder.INPUTS / name).is_file() or (self.builder.EXTRA_INPUTS / name).is_file(), name)
 
 

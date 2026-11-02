@@ -27,6 +27,7 @@ import datetime
 import json
 import os
 import platform
+import re
 import shutil
 import traceback
 
@@ -44,11 +45,29 @@ def _on_message(message, tag, level):
     _STATE["lines"].append((datetime.datetime.now().strftime("%H:%M:%S"), tag, int(level), message))
 
 
+def begin(bundle):
+    """The one line a tester pastes: begin(r"<bundle folder>"). Evidence goes to <bundle>\\results, where the bundle already has one folder per row."""
+    return setup(os.path.join(bundle, "results"))
+
+
+def _row_folder(row):
+    """results/evidence/<full row id>/ for a snap name such as 'W1a' (the bundle ships one folder per row, named by the row id). Falls back to the
+    snap name when no folder matches. Pure."""
+    head = re.match(r"^(W\d+|V\d+)", str(row))
+    base = os.path.join(_STATE["out"], "evidence")
+    if head and os.path.isdir(base):
+        for name in sorted(os.listdir(base)):
+            if name.startswith(head.group(1) + "-"):
+                return os.path.join(base, name, str(row))
+    return os.path.join(base, str(row))
+
+
 def setup(out_dir):
     from qgis.core import QgsApplication
     os.makedirs(os.path.join(out_dir, "evidence"), exist_ok=True)
     os.makedirs(os.path.join(out_dir, "logs"), exist_ok=True)
     os.makedirs(os.path.join(out_dir, "screens"), exist_ok=True)
+    os.makedirs(os.path.join(out_dir, "outputs"), exist_ok=True)
     _STATE["out"] = out_dir
     if not _STATE["connected"]:
         from qgis.core import Qgis
@@ -133,7 +152,7 @@ def snap(row, note=""):
     from qgis.utils import iface
     if not _STATE["out"]:
         raise RuntimeError("call setup(<results folder>) first")
-    out = os.path.join(_STATE["out"], "evidence", str(row))
+    out = _row_folder(row)
     os.makedirs(out, exist_ok=True)
     try:
         lines = _STATE["lines"]
@@ -163,6 +182,22 @@ def snap(row, note=""):
     except Exception:
         _err(f"{row}: layers: {traceback.format_exc(limit=2)}")
     try:
+        # PLAN-050: the plugin keeps its checks, data-source records, lineage, sensitivity and status on each layer as `cartogen/*` custom properties.
+        # Dumping them lets a row be judged from a file (did the result gate record checks? is the source record there?) with no clicking. Not verified
+        # in a real QGIS: written without one; a failure goes to snap_errors.txt like every other step.
+        properties = {}
+        for lyr in QgsProject.instance().mapLayers().values():
+            found = {}
+            for key in lyr.customProperties().keys():  # noqa: SIM118  (QgsObjectCustomProperties is not a dict; it has no __iter__)
+                if str(key).startswith(("cartogen/", "cartogen_ai/")):          # checks/sources use cartogen/, lineage and sensitivity cartogen_ai/
+                    found[str(key)] = lyr.customProperty(key)
+            if found:
+                properties[lyr.name()] = found
+        with open(os.path.join(out, "layer_properties.json"), "w", encoding="utf-8") as fh:
+            json.dump(properties, fh, indent=1, default=str)
+    except Exception:
+        _err(f"{row}: layer properties: {traceback.format_exc(limit=2)}")
+    try:
         project = {"row": row, "time": datetime.datetime.now().isoformat(), "project_file": QgsProject.instance().fileName(),
                    "project_crs": QgsProject.instance().crs().authid(), "plugin": _plugin_version(), "qgis": Qgis.version(),
                    "python": platform.python_version(), "os": platform.platform(), "layer_count": len(QgsProject.instance().mapLayers()),
@@ -179,5 +214,9 @@ def snap(row, note=""):
     if note:
         with open(os.path.join(out, "note.txt"), "w", encoding="utf-8") as fh:
             fh.write(note + "\n")
+    expected = ["window.png", "layers.txt", "layer_properties.json", "log_cartogenai.txt", "project.json"]
+    missing = [name for name in expected if not os.path.isfile(os.path.join(out, name))]
     print(f"collect_evidence: {row} saved to {out}")
+    print("collect_evidence: still yours to add by hand: see CHECKLIST.txt in the row's folder (output files go to results\\outputs\\<row>, screenshots to results\\screens)."
+          + (f" NOT SAVED this time: {', '.join(missing)} (see snap_errors.txt)." if missing else ""))
     return out

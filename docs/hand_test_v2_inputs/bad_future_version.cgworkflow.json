@@ -1,0 +1,32 @@
+{
+ "format": "cartogen-workflow",
+ "version": 2,
+ "name": "From the future",
+ "description": "Buffers the smoke points by 500 m and counts the zones. Runs on the smoke_start project with no network.",
+ "created_with": "1.18.5",
+ "roles": {
+  "points": {
+   "kind": "vector",
+   "geometry": "point",
+   "about": "any point layer in a metric CRS"
+  }
+ },
+ "steps": [
+  {
+   "tool": "buffer_analysis",
+   "arguments": {
+    "layer_name": "@points",
+    "distance": 500,
+    "output_name": "hand_test_reach"
+   },
+   "note": "500 m around each point"
+  },
+  {
+   "tool": "get_feature_count",
+   "arguments": {
+    "layer_name": "$prev.layer_name"
+   },
+   "note": "count the zones"
+  }
+ ]
+}
