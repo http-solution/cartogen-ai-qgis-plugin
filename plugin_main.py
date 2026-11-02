@@ -85,7 +85,7 @@ class CartogenAi:
         self.dock_widget = None
         self.toolbar_action = None
         self._help_dialog = None
-        self._mcp_server = None             # PLAN-034: the local read-only MCP server; None until a person starts it from the menu
+        self._mcp_server = None             # PLAN-034: the local MCP server; None until a person starts it from the menu
         self._mcp_dispatcher = None
         self._agent = None
         self._agent_key = None
@@ -150,8 +150,8 @@ class CartogenAi:
         self.iface.addPluginToMenu(self.menu, help_action)
         self.actions.append(help_action)
 
-        # PLAN-034 (first slice): a local, read-only MCP server for other AI clients. Off at every start; a person turns it on here.
-        mcp_action = QAction(self.tr("MCP server (local, read-only)..."), self.iface.mainWindow())
+        # PLAN-034 : a local MCP server (reads at once, changes only after a yes) for other AI clients. Off at every start; a person turns it on here.
+        mcp_action = QAction(self.tr("MCP server (local)..."), self.iface.mainWindow())
         mcp_action.triggered.connect(self.toggle_mcp_server)
         self.iface.addPluginToMenu(self.menu, mcp_action)
         self.actions.append(mcp_action)
@@ -419,7 +419,7 @@ class CartogenAi:
 
     def toggle_mcp_server(self):
         """Starts or stops the local MCP server (PLAN-034). Starting needs a yes to a plain warning; the address and the one-time token are shown once
-        and are not saved anywhere. Read-only in this version: nothing a client asks for can change the project."""
+        and are not saved anywhere. Reads run at once; every change a client asks for waits for a yes in a dialog (core/ui/mcp_approval.py)."""
         from qgis.PyQt.QtWidgets import QApplication, QMessageBox
         if self._mcp_server is not None and self._mcp_server.running:
             self._stop_mcp_server()
@@ -427,9 +427,11 @@ class CartogenAi:
             return
         answer = QMessageBox.question(
             self.iface.mainWindow(), self.tr("Start the MCP server?"),
-            self.tr("This lets another AI program on THIS computer (for example Claude Code or Claude Desktop) look at your open QGIS project: layer "
-                    "names, field names, feature counts, numeric statistics, extents, metadata and QA status. It cannot change anything, and layers marked RESTRICTED or SENSITIVE are never "
-                    "returned. Whatever the program reads is sent to that program's own AI service.\n\nIt stops when you choose this menu item again "
+            self.tr("This lets another AI program on THIS computer (for example Claude Code or Claude Desktop) work with your open QGIS project.\n\n"
+                    "It can look at layer names, field names, feature counts, numeric statistics, extents, metadata and QA status; layers marked "
+                    "RESTRICTED or SENSITIVE are never returned. Whatever it reads is sent to that program's own AI service.\n\n"
+                    "It can also ask to run a short list of analysis and styling tools. Each of those asks YOU first, every time, and nothing runs "
+                    "unless you press Allow once. Cartogen AI's Undo does not cover those changes.\n\nIt stops when you choose this menu item again "
                     "or close QGIS. Start it?"))
         if answer != QMessageBox.StandardButton.Yes:
             return
@@ -442,7 +444,8 @@ class CartogenAi:
             dispatcher.request_callable.emit(func, arg, result)
             return result[0] if result else None
 
-        server = McpServer(run_on_main)
+        from cartogen_ai.core.ui import mcp_approval
+        server = McpServer(run_on_main, approve=lambda name, text: mcp_approval.ask(self.iface.mainWindow(), name, text))
         try:
             url = server.start()
         except OSError as e:
