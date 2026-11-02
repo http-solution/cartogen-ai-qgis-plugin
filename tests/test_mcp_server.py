@@ -64,7 +64,7 @@ class TestHandle(unittest.TestCase):
         def call(name, args):
             (calls if calls is not None else []).append((name, args))
             return {"success": True, "layers": []}
-        return mcp_policy.handle(message, lambda: mcp_policy.tool_descriptors(SCHEMAS), call, known_tools={"buffer", "get_layers"})
+        return mcp_policy.handle(message, lambda: mcp_policy.tool_descriptors(SCHEMAS), call, known_tools={"buffer", "buffer_analysis", "get_layers"})
 
     def test_initialize_negotiates_and_declares_only_tools(self):
         r = self.handle({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2025-03-26"}})["result"]
@@ -78,10 +78,23 @@ class TestHandle(unittest.TestCase):
 
     def test_a_write_tool_is_refused_and_never_called(self):
         calls = []
-        reply = self.handle({"jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": {"name": "buffer", "arguments": {"layer_name": "x"}}}, calls)
+        reply = self.handle({"jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": {"name": "buffer_analysis", "arguments": {"layer_name": "x"}}}, calls)
         self.assertEqual(calls, [])
         self.assertTrue(reply["result"]["isError"])
         self.assertIn("read-only", reply["result"]["content"][0]["text"])
+
+    def test_a_tool_off_both_lists_is_refused_even_when_writes_are_on(self):
+        calls = []
+        reply = mcp_policy.handle({"jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": {"name": "execute_pyqgis_script", "arguments": {}}},
+                                  list, lambda n, a: calls.append(n) or {}, known_tools={"execute_pyqgis_script"}, writes=True)
+        self.assertEqual(calls, [])
+        self.assertTrue(reply["result"]["isError"])
+
+    def test_a_write_tool_reaches_the_runner_only_when_writes_are_on(self):
+        calls = []
+        message = {"jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": {"name": "buffer_analysis", "arguments": {"layer_name": "x"}}}
+        mcp_policy.handle(message, list, lambda n, a: calls.append(n) or {"success": True}, known_tools={"buffer_analysis"}, writes=True)
+        self.assertEqual(calls, ["buffer_analysis"])
 
     def test_an_unknown_tool_is_refused_and_never_called(self):
         calls = []
@@ -109,6 +122,103 @@ class TestHandle(unittest.TestCase):
         reply = mcp_policy.handle({"jsonrpc": "2.0", "id": 5, "method": "tools/call", "params": {"name": "get_layers", "arguments": {}}},
                                   list, lambda n, a: {"blob": "x" * (mcp_policy.MAX_RESULT_CHARS + 10)})
         self.assertIn("truncated", reply["result"]["content"][0]["text"])
+
+
+class TestWriteList(unittest.TestCase):
+    def test_every_write_tool_is_a_plain_create_or_modify_tool_with_no_own_confirmation_or_network(self):
+        import inspect
+        from cartogen_ai.core.agent.agent_orchestrator import NETWORK_ONLY_TOOLS, TWO_PHASE_TOOLS
+        from cartogen_ai.core.agent.tools.registry import TOOL_REGISTRY
+        problems = []
+        for name in sorted(mcp_policy.WRITE_TOOLS):
+            func = TOOL_REGISTRY.get(name)
+            if func is None:
+                problems.append(f"{name}: not a tool")
+                continue
+            if tool_operations.get_tool_operation_type(name) not in (tool_operations.CREATE, tool_operations.MODIFY):
+                problems.append(f"{name}: not CREATE/MODIFY")
+            if "confirmed" in inspect.signature(func).parameters:
+                problems.append(f"{name}: has its own confirmed step")
+            if name in NETWORK_ONLY_TOOLS or name in TWO_PHASE_TOOLS:
+                problems.append(f"{name}: reaches the network")
+        self.assertEqual(problems, [])
+        self.assertFalse(mcp_policy.WRITE_TOOLS & mcp_policy.ALLOWED_TOOLS)
+
+    def test_dangerous_tools_are_not_on_the_write_list(self):
+        for name in ("execute_pyqgis_script", "set_attribute_value", "add_field", "delete_features", "run_allowlisted_processing_algorithm",
+                     "create_project_folder_structure", "add_layer_from_path", "save_workflow_preset", "store_global_memory", "set_layer_sensitivity"):
+            self.assertNotIn(name, mcp_policy.WRITE_TOOLS)
+
+    def test_descriptors_list_writes_only_when_enabled_and_mark_them(self):
+        schemas = [{"type": "function", "function": {"name": n, "description": "d", "parameters": {"type": "object", "properties": {}}}}
+                   for n in ("get_layers", "buffer_analysis", "execute_pyqgis_script")]
+        self.assertEqual([t["name"] for t in mcp_policy.tool_descriptors(schemas)], ["get_layers"])
+        with_writes = mcp_policy.tool_descriptors(schemas, writes=True)
+        self.assertEqual([t["name"] for t in with_writes], ["buffer_analysis", "get_layers"])
+        self.assertIn("approves", with_writes[0]["description"])
+
+    def test_the_approval_text_shows_the_tool_the_kind_and_the_arguments_and_cuts_long_ones(self):
+        text = mcp_policy.approval_text("buffer_analysis", {"layer_name": "Clinics", "distance": 500}, "CREATE")
+        for part in ("buffer_analysis", "CREATE", "Clinics", "500", "Undo does not cover", "refused"):
+            self.assertIn(part, text)
+        long_text = mcp_policy.approval_text("t", {"x": "y" * 5000}, "MODIFY")
+        self.assertIn("more characters not shown", long_text)
+        self.assertLess(len(long_text), mcp_policy.MAX_APPROVAL_ARG_CHARS + 800)
+
+
+class TestApprovalPath(unittest.TestCase):
+    """run_allowed_tool with the gate and the tool faked: the order is egress, then approval, then the tool; only an explicit True runs it."""
+
+    def run_it(self, approve, egress=None, arguments=None):
+        from unittest import mock
+        from cartogen_ai.core.agent.tools.registry import TOOL_REGISTRY
+        ran = []
+
+        def fake(old_name, new_name):
+            ran.append((old_name, new_name))
+            return {"success": True}
+
+        with mock.patch.dict(TOOL_REGISTRY, {"rename_layer": fake}), mock.patch.object(mcp_server, "egress_refusal", return_value=egress):
+            result = mcp_server.run_allowed_tool("rename_layer", arguments or {"old_name": "a", "new_name": "b", "confirmed": True}, approve=approve)
+        return result, ran
+
+    def test_yes_runs_the_tool_with_only_advertised_arguments_and_shows_the_person_the_call(self):
+        shown = []
+        result, ran = self.run_it(lambda name, text: shown.append((name, text)) or True)
+        self.assertTrue(result["success"])
+        self.assertEqual(ran, [("a", "b")])
+        self.assertEqual(shown[0][0], "rename_layer")
+        self.assertIn("old_name", shown[0][1])
+        self.assertNotIn("confirmed", shown[0][1])
+
+    def test_no_runs_nothing(self):
+        result, ran = self.run_it(lambda name, text: False)
+        self.assertEqual((result["status"], ran), ("DENIED", []))
+
+    def test_only_a_real_true_counts_as_yes(self):
+        for answer in (None, 0, "", []):
+            result, ran = self.run_it(lambda name, text, a=answer: a)
+            self.assertEqual((result.get("status"), ran), ("DENIED", []))
+
+    def test_a_dialog_that_fails_is_a_no(self):
+        def boom(name, text):
+            raise RuntimeError("dialog failed")
+        result, ran = self.run_it(boom)
+        self.assertEqual((result["status"], ran), ("DENIED", []))
+
+    def test_without_an_approval_function_the_write_is_refused(self):
+        result, ran = self.run_it(None)
+        self.assertEqual((result["status"], ran), ("NOT_RUN", []))
+
+    def test_a_blocked_call_never_asks_the_person(self):
+        asked = []
+        result, ran = self.run_it(lambda name, text: asked.append(1) or True, egress={"status": "EGRESS_BLOCKED", "error": "protected"})
+        self.assertEqual((result["status"], asked, ran), ("EGRESS_BLOCKED", [], []))
+
+    def test_one_approval_at_a_time(self):
+        server = mcp_server.McpServer(lambda f, a: f(a), schemas=SCHEMAS, approve=lambda name, text: server._ask(name, text) or True)
+        self.assertTrue(server._ask("x", "y"))           # the inner (second) request inside the first is refused, and the outer one still answers True
+        self.assertFalse(server._approving)
 
 
 class TestArguments(unittest.TestCase):
@@ -163,7 +273,7 @@ class TestHttp(unittest.TestCase):
         self.assertEqual([t["name"] for t in json.loads(body)["result"]["tools"]], ["get_attributes", "get_layers"])
         status, body = self.post({"jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": {"name": "get_layers", "arguments": {}}})
         self.assertEqual(json.loads(body)["result"]["isError"], False)
-        status, body = self.post({"jsonrpc": "2.0", "id": 3, "method": "tools/call", "params": {"name": "buffer", "arguments": {"layer_name": "x"}}})
+        status, body = self.post({"jsonrpc": "2.0", "id": 3, "method": "tools/call", "params": {"name": "buffer_analysis", "arguments": {"layer_name": "x"}}})
         self.assertTrue(json.loads(body)["result"]["isError"])
         self.assertEqual([c[0] for c in self.calls], ["get_layers"])
 

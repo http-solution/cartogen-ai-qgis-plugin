@@ -1,5 +1,5 @@
-"""A local MCP server over the read-only part of the tool registry (PLAN-034, roadmap step F, first slice). Policy and protocol are in mcp_policy.py;
-this module is the socket and the QGIS side.
+"""A local MCP server over the tool registry (PLAN-034, roadmap step F). Policy and protocol are in mcp_policy.py; this module is the socket and the
+QGIS side. Read tools run at once. Write tools run only when the server was given an `approve` function and a person says yes to that exact call.
 
 Properties, by construction:
   * Binds 127.0.0.1 only, on an ephemeral port unless one is given. Off until a person starts it from the plugin menu; never started by a setting, so a
@@ -49,24 +49,70 @@ def egress_refusal(name, arguments):
     return None
 
 
-def run_allowed_tool(name, arguments):
-    """Runs one allowed tool with the gate in front. MAIN THREAD."""
+def _layer_ids():
+    try:
+        from qgis.core import QgsProject
+        return set(QgsProject.instance().mapLayers().keys())
+    except Exception:
+        return set()
+
+
+def _tag_lineage(name, args, result, ids_before):
+    """Records which layers the call read and tags the layers it created, exactly as the chat does (agent_orchestrator._tag_created_layers), so a
+    layer made over MCP keeps its place in the egress gate's chain and in the workflow report. MAIN THREAD. Never raises."""
+    try:
+        from qgis.core import QgsProject
+        from .lineage import created_layer_names, derive_sources, source_layer_ids, tag_layer_lineage
+        project = QgsProject.instance()
+        all_layers = list(project.mapLayers().values())
+        read_layers = [lyr for lyr in all_layers if lyr.id() in ids_before]
+        sources = derive_sources(name, args, [lyr.name() for lyr in read_layers])
+        source_ids = source_layer_ids(sources, read_layers)
+        for created in created_layer_names(result, sources, [lyr.name() for lyr in all_layers]):
+            for layer in project.mapLayersByName(created)[:1]:
+                tag_layer_lineage(layer, name, args, sources, source_ids)
+    except Exception as e:
+        log_event("swallowed_exception", tag="MCP", tool="lineage_tagging", error_class=type(e).__name__, error=True)
+
+
+def run_allowed_tool(name, arguments, approve=None):
+    """Runs one allowed tool with the gates in front: egress first (so a person is never asked to approve a call that would be blocked anyway), then,
+    for a write tool, the person's approval. MAIN THREAD. `approve(name, text) -> bool` is the dialog; None means writes are refused."""
+    from .. import tool_operations
+    from . import result_gate
     from .tools.registry import TOOL_REGISTRY, TOOLS_SCHEMA
     func = TOOL_REGISTRY.get(name)
     if func is None:
         return {"error": f"Unknown tool: {name}"}
+    is_write = name in mcp_policy.WRITE_TOOLS
+    if is_write and approve is None:
+        return mcp_policy.refusal(name, True, writes=False)
     args = _filter_arguments(TOOLS_SCHEMA, name, arguments)
     blocked = egress_refusal(name, args)
     if blocked is not None:
         log_event("mcp_call", tag="MCP", tool=name, status="egress_blocked")
         return blocked
+    operation = tool_operations.get_tool_operation_type(name)
+    if is_write:
+        try:
+            allowed = approve(name, mcp_policy.approval_text(name, args, operation)) is True       # only an explicit True is a yes
+        except Exception as e:                       # a dialog that fails is a "no", never a "yes"
+            log_event("swallowed_exception", tag="MCP", tool="approval", error_class=type(e).__name__, error=True)
+            allowed = False
+        if not allowed:
+            log_event("mcp_call", tag="MCP", tool=name, status="denied")
+            return {"status": "DENIED", "error": "The user did not approve this call in QGIS. Nothing was changed."}
+    ids_before = _layer_ids() if is_write else set()
     try:
         result = func(**args)
     except TypeError as e:
         return {"error": f"Invalid arguments for {name}: {e}"}
     except Exception as e:
         return {"error": f"Tool {name} failed: {type(e).__name__}"}
-    log_event("mcp_call", tag="MCP", tool=name, status="error" if isinstance(result, dict) and "error" in result else "ok")
+    if is_write and isinstance(result, dict) and result.get("success"):
+        _tag_lineage(name, args, result, ids_before)
+        result = result_gate.attach_checks(name, result, operation)
+    log_event("mcp_call", tag="MCP", tool=name, status="error" if isinstance(result, dict) and "error" in result else "ok", write=is_write)
     return result if result is not None else {"error": "The tool returned nothing."}
 
 
@@ -74,9 +120,11 @@ class McpServer:
     """Start/stop wrapper. `run_on_main(func, arg)` must run `func(arg)` on the QGIS main thread and return its result (the plugin passes the existing
     dispatcher; tests pass a direct call). `call_tool(name, args)` defaults to run_allowed_tool."""
 
-    def __init__(self, run_on_main, schemas=None, call_tool=None, port=0):
+    def __init__(self, run_on_main, schemas=None, call_tool=None, port=0, approve=None):
         self._run_on_main = run_on_main
-        self._call = call_tool or run_allowed_tool
+        self._approve = approve
+        self._approving = False                      # one approval at a time; main-thread state
+        self._call = call_tool or self._run_tool
         self._schemas = schemas
         self._port = port
         self._httpd = None
@@ -153,7 +201,7 @@ class McpServer:
                 except (ValueError, UnicodeDecodeError):
                     self._json(400, {"jsonrpc": "2.0", "id": None, "error": {"code": mcp_policy.PARSE_ERROR, "message": "Parse error"}})
                     return
-                reply = mcp_policy.handle(message, server._list_tools, server._call_on_main, known_tools=server._known_tools())
+                reply = mcp_policy.handle(message, server._list_tools, server._call_on_main, known_tools=server._known_tools(), writes=server.writes_enabled)
                 if reply is None:
                     self._send(202)
                 else:
@@ -184,8 +232,25 @@ class McpServer:
     def _known_tools(self):
         return {item.get("function", {}).get("name") for item in self._schema_list() if isinstance(item, dict)}
 
+    @property
+    def writes_enabled(self):
+        return self._approve is not None
+
+    def _ask(self, name, text):
+        """The approval, one at a time: a second call that arrives while a dialog is open is refused, not queued behind it. MAIN THREAD."""
+        if self._approving:
+            return False
+        self._approving = True
+        try:
+            return bool(self._approve(name, text))
+        finally:
+            self._approving = False
+
+    def _run_tool(self, name, arguments):
+        return run_allowed_tool(name, arguments, approve=self._ask if self._approve is not None else None)
+
     def _list_tools(self):
-        return mcp_policy.tool_descriptors(self._schema_list())
+        return mcp_policy.tool_descriptors(self._schema_list(), writes=self.writes_enabled)
 
     def _call_on_main(self, name, arguments):
         result = self._run_on_main(lambda _a: self._call(name, arguments), None)

@@ -1,8 +1,13 @@
 """What an outside AI client may do over MCP, and how a request is judged (PLAN-034, roadmap step F, first slice). Pure: no sockets, no QGIS.
 
-First slice, honestly: READ ONLY. A client can look at the open project (layers, attributes, extents, metadata, QA status); it cannot create, change,
-delete, export or send anything. A call to any other tool is refused and nothing runs. There is no approval path yet: the plan's "preview, then a
-person confirms in QGIS" needs a confirmation dialog that has not been built, so it is the next slice and an owner decision (see the plan).
+Two tiers. READ tools (ALLOWED_TOOLS) run at once: they show field names, counts, statistics, extents, metadata and QA status of the open project,
+never feature values. WRITE tools (WRITE_TOOLS) run only after a PERSON approves that exact call in a dialog inside QGIS ("allow once"; the default
+button is Deny, there is no "always allow", and a dialog nobody answers denies). If the server was started without an approval function, writes are
+refused as before. Every other tool is refused and nothing runs.
+
+The WRITE list is deliberately short and written out: analysis tools that make a NEW layer from existing ones, and presentation-only styling and
+visibility. Left out on purpose: tools that edit existing data (`set_attribute_value`, `add_field`, ...), delete anything, write to a path the client
+names, reach the network, run code, or have their own `confirmed` step (that confirmation is the plugin chat's and is not the same as this approval).
 
 The tool list is an ALLOWLIST written out below, not "every READ tool". Of the 83 tools classified READ, many are not safe to hand to an outside
 client: `run_steps` runs other tools, the grounded-search tools spend the user's API key, `extract_pdf_tables` and friends read files from disk,
@@ -26,8 +31,20 @@ ALLOWED_TOOLS = frozenset({
     "check_pcode_hierarchy", "validate_schema", "list_schema_contracts", "measure_distance", "find_tools",
 })
 
-INSTRUCTIONS = ("Cartogen AI's read-only view of the open QGIS project. Layers marked RESTRICTED or SENSITIVE are never returned. "
-                "Anything that would change the project is refused; ask the user to do it in QGIS.")
+WRITE_TOOLS = frozenset({
+    # analysis: each makes a NEW layer from existing ones
+    "buffer_analysis", "clip_layer", "centroid", "convex_hull", "dissolve_layer", "difference_layers", "intersect_layers", "union_layers",
+    "merge_layers", "spatial_join", "join_by_attribute", "convert_to_singlepart", "simplify_geometry", "fix_geometries", "reproject_layer",
+    "voronoi_polygons", "delaunay_triangulation", "find_nearest_features", "calculate_service_area",
+    # presentation only
+    "apply_graduated_style", "apply_categorized_style", "change_layer_color", "apply_labels", "set_layer_transparency", "toggle_visibility", "rename_layer",
+})
+
+INSTRUCTIONS = ("Cartogen AI's view of the open QGIS project. Layers marked RESTRICTED or SENSITIVE are never returned. Read tools run at once and never "
+                "return feature values. Write tools wait for the user to approve each call in QGIS and are refused if the user says no or does not answer. "
+                "Any other tool is refused; ask the user to do it in QGIS.")
+APPROVAL_NOTE = " (runs only after the user approves this call in QGIS)"
+MAX_APPROVAL_ARG_CHARS = 1500
 
 # JSON-RPC error codes
 PARSE_ERROR, INVALID_REQUEST, METHOD_NOT_FOUND, INVALID_PARAMS = -32700, -32600, -32601, -32602
@@ -55,21 +72,37 @@ def check_request(headers, token, port):
     return 200, ""
 
 
-def tool_descriptors(schemas):
-    """MCP tool descriptors for the allowed tools found in `schemas` (the OpenAI-style list the plugin keeps). Sorted by name. Pure."""
+def tool_descriptors(schemas, writes=False):
+    """MCP tool descriptors for the allowed tools found in `schemas` (the OpenAI-style list the plugin keeps); the write tools too when `writes` (an
+    approval function exists), each marked as needing approval. Sorted by name. Pure."""
     out = []
     for item in schemas:
         fn = item.get("function", {}) if isinstance(item, dict) else {}
-        if fn.get("name") in ALLOWED_TOOLS:
-            out.append({"name": fn["name"], "description": fn.get("description", ""),
+        name = fn.get("name")
+        if name in ALLOWED_TOOLS or (writes and name in WRITE_TOOLS):
+            note = APPROVAL_NOTE if name in WRITE_TOOLS else ""
+            out.append({"name": name, "description": fn.get("description", "") + note,
                         "inputSchema": fn.get("parameters") or {"type": "object", "properties": {}}})
     return sorted(out, key=lambda t: t["name"])
 
 
-def refusal(name, known):
+def approval_text(name, arguments, operation):
+    """What the person sees when asked to approve a call: the tool, what kind of change it is, and the arguments exactly as sent (cut when long). Pure."""
+    try:
+        shown = json.dumps(arguments, ensure_ascii=False, indent=2, default=str)
+    except (TypeError, ValueError):
+        shown = str(arguments)
+    if len(shown) > MAX_APPROVAL_ARG_CHARS:
+        shown = shown[:MAX_APPROVAL_ARG_CHARS] + f"\n... ({len(shown) - MAX_APPROVAL_ARG_CHARS} more characters not shown)"
+    return (f"An outside AI program asks Cartogen AI to run:\n\n  {name}   [{operation}]\n\nwith these arguments:\n\n{shown}\n\n"
+            "Allow this one call? Cartogen AI's Undo does not cover changes made this way. If you do not answer, the call is refused.")
+
+
+def refusal(name, known, writes=False):
     """The result for a tool that may not be called over MCP. Nothing ran. Pure."""
-    why = ("This tool is not available over MCP: this server is read-only. Ask the user to do it in QGIS." if known
-           else f"Unknown tool: {name}")
+    why = ("This tool is not available over MCP. Ask the user to do it in QGIS." if known else f"Unknown tool: {name}")
+    if known and name in WRITE_TOOLS and not writes:
+        why = "Changes are not enabled on this server: it is read-only. Ask the user to do it in QGIS."
     return {"status": "NOT_RUN", "error": why}
 
 
@@ -85,7 +118,7 @@ def _error(request_id, code, message):
     return {"jsonrpc": "2.0", "id": request_id, "error": {"code": code, "message": message}}
 
 
-def handle(message, list_tools, call_tool, known_tools=frozenset()):
+def handle(message, list_tools, call_tool, known_tools=frozenset(), writes=False):
     """The JSON-RPC reply (dict) to one parsed request, or None for a notification. `list_tools()` returns descriptors, `call_tool(name, args)` returns
     the tool's result dict (only ever called for an allowed tool). Pure given those two. Never raises."""
     try:
@@ -108,10 +141,10 @@ def handle(message, list_tools, call_tool, known_tools=frozenset()):
             name, arguments = (params.get("name"), params.get("arguments") or {}) if isinstance(params, dict) else (None, {})
             if not isinstance(name, str) or not isinstance(arguments, dict):
                 return _error(request_id, INVALID_PARAMS, "tools/call needs a tool name and an arguments object.")
-            if name not in ALLOWED_TOOLS:
-                return {"jsonrpc": "2.0", "id": request_id, "result": _text_result(refusal(name, name in known_tools), True)}
+            if name not in ALLOWED_TOOLS and not (writes and name in WRITE_TOOLS):
+                return {"jsonrpc": "2.0", "id": request_id, "result": _text_result(refusal(name, name in known_tools, writes), True)}
             result = call_tool(name, arguments)
-            failed = isinstance(result, dict) and ("error" in result or result.get("status") in ("EGRESS_BLOCKED", "PREVIEW_REQUIRED", "NOT_RUN"))
+            failed = isinstance(result, dict) and ("error" in result or result.get("status") in ("EGRESS_BLOCKED", "PREVIEW_REQUIRED", "NOT_RUN", "DENIED"))
             return {"jsonrpc": "2.0", "id": request_id, "result": _text_result(result, failed)}
         return _error(request_id, METHOD_NOT_FOUND, f"Method not found: {method}")
     except Exception as e:                               # a bug here must not take the server down or leak a traceback
