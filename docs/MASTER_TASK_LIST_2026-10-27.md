@@ -97,7 +97,7 @@ One list to follow up and plan from. It replaces the session task list (101 entr
 | RM-B | Attach the map canvas (or a region) plus legend text and layer list to the next message as an image part. | inspect_canvas_visually sends the map as base64 text in a tool result; the chat clients already accept image parts. | Claude | OWN-5 | M | P1 | In progress | ROADMAP_AUDIT step B, task 98 |
 | RM-C | Record source URL, licence, retrieval date and coverage on every fetch result, the provenance sidecar and the report. | Needed for donors and for the verified workflow report. | Claude | OWN-5 | M | P1 | In progress | ROADMAP_AUDIT step C, task 99 |
 | RM-D | Verified workflow report: sources, parameters, checks, assumptions and limitations, a rerun recipe, for one worked example (service coverage). | The lead feature; mostly assembly once A and C exist. | Claude | RM-A, RM-C | M | P1 | In progress | ROADMAP_AUDIT step D, task 100 |
-| RM-E | Data discovery ranking (licence, coverage, freshness); STAC scene load, change detection and a validation step; one-prompt report. | Builds on D. | Claude | RM-D | L | P2 | Not started | ROADMAP_AUDIT step E, task 101 |
+| RM-E | Data discovery ranking (licence, coverage, freshness); STAC scene load, change detection and a validation step; one-prompt report. | Builds on D. | Claude | RM-D | L | P2 | In progress | ROADMAP_AUDIT step E, task 101 |
 | RM-F | MCP transport over the tool registry with the existing write, egress and sensitivity gates intact. | Reach for little code, but only after A so exposed tools inherit the checks. | Claude | RM-A | M | P2 | Not started | ROADMAP_AUDIT step F, task 102 |
 | RM-G | Record owner decisions before designing the workflow builder, specialist agents, cloud workers (no tier gating in this codebase) and a skills marketplace. | Each depends on a product or security decision. | You | - | M | P3 | Decision needed | ROADMAP_AUDIT step G, task 103 |
 
@@ -170,8 +170,8 @@ Source: the owner's analysis document of nine flagship QGIS AI plugins, checked 
 
 | Status | Rows |
 |---|---|
-| In progress | 33 |
-| Not started | 30 |
+| In progress | 34 |
+| Not started | 29 |
 | Waiting on you | 13 |
 | Decision needed | 9 |
 | Blocked | 5 |
@@ -278,3 +278,4 @@ Newest last. One line per status change; written by `tools/master_list.py set`.
 - 2026-11-01: RM-B Decision needed -> In progress. PLAN-032 slice 1: inspect_canvas_visually sends a real picture (capped 1,280 px, legend and layers as text, newest picture only, text fallback for non-vision models, egress gate for visible protected layers). Offline tested; live render written, CI first run pending. Open: chat button, live vision hand test on Gemini and Claude, run_steps inner calls.
 - 2026-11-01: RM-C Decision needed -> In progress. PLAN-044 built 2026-11-01: source record on fetch results, layers, provenance record and reports; licence from a hand table (not checked against services); large-download preview not done; live test CI-only
 - 2026-11-02: RM-D Not started -> In progress. PLAN-045 built 2026-11-02: write_workflow_report (failed checks, sources, rerun recipe, limitations); rerun-to-same-numbers not shown; live test CI-only; service-coverage worked example not hand-run
+- 2026-11-02: RM-E Not started -> In progress. PLAN-046: HDX search ranking built 2026-11-02 (licence, recency, coverage, reasons); STAC scene load, validation step, one-prompt report need owner decisions (see PLAN-046); not run against live HDX

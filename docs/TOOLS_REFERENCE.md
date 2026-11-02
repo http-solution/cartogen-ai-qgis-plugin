@@ -356,12 +356,13 @@ Download OpenStreetMap vector features via Overpass API (e.g. key='amenity', val
 
 ### `search_hdx_datasets` _(network-only)_
 
-Search Humanitarian Data Exchange (HDX) for datasets by query.
+Search Humanitarian Data Exchange (HDX) for datasets by query. Results are ranked: each has a score and plain reasons about its licence (open, none stated, not open), how recently it changed and whether it lists the country asked for and has a usable file. Pass country (name or ISO3) to prefer data sets about it.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
 | `query` | string | yes |  |
 | `limit` | integer | no |  |
+| `country` | string | no | Optional country name or ISO3 code; data sets that list it rank higher. |
 
 ## Humanitarian Logistics
 
