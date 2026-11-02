@@ -1895,6 +1895,62 @@ class ChatTabWidget(QWidget):
             on_tool_step=on_tool_step,
         )
 
+    def run_workflow(self, document, mapping, start_at=1):
+        """Runs a workflow file the person has read and mapped in WorkflowImportDialog (PLAN-048 stage 3). NO model call: the agent runs the steps
+        itself, one at a time, through the usual tool path, so confirmations, the egress gate and the result gate all apply. A step waiting for the
+        person's Confirm stops the run and shows the usual card. Runs on a QGIS worker thread; Stop cancels it between steps."""
+        from ..agent import workflow_import
+        from ..services.task_runner import run_background_call
+        if self._active_task is not None:
+            self._dock.receiveMessageSignal.emit("ai", "Another request is still running. Wait for it or press Stop, then open the workflow file again.")
+            return
+        agent = self._agent_provider() if self._agent_provider else None
+        if agent is None or not hasattr(agent, "run_workflow_steps"):
+            self._dock.receiveMessageSignal.emit("ai", "**Agent could not be initialized.** Check the QGIS Python console for details.")
+            return
+        available = None
+        with contextlib.suppress(Exception):
+            from qgis.core import QgsProject
+            available = {layer.name() for layer in QgsProject.instance().mapLayers().values()}
+        steps, problems = workflow_import.apply_mapping(document, mapping, start_at, available=available)
+        if problems:
+            self._dock.receiveMessageSignal.emit("ai", "The workflow was not started: " + " ".join(problems))
+            return
+        if hasattr(agent, "task_manager") and self._connected_task_manager is not agent.task_manager:
+            with contextlib.suppress(Exception):
+                agent.task_manager.plan_updated.connect(self._on_live_plan_updated)
+                self._connected_task_manager = agent.task_manager
+        self._executed_tools = []
+        self._current_turn_steps = []
+        self._turn_stopped = False
+        workflow = {"name": document["name"], "fingerprint": document["fingerprint"]}
+        self._dock.receiveMessageSignal.emit(
+            "ai", f"_Running the workflow file '{document['name']}': {len(steps)} step(s), checksum {document['fingerprint'][:12]}. "
+                  "Each step goes through the usual checks and confirmations; press Stop to cancel._")
+        self._dock.statusSignal.emit("Running workflow...")
+        self.send_btn.setEnabled(False)
+        self.stop_btn.setEnabled(True)
+
+        def on_tool_step(name, status, error):
+            self._dock.toolStepSignal.emit(name, status, error or "")      # called from the worker thread; the signal queues it onto the GUI thread
+
+        def work(is_cancelled):
+            return agent.run_workflow_steps(steps, workflow, should_stop=is_cancelled, tool_step_callback=on_tool_step)
+
+        def on_done(result, err):
+            self._active_task = None
+            self.stop_btn.setEnabled(False)
+            self.send_btn.setEnabled(True)
+            self._dock.statusSignal.emit("")
+            self._flush_tool_steps_summary()
+            if err:
+                self._dock.receiveMessageSignal.emit("ai", "The workflow stopped: " + ("cancelled." if isinstance(err, InterruptedError) else format_send_error(err)))
+            else:
+                self._dock.receiveMessageSignal.emit("ai", workflow_import.result_text(document, result, start_at))
+            self._show_safety_gate_in_chat(agent)
+
+        self._active_task = run_background_call("Cartogen AI workflow file", work, on_done)
+
     def _enforce_output_contract(self, sent_text):
         """After a turn: did the answer actually come back in the promised form?
 

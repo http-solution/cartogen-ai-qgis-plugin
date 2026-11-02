@@ -44,11 +44,11 @@ def _refs_in(value):
             yield from _refs_in(v)
 
 
-def validate_steps(steps, schemas, operation_of):
+def validate_steps(steps, schemas, operation_of, max_steps=MAX_STEPS):
     """Error text, or None when every step may run. `schemas` maps offered tool name -> its parameters schema; `operation_of(name)`
     gives READ/CREATE/MODIFY/DELETE/PUBLISH. Checks happen before anything runs, so a bad plan costs nothing."""
-    if len(steps) > MAX_STEPS:
-        return f"At most {MAX_STEPS} steps per run_steps call (got {len(steps)}); send the rest in a second call."
+    if len(steps) > max_steps:
+        return f"At most {max_steps} steps per run_steps call (got {len(steps)}); send the rest in a second call."
     for i, step in enumerate(steps, 1):
         if not isinstance(step, dict) or not isinstance(step.get("tool"), str):
             return f"Step {i} must be an object with a `tool` name."

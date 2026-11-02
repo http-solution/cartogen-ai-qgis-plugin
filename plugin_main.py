@@ -155,6 +155,12 @@ class CartogenAi:
         mcp_action.triggered.connect(self.toggle_mcp_server)
         self.iface.addPluginToMenu(self.menu, mcp_action)
         self.actions.append(mcp_action)
+
+        # PLAN-048 stage 3: open a workflow file someone else made. Person-initiated only; there is deliberately no tool that does this.
+        workflow_action = QAction(self.tr("Open workflow file..."), self.iface.mainWindow())
+        workflow_action.triggered.connect(self.open_workflow_file)
+        self.iface.addPluginToMenu(self.menu, workflow_action)
+        self.actions.append(workflow_action)
         self.initProcessing()
 
         # The agent instance and dock widget are cached/reused across QGIS
@@ -462,6 +468,43 @@ class CartogenAi:
         box.exec()
         if box.clickedButton() == copy_button:
             QApplication.clipboard().setText(command)
+
+    def open_workflow_file(self):
+        """Opens a shared workflow file (PLAN-048): pick the file, see it checked, read every step, map its layer roles to your own layers, then Run.
+        The file is validated before anything is shown and nothing runs until the Run button; the chat then runs the steps through the usual gates."""
+        from qgis.PyQt.QtWidgets import QFileDialog, QMessageBox
+        path, _filter = QFileDialog.getOpenFileName(self.iface.mainWindow(), self.tr("Open a workflow file"), "",
+                                                    self.tr("Cartogen workflow (*.cgworkflow.json);;JSON (*.json)"))
+        if not path:
+            return
+        from cartogen_ai.core import tool_operations
+        from cartogen_ai.core.agent import workflow_file
+        from cartogen_ai.core.agent.tools.registry import TOOLS_SCHEMA
+        from cartogen_ai.core.agent.tools.workflow_file_tools import project_layers
+        from cartogen_ai.core.ui.workflow_import_dialog import WorkflowImportDialog
+        try:
+            if os.path.getsize(path) > workflow_file.MAX_BYTES:
+                raw = None
+            else:
+                with open(path, "rb") as fh:
+                    raw = fh.read()
+        except OSError as e:
+            QMessageBox.warning(self.iface.mainWindow(), self.tr("Workflow file"), self.tr("Could not read the file: %s") % e)
+            return
+        if raw is None:
+            document, problems, warnings = None, [f"The file is larger than {workflow_file.MAX_BYTES:,} bytes."], []
+        else:
+            document, problems, warnings = workflow_file.validate(raw, workflow_file.schemas_from(TOOLS_SCHEMA), tool_operations.get_tool_operation_type)
+        dialog = WorkflowImportDialog(self.iface.mainWindow(), os.path.basename(path), document, problems, warnings, project_layers(),
+                                      tool_operations.get_tool_operation_type)
+        if not dialog.exec() or document is None:
+            return
+        ok, _just_created = self._ensure_dock()
+        if not ok:
+            return
+        self.dock_widget.show()
+        self.dock_widget.raise_()
+        self.dock_widget.run_workflow(document, dialog.mapping(), dialog.start_at())
 
     def show_help(self):
         """Opens Help in its own dialog rather than the dock -- independent of whether the

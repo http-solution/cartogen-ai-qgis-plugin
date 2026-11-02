@@ -41,6 +41,19 @@ def _layer_info(name):
     return {"kind": "vector", "geometry": geometry, "fields": list(layer.fields().names())}
 
 
+def layer_info(name):
+    """Public form of _layer_info for the import dialog: {"kind", "geometry", "fields"} of a loaded layer, or None."""
+    return _layer_info(name)
+
+
+def project_layers():
+    """[(layer name, info)] for every layer in the open project, in name order. MAIN THREAD."""
+    if not QGIS_AVAILABLE:
+        return []
+    names = sorted({layer.name() for layer in QgsProject.instance().mapLayers().values()})
+    return [(n, _layer_info(n) or {}) for n in names]
+
+
 def _target_path(output_path, document):
     path = resolve_output_path(output_path)
     if not path:

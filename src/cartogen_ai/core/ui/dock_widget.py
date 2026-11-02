@@ -251,6 +251,10 @@ class CartogenAiDockWidget(QDockWidget):
             self.statusSignal.emit("Settings saved")
             self._refresh_after_connection_change()
 
+    def run_workflow(self, document, mapping, start_at=1):
+        """Runs a workflow file the person opened from Plugins > Cartogen AI > Open workflow file (PLAN-048); the chat tab does the work."""
+        self.chat_tab_widget.run_workflow(document, mapping, start_at)
+
     def open_connections(self):
         """The Connections window (PLAN-041): API keys, models, Ollama and CLI logins. Also reachable from Plugins > Cartogen AI."""
         from .connections_dialog import CartogenAiConnectionsDialog

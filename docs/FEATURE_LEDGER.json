@@ -2196,6 +2196,37 @@
    ],
    "hand_verified": "not verified by a person: never run in a real session; the preview card as a user sees it, a multi-layer many-step export and a share between two machines are untried. The live test was written without a QGIS install (CI's first run is its first execution). Recorded arguments are the ones the model sent, so a later repair of an argument is not reflected.",
    "hand_row": "run a short analysis (for example fetch boundaries, buffer facilities, join), ask 'export this workflow as a file', read the preview (steps, roles, no paths), confirm, open the .cgworkflow.json in a text editor and check it has no data, no file paths and no credentials"
+  },
+  {
+   "id": "workflow-file-import",
+   "feature": "Plugins > Cartogen AI > Open workflow file... (person-initiated only; no tool opens or runs a file): the file is validated first (a refused file is shown with its reasons and no Run button); the dialog shows a warning that someone else wrote it, the SHA-256, every step with its kind of change and arguments, the author's limitations and data sources, a layer chooser per role (right kind only) and a start step; Run is disabled until every role in use is mapped and no problem remains. The chat then runs the mapped steps with NO model call, one at a time through the normal tool path (confirmations, egress, sensitivity, result gate, layer preflight all apply), on a worker thread with Stop; the run stops at the first error, at the first step waiting for Confirm, or on a loop-guard stop, and says which steps did not run. Layers it creates record the workflow name and fingerprint in their lineage",
+   "issues": [],
+   "since": "1.18.6",
+   "sources": [
+    "src/cartogen_ai/core/agent/workflow_import.py",
+    "src/cartogen_ai/core/agent/agent_orchestrator.py",
+    "src/cartogen_ai/core/agent/step_runner.py",
+    "src/cartogen_ai/core/agent/lineage.py",
+    "src/cartogen_ai/core/ui/workflow_import_dialog.py",
+    "src/cartogen_ai/core/ui/chat_tab_widget.py",
+    "plugin_main.py",
+    "docs/plans/PLAN-048-shareable-workflow-file.md"
+   ],
+   "guards": [
+    "tests/test_workflow_import.py::TestApplyMapping::test_roles_become_layer_names_and_references_are_left_for_the_runner",
+    "tests/test_workflow_import.py::TestApplyMapping::test_an_unmapped_blank_or_missing_layer_is_a_problem",
+    "tests/test_workflow_import.py::TestApplyMapping::test_starting_part_way_renumbers_references_and_only_needs_the_roles_still_used",
+    "tests/test_workflow_import.py::TestApplyMapping::test_a_reference_to_a_step_before_the_start_is_refused",
+    "tests/test_workflow_import.py::TestCompatibility::test_the_wrong_kind_is_a_problem_and_the_wrong_geometry_or_missing_fields_are_warnings",
+    "tests/test_workflow_import.py::TestRunner::test_the_steps_run_in_order_with_references_resolved_and_no_model_call",
+    "tests/test_workflow_import.py::TestRunner::test_the_workflow_identity_is_visible_to_the_tools_and_cleared_afterwards",
+    "tests/test_workflow_import.py::TestRunner::test_a_step_waiting_for_confirmation_stops_the_run",
+    "tests/test_workflow_import.py::TestRunner::test_a_layer_that_is_not_in_the_project_is_refused_before_any_step_runs",
+    "tests/test_workflow_import_live.py::TestWorkflowImportLive::test_the_dialog_enables_run_only_when_every_role_is_mapped",
+    "tests/test_workflow_import_live.py::TestWorkflowImportLive::test_the_runner_executes_the_mapped_file_through_the_real_tools_and_records_the_file"
+   ],
+   "hand_verified": "not verified by a person: nobody has looked at the dialog, run a file from another machine, watched the chat during a run, or tried Confirm-then-continue. The live tests were written without a QGIS install (CI's first run is their first execution); the real-tool run uses a bare agent with the dispatcher bypassed, so it does not exercise the worker-thread path.",
+   "hand_row": "export a workflow (see workflow-file-export), open it from Plugins > Cartogen AI > Open workflow file... on another profile or machine, read the dialog (warning, checksum, every step), map the roles, press Run, watch the steps in the chat, and compare the result; then try a file with a step that needs Confirm and continue from the next step"
   }
  ]
 }
