@@ -69,6 +69,21 @@ class TestResultGateLive(unittest.TestCase):
         geometry = next(c for c in result["checks"] if c["id"] == "geometry")
         self.assertIn(geometry["status"], ("warn", "fail"), geometry)
 
+    def test_a_result_listing_several_created_layers_checks_each_and_names_which(self):
+        from cartogen_ai.core.agent import result_gate
+        self._squares("reach_a", [0.1, 0.4, 0.7])
+        self._squares("reach_b", [0.2, 0.3, 0.9])
+        result = result_gate.attach_checks("calculate_service_area", {"success": True, "layers_created": ["reach_a", "reach_b"]}, "CREATE")
+        ids = [c["id"] for c in result["checks"]]
+        self.assertTrue(any(i.startswith("reach_a: ") for i in ids), ids)
+        self.assertTrue(any(i.startswith("reach_b: ") for i in ids), ids)
+
+    def test_an_empty_created_layer_is_a_failed_check(self):
+        from cartogen_ai.core.agent import result_gate
+        self._squares("nothing_found", [])
+        result = result_gate.attach_checks("fetch_osm_features", {"success": True, "layer_name": "nothing_found"}, "CREATE")
+        self.assertTrue(any(c["status"] == "fail" for c in result.get("checks", [])), result)
+
     def test_a_real_tool_result_carries_checks(self):
         from cartogen_ai.core.agent.tools import analysis_tools
         self._squares("admin", [0.0, 0.0, 0.0, 0.0])

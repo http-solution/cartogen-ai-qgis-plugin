@@ -41,6 +41,43 @@ class TestEligibility(unittest.TestCase):
         self.assertNotIn("checks", result)
 
 
+class TestSeveralLayers(unittest.TestCase):
+    def test_layers_created_alone_makes_a_result_eligible_and_layer_name_comes_first(self):
+        self.assertTrue(result_gate.eligible("CREATE", {"success": True, "layers_created": ["reach_30"]}))
+        self.assertEqual(result_gate.output_layer_names({"layer_name": "main", "layers_created": ["a", "main", "b"]}), ["main", "a", "b"])
+
+    def test_junk_in_layers_created_is_ignored_and_only_the_first_five_are_checked(self):
+        names = result_gate.output_layer_names({"layers_created": ["a", None, 3, "", "  ", "a", "b", "c", "d", "e", "f"]})
+        self.assertEqual(names, ["a", "b", "c", "d", "e"])
+        self.assertEqual(result_gate.output_layer_names({"layers_created": "not a list"}), [])
+        self.assertFalse(result_gate.eligible("CREATE", {"success": True, "layers_created": []}))
+
+
+class TestWhereTheGateIsCalled(unittest.TestCase):
+    """Structural guards (the behaviour itself is in test_result_gate_live.py): a refactor that drops the gate from a path fails here, offline."""
+
+    def test_the_network_and_two_phase_branch_runs_the_gate_after_the_call(self):
+        import inspect
+        from cartogen_ai.core.agent import agent_orchestrator
+        source = inspect.getsource(agent_orchestrator.CartogenAi._execute_tool)
+        self.assertEqual(source.count("result_gate.attach_checks("), 2, "one call on the ordinary path, one on the network/two-phase path")
+
+    def test_steps_inside_run_steps_have_their_map_picture_detached(self):
+        import inspect
+        from cartogen_ai.core.agent import agent_orchestrator
+        self.assertIn("_detach_canvas_image", inspect.getsource(agent_orchestrator.CartogenAi._run_steps))
+        self.assertIn("image_messages", inspect.signature(agent_orchestrator.CartogenAi._run_steps).parameters)
+
+    def test_the_tools_that_write_a_score_field_are_classified_so_the_gate_covers_them(self):
+        from cartogen_ai.core import tool_operations
+        import cartogen_ai.core.agent.agent_orchestrator  # noqa: F401  (registers every tool)
+        for tool in ("calculate_severity_index", "calculate_presence_gap", "calculate_population_in_need", "calculate_damage_exposure_severity",
+                     "calculate_allocation_envelope", "calculate_mcda_ranking", "apply_network_barriers", "build_composite_impedance_field",
+                     "calculate_service_area", "population_access_gap", "fetch_geoboundaries", "ingest_osm_features", "fetch_building_footprints",
+                     "fetch_usgs_earthquakes", "fetch_nasa_active_fires"):
+            self.assertIn(tool_operations.get_tool_operation_type(tool), result_gate.GATED_OPERATIONS, tool)
+
+
 class TestAttach(unittest.TestCase):
     def test_a_failed_check_adds_a_note_the_model_must_act_on(self):
         result = result_gate.attach({"success": True}, [{"id": "geometry", "status": rc.PASS, "detail": "ok"}, failed()])
