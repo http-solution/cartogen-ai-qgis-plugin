@@ -1,6 +1,6 @@
 # PLAN-048: A shareable workflow file (owner decisions 1 and 4 of PLAN-047)
 
-Status: planned
+Status: in progress
 
 ## Goal
 A person can export what they did as a workflow file, send it to a colleague (GitHub, email, a shared drive), and the colleague can inspect every step, map the file's layer roles to their own layers, and run it, with every step going through the same confirmation, egress and sensitivity gates as a chat request. The file is data only: it contains no code and cannot make the plugin do anything outside a short, reviewed list of tools. This is the whole of the "workflow builder" and "marketplace" the owner chose (PLAN-047: share as files, no node editor, no store).
@@ -14,7 +14,7 @@ A person can export what they did as a workflow file, send it to a colleague (Gi
 ## Scope
 In:
 1. **The format** (version 1), below.
-2. **A pure validator** (`core/services/workflow_file.py`, no QGIS): parse, check, normalise, report problems as plain sentences. Everything the import will rely on is decided here and unit-tested offline.
+2. **A pure validator** (`core/agent/workflow_file.py`, no QGIS; placed in `core/agent`, not `core/services`, because it uses the agent's tool lists and `step_runner`): parse, check, normalise, report problems as plain sentences. Everything the import will rely on is decided here and unit-tested offline.
 3. **Export**: a model-callable tool `export_workflow_file(layer_names, path?)` (classified PUBLISH; the existing overwrite card applies) that builds a file from recorded lineage, replacing layer names with roles, and shows what it wrote.
 4. **Import**: a menu action in the plugin ("Workflows > Open workflow file..."), person-initiated only. A dialog lists every step (tool, kind of change, arguments with roles shown), the file's SHA-256, its limitations and its data sources, asks the person to map each role to a project layer, then runs the steps one at a time through the normal tool path with a Stop button.
 5. A worked example file for the service-coverage analysis and a short guide page.
@@ -74,3 +74,5 @@ The menu action and the export tool are the only entry points: remove them and n
 
 ## Status log
 - 2026-11-02: plan written from the owner's PLAN-047 decisions 1 and 4. No code. Findings recorded above: the existing preset runner calls tool functions directly and so skips the gates (fine for its seven read-only tools, not to be copied); `run_steps` already defines the step shape and references to reuse.
+- 2026-11-02: the owner said "go with the recommendations": the four decisions are taken as recommended. (1) Extension `.cgworkflow.json`. (2) The twelve fixed-service fetch tools are allowed as steps in a file (not over MCP). (3) Step cap 20 per file. (4) Worked examples live in `docs/examples/workflows/`.
+- 2026-11-02: stage 1 built (offline only, no entry point, nothing a user can reach yet). `core/agent/tool_lists.py` is now the one place the reviewed lists live (`READ_TOOLS`, `WRITE_TOOLS`, `FETCH_TOOLS`, `FILE_TOOLS`); `mcp_policy` imports them, so MCP and files cannot drift apart (a test pins it, and that `FETCH_TOOLS` equals the source-record table). `core/agent/workflow_file.py` validates a file and returns the normalised document with a SHA-256 fingerprint, plain-sentence problems naming the step, and warnings; `describe_steps` gives the rows the import dialog will list. `docs/examples/workflows/access-to-care.cgworkflow.json` is a hand-written example (not exported, not run) and a test validates it. `tests/test_workflow_file.py`: 23 tests. Not built: export, import dialog, runner (stages 2 to 4). Honest limit: the rule "`confirmed` is a refusal" and "tools with their own confirmed step are not on the list" rest on the lists plus a test that no listed tool accepts `confirmed`; the schema does not advertise `confirmed`, so the validator cannot see it from the schema alone.

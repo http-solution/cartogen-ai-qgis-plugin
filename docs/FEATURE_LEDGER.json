@@ -2147,6 +2147,31 @@
    ],
    "hand_verified": "not verified in any real MCP client or by a person at the dialog. The dialog test clicks the buttons from a timer; how it looks and reads to a person was never seen. The live tests were written without a QGIS install (CI's first run is their first execution). Not covered: undo of an approved change, the tools that have their own confirmed step, a client that sends many calls while a dialog is open (the extras are refused).",
    "hand_row": "start the MCP server, connect Claude Code, ask it to buffer a layer by 500 metres: a dialog must appear naming buffer_analysis and the arguments; press Deny (client is told no, nothing created); ask again and press Allow once (layer appears); ask again and leave it for two minutes (refused); mark the layer SENSITIVE and ask again (refused with no dialog)"
+  },
+  {
+   "id": "workflow-file-validator",
+   "feature": "one module (core/agent/tool_lists.py) holds the reviewed lists of tools that may be handed to something outside the chat; MCP and shareable workflow files both read it, so they cannot drift apart. A workflow file (format cartogen-workflow, version 1, at most 256 KB and 20 steps) is judged by workflow_file.validate: only tools on the list (no scripts, deletes, batch tools, free paths or URLs, memory or sensitivity tools), only arguments the tool advertises, `confirmed` anywhere is a refusal, types checked against the schema, path-like and web-address values refused, `$n` references must point to earlier steps and `@role` names must be declared, every problem a sentence naming its step, and a SHA-256 fingerprint of the normalised document. No entry point yet: nothing a user can reach until stages 2 to 4 of PLAN-048",
+   "issues": [],
+   "since": "1.18.6",
+   "sources": [
+    "src/cartogen_ai/core/agent/tool_lists.py",
+    "src/cartogen_ai/core/agent/workflow_file.py",
+    "src/cartogen_ai/core/agent/mcp_policy.py",
+    "docs/plans/PLAN-048-shareable-workflow-file.md"
+   ],
+   "guards": [
+    "tests/test_workflow_file.py::TestLists::test_every_listed_tool_exists_and_none_is_a_delete_or_has_its_own_confirmation",
+    "tests/test_workflow_file.py::TestLists::test_mcp_and_files_share_one_list",
+    "tests/test_workflow_file.py::TestLists::test_dangerous_tools_are_not_on_the_file_list",
+    "tests/test_workflow_file.py::TestAccepts::test_a_good_file_is_accepted_normalised_and_fingerprinted",
+    "tests/test_workflow_file.py::TestAccepts::test_the_worked_example_file_is_valid",
+    "tests/test_workflow_file.py::TestRefusesAStep::test_confirmed_is_a_refusal_not_a_silent_drop",
+    "tests/test_workflow_file.py::TestRefusesAStep::test_paths_urls_and_long_strings_are_refused",
+    "tests/test_workflow_file.py::TestRefusesAStep::test_references_must_point_back_and_roles_must_be_declared",
+    "tests/test_workflow_file.py::TestWarnings::test_garbage_never_raises"
+   ],
+   "hand_verified": "not verified by a person: there is no entry point yet (export, import dialog and runner are stages 2 to 4 of PLAN-048), so there is nothing to try by hand. Offline tests only. The worked example file was written by hand and never run.",
+   "hand_row": "none: no entry point exists yet; the hand test for the whole feature is written with stage 3 (export a service-coverage run, open the file on another profile, read the dialog, map the roles, run it)"
   }
  ]
 }

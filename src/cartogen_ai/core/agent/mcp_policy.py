@@ -19,26 +19,17 @@ address and port the server is bound to (DNS rebinding), a browser Origin must b
 import hmac
 import json
 
+from . import tool_lists
+
 SERVER_NAME = "cartogen-ai"
 PROTOCOL_VERSIONS = ("2025-06-18", "2025-03-26", "2024-11-05")
 MAX_BODY_BYTES = 1_000_000
 MAX_RESULT_CHARS = 200_000
 
-ALLOWED_TOOLS = frozenset({
-    "get_layers", "get_attributes", "get_crs", "get_feature_count", "get_layer_extent", "get_layer_metadata", "get_layer_sensitivity",
-    "get_layer_confidence", "get_dataset_status", "get_provenance_record", "field_statistics", "list_layouts", "list_layout_items",
-    "list_map_themes", "list_bookmarks", "list_relations", "verify_crs_compatibility", "find_broken_layers", "check_pcode_uniqueness",
-    "check_pcode_hierarchy", "validate_schema", "list_schema_contracts", "measure_distance", "find_tools",
-})
+READ_TOOLS = tool_lists.READ_TOOLS
+ALLOWED_TOOLS = READ_TOOLS          # the name MCP code and tests already use
 
-WRITE_TOOLS = frozenset({
-    # analysis: each makes a NEW layer from existing ones
-    "buffer_analysis", "clip_layer", "centroid", "convex_hull", "dissolve_layer", "difference_layers", "intersect_layers", "union_layers",
-    "merge_layers", "spatial_join", "join_by_attribute", "convert_to_singlepart", "simplify_geometry", "fix_geometries", "reproject_layer",
-    "voronoi_polygons", "delaunay_triangulation", "find_nearest_features", "calculate_service_area",
-    # presentation only
-    "apply_graduated_style", "apply_categorized_style", "change_layer_color", "apply_labels", "set_layer_transparency", "toggle_visibility", "rename_layer",
-})
+WRITE_TOOLS = tool_lists.WRITE_TOOLS
 
 INSTRUCTIONS = ("Cartogen AI's view of the open QGIS project. Layers marked RESTRICTED or SENSITIVE are never returned. Read tools run at once and never "
                 "return feature values. Write tools wait for the user to approve each call in QGIS and are refused if the user says no or does not answer. "
