@@ -138,6 +138,14 @@ class TestMcpWritesNeedApprovalLive(McpLiveBase):
         self.assertEqual(self._names(), before)
         self.assertEqual(len(self.asked), 1)
 
+    def test_the_dialog_text_names_the_input_layer_and_its_feature_count(self):
+        """PLAN-055 gap D option 1: the person sees how big the input is before saying yes. Written without a QGIS install; CI's first run is its first execution."""
+        self._call("buffer_analysis", {"layer_name": "open_pts", "distance": 1, "output_name": "buf_size"})
+        self.assertEqual(len(self.asked), 1)
+        count = QgsProject.instance().mapLayersByName("open_pts")[0].featureCount()
+        self.assertIn(f"open_pts: {count:,} feature", self.asked[0][1])
+        self.assertNotIn("buf_size: ", self.asked[0][1])        # a new name is not an existing layer, so it gets no size line
+
     def test_a_yes_runs_it_and_the_new_layer_keeps_its_lineage(self):
         from cartogen_ai.core.agent.lineage import get_layer_lineage
         self.answer = True

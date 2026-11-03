@@ -75,6 +75,29 @@ def _tag_lineage(name, args, result, ids_before):
         log_event("swallowed_exception", tag="MCP", tool="lineage_tagging", error_class=type(e).__name__, error=True)
 
 
+def layer_sizes(arguments):
+    """[(layer name, feature count or None)] for each argument value that names exactly one vector layer in the open project (at most
+    mcp_policy.MAX_SIZE_LINES). MAIN THREAD. Only reads feature counts. Returns [] when QGIS is not there; a count the layer cannot give is None."""
+    try:
+        from qgis.core import QgsProject, QgsVectorLayer
+    except ImportError:
+        return []
+    project = QgsProject.instance()
+    sizes = []
+    for candidate in mcp_policy.layer_name_candidates(arguments):
+        layers = [layer for layer in project.mapLayersByName(candidate) if isinstance(layer, QgsVectorLayer)]
+        if len(layers) != 1:
+            continue
+        try:
+            count = int(layers[0].featureCount())
+        except Exception:
+            count = None
+        sizes.append((candidate, count))
+        if len(sizes) >= mcp_policy.MAX_SIZE_LINES:
+            break
+    return sizes
+
+
 def run_allowed_tool(name, arguments, approve=None):
     """Runs one allowed tool with the gates in front: egress first (so a person is never asked to approve a call that would be blocked anyway), then,
     for a write tool, the person's approval. MAIN THREAD. `approve(name, text) -> bool` is the dialog; None means writes are refused."""
@@ -95,7 +118,12 @@ def run_allowed_tool(name, arguments, approve=None):
     operation = tool_operations.get_tool_operation_type(name)
     if is_write:
         try:
-            allowed = approve(name, mcp_policy.approval_text(name, args, operation)) is True       # only an explicit True is a yes
+            try:
+                sizes = layer_sizes(args)
+            except Exception as e:                   # the size line is a help; a failing lookup must not stop the question being asked
+                log_event("swallowed_exception", tag="MCP", tool="layer_sizes", error_class=type(e).__name__, error=True)
+                sizes = []
+            allowed = approve(name, mcp_policy.approval_text(name, args, operation, sizes=sizes)) is True       # only an explicit True is a yes
         except Exception as e:                       # a dialog that fails is a "no", never a "yes"
             log_event("swallowed_exception", tag="MCP", tool="approval", error_class=type(e).__name__, error=True)
             allowed = False

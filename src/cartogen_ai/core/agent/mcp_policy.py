@@ -77,15 +77,54 @@ def tool_descriptors(schemas, writes=False):
     return sorted(out, key=lambda t: t["name"])
 
 
-def approval_text(name, arguments, operation):
-    """What the person sees when asked to approve a call: the tool, what kind of change it is, and the arguments exactly as sent (cut when long). Pure."""
+# A judgement, not a measurement: the 2026-10-12 processing-cost audit ranks the geoprocessing tools as risky because each is one synchronous Processing
+# call on the main thread, but nobody timed them by size. 50,000 features is where the dialog starts to say "this may freeze QGIS"; a smaller layer
+# usually finishes in seconds. The count is still listed below it, so the person decides with the real number.
+LARGE_INPUT_FEATURES = 50_000
+MAX_SIZE_LINES = 8
+
+
+def layer_name_candidates(arguments):
+    """The text values of a call's arguments, and the text items of any list value, in order and without repeats: the possible layer names. The
+    caller keeps only those that name a layer in the open project. Pure."""
+    if not isinstance(arguments, dict):
+        return []
+    found = []
+    for value in arguments.values():
+        for item in (value if isinstance(value, list) else [value]):
+            if isinstance(item, str) and item.strip() and item not in found:
+                found.append(item)
+    return found
+
+
+def _size_lines(sizes):
+    lines, large = [], False
+    for layer_name, count in list(sizes)[:MAX_SIZE_LINES]:
+        if isinstance(count, int) and count >= 0:
+            lines.append(f"  {layer_name}: {count:,} feature{'' if count == 1 else 's'}")
+            large = large or count >= LARGE_INPUT_FEATURES
+        else:
+            lines.append(f"  {layer_name}: size unknown")
+    return lines, large
+
+
+def approval_text(name, arguments, operation, sizes=None):
+    """What the person sees when asked to approve a call: the tool, what kind of change it is, the arguments exactly as sent (cut when long) and, when
+    `sizes` ([(layer name, feature count or None)]) is given, how big the input layers are with a plain warning when one is large. Pure."""
     try:
         shown = json.dumps(arguments, ensure_ascii=False, indent=2, default=str)
     except (TypeError, ValueError):
         shown = str(arguments)
     if len(shown) > MAX_APPROVAL_ARG_CHARS:
         shown = shown[:MAX_APPROVAL_ARG_CHARS] + f"\n... ({len(shown) - MAX_APPROVAL_ARG_CHARS} more characters not shown)"
-    return (f"An outside AI program asks Cartogen AI to run:\n\n  {name}   [{operation}]\n\nwith these arguments:\n\n{shown}\n\n"
+    size_block = ""
+    if sizes:
+        lines, large = _size_lines(sizes)
+        size_block = "Input layers in this project:\n\n" + "\n".join(lines) + "\n\n"
+        if large:
+            size_block += ("An input is large: QGIS may stop responding until this finishes, and it cannot be stopped from the outside program. "
+                           "Save your project first if that matters.\n\n")
+    return (f"An outside AI program asks Cartogen AI to run:\n\n  {name}   [{operation}]\n\nwith these arguments:\n\n{shown}\n\n{size_block}"
             "Allow this one call? Cartogen AI's Undo does not cover changes made this way. If you do not answer, the call is refused.")
 
 
