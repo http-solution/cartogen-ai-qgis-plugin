@@ -17,8 +17,10 @@ Which flags are droppable is a judgement (flagged in the pull request that added
 local traces; a shorter one means the reverse."""
 import re
 
+Flag = tuple[str, tuple[str, ...], bool, str]
+
 # (flag name, tokens placed on the command line, required, what dropping it means). The order is the command line's order.
-CLAUDE_FLAGS = [
+CLAUDE_FLAGS: tuple[Flag, ...] = (
     ("-p", ("-p",), True, ""),
     ("--output-format", ("--output-format", "json"), True, ""),
     ("--tools", ("--tools", ""), True, ""),
@@ -28,10 +30,10 @@ CLAUDE_FLAGS = [
      "Claude Code may keep this conversation in its own history on this computer."),
     ("--max-turns", ("--max-turns", "1"), False,
      "Claude Code is not told to stop after one turn; its tools are still off, so it only may take longer."),
-]
+)
 CLAUDE_TAIL = ("--system-prompt-file",)                      # takes the file path at build time; required
 
-CODEX_FLAGS = [
+CODEX_FLAGS: tuple[Flag, ...] = (
     ("exec", ("exec",), True, ""),
     ("--json", ("--json",), True, ""),
     ("--sandbox", ("--sandbox", "read-only"), True, ""),
@@ -40,7 +42,7 @@ CODEX_FLAGS = [
     ("--ephemeral", ("--ephemeral",), False, "Codex may keep a session file of this conversation on this computer."),
     ("--ignore-user-config", ("--ignore-user-config",), True, ""),
     ("--ignore-rules", ("--ignore-rules",), True, ""),
-]
+)
 
 _REJECTION = re.compile(
     r"(?:unknown|unrecognized|unrecognised|unexpected|invalid|unsupported)\s+(?:option|flag|argument|arg|parameter)s?\b[:\s]*['\"`\u2018\u2019]?(-{1,2}[A-Za-z][\w-]*)",

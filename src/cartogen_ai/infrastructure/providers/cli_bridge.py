@@ -446,7 +446,7 @@ def estimate_usage(prompt, reply):
 
 
 # Droppable flags a program file has rejected, remembered so the next call does not fail first: {(path, modified time): {flag names}}. In memory only.
-_FLAG_SKIPS = {}
+_FLAG_SKIPS: dict[tuple[str, int], set[str]] = {}
 MAX_FLAG_DROPS = 3          # a run is tried at most this many times more, each time without one more rejected flag
 
 
@@ -506,7 +506,7 @@ class _CliClient(BaseAiProvider):
         """Runs the CLI once and returns (reply_text, usage_or_None, model_or_None). Raises CliBridgeError."""
         raise NotImplementedError
 
-    flag_table = ()       # cli_flags.CLAUDE_FLAGS or CODEX_FLAGS, set by a subclass
+    flag_table: tuple[cli_flags.Flag, ...] = ()       # cli_flags.CLAUDE_FLAGS or CODEX_FLAGS, set by a subclass
 
     def _run_with_flag_fallback(self, exe, make_argv, stdin_text, workdir):
         """run_cli, plus the one thing PLAN-053 stage 2 adds: when the CLI itself says it does not know a flag, a DROPPABLE one is left out and the run
