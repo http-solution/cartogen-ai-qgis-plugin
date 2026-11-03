@@ -1,0 +1,58 @@
+[
+ {
+  "id": "D1",
+  "defect": "Fetch tools skipped the egress gate",
+  "found_by": "Hand-test W11",
+  "status": "Fixed",
+  "pr": "554",
+  "next": "Rerun W11 by hand"
+ },
+ {
+  "id": "D2",
+  "defect": "A confirmed step skipped result checks and the Undo record",
+  "found_by": "Hand-test W1",
+  "status": "Fixed",
+  "pr": "554",
+  "next": "Rerun W1 by hand"
+ },
+ {
+  "id": "D3",
+  "defect": "Provenance said no checks recorded when checks existed",
+  "found_by": "Hand-test W3, W9",
+  "status": "Fixed",
+  "pr": "555",
+  "next": "Rerun W3 and W9 by hand"
+ },
+ {
+  "id": "D4",
+  "defect": "A result check was recorded after tagging a layer",
+  "found_by": "Hand-test W11 evidence",
+  "status": "Fixed",
+  "pr": "555",
+  "next": "none"
+ },
+ {
+  "id": "G1",
+  "defect": "A confirmed fetch still downloads on the UI thread",
+  "found_by": "Code reading",
+  "status": "Open",
+  "pr": "",
+  "next": "none"
+ },
+ {
+  "id": "G2",
+  "defect": "Stray-fragment and plan gates are not asked for fetch tools",
+  "found_by": "Code reading",
+  "status": "Open",
+  "pr": "",
+  "next": "none"
+ },
+ {
+  "id": "G3",
+  "defect": "MCP server freezes QGIS if a client blocks its main thread",
+  "found_by": "Agent report",
+  "status": "Unchecked",
+  "pr": "",
+  "next": "none"
+ }
+]
