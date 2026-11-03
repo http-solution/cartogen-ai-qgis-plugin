@@ -70,9 +70,11 @@ def _derive_sidecar_path(layer, output_path):
     "get_provenance_record",
     "Read a layer's machine-readable provenance record without writing anything to disk: "
     "the QGIS version, its full tool-execution lineage (what tool chain produced/modified it, "
-    "see get_layer_lineage-tracked history), and its QA-gate lifecycle status/history/checks "
-    "(see get_dataset_status). Use this to inspect provenance in-conversation; use "
-    "write_provenance_sidecar instead to save it as a real JSON file.",
+    "see get_layer_lineage-tracked history), where fetched data came from (sources), the automatic result "
+    "checks stored after each analysis (result_checks), and the manual lifecycle gate (qa_status: "
+    "status/history/checks, empty unless set with the status tools; see get_dataset_status). The last two "
+    "are different records: an empty qa_status does not mean no checks ran. Use this to inspect provenance "
+    "in-conversation; use write_provenance_sidecar instead to save it as a real JSON file.",
     {
         "type": "object",
         "properties": {"layer_name": {"type": "string"}},

@@ -44,6 +44,19 @@ def _qgis_version():
         return None
 
 
+CHECKS_PROPERTY_KEY = "cartogen/checks"      # same key as result_gate.CHECKS_PROPERTY_KEY (a test pins it); not imported so this module needs no QGIS
+
+
+def _stored_result_checks(layer):
+    """The automatic result checks the result gate stored on the layer (latest runs, oldest first); [] when none or the property is damaged. Pure."""
+    import json
+    try:
+        runs = json.loads(layer.customProperty(CHECKS_PROPERTY_KEY, "[]") or "[]")
+    except Exception:
+        return []
+    return [r for r in runs if isinstance(r, dict)] if isinstance(runs, list) else []
+
+
 def build_provenance_record(layer, lookup=None) -> dict:
     """Builds a machine-readable provenance record for a layer:
 
@@ -52,7 +65,8 @@ def build_provenance_record(layer, lookup=None) -> dict:
             "generated_at": "<local timestamp>",
             "qgis_version": <str or None>,
             "lineage": [...],     # lineage.py's get_layer_lineage(layer)
-            "qa_status": {...},   # dataset_status.py's get_dataset_status(layer)
+            "qa_status": {...},   # dataset_status.py's get_dataset_status(layer): the MANUAL lifecycle gate, empty unless the status tools were used
+            "result_checks": [...],   # the AUTOMATIC checks the result gate stored on the layer after each analysis (a different record from qa_status)
             "sources": [...],     # source_record.py: where fetched data came from (own + inherited through lineage when `lookup(name)` is given)
         }
 
@@ -74,5 +88,6 @@ def build_provenance_record(layer, lookup=None) -> dict:
         "qgis_version": _qgis_version(),
         "lineage": get_layer_lineage(layer),
         "qa_status": get_dataset_status(layer),
+        "result_checks": _stored_result_checks(layer),
         "sources": source_record.collect(layer, lookup),
     }

@@ -33,6 +33,9 @@ except ImportError:
 SETTINGS_KEY = "cartogen_ai/result_gate"
 SAMPLE_CAP = 5000                       # features read per layer; bounds the cost on a 50,000-feature layer
 GATED_OPERATIONS = frozenset({"CREATE", "MODIFY"})
+# Tools that write a record ABOUT a layer (a sensitivity level, a lifecycle status, a confidence, metadata), not a result. Their result names the layer, so
+# the gate recorded "The output has 3 features" against it after set_layer_sensitivity (hand-test run 2026-11-03). Kept to the tagging tools seen or named.
+RECORD_ONLY_TOOLS = frozenset({"set_layer_sensitivity", "set_dataset_status", "advance_dataset_status", "set_layer_confidence", "set_layer_metadata"})
 DISTANCE_BASED_TOOLS: frozenset[str] = frozenset()      # see the module docstring: empty until a real run shows a tool computes in the layer's own CRS
 ONE_TO_ONE_TOOLS: frozenset[str] = frozenset()          # likewise: needs the input feature count, which the result does not carry yet
 
@@ -68,8 +71,10 @@ def output_layer_names(result):
     return names[:MAX_LAYERS_CHECKED]
 
 
-def eligible(operation_type, result):
-    """True for a successful CREATE/MODIFY result that names at least one output layer. Pure."""
+def eligible(operation_type, result, tool=None):
+    """True for a successful CREATE/MODIFY result that names at least one output layer, from a tool that makes a result (not a tagging tool). Pure."""
+    if tool in RECORD_ONLY_TOOLS:
+        return False
     if operation_type not in GATED_OPERATIONS or not isinstance(result, dict) or "error" in result or result.get("success") is False:
         return False
     return bool(output_layer_names(result))
@@ -177,7 +182,7 @@ def attach_checks(name, result, operation_type):
     """The hook: returns `result`, with checks attached when it is eligible. MAIN THREAD ONLY. Never raises. A result naming several layers has
     each checked; with more than one, every check id and detail is prefixed with its layer's name."""
     try:
-        if not QGIS_AVAILABLE or not gate_enabled() or not eligible(operation_type, result):
+        if not QGIS_AVAILABLE or not gate_enabled() or not eligible(operation_type, result, name):
             return result
         names = output_layer_names(result)
         all_checks, sampled = [], None
