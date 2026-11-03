@@ -1,0 +1,170 @@
+[
+ {
+  "row": "V1-update",
+  "what": "Update in place, then untick and tick the plugin",
+  "agent_result": "Partial",
+  "after_recheck": "Partial",
+  "note": "Rerun with an API provider (the CLI client reported its own cancel)",
+  "needs_rerun": true
+ },
+ {
+  "row": "V2-stop",
+  "what": "Stop a long request; memory comes back",
+  "agent_result": "Partial",
+  "after_recheck": "Partial",
+  "note": "Stop was pressed about 50 s late; rerun",
+  "needs_rerun": true
+ },
+ {
+  "row": "V3-contour",
+  "what": "Contour lines do not start a download",
+  "agent_result": "Pass",
+  "after_recheck": "Pass",
+  "note": "",
+  "needs_rerun": false
+ },
+ {
+  "row": "V4-animate",
+  "what": "'animate the layer over time' runs the animation tool",
+  "agent_result": "Fail",
+  "after_recheck": "Fail",
+  "note": "Model gave a how-to; a model-choice result, not a plugin fault",
+  "needs_rerun": true
+ },
+ {
+  "row": "V5-profile",
+  "what": "Elevation profile added once",
+  "agent_result": "Pass",
+  "after_recheck": "Pass",
+  "note": "",
+  "needs_rerun": false
+ },
+ {
+  "row": "V6-charts",
+  "what": "Charts linked to maps become layout charts",
+  "agent_result": "Pass",
+  "after_recheck": "Pass",
+  "note": "",
+  "needs_rerun": false
+ },
+ {
+  "row": "V7-merge",
+  "what": "'Combine two layers' is a merge",
+  "agent_result": "Pass",
+  "after_recheck": "Pass",
+  "note": "",
+  "needs_rerun": false
+ },
+ {
+  "row": "V8-raster",
+  "what": "Raster conversion is not a WorldPop fetch",
+  "agent_result": "Pass",
+  "after_recheck": "Pass",
+  "note": "",
+  "needs_rerun": false
+ },
+ {
+  "row": "V9-undo-field",
+  "what": "Undo of add_field",
+  "agent_result": "Partial",
+  "after_recheck": "Partial",
+  "note": "Attribute-table screenshots missing; behaviour matched",
+  "needs_rerun": false
+ },
+ {
+  "row": "W1-gate-on",
+  "what": "Result checks recorded on a computed layer",
+  "agent_result": "Fail",
+  "after_recheck": "Fail",
+  "note": "Plugin bug: a confirmed step skipped the result gate. Fixed in #554",
+  "needs_rerun": true
+ },
+ {
+  "row": "W2-gate-fetch",
+  "what": "A fetched layer gets checks and a source record",
+  "agent_result": "Pass",
+  "after_recheck": "Pass",
+  "note": "",
+  "needs_rerun": false
+ },
+ {
+  "row": "W3-provenance",
+  "what": "Provenance and spatial report print the data source",
+  "agent_result": "Partial",
+  "after_recheck": "Partial",
+  "note": "QA text ignored stored checks. Fixed in #555 (open)",
+  "needs_rerun": true
+ },
+ {
+  "row": "W4-report",
+  "what": "Verified workflow report",
+  "agent_result": "Pass",
+  "after_recheck": "Pass",
+  "note": "",
+  "needs_rerun": false
+ },
+ {
+  "row": "W5-hdx-ranked",
+  "what": "HDX search ranks open, recent, in-country data first",
+  "agent_result": "Partial",
+  "after_recheck": "Partial",
+  "note": "Facts match the HDX page; no screenshot file",
+  "needs_rerun": false
+ },
+ {
+  "row": "W6-mcp-probe",
+  "what": "MCP server refusals and read tools",
+  "agent_result": "Pass",
+  "after_recheck": "Pass",
+  "note": "Agent-run script; the server freeze is reported but unchecked",
+  "needs_rerun": false
+ },
+ {
+  "row": "W7-mcp-dialog",
+  "what": "MCP write asks first (Deny, Allow once, timeout)",
+  "agent_result": "Pass",
+  "after_recheck": "Pass",
+  "note": "Seen by an agent, not a person",
+  "needs_rerun": false
+ },
+ {
+  "row": "W8-export",
+  "what": "Export a workflow file",
+  "agent_result": "Pass",
+  "after_recheck": "Pass",
+  "note": "",
+  "needs_rerun": false
+ },
+ {
+  "row": "W9-import-good",
+  "what": "Open, map, run a workflow file",
+  "agent_result": "Fail",
+  "after_recheck": "Pass",
+  "note": "Failure was the package: the checker printed the wrong fingerprint",
+  "needs_rerun": false
+ },
+ {
+  "row": "W10-import-bad",
+  "what": "Six broken files refused in plain words",
+  "agent_result": "Pass",
+  "after_recheck": "Pass",
+  "note": "",
+  "needs_rerun": false
+ },
+ {
+  "row": "W11-import-egress",
+  "what": "A restricted area stops at the card",
+  "agent_result": "Fail",
+  "after_recheck": "Fail",
+  "note": "Plugin bug: fetch tools skipped the egress gate. Fixed in #554",
+  "needs_rerun": true
+ },
+ {
+  "row": "W12-guide",
+  "what": "A new reader can follow the workflow guide",
+  "agent_result": "Skip",
+  "after_recheck": "Skip",
+  "note": "Needs a reader who did not write it",
+  "needs_rerun": true
+ }
+]
