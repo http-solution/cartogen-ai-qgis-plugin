@@ -38,5 +38,30 @@ class TestEnvironmentLive(unittest.TestCase):
         self.assertIn("3.40.1", plugin.iface.messageBar().pushWarning.call_args[0][1])
 
 
+@unittest.skipUnless(LIVE, "requires real QGIS")
+class TestSettingsSectionLive(unittest.TestCase):
+    """PLAN-053 stage 3, real QGIS (written without one; CI's first run is its first execution): Settings has a 'This computer' section whose text is the
+    environment report and whose Copy button puts exactly that text on the clipboard."""
+
+    def test_the_section_shows_the_report_and_copy_puts_it_on_the_clipboard(self):
+        from tests.test_chat_widget_live import _boot_qgis
+        why = _boot_qgis()
+        if why:
+            self.skipTest(why)
+        from qgis.PyQt.QtWidgets import QApplication, QPlainTextEdit, QPushButton
+        from cartogen_ai.core.ui.settings_dialog import CartogenAiSettingsDialog
+        dialog = CartogenAiSettingsDialog()
+        box = dialog.findChild(QPlainTextEdit, "environmentReportText")
+        button = dialog.findChild(QPushButton, "environmentCopyButton")
+        self.assertIsNotNone(box)
+        self.assertIsNotNone(button)
+        self.assertTrue(box.isReadOnly())
+        self.assertIn("Cartogen AI", box.toPlainText())
+        self.assertIn(Qgis.QGIS_VERSION, box.toPlainText())
+        self.assertIn("inside the range", box.toPlainText())
+        button.click()
+        self.assertEqual(QApplication.clipboard().text(), box.toPlainText())
+
+
 if __name__ == "__main__":
     unittest.main()

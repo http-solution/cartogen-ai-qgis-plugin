@@ -3,7 +3,7 @@ from qgis.PyQt.QtCore import Qt
 from qgis.PyQt.QtWidgets import (
     QDialog, QVBoxLayout, QLabel, QApplication,
     QLineEdit, QComboBox, QFormLayout, QDialogButtonBox, QWidget, QCheckBox, QHBoxLayout, QPushButton, QSpinBox,
-    QScrollArea, QFrame, QToolButton,
+    QScrollArea, QFrame, QToolButton, QPlainTextEdit,
 )
 from qgis.core import QgsSettings
 
@@ -393,6 +393,7 @@ class CartogenAiSettingsDialog(QDialog):
         layout.addWidget(self._collapsible(
             "Diagnostic recording", diag_col,
             expanded=self.evidence_checkbox.isChecked() or self.api_trace_checkbox.isChecked()))
+        layout.addWidget(self._collapsible("This computer", self._build_environment_section()))
 
         # Buttons -- deliberately added to outer_layout, NOT layout/scroll_area, so OK/Cancel
         # stay fixed and reachable at the bottom of the dialog regardless of how tall the
@@ -432,6 +433,28 @@ QPushButton#settingsCancelButton {{
     border: 1px solid {BRAND_TEAL};
 }}
 """)
+
+    def _build_environment_section(self):
+        """PLAN-053 stage 3: what this computer runs, in the words of a bug report, with a Copy button. Reads versions only (no process is started, so
+        opening Settings never waits); the command-line tools' versions are in the Connections window."""
+        from .. import environment
+        from .. import release_notes
+        column = QVBoxLayout()
+        self.environment_report = QPlainTextEdit()
+        self.environment_report.setObjectName("environmentReportText")
+        self.environment_report.setReadOnly(True)
+        self.environment_report.setMaximumHeight(130)
+        try:
+            self.environment_report.setPlainText(environment.report_text(environment.detect(), release_notes.WHATS_NEW_VERSION))
+        except Exception:
+            self.environment_report.setPlainText("This computer could not be described.")
+        column.addWidget(self.environment_report)
+        self.environment_copy_button = QPushButton("Copy")
+        self.environment_copy_button.setObjectName("environmentCopyButton")
+        self.environment_copy_button.setToolTip("Copy this text to paste into a bug report. It holds versions only: no folder, user or computer name.")
+        self.environment_copy_button.clicked.connect(lambda: QApplication.clipboard().setText(self.environment_report.toPlainText()))
+        column.addWidget(self.environment_copy_button)
+        return column
 
     def _section_note(self, text):
         """A one-line, grey description under a section heading, saying what the section governs."""

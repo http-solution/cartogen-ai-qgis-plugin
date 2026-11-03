@@ -133,3 +133,66 @@ class TestCarriedWhereItIsNeeded(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestReportText(unittest.TestCase):
+    """PLAN-053 stage 3: the text of the Settings section 'This computer', the same lines a person pastes into a bug report."""
+
+    def test_a_supported_machine_reads_all_clear(self):
+        text = env.report_text(sample(), "1.18.5")
+        lines = text.splitlines()
+        self.assertEqual(lines[0], "Cartogen AI 1.18.5")
+        self.assertIn("QGIS 4.2.3-Prizren", lines[1])
+        self.assertIn("GDAL 3.10.0", text)
+        self.assertIn("inside the range", text)
+
+    def test_problems_are_listed_with_their_seriousness_in_words(self):
+        text = env.report_text(sample(qgis="3.40.1", os="FreeBSD"), "1.18.5")
+        self.assertIn("Not supported:", text)
+        self.assertIn("Not tried:", text)
+        self.assertIn("3.40.1", text)
+        self.assertNotIn("inside the range", text)
+
+    def test_nothing_personal_is_in_it(self):
+        text = env.report_text(sample(), "1.18.5")
+        for word in ("C:\\", "/home/", "/Users/", "@"):
+            self.assertNotIn(word, text)
+
+    def test_a_missing_plugin_version_leaves_the_heading_plain(self):
+        self.assertEqual(env.report_text(sample(), "").splitlines()[0], "Cartogen AI")
+
+
+class TestApiMismatchNote(unittest.TestCase):
+    def test_a_qgis_looking_failure_gets_the_machine_line(self):
+        for error in (AttributeError("module 'qgis.core' has no attribute 'QgsNewThing'"), ImportError("cannot import name 'QgsX' from 'qgis.core'"),
+                      NameError("name 'Qgis' is not defined"), TypeError("QgsVectorLayer(): argument 1 has unexpected type 'int'")):
+            self.assertEqual(env.api_mismatch_note(error, sample()), env.describe(sample()), repr(error))
+
+    def test_other_failures_get_nothing(self):
+        for error in (AttributeError("'NoneType' object has no attribute 'get'"), ValueError("bad input"), KeyError("name"), RuntimeError("Qgs thing broke")):
+            self.assertEqual(env.api_mismatch_note(error, sample()), "", repr(error))
+
+
+class TestWhereTheNoteAndTheSectionAre(unittest.TestCase):
+    def test_an_unexpected_tool_failure_carries_the_machine_only_when_it_looks_like_a_qgis_version_problem(self):
+        from cartogen_ai.core.agent import agent_orchestrator as agent_mod
+        agent = agent_mod.CartogenAi.__new__(agent_mod.CartogenAi)
+
+        def raising(error):
+            def boom(name, arguments):
+                raise error
+            return boom
+
+        agent._execute_tool_dispatch = raising(AttributeError("module 'qgis.core' has no attribute 'QgsNewThing'"))
+        result = agent._guarded_dispatch("some_tool", "{}")
+        self.assertIn("failed unexpectedly", result["error"])
+        self.assertEqual(result["error_class"], "AttributeError")
+        self.assertIn("environment", result)
+        agent._execute_tool_dispatch = raising(ValueError("bad input"))
+        self.assertNotIn("environment", agent._guarded_dispatch("some_tool", "{}"))
+
+    def test_the_settings_window_has_the_section_and_a_copy_button(self):
+        from pathlib import Path
+        text = (Path(__file__).resolve().parents[1] / "src" / "cartogen_ai" / "core" / "ui" / "settings_dialog.py").read_text(encoding="utf-8")
+        for needle in ("environment.report_text(", "environmentReportText", "environmentCopyButton", '"This computer"'):
+            self.assertIn(needle, text)

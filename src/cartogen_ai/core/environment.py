@@ -106,3 +106,32 @@ def startup_message(found_findings):
     """The text to show the user at start-up: the unsupported and untested findings only, most serious first; None when there is nothing to say. Pure."""
     shown = [f["text"] for f in found_findings if f["level"] in ("unsupported", "untested")]
     return " ".join(shown) if shown else None
+
+
+_LEVEL_WORDS = {"unsupported": "Not supported", "untested": "Not tried", "note": "Note"}
+_QGIS_WORDS = ("qgis", "qgs", "pyqt", "qt")
+
+
+def report_text(found, plugin_version=""):
+    """The text of the Settings section 'This computer' and of a bug report: the plugin version, the machine on one line, GDAL, and either 'inside the
+    range' or each finding with its seriousness in words. No path, user name or host name. Pure."""
+    lines = [f"Cartogen AI {plugin_version}".strip(), describe(found) or "The machine could not be described."]
+    if found.get("gdal"):
+        lines.append(f"GDAL {found['gdal']}")
+    problems = findings(found)
+    if not problems:
+        lines.append("Checked against what Cartogen AI was built for (QGIS 4.2 or later, Python 3.10 or later, Windows, macOS or Linux): inside the range.")
+    else:
+        lines.append("Checked against what Cartogen AI was built for:")
+        lines.extend(f"- {_LEVEL_WORDS[f['level']]}: {f['text']}" for f in problems)
+    return "\n".join(lines)
+
+
+def api_mismatch_note(error, found):
+    """The machine line to add to an unexpected tool failure when it looks like a QGIS or Qt version problem (a missing attribute, import or name, or a wrong
+    argument type, in a message that names QGIS or Qt), else ''. Other failures get nothing, so ordinary bugs are not blamed on the machine. Pure."""
+    if not isinstance(error, (AttributeError, ImportError, NameError, TypeError)):
+        return ""
+    message = str(error).lower()
+    return describe(found) if any(word in message for word in _QGIS_WORDS) else ""
+
