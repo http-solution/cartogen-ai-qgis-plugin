@@ -2246,6 +2246,7 @@
     "guards": [
       "tests/test_confirm_and_fetch_gates.py::TestFetchToolsAskTheEgressGate::test_every_two_phase_tool_is_stopped_with_a_confirmable_card_before_anything_is_fetched",
       "tests/test_confirm_and_fetch_gates.py::TestFetchToolsAskTheEgressGate::test_a_gate_that_fails_blocks_rather_than_lets_the_fetch_through",
+      "tests/test_fetch_confirm_card_warning.py::TestTheCardTheAgentRegisters::test_every_download_tool_gets_the_warning_on_its_card",
       "tests/test_fetch_tools_stray_fragment.py::TestFetchToolsOnAStrayFragmentTurn::test_every_changing_fetch_tool_is_refused_and_nothing_is_fetched",
       "tests/test_fetch_tools_stray_fragment.py::TestNoFetchToolNeedsAPlan::test_no_fetch_tool_is_delete_or_publish",
       "tests/test_confirm_and_fetch_gates.py::TestConfirmedCallsGoThroughTheSameWrapper::test_the_result_gate_and_the_transaction_record_run_for_a_confirmed_write",
@@ -2254,7 +2255,7 @@
       "tests/test_provenance_checks_and_tagging.py::TestProvenanceCarriesTheStoredResultChecks::test_a_layer_with_stored_checks_shows_them_beside_the_empty_lifecycle_status",
       "tests/test_provenance_checks_and_tagging.py::TestTaggingToolsAreNotResults::test_a_successful_tagging_call_is_not_eligible_for_result_checks"
     ],
-    "hand_verified": "not verified: found by the 2026-11-03 hand-test run (rows W11 and W1 failed), fixed and tested offline; the live test was written without a QGIS install (CI's first run is its first execution). Not yet re-run by hand. Known gap, not fixed: a confirmed fetch tool still runs its download on the UI thread (the Apply path calls the tool directly). The stray-fragment gate is now asked for fetch tools too (PLAN-055 gap B, CI only, not hand-run); the plan gate never applied to them (it covers only DELETE and PUBLISH tools). Also fixed 2026-11-03 (CI only): the provenance record now carries result_checks beside the manual qa_status, and tagging tools (set_layer_sensitivity and four more) no longer get result checks recorded.",
+    "hand_verified": "not verified: found by the 2026-11-03 hand-test run (rows W11 and W1 failed), fixed and tested offline; the live test was written without a QGIS install (CI's first run is its first execution). Not yet re-run by hand. Known limit, accepted by the owner 2026-11-03: a confirmed fetch tool still runs its download on the UI thread (the Apply path calls the tool directly), so QGIS can pause until it finishes; the confirmation card for a download tool now says so (PLAN-055 gap A, CI only, not seen by a person). The stray-fragment gate is now asked for fetch tools too (PLAN-055 gap B, CI only, not hand-run); the plan gate never applied to them (it covers only DELETE and PUBLISH tools). Also fixed 2026-11-03 (CI only): the provenance record now carries result_checks beside the manual qa_status, and tagging tools (set_layer_sensitivity and four more) no longer get result checks recorded.",
     "hand_row": "rows W1-gate-on and W11-import-egress of the 1.18.5 hand-test package (rerun both with the fixed build; W1 now needs cartogen/checks on smoke_admin after Apply)"
   },
   {

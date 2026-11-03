@@ -709,7 +709,7 @@ class CartogenAi:
             if egress_overridable:
                 # The confirmable task MUST be registered here: without it nothing confirmable exists, a typed "confirm" reaches the model
                 # instead of the plugin, and the model improvises (rc7 smoke test F02/F03, 2026-09-30).
-                blocked = egress_gate.preview_required(name, filtered_args, egress)
+                blocked = egress_gate.preview_required(name, filtered_args, egress, downloads=name in TWO_PHASE_TOOLS)
                 self._register_preview_task(name, args, blocked)
                 return blocked, egress, False
             return egress["result"], egress, False

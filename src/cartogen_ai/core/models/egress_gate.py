@@ -337,7 +337,7 @@ def _block_result(tool_name, protected):
     }
 
 
-def preview_required(tool_name, arguments, decision):
+def preview_required(tool_name, arguments, decision, downloads=False):
     """Wraps a normal block decision (one with known `layers` -- not a check-failure block,
     see below) as a PREVIEW_REQUIRED response, so agent_orchestrator.py's `_real_execute_tool`
     can hand it to the EXISTING destructive-action confirm/cancel machinery
@@ -355,6 +355,10 @@ def preview_required(tool_name, arguments, decision):
     NOT wrapped this way -- there is nothing concrete to show the user to confirm, so that case
     stays a hard, non-overridable block."""
     layers = decision.get("layers") or {}
+    # PLAN-055 gap A: the Apply button runs a confirmed call on the UI thread, so a download tool freezes QGIS for as long as the download takes. The
+    # owner chose to say so on the card rather than move Apply to a worker. `downloads` is passed by the caller (this module may not import the agent).
+    download_note = (" This tool downloads data: after you confirm, QGIS may pause until the download finishes (it can take a while for a large area)."
+                     if downloads else "")
     return {
         "status": "PREVIEW_REQUIRED",
         "rationale": (
@@ -364,7 +368,7 @@ def preview_required(tool_name, arguments, decision):
             "(the user) have decided this specific data may leave this machine. Switching to a "
             "local provider (e.g. Ollama) in Settings avoids needing to override anything. "
             "Separately from this call: the names, field names, field types, CRS and feature counts of every layer in the project "
-            "are always visible to the cloud model, whatever you decide here (rc40 hand test, #93)."
+            "are always visible to the cloud model, whatever you decide here (rc40 hand test, #93)." + download_note
         ),
         "code_snippet": "",
         "is_destructive": True,
