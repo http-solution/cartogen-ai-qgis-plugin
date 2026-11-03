@@ -717,6 +717,21 @@ class CartogenAi:
             log_event("egress_override_confirmed", tag="Agent", tool=name, layer_count=len(egress["layers"]))
         return None, egress, bool(egress_override_applied)
 
+    def _stray_fragment_block(self, name, user_confirmed):
+        """The refusal for a tool that would change something on a stray-fragment turn, else None (GitHub #130: a stray pasted fragment such as
+        "template: access_map" is not a request, but a real model improvised calls for it and created a layout). Such a turn may still READ the project
+        (the model can ask what the user wants), but nothing may be created, changed, deleted or written until the user says what they want. A
+        human-confirmed card still runs. One check for both dispatch paths: _execute_two_phase_tool did not ask it until PLAN-055 gap B, so a fragment
+        could still make the model fetch and add layers. Pure given the turn flag."""
+        if (getattr(self, "_stray_fragment_turn", False) and not user_confirmed
+                and tool_operations.get_tool_operation_type(name) in (
+                    tool_operations.CREATE, tool_operations.MODIFY, tool_operations.DELETE, tool_operations.PUBLISH)):
+            log_event("stray_fragment_blocked", tag="Agent", tool=name)
+            return {"error": ("The user's last message is a short fragment, not a request, so nothing was changed. "
+                              "Ask the user what they want to do with it before creating, editing or exporting anything."),
+                    "blocked": True}
+        return None
+
     def _real_execute_tool(self, name, arguments, user_confirmed: bool = False):
         func = TOOL_REGISTRY.get(name)
         if func is None:
@@ -749,16 +764,9 @@ class CartogenAi:
         if user_confirmed and _accepts_confirmed(func):
             filtered_args["confirmed"] = True
 
-        # GitHub #130: a stray pasted fragment ("template: access_map") is not a request, but a real model improvised calls for
-        # it and created a layout. Such a turn may still READ the project (the model can ask what the user wants), but nothing
-        # may be created, changed, deleted or written until the user says what they want. A human-confirmed card still runs.
-        if (getattr(self, "_stray_fragment_turn", False) and not user_confirmed
-                and tool_operations.get_tool_operation_type(name) in (
-                    tool_operations.CREATE, tool_operations.MODIFY, tool_operations.DELETE, tool_operations.PUBLISH)):
-            log_event("stray_fragment_blocked", tag="Agent", tool=name)
-            return {"error": ("The user's last message is a short fragment, not a request, so nothing was changed. "
-                              "Ask the user what they want to do with it before creating, editing or exporting anything."),
-                    "blocked": True}
+        blocked_fragment = self._stray_fragment_block(name, user_confirmed)
+        if blocked_fragment is not None:
+            return blocked_fragment
 
         # §1.6 option (b) plan-validation gate: checked BEFORE the call, not after --
         # blocking here means the DELETE/PUBLISH tool's own side effects never happen at
@@ -1264,6 +1272,9 @@ class CartogenAi:
             return {"error": f"Invalid tool arguments: expected an object, got {type(args).__name__}."}
         schema_props = self._get_schema_props(name)
         filtered_args = {k: v for k, v in args.items() if k in schema_props}
+        blocked_fragment = self._stray_fragment_block(name, False)
+        if blocked_fragment is not None:
+            return blocked_fragment
         verdict = self._run_on_main_thread(lambda _a: self._egress_precheck(name, args, filtered_args, False), None)
         if not (isinstance(verdict, tuple) and len(verdict) == 3):
             log_event("swallowed_exception", tag="Agent", tool="egress_precheck", error=True)

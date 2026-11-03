@@ -1,6 +1,6 @@
 # PLAN-055: The three gaps PLAN-051 left open on fetch tools
 
-Status: planned
+Status: in progress
 
 ## Goal
 PLAN-051 closed the two defects the first hand-test run found and recorded three gaps it did not close. This plan sizes each against the code (read 2026-11-03), says which are real, and proposes the smallest fix for each. Nothing here is built; building waits for the owner's go-ahead.
@@ -39,3 +39,4 @@ Each gap is its own small change; revert it alone. B is a pure refactor plus one
 
 ## Status log
 - 2026-11-03: written from a read of `agent_orchestrator.py`, `plan_gate.py`, `mcp_policy.py` and `tool_operations.py`. Nothing run, nothing built. Recommended order: B and C (small, no behaviour a user will notice beyond a stray fragment being refused), then D (review), then A only if the owner wants the asynchronous Apply path.
+- 2026-11-03: gaps B and C built, tests first (`tests/test_fetch_tools_stray_fragment.py`; the refusal and shared-method tests failed before the fix). The check now lives in `_stray_fragment_block`, called from `_real_execute_tool` and `_execute_two_phase_tool`; the fetch tools classified CREATE are refused on a fragment turn, the two READ grounded searches and a normal turn are untouched, a person's confirmation still runs. The plan gate is pinned as not applicable. Offline suite: only the 54 errors that also occur on a clean checkout here; ruff and mypy clean. Not run in a real QGIS and not hand-tested. Still planned: gap D (MCP review) and gap A (needs the owner's decision).
