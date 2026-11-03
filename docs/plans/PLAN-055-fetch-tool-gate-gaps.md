@@ -1,6 +1,6 @@
 # PLAN-055: The three gaps PLAN-051 left open on fetch tools
 
-Status: in progress
+Status: done
 
 ## Goal
 PLAN-051 closed the two defects the first hand-test run found and recorded three gaps it did not close. This plan sizes each against the code (read 2026-11-03), says which are real, and proposes the smallest fix for each. Nothing here is built; building waits for the owner's go-ahead.
@@ -48,3 +48,4 @@ Each gap is its own small change; revert it alone. B is a pure refactor plus one
   - Proposed, not built (owner's choice): (1) the approval dialog for a geoprocessing write states the feature count of its input layers, so the person sees the size before saying yes; (2) a stated work budget for MCP write calls using the existing `_chunked.ensure_within` wording; (3) leave as is and say in the MCP help that large layers can pause QGIS. None needs a hand test beyond the existing MCP rows; (1) is the cheapest and changes nothing for small layers.
   - Left unchecked: I did not read all 24 READ tools for feature scans; the review above covers the exposure and the write path, not a tool-by-tool timing. Gap D is closed as reviewed; the three options above are new open items for the owner.
 - 2026-11-03: owner chose option 1 for gap D; built, tests first (`tests/test_mcp_approval_sizes.py`, 12 tests failed before; one live test added to `tests/test_mcp_server_live.py`, written without a QGIS install). The MCP approval dialog now lists the feature count of every vector layer named in the call's arguments (`mcp_policy.layer_name_candidates`, `approval_text(..., sizes=)`, `mcp_server.layer_sizes`, main thread, counts only) and, from 50,000 features, says QGIS may stop responding and cannot be stopped from the outside program. A failing lookup never stops the question being asked; read tools ask nobody. The 50,000 threshold is a judgement, not a measurement. Not run in a real QGIS; never seen by a person at the dialog.
+- 2026-11-03: gap A closed the cheap way, by the owner's choice: the confirmation card for a download tool now says that QGIS may pause until the download finishes (`egress_gate.preview_required(..., downloads=)`, passed from `_egress_precheck` for every `TWO_PHASE_TOOLS` member; other cards unchanged). The Apply path still runs the download on the UI thread; moving it to a worker was not done. Tests first (`tests/test_fetch_confirm_card_warning.py`, 4 of 5 failed before). Offline only, not seen by a person. All four gaps of PLAN-055 are now closed or accepted: B and C built, D built (option 1), A warned.
