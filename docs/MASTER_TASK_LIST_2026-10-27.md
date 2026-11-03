@@ -36,7 +36,7 @@ One list to follow up and plan from. It replaces the session task list (101 entr
 | OWN-5 | Confirm or change the roadmap order A to G in the roadmap audit (this unlocks plans and issues for RM-A to RM-D). | Nothing in the roadmap can start without it. | You | - | XS | P1 | Closed | ROADMAP_AUDIT_2026-10-27.md |
 | OWN-6 | Answer the PLAN-022 N6 questions: temporary-layer note for incident, hazard and event layers; undo for rename_field and delete_field; add a clean-profile install row; stable versus pre-release channel; architecture items. | Small product choices that block HY work and wording of releases. | You | - | S | P2 | Decision needed | PLAN-022 N6 |
 | OWN-7 | Confirm or change the PLAN-023 defaults (questions Q1 to Q15: persona model 'lens, never a gate', one primary plus one secondary persona, Power BI hand-off files only, assumed speeds only on request, and so on). | Needed before the profile programme starts. | You | - | S | P2 | Decision needed | PLAN-023 (branch claude/pending-work-master-list) |
-| OWN-8 | Decide what happens to branch claude/pending-work-master-list (the earlier master list W-1 to W-58 and PLAN-023): merge for the record, or discard because this list replaces it. | It has never been merged; two lists must not drift apart. | You | - | XS | P2 | Decision needed | docs/PENDING_WORK_AND_PROFILE_ANALYSIS_2026-10-26.md |
+| OWN-8 | Decide what happens to branch claude/pending-work-master-list (the earlier master list W-1 to W-58 and PLAN-023): merge for the record, or discard because this list replaces it. | It has never been merged; two lists must not drift apart. | You | - | XS | P2 | Closed | docs/PENDING_WORK_AND_PROFILE_ANALYSIS_2026-10-26.md |
 | OWN-9 | Close the JIAF validation blockers: a Flags dashboard export or country records, the flag-6 historical table, the flag-3 zero case, the thresholds sheet, one real filled Annex 4 file. | The two JIAF blockers are printed in every JIAF result. | You | - | M | P2 | Waiting on you | session task 69, JIAF2 docs |
 | OWN-10 | Provide credentials and terms for the deferred integrations: ACLED key, ReliefWeb app name, Kobo/ODK, GloFAS/CHIRPS, Logistics Cluster, LandScan. | Cannot be built without keys and licence terms. | You | - | M | P3 | Waiting on you | session task 67, gap analysis H10 |
 | OWN-11 | Clean-profile install and in-place upgrade test of the exact release zip (tracker 1.10). | Needs a person with a fresh QGIS profile. | You | - | S | P2 | Waiting on you | IMPLEMENTATION_TRACKER 1.10 |
@@ -156,26 +156,26 @@ Source: the owner's analysis document of nine flagship QGIS AI plugins, checked 
 | ID | Task | Why | Who | Depends on | Size | Pri | Status | Source |
 |---|---|---|---|---|---|---|---|---|
 | LEAD-1 | Decide the positioning ('the trusted GIS agent for humanitarian and field work') and the order of PLAN-030: result gate, canvas image, MCP, benchmark, directory listing. Absorbs OWN-5. | Everything in this stream depends on one stated direction. | You | - | XS | P1 | In progress | codebase analysis 2026-10-28 |
-| LEAD-2 | Decide whether to support QGIS 3.x (stay 4.2+; current 3.x LTR only; 3.28 upward) after reading the PLAN-036 study. | The listing's audience; the cost is large and unknown until LEAD-3 reports. | You | LEAD-3 | XS | P1 | Decision needed | codebase analysis 2026-10-28 |
-| LEAD-3 | Run the QGIS 3.x feasibility study: Qt5/Qt6 and PyQGIS differences counted by a script kept in tools/, CI cost, three options with a size each. No plugin change. | Replaces a guess with a number; can start before LEAD-2. | Claude | - | M | P2 | Not started | codebase analysis 2026-10-28 |
+| LEAD-2 | Decide whether to support QGIS 3.x (stay 4.2+; current 3.x LTR only; 3.28 upward) after reading the PLAN-036 study. | The listing's audience; the cost is large and unknown until LEAD-3 reports. | You | LEAD-3 | XS | P1 | Closed | codebase analysis 2026-10-28 |
+| LEAD-3 | Run the QGIS 3.x feasibility study: Qt5/Qt6 and PyQGIS differences counted by a script kept in tools/, CI cost, three options with a size each. No plugin change. | Replaces a guess with a number; can start before LEAD-2. | Claude | - | M | P2 | Closed | codebase analysis 2026-10-28 |
 | LEAD-4 | Tool-argument drift (PLAN-033): fix the dropped sublayer, extend the drift test to every special-cased branch and to composite tools, build new tools' schemas from the signature. | Three dropped arguments in two days; the registry layer itself is consistent (measured), the orchestrator branches are not. | Claude | - | M | P1 | In progress | codebase analysis 2026-10-28 |
 | LEAD-5 | Public, reproducible benchmark from the smoke fixtures: machine-checkable cases, a headless runner, a scoring definition written first, a per-provider table on a public page. Extends HT-3. | A number beats an adjective in a directory listing; the fixtures and expected answers already exist. | Claude | LEAD-1, HT-3 | L | P2 | Not started | codebase analysis 2026-10-28 |
 | LEAD-6 | Directory listing pack and adoption material: metadata and tags checked against the directory rules, screenshots from the fixtures, a two-minute demo, worked examples per tool family, a fair comparison page, monthly download/rating record, two pilot teams. | Visibility, not features, is the current limit (OWN-12 still open; fewer than ten stars). | Both | LEAD-1, OWN-12 | M | P1 | Not started | codebase analysis 2026-10-28 |
 | LEAD-7 | Structural debt after LEAD-4: split the largest modules (agent_orchestrator, analysis_tools, vector_tools, layout_tools), burn down the 504 broad-except baseline with a ratchet test, typed result shapes for one tool family. Plan to be written when LEAD-4 lands. | Reviewers notice size and broad excepts first; it does not cause wrong answers the way dropped arguments do, so it follows LEAD-4. | Claude | LEAD-4 | XL | P3 | Not started | codebase analysis 2026-10-28 |
 | LEAD-8 | CLI bridge providers (PLAN-038): run the plugin on a local Claude Code, Codex or Gemini CLI login with no API key, tools and gates stay in the plugin. Starts with a spike on the Claude Code adapter. | Closes the no-key gap and widens who can try the plugin; priority raised by the owner 2026-10-28. | Claude | LEAD-1 | L | P1 | In progress | owner request 2026-10-28 |
 | LEAD-9 | Settings connection redesign and CLI panel (PLAN-039): group connections by where the prompts go, an in-dialog acknowledgement for the CLI group, and Check connection / Sign in buttons per CLI. | The CLI providers need setup, a test and sign-in help to be usable by someone who is not a developer. | Claude | LEAD-8 | M | P1 | In progress | owner request 2026-10-28 |
-| LEAD-10 | Decide whether to build an Antigravity CLI (agy) provider to replace the removed Gemini CLI one. Needs a real signed-in agy run first: third-party reports say `agy -p` prints nothing or hangs when its output is not a terminal (v1.0.6), which is how the bridge runs a CLI, and its flags are not from official documentation. | Google ended personal-account use of Gemini CLI on 2026-06-18 and moved those users to the Antigravity CLI; the plugin now has no Google-account CLI route (the Gemini API key connection stays). | You | OWN-16 | M | P2 | Decision needed | PLAN-041 |
+| LEAD-10 | Decide whether to build an Antigravity CLI (agy) provider to replace the removed Gemini CLI one. Needs a real signed-in agy run first: third-party reports say `agy -p` prints nothing or hangs when its output is not a terminal (v1.0.6), which is how the bridge runs a CLI, and its flags are not from official documentation. | Google ended personal-account use of Gemini CLI on 2026-06-18 and moved those users to the Antigravity CLI; the plugin now has no Google-account CLI route (the Gemini API key connection stays). | You | OWN-16 | M | P2 | Waiting on you | PLAN-041 |
 
 ## Counts by status
 
 | Status | Rows |
 |---|---|
 | In progress | 35 |
-| Not started | 28 |
-| Waiting on you | 13 |
-| Decision needed | 8 |
+| Not started | 27 |
+| Waiting on you | 14 |
+| Closed | 7 |
 | Blocked | 5 |
-| Closed | 4 |
+| Decision needed | 5 |
 | Closed (record) | 1 |
 | **Total** | **94** |
 
@@ -285,3 +285,8 @@ Newest last. One line per status change; written by `tools/master_list.py set`.
 - 2026-11-02: RM-A In progress -> In progress. Claude-side leftovers closed 2026-11-02: fetch tools that create a layer and service-area layers are gated; run_steps inner calls were already gated (earlier note was wrong). Open: hand test, CRS/stale checks switched on tool by tool (needs a real run)
 - 2026-11-02: RM-B In progress -> In progress. run_steps pictures detached 2026-11-02. Open: chat button for attaching the map by hand (UI, not built), hand test on Gemini, Claude and a non-vision Ollama model
 - 2026-11-02: RM-C In progress -> In progress. fetch_osm_features and fetch_fts_funding_data added 2026-11-02 (twelve tools). Open: large-download preview (UI decision), search tools, hand test, licence table not checked against providers
+- 2026-11-03: LEAD-2 Decision needed -> Closed. Owner decision 2026-11-03: support only the latest QGIS (4.2 and later); no QGIS 3.x. The 3.x study (LEAD-3, PLAN-036) is not needed.
+- 2026-11-03: LEAD-3 Not started -> Closed. Not needed after the owner's 2026-11-03 decision (LEAD-2): latest QGIS only. PLAN-036 abandoned.
+- 2026-11-03: LEAD-10 Decision needed -> Waiting on you. Owner decision 2026-11-03: yes, build the Antigravity CLI provider. First step is yours: a real signed-in agy headless run (commands in the 2026-11-03 reply and PLAN-038); no code before its output.
+- 2026-11-03: OWN-8 Decision needed -> Closed. Owner decision 2026-11-03: merge for the record, after review. Its two files (the 2026-10-26 pending-work analysis and PLAN-023) are merged by the docs PR that records this; the branch can then be deleted.
+- 2026-11-03: LEAD-10 Waiting on you -> Waiting on you. Owner decision 2026-11-03: yes, build the Antigravity CLI provider. First step is yours: run tools/agy_probe.py (one script, Windows, macOS and Linux; sent to the owner 2026-11-03) in a normal terminal and send agy_probe_report.md. No provider code before its output.

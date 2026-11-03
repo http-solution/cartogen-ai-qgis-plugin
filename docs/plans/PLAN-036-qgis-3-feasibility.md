@@ -1,6 +1,6 @@
 # PLAN-036: should the plugin support QGIS 3.x? (a study, then a decision)
 
-Status: planned
+Status: abandoned
 
 ## Goal
 Replace a guess with a number before the owner decides. The plugin requires QGIS 4.2 and later (Qt6): support for 3.x was dropped on 2026-09-24 and `qgisMinimumVersion` is 4.2. The competitors in the analysis document list 3.22 or 3.28 upward, and the long-term-release 3.x installations are probably where most users still are (an assumption: this repository has no download or version statistics), so the choice may limit the audience of the directory listing. The cost of supporting 3.x is not known; this plan finds it out. No code is changed.
@@ -27,3 +27,4 @@ Nothing to roll back.
 
 ## Status log
 - 2026-10-28: plan written. The study can start without the decision.
+- 2026-11-03: abandoned. The owner decided to support only the latest QGIS (4.2 and later) and not QGIS 3.x (master list LEAD-2), so the study that would have priced 3.x is not needed. Nothing was built under this plan.
