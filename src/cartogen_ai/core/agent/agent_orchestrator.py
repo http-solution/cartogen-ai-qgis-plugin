@@ -1161,7 +1161,13 @@ class CartogenAi:
         try:
             return self._execute_tool_dispatch(name, arguments)
         except Exception as e:
-            return {"error": f"Tool {name} failed unexpectedly: {e}", "error_class": type(e).__name__}
+            result = {"error": f"Tool {name} failed unexpectedly: {e}", "error_class": type(e).__name__}
+            with contextlib.suppress(Exception):           # PLAN-053 stage 3: a QGIS-version-looking failure says which QGIS, Qt, OS and Python this was; a courtesy, the failure itself is always returned
+                from .. import environment
+                note = environment.api_mismatch_note(e, environment.detect())
+                if note:
+                    result["environment"] = note
+            return result
 
     def _execute_tool_dispatch(self, name, arguments):
         if name in NETWORK_ONLY_TOOLS:
