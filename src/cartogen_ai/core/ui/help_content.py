@@ -26,7 +26,7 @@ def _registry_counts():
     return tools, tasks, sections
 
 
-def build_help_html(version=None, tool_count=None, task_count=None, section_count=None):
+def build_help_html(version=None, tool_count=None, task_count=None, section_count=None, environment_line=None):
     """Static help content -- provider list and example prompts are built from the same
     source data as the rest of the UI (PROVIDER_CHOICES, QUICK_SUGGESTION_CHIPS) rather
     than a second, driftable copy of the text.
@@ -61,6 +61,8 @@ def build_help_html(version=None, tool_count=None, task_count=None, section_coun
     terms_html = "".join(
         f"<p><b>{html.escape(heading)}</b> {html.escape(body)}</p>" for heading, body in disclaimer_text.TERMS_PARAGRAPHS)
     version_line = f"<p style='color:gray;'>Version {version}</p>" if version else ""
+    if environment_line:                                       # PLAN-053: what this computer runs, to paste into a bug report
+        version_line += f"<p style='color:gray;'>This computer: {html.escape(environment_line)}</p>"
     # rc22 smoke V7: the sentence about (new) marks was shown although no tool carried one (no tool was added in the last two
     # releases), so the Help promised marks that were never there. It appears only when at least one mark is shown.
     any_new = any(release_notes.tool_is_new(t) for _title, tools in release_notes.HUMANITARIAN_WORKFLOWS for t in tools)

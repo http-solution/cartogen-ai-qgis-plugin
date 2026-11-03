@@ -14,5 +14,10 @@ class HelpTabWidget(QWidget):
         help_layout.setContentsMargins(4, 4, 4, 4)
         help_browser = QTextBrowser()
         help_browser.setOpenExternalLinks(True)
-        help_browser.setHtml(_build_help_html(version=version))
+        try:
+            from .. import environment
+            environment_line = environment.describe(environment.detect())
+        except Exception:
+            environment_line = None                            # the Help must open even if the machine cannot be described
+        help_browser.setHtml(_build_help_html(version=version, environment_line=environment_line))
         help_layout.addWidget(help_browser)

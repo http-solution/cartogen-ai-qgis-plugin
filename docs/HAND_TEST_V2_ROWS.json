@@ -344,6 +344,20 @@
       "outputs": "notes.txt",
       "pass_if": "Finished without asking anyone, or the stuck points are listed with the guide line number.",
       "cost": "none"
+    },
+    {
+      "id": "W13-environment",
+      "issue": "PLAN-053",
+      "title": "The Help names this computer's QGIS, Qt, OS and Python correctly",
+      "starts_from": "QGIS with the plugin installed, any project, on each operating system you have (Windows first), a new chat",
+      "do": "Open Cartogen AI > Help (the question-mark entry in the Plugins menu or the dock). Read the grey line that starts 'This computer:'. Then open Help > About QGIS in QGIS itself and compare the QGIS version and the operating system. Save a screenshot of the Help line.",
+      "expect": "The line names the QGIS version, Qt version, operating system with its release and architecture, and Python version, and they match what QGIS's About window says. No red line in the CartogenAI log tab; no warning bar at start-up on a QGIS 4.2 or later.",
+      "evidence": "Screenshot of the Help line and of QGIS's About window, saved as results/screens/W13-help.png and W13-about.png; the CartogenAI log tab saved as a text file",
+      "needs": "person",
+      "inputs": "none",
+      "outputs": "two screenshots",
+      "pass_if": "QGIS version, OS and Python in the Help line equal those in the About window; the log line starting 'environment' holds the same values.",
+      "cost": "none (no model)"
     }
   ]
 }
