@@ -108,9 +108,25 @@ class CartogenAi:
         except Exception as e:
             log_event("old_copy_check_skipped", tag="CartogenAi", error_class=type(e).__name__, error=True)
 
+    def _check_environment(self):
+        """PLAN-053: log what this machine runs (versions only, nothing personal) and tell the user once when it is outside the range the plugin
+        was built for. Never raises and never stops the plugin loading: a warning is all this does."""
+        try:
+            from cartogen_ai.core import environment
+            found = environment.detect()
+            problems = environment.findings(found)
+            log_event("environment", tag="CartogenAi", findings=len(problems), **found)
+            message = environment.startup_message(problems)
+            if message:
+                log_warning(message, tag="CartogenAi")
+                self.iface.messageBar().pushWarning("Cartogen AI", message)
+        except Exception as e:
+            log_event("environment_check_skipped", tag="CartogenAi", error_class=type(e).__name__, error=True)
+
     def initGui(self):
         log_info("initGui()", tag="CartogenAi")
         self._warn_about_old_copy()
+        self._check_environment()
         # icon.svg -- a copy of branding/cartogen-mark.svg, the actual brand mark, not the flat
         # icon.png this replaced. Deliberately copied to the plugin ROOT rather than referencing
         # branding/ directly: plugin_upload.py's EXCLUDE_DIRS excludes the whole branding/

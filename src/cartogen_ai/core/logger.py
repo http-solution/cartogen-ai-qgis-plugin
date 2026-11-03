@@ -123,6 +123,8 @@ _SAFE_EVENT_FIELDS = {
     # network (core/net.py, providers/base.py): host NAMES, never a path, query, header or body. The first rc32/rc33 versions of the
     # http_redirect and provider_auth_refused lines lost these fields because they were missing here (2026-10-11 field log).
     "sender", "host", "qgis_proxy", "from_host", "to_host", "other_site", "key_source", "key_length",
+    # environment (core/environment.py, PLAN-053): version strings and the OS family name of the machine, a count of findings. No user name, host name, path or locale.
+    "os", "os_release", "arch", "python", "qgis", "qt", "gdal", "findings",
 }
 
 

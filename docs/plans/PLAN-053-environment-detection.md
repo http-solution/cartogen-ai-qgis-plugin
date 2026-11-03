@@ -1,0 +1,29 @@
+# PLAN-053: The plugin knows what it runs on, and works on every PC that runs a current QGIS
+
+Status: in progress
+
+## Goal
+The owner's requirement (2026-11-03): the application must work on every PC and every version it meets, so it has to detect the version instead of assuming one. Today (read 2026-11-03) the plugin reads no QGIS version at run time (only QGIS's own install gate applies: `qgisMinimumVersion=4.2`, `qgisMaximumVersion=4.99`), finds the Claude and Codex CLIs per operating system and shows each CLI's version but never uses it, and nothing records the machine in a log or an evidence folder, so a failure on another computer cannot be read afterwards. "Every version" is read together with the owner's decision of the same day: support only the latest QGIS (4.2 and later), any OS, any CLI version.
+
+## Scope
+Stage 1 (this change):
+- `core/environment.py`: `detect()` (QGIS, Qt, GDAL, Python, OS, architecture; blank when unreadable), `describe()` (one line), `findings()` (unsupported: QGIS before 4.2, Python before 3.10; untested: QGIS 5 or later, an OS other than Windows, macOS, Linux; note: unreadable QGIS version) and `startup_message()`.
+- A start-up check in `plugin_main` that logs the machine (versions only: no user name, host name, path or locale) and shows one warning when something is unsupported or untested. It never stops the plugin from loading.
+- The machine in every evidence folder's `context.json`, and a "This computer" line in the Help.
+Stage 2 (not started): version-aware CLI adapters. Each adapter chooses its flags from the detected CLI version; a rejected flag falls back to a known form and says so. Needs the real `agy` probe (LEAD-10) for the Antigravity adapter.
+Stage 3 (not started): an "About this computer" panel in Settings, and plain refusals for a feature that needs a newer QGIS or CLI than the machine has.
+Out of scope: supporting QGIS 3.x (decided against), and any change to what a tool does.
+
+## Acceptance
+- Offline: `tests/test_environment.py` passes (parsing, detection with failing probes, the findings table, the start-up text, the three places that carry the result).
+- CI live: `tests/test_environment_live.py` reads the QGIS version from a real QGIS, finds the CI image supported, and runs the start-up check without a warning.
+- By hand: hand row W13 on each OS the owner has (Windows first): the Help line matches Help > About QGIS.
+
+## Guard tests
+`tests/test_environment.py`, `tests/test_environment_live.py`; ledger entry `environment-detection`.
+
+## Rollback
+Revert the change: the plugin then reads no version, as before. Nothing else depends on it.
+
+## Status log
+- 2026-11-03: stage 1 written, tests first. Not run in a real QGIS by me or anyone; the thresholds are the project's rules (QGIS 4.2 and later, Python 3.10), not measurements. The `agy` provider (LEAD-10) waits for its probe run before stage 2 can cover it.

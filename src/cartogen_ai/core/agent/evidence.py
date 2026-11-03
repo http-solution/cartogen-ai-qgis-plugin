@@ -176,6 +176,9 @@ def project_context(client=None):
     with contextlib.suppress(Exception):
         from .provenance import _qgis_version
         context["qgis_version"] = _qgis_version()
+    with contextlib.suppress(Exception):
+        from .. import environment
+        context["environment"] = environment.detect()          # PLAN-053: the machine the request ran on, so a failure can be read from the folder alone
     return context
 
 
