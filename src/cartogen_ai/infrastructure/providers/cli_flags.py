@@ -13,8 +13,8 @@ from a version number. It runs the command as before; only if the CLI itself say
 
 Status: the rejection wordings below are the usual ones of the argument parsers these CLIs use (commander, clap), written from knowledge of those
 libraries, NOT copied from a run of either CLI. Which flags each CLI version really accepts is not recorded anywhere here, on purpose.
-Which flags are droppable is a judgement (flagged in the pull request that added this): a longer droppable list means more old CLIs work and more
-local traces; a shorter one means the reverse."""
+Which flags are droppable is a judgement, confirmed by the owner 2026-11-03: a longer droppable list means more old CLIs work and more
+local traces; a shorter one means the reverse. Adding to the list needs the owner's decision again."""
 import re
 
 Flag = tuple[str, tuple[str, ...], bool, str]
