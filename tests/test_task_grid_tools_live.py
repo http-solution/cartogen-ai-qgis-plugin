@@ -100,6 +100,26 @@ class TestGenerateMappingTaskGrid(unittest.TestCase):
         QgsProject.instance().addMapLayer(_points(["POINT(44.2 15.3)"]))
         self.assertIn("error", generate_mapping_task_grid("damage"))       # not a polygon layer
 
+    def test_a_grid_above_the_limit_is_refused_with_a_size_that_works_and_that_size_then_works(self):
+        # DEF-6 (2026-11-03): a nationwide grid at 1 km was refused with only "use a larger cell_size_m". Written without a QGIS install.
+        from cartogen_ai.core.agent.tools.task_grid_tools import MAX_TASKS, generate_mapping_task_grid
+        big = QgsVectorLayer("Polygon?crs=EPSG:4326&field=name:string", "country", "memory")
+        f = QgsFeature(big.fields())
+        f.setGeometry(QgsGeometry.fromWkt("POLYGON((42.0 13.0, 47.0 13.0, 47.0 16.0, 42.0 16.0, 42.0 13.0))"))
+        big.dataProvider().addFeatures([f])
+        big.updateExtents()
+        QgsProject.instance().addMapLayer(big)
+        refused = generate_mapping_task_grid("country", cell_size_m=1000)
+        self.assertIn("error", refused)
+        self.assertIn("No grid was made", refused["error"])
+        self.assertIn("aoi_where", refused["error"])
+        size = refused["suggested_cell_size_m"]
+        self.assertGreater(size, 1000)
+        self.assertEqual(len(QgsProject.instance().mapLayersByName("mapping_tasks")), 0, "a refusal must not leave a layer behind")
+        worked = generate_mapping_task_grid("country", cell_size_m=size)
+        self.assertTrue(worked.get("success"), worked)
+        self.assertLessEqual(worked["task_count"], MAX_TASKS)
+
 
 if __name__ == "__main__":
     unittest.main()

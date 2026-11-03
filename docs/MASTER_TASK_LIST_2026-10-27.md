@@ -73,7 +73,7 @@ One list to follow up and plan from. It replaces the session task list (101 entr
 | DEF-3 | Unrequested layers: an 'Incident' layer after GDACS (A7), a country layer after building footprints (A5). No tool in the code adds them; trace the plan that does. | Surprises the user; cause unknown. | Claude | OWN-3 | S | P2 | Blocked | 1.18.2 and 1.18.3 hand runs |
 | DEF-4 | C5 labels reported inverted: find which layer and labels. | Reported without detail. | Claude | OWN-3 | S | P2 | Blocked | 1.18.2 hand run |
 | DEF-5 | Zonal-statistics columns (chg_mean, chg2_mean...) stay on the admin layer after the damage tool runs; remove them or run on a copy. | Side effect on the user's layer; a file-based layer keeps them. | Claude | - | S | P2 | In progress | PLAN-026 class C |
-| DEF-6 | Nationwide 5 km task grid is refused above 5,000 cells: add a 'suggest a cell size' path. | Clear message today; a design choice. | Claude | OWN-6 | S | P3 | Decision needed | 1.18.2 hand run B1 |
+| DEF-6 | Nationwide 5 km task grid is refused above 5,000 cells: add a 'suggest a cell size' path. | Clear message today; a design choice. | Claude | OWN-6 | S | P3 | In progress | 1.18.2 hand run B1 |
 | DEF-7 | OSM Overpass road download answered HTTP 502 after 4 retries: consider a mirror fallback and a clearer message. | Server side; the fixtures covered it in the test. | Claude | - | S | P3 | In progress | 1.18.2 hand run C1 |
 | DEF-8 | Quiet-release clean-up: 24 unused noqa comments; the baseline of 504 broad-except handlers (none silent) recorded for review. | Lint hygiene. | Claude | - | S | P3 | In progress | PLAN-026 class G, H |
 | DEF-9 | Evidence collector captured no log text in QGIS 4.2.3: log_cartogenai.txt and log_all.txt were empty for every row, so the tools each row called are not in the CSV. Cause not found (the signal connects; nothing arrives). Try the explicit overload messageReceived[str, str, Qgis.MessageLevel], and read tool calls from the plugin's own evidence folders (steps.jsonl) instead. | Every row's 'tools called' column is blank without it. | Claude | HT-6 | S | P1 | In progress | 1.18.4 smoke run 2026-10-27/28 |
@@ -170,12 +170,12 @@ Source: the owner's analysis document of nine flagship QGIS AI plugins, checked 
 
 | Status | Rows |
 |---|---|
-| In progress | 35 |
+| In progress | 36 |
 | Not started | 27 |
 | Waiting on you | 14 |
 | Closed | 7 |
 | Blocked | 5 |
-| Decision needed | 5 |
+| Decision needed | 4 |
 | Closed (record) | 1 |
 | **Total** | **94** |
 
@@ -290,3 +290,4 @@ Newest last. One line per status change; written by `tools/master_list.py set`.
 - 2026-11-03: LEAD-10 Decision needed -> Waiting on you. Owner decision 2026-11-03: yes, build the Antigravity CLI provider. First step is yours: a real signed-in agy headless run (commands in the 2026-11-03 reply and PLAN-038); no code before its output.
 - 2026-11-03: OWN-8 Decision needed -> Closed. Owner decision 2026-11-03: merge for the record, after review. Its two files (the 2026-10-26 pending-work analysis and PLAN-023) are merged by the docs PR that records this; the branch can then be deleted.
 - 2026-11-03: LEAD-10 Waiting on you -> Waiting on you. Owner decision 2026-11-03: yes, build the Antigravity CLI provider. First step is yours: run tools/agy_probe.py (one script, Windows, macOS and Linux; sent to the owner 2026-11-03) in a normal terminal and send agy_probe_report.md. No provider code before its output.
+- 2026-11-03: DEF-6 Decision needed -> In progress. Owner decision 2026-11-03: suggest a cell size (do not change the limit). Built (PLAN-054): both refusals name a round size that fits and offer aoi_where. CI only; close after a hand run.
