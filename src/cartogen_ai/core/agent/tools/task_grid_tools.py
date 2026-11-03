@@ -47,6 +47,80 @@ def validate_options(cell_size_m, max_tasks=MAX_TASKS):
     return None
 
 
+_SIZE_STEPS = (1, 1.5, 2, 2.5, 3, 4, 5, 6, 8)      # times a power of ten: round sizes a person can say, remember and plan field work around
+_LARGEST_SIZE_M = 10_000_000
+
+
+def size_ladder():
+    """The round cell sizes (metres) a refusal may suggest, increasing from MIN_CELL_SIZE_M: 100, 150, 200, 250, 300, 400, 500, 600, 800, 1000, ... Pure."""
+    sizes, power = [], 100
+    while power <= _LARGEST_SIZE_M:
+        sizes.extend(step * power for step in _SIZE_STEPS)
+        power *= 10
+    return [int(s) if float(s).is_integer() else s for s in sizes if s >= MIN_CELL_SIZE_M]
+
+
+def size_text(size_m):
+    """'500 m', '1 km', '2.5 km', '15 km'. Pure."""
+    return f"{size_m:g} m" if size_m < 1000 else f"{size_m / 1000:g} km"
+
+
+def suggest_cell_size(width_m, height_m, cell_size_m, limit=MAX_TASKS):
+    """(size, cells): the smallest round size not below `cell_size_m` whose grid over a width x height box has at most `limit` cells, and that cell count; the
+    size asked for when it already fits; (None, None) when no size up to the largest fits. The count is for the bounding box, so it is an upper bound for an
+    irregular outline. Pure."""
+    if estimated_cells(width_m, height_m, cell_size_m) <= limit:
+        return cell_size_m, estimated_cells(width_m, height_m, cell_size_m)
+    for size in size_ladder():
+        if size >= cell_size_m:
+            cells = estimated_cells(width_m, height_m, size)
+            if cells <= limit:
+                return size, cells
+    return None, None
+
+
+def suggest_size_from_count(cell_size_m, task_count, limit=MAX_TASKS):
+    """(size, about how many tasks) when a grid made `task_count` tasks at `cell_size_m` and the limit is `limit`. Tasks go with one over the size squared,
+    so the size must grow by the square root of the excess; the count is about, because cells along the outline do not scale exactly. (None, None) if none fits. Pure."""
+    needed = cell_size_m * (task_count / limit) ** 0.5
+    for size in size_ladder():
+        if size >= needed and size > cell_size_m:
+            return size, max(1, round(task_count * (cell_size_m / size) ** 2))
+    return None, None
+
+
+_PART_AT_A_TIME = "Or make the grid for part of the area at a time (aoi_where picks which features of the area layer to use)."
+
+
+def too_many_cells_message(cell_size_m, needed, width_m, height_m):
+    """The refusal when the bounding box alone needs far more cells than the limit, with a size that would work and the other way out. Pure."""
+    size, cells = suggest_cell_size(width_m, height_m, cell_size_m)
+    head = f"A {size_text(cell_size_m)} grid over this area needs about {needed:,} cells, far above the {MAX_TASKS:,} task limit. No grid was made. "
+    if size is None:
+        return head + "Use a larger cell_size_m. " + _PART_AT_A_TIME
+    return (head + f"Use a larger cell_size_m: {size_text(size)} gives at most about {cells:,} cells (fewer once the grid is cut to the area's outline). "
+            + _PART_AT_A_TIME)
+
+
+def refusal_result(cell_size_m, needed, width_m, height_m):
+    """The error result for too_many_cells_message, with the suggestion as numbers the assistant can offer back. Pure."""
+    found = {"error": too_many_cells_message(cell_size_m, needed, width_m, height_m)}
+    size, cells = suggest_cell_size(width_m, height_m, cell_size_m)
+    if size is not None:
+        found.update({"suggested_cell_size_m": size, "suggested_cells": cells})
+    return found
+
+
+def too_many_tasks_result(cell_size_m, task_count):
+    """The error result when the grid, after cutting to the outline, made more than MAX_TASKS tasks. Pure."""
+    size, about = suggest_size_from_count(cell_size_m, task_count)
+    head = f"This would create {task_count:,} tasks, above the limit of {MAX_TASKS:,}. No grid was made. "
+    if size is None:
+        return {"error": head + "Use a larger cell_size_m. " + _PART_AT_A_TIME}
+    return {"error": head + f"Use a larger cell_size_m: {size_text(size)} would give about {about:,} tasks. " + _PART_AT_A_TIME,
+            "suggested_cell_size_m": size, "suggested_cells": about}
+
+
 def estimated_cells(width_m, height_m, cell_size_m):
     """Number of grid cells needed to cover a width x height bounding box. Pure."""
     return max(1, math.ceil(width_m / cell_size_m)) * max(1, math.ceil(height_m / cell_size_m))
@@ -250,8 +324,7 @@ def generate_mapping_task_grid(aoi_layer, cell_size_m=2000, priority_points_laye
     box = union_m.boundingBox()
     needed = estimated_cells(box.width(), box.height(), size)
     if needed > MAX_TASKS * 4:
-        return {"error": f"A {size:g} m grid over this area needs about {needed} cells, far above the {MAX_TASKS} task limit. "
-                         "Use a larger cell_size_m."}
+        return refusal_result(size, needed, box.width(), box.height())
 
     full_area = size * size
     kept = []
@@ -265,7 +338,7 @@ def generate_mapping_task_grid(aoi_layer, cell_size_m=2000, priority_points_laye
     if not kept:
         return {"error": "The grid produced no tasks; check the area and cell_size_m."}
     if len(kept) > MAX_TASKS:
-        return {"error": f"This would create {len(kept)} tasks, above the limit of {MAX_TASKS}. Use a larger cell_size_m."}
+        return too_many_tasks_result(size, len(kept))
 
     pieces = [p for _c, p in kept]
     values, value_note = [None] * len(kept), None
