@@ -25,7 +25,7 @@ import time
 import uuid
 
 from ...core.logger import log_event
-from . import cli_locator
+from . import cli_flags, cli_locator
 from .base import BaseAiProvider
 
 DEFAULT_TIMEOUT_SECONDS = 180
@@ -387,13 +387,17 @@ def parse_reply(text, tool_names):
 # Claude Code adapter
 # ---------------------------------------------------------------------------------------------------------------------------------
 
-def claude_argv(executable, system_prompt_file, model=None):
+def claude_argv(executable, system_prompt_file, model=None, skip=()):
     """The exact command line for one Claude Code call. Everything that could let the CLI act on its own is switched off:
-    `--tools ""` removes every built-in tool, `--strict-mcp-config` with no `--mcp-config` loads no MCP server, and no session is saved."""
+    `--tools ""` removes every built-in tool, `--strict-mcp-config` with no `--mcp-config` loads no MCP server, and no session is saved.
+    `skip` names droppable flags (cli_flags.CLAUDE_FLAGS) a CLI version has rejected; a required flag in it raises CliBridgeError."""
     if model and not _MODEL_RE.match(model):
         raise CliBridgeError("The model name contains characters that are not allowed.")
-    argv = [executable, "-p", "--output-format", "json", "--tools", "", "--strict-mcp-config", "--disable-slash-commands",
-            "--no-session-persistence", "--max-turns", "1", "--system-prompt-file", system_prompt_file]
+    try:
+        flags = cli_flags.build(cli_flags.CLAUDE_FLAGS, skip)
+    except ValueError as e:
+        raise CliBridgeError(str(e)) from e
+    argv = [executable, *flags, *cli_flags.CLAUDE_TAIL, system_prompt_file]
     if model:
         argv += ["--model", model]
     return argv
@@ -441,6 +445,27 @@ def estimate_usage(prompt, reply):
     return {"input_tokens": max(1, len(prompt) // 4), "output_tokens": max(1, len(reply) // 4), "estimated": True}
 
 
+# Droppable flags a program file has rejected, remembered so the next call does not fail first: {(path, modified time): {flag names}}. In memory only.
+_FLAG_SKIPS: dict[tuple[str, int], set[str]] = {}
+MAX_FLAG_DROPS = 3          # a run is tried at most this many times more, each time without one more rejected flag
+
+
+def _flag_key(exe):
+    try:
+        return (exe, os.stat(exe).st_mtime_ns)
+    except OSError:
+        return (exe, 0)
+
+
+def _cli_version(exe, timeout=15):
+    """The first line `<exe> --version` prints, or '' when it cannot be read. Used in messages only; never raises."""
+    try:
+        code, out, err = run_cli([exe, "--version"], "", timeout=timeout, max_output_bytes=16 * 1024)
+    except CliBridgeError:
+        return ""
+    return next((ln.strip() for ln in (out or err or "").splitlines() if ln.strip()), "")[:80] if code == 0 else ""
+
+
 class _AgentStop:
     """Adapts the agent's Stop button (core/agent/cancel_signal) to the `.is_set()` the runner polls, so pressing Stop ends the CLI
     process instead of waiting for the call to time out."""
@@ -481,6 +506,35 @@ class _CliClient(BaseAiProvider):
         """Runs the CLI once and returns (reply_text, usage_or_None, model_or_None). Raises CliBridgeError."""
         raise NotImplementedError
 
+    flag_table: tuple[cli_flags.Flag, ...] = ()       # cli_flags.CLAUDE_FLAGS or CODEX_FLAGS, set by a subclass
+
+    def _run_with_flag_fallback(self, exe, make_argv, stdin_text, workdir):
+        """run_cli, plus the one thing PLAN-053 stage 2 adds: when the CLI itself says it does not know a flag, a DROPPABLE one is left out and the run
+        repeated (the user is told what that means, and the choice is remembered for this program file); a REQUIRED one stops the run with a plain
+        message. Anything else, including a rejection text this does not recognise, comes back unchanged for the caller's usual handling.
+        `make_argv(skip)` builds the command line without the flags in `skip`."""
+        key = _flag_key(exe)
+        skipped = set(_FLAG_SKIPS.get(key, ()))
+        for _attempt in range(MAX_FLAG_DROPS + 1):
+            code, out, err = run_cli(make_argv(skipped), stdin_text, timeout=self.timeout, cancel_event=self.cancel_event, cwd=workdir)
+            if code == 0 or out.strip():
+                return code, out, err
+            droppable, required, notes = cli_flags.sort_rejected(self.flag_table, cli_flags.rejected_flags(err))
+            if required:
+                version = _cli_version(exe)
+                log_event("cli_flag_required_rejected", provider=self.log_name, status="refused", flags=",".join(required), cli_version=version, error=True)
+                raise CliBridgeError(cli_flags.required_message(self.label, version, required) + f" (It exited with status {code}.)" + _stderr_tail(err))
+            droppable -= skipped
+            if not droppable:
+                return code, out, err
+            version = _cli_version(exe)
+            for flag in sorted(droppable):
+                self._emit_status(cli_flags.dropped_message(self.label, version, flag, notes[flag]))
+            log_event("cli_flag_dropped", provider=self.log_name, status="retry", flags=",".join(sorted(droppable)), cli_version=version)
+            skipped |= droppable
+            _FLAG_SKIPS[key] = set(skipped)
+        return code, out, err
+
     def complete(self, messages, tools=None, max_tokens=None):  # max_tokens unused: the CLIs have no output-token flag
         cli_locator.ensure()  # first call looks at the OS's own PATH (a few seconds at most, once); this runs on a worker thread
         exe = find_executable(self.executable) or find_in_folder(self.executable, self.default_exe)
@@ -510,13 +564,13 @@ class ClaudeCliClient(_CliClient):
     log_name = "claude_cli"
     default_exe = "claude"
     default_model_name = "claude-cli"
+    flag_table = cli_flags.CLAUDE_FLAGS
 
     def _invoke(self, exe, system_text, prompt, workdir):
         system_file = os.path.join(workdir, "system.txt")
         with open(system_file, "w", encoding="utf-8") as fh:
             fh.write(system_text)
-        code, out, err = run_cli(claude_argv(exe, system_file, self.model), prompt, timeout=self.timeout,
-                                 cancel_event=self.cancel_event, cwd=workdir)
+        code, out, err = self._run_with_flag_fallback(exe, lambda skip: claude_argv(exe, system_file, self.model, skip), prompt, workdir)
         if code != 0 and not out.strip():
             raise CliBridgeError(f"The Claude CLI exited with status {code}. Is it signed in (`claude` once, then /login)?" + _stderr_tail(err))
         return parse_claude_result(out)
@@ -531,15 +585,18 @@ class ClaudeCliClient(_CliClient):
 _CODEX_OWN_ACTION_ITEMS = ("command_execution", "file_change", "mcp_tool_call", "web_search")
 
 
-def codex_argv(executable, model=None):
+def codex_argv(executable, model=None, skip=()):
     """The exact command line for one Codex call. The prompt is read from stdin (the trailing `-`). `--sandbox read-only` stops writes
     and `--ephemeral` keeps no session file; `--ignore-user-config` and `--ignore-rules` keep the user's own config and exec-policy
     files from changing what runs. Unlike Claude Code, Codex has no documented switch that removes its shell tool, so
-    `parse_codex_events` rejects a run in which Codex acted on its own."""
+    `parse_codex_events` rejects a run in which Codex acted on its own.
+    `skip` names droppable flags (cli_flags.CODEX_FLAGS) a CLI version has rejected; a required flag in it raises CliBridgeError."""
     if model and not _MODEL_RE.match(model):
         raise CliBridgeError("The model name contains characters that are not allowed.")
-    argv = [executable, "exec", "--json", "--sandbox", "read-only", "--skip-git-repo-check", "--ephemeral", "--ignore-user-config",
-            "--ignore-rules"]
+    try:
+        argv = [executable, *cli_flags.build(cli_flags.CODEX_FLAGS, skip)]
+    except ValueError as e:
+        raise CliBridgeError(str(e)) from e
     if model:
         argv += ["--model", model]
     return [*argv, "-"]
@@ -588,11 +645,11 @@ class CodexCliClient(_CliClient):
     log_name = "codex_cli"
     default_exe = "codex"
     default_model_name = "codex-cli"
+    flag_table = cli_flags.CODEX_FLAGS
 
     def _invoke(self, exe, system_text, prompt, workdir):
         # Codex has no system-prompt slot, so the instructions lead the single stdin prompt.
-        code, out, err = run_cli(codex_argv(exe, self.model), system_text + "\n\n" + prompt, timeout=self.timeout,
-                                 cancel_event=self.cancel_event, cwd=workdir)
+        code, out, err = self._run_with_flag_fallback(exe, lambda skip: codex_argv(exe, self.model, skip), system_text + "\n\n" + prompt, workdir)
         if code != 0 and not out.strip():
             raise CliBridgeError(f"The Codex CLI exited with status {code}. Is it signed in (`codex login`)?" + _stderr_tail(err))
         try:

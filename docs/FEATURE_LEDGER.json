@@ -2273,6 +2273,25 @@
     ],
     "hand_verified": "not verified: CI only. The live tests were written without a QGIS install (CI's first run is their first execution). Never run on a macOS or Linux desktop, and the warning has not been seen by a person. The thresholds (QGIS 4.2, Python 3.10) are the project's rules, not measurements. Stage 2 (version-aware CLI flags) and stage 3 (Settings panel) are not built.",
     "hand_row": "row W13-environment of the hand-test rows: open the Help on each OS you have and compare the 'This computer' line with Help > About QGIS"
+  },
+  {
+    "id": "cli-flag-fallback",
+    "feature": "when a Claude Code or Codex CLI says it does not know a command-line flag, the bridge leaves out a droppable one (session-saving, turn cap, git-folder check), tells the user what that means and remembers it for that program file, and never runs without a safety flag (tools, MCP servers, slash commands, sandbox, user config and rules): it stops and names the flag and the CLI version",
+    "issues": [],
+    "since": "1.18.6",
+    "sources": [
+      "src/cartogen_ai/infrastructure/providers/cli_flags.py",
+      "src/cartogen_ai/infrastructure/providers/cli_bridge.py"
+    ],
+    "guards": [
+      "tests/test_cli_flags.py::TestCommandLinesAreUnchangedByDefault::test_claude",
+      "tests/test_cli_flags.py::TestCommandLinesAreUnchangedByDefault::test_codex",
+      "tests/test_cli_flags.py::TestSortingWhatWasRejected::test_every_safety_flag_is_required_for_both_clis",
+      "tests/test_cli_flags.py::TestTheRetryFlow::test_a_required_flag_is_never_run_without_and_the_message_names_the_flag_and_the_version",
+      "tests/test_cli_flags.py::TestTheRetryFlow::test_a_droppable_flag_is_dropped_once_the_user_is_told_and_the_run_succeeds"
+    ],
+    "hand_verified": "not verified: offline only. The rejection texts in the tests are the usual wordings of the CLIs' argument parsers (commander, clap), written from knowledge of them, NOT copied from a run of either CLI; no CLI version that rejects any of these flags was available. Whether a real old Claude Code or Codex says what the tests assume is unknown. Which flags are droppable is a judgement flagged in the pull request. The Antigravity (agy) adapter does not exist yet.",
+    "hand_row": "none yet: needs a Claude Code or Codex version old enough to reject one of the flags; until one is found, run the Connections window's Check connection on each CLI you have after this build and send the status line"
   }
 ]
 }

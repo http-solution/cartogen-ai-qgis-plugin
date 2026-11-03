@@ -125,6 +125,8 @@ _SAFE_EVENT_FIELDS = {
     "sender", "host", "qgis_proxy", "from_host", "to_host", "other_site", "key_source", "key_length",
     # environment (core/environment.py, PLAN-053): version strings and the OS family name of the machine, a count of findings. No user name, host name, path or locale.
     "os", "os_release", "arch", "python", "qgis", "qt", "gdal", "findings",
+    # cli_bridge flag fallback (PLAN-053 stage 2): the names of command-line OPTIONS a CLI rejected (never their values) and the CLI's own version line.
+    "flags", "cli_version",
 }
 
 

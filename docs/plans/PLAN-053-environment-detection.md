@@ -10,7 +10,7 @@ Stage 1 (this change):
 - `core/environment.py`: `detect()` (QGIS, Qt, GDAL, Python, OS, architecture; blank when unreadable), `describe()` (one line), `findings()` (unsupported: QGIS before 4.2, Python before 3.10; untested: QGIS 5 or later, an OS other than Windows, macOS, Linux; note: unreadable QGIS version) and `startup_message()`.
 - A start-up check in `plugin_main` that logs the machine (versions only: no user name, host name, path or locale) and shows one warning when something is unsupported or untested. It never stops the plugin from loading.
 - The machine in every evidence folder's `context.json`, and a "This computer" line in the Help.
-Stage 2 (not started): version-aware CLI adapters. Each adapter chooses its flags from the detected CLI version; a rejected flag falls back to a known form and says so. Needs the real `agy` probe (LEAD-10) for the Antigravity adapter.
+Stage 2 (built, PR after stage 1): version-aware CLI adapters for Claude Code and Codex. Not a table of flags by version number (the plugin cannot know every version's flags): the command runs as before, and only when the CLI itself says it does not know a flag does the bridge act. `infrastructure/providers/cli_flags.py` holds the tables: REQUIRED flags (tools, MCP servers, slash commands, sandbox, user config and rules, output format, the prompt, the chosen model) are never left out; the run stops with a message naming the flag and the CLI version. DROPPABLE flags (`--no-session-persistence`, `--max-turns`, `--ephemeral`, `--skip-git-repo-check`) are left out for one more run, the user is told what that means, and it is remembered for that program file. Still to do: the Antigravity (`agy`) adapter, which needs the real probe (LEAD-10).
 Stage 3 (not started): an "About this computer" panel in Settings, and plain refusals for a feature that needs a newer QGIS or CLI than the machine has.
 Out of scope: supporting QGIS 3.x (decided against), and any change to what a tool does.
 
@@ -27,3 +27,4 @@ Revert the change: the plugin then reads no version, as before. Nothing else dep
 
 ## Status log
 - 2026-11-03: stage 1 written, tests first. Not run in a real QGIS by me or anyone; the thresholds are the project's rules (QGIS 4.2 and later, Python 3.10), not measurements. The `agy` provider (LEAD-10) waits for its probe run before stage 2 can cover it.
+- 2026-11-03: stage 1 merged (#558); stage 2 written, tests first (`tests/test_cli_flags.py`). Offline only: the rejection wordings in the tests come from knowledge of the CLIs' argument parsers, not from a run. Which flags are droppable is a judgement for the owner to confirm (the list errs towards refusing).
