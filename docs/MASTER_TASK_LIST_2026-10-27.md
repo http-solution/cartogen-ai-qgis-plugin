@@ -143,7 +143,7 @@ One list to follow up and plan from. It replaces the session task list (101 entr
 | ID | Task | Why | Who | Depends on | Size | Pri | Status | Source |
 |---|---|---|---|---|---|---|---|---|
 | AR-1 | Agent pipeline redesign (intent, inspector, planner) and a deterministic plan, validate, execute model. | Large change; only after RM-A shows what a gate buys. | You | RM-A | XL | P3 | Decision needed | tracker 1.5, 1.6 |
-| AR-2 | Standard project folder architecture with immutable raw data. | Product opinion. | You | - | M | P3 | Decision needed | tracker 1.7 |
+| AR-2 | Standard project folder architecture with immutable raw data. | Product opinion. | You | - | M | P3 | Closed | tracker 1.7 |
 | AR-3 | task_matcher keyword normalisation favours short task definitions (partly mitigated in 1.18.1 and 1.18.4). | Routing fairness. | Claude | - | M | P3 | Not started | tracker 1.8 |
 | AR-4 | Chunked k-means for very large rasters; further GUI-thread offloading. | Guard shipped, chunking not. | Claude | - | M | P3 | Not started | A14, A15 |
 | AR-5 | Recorded as scoped and not recommended: vector memory stores, constrained decoding libraries, RestrictedPython, Presidio egress scan, semantic router. | Keep the record so they are not rediscovered. | You | - | - | - | Closed (record) | W-49 |
@@ -173,9 +173,9 @@ Source: the owner's analysis document of nine flagship QGIS AI plugins, checked 
 | In progress | 36 |
 | Not started | 27 |
 | Waiting on you | 14 |
-| Closed | 7 |
+| Closed | 8 |
 | Blocked | 5 |
-| Decision needed | 4 |
+| Decision needed | 3 |
 | Closed (record) | 1 |
 | **Total** | **94** |
 
@@ -291,3 +291,4 @@ Newest last. One line per status change; written by `tools/master_list.py set`.
 - 2026-11-03: OWN-8 Decision needed -> Closed. Owner decision 2026-11-03: merge for the record, after review. Its two files (the 2026-10-26 pending-work analysis and PLAN-023) are merged by the docs PR that records this; the branch can then be deleted.
 - 2026-11-03: LEAD-10 Waiting on you -> Waiting on you. Owner decision 2026-11-03: yes, build the Antigravity CLI provider. First step is yours: run tools/agy_probe.py (one script, Windows, macOS and Linux; sent to the owner 2026-11-03) in a normal terminal and send agy_probe_report.md. No provider code before its output.
 - 2026-11-03: DEF-6 Decision needed -> In progress. Owner decision 2026-11-03: suggest a cell size (do not change the limit). Built (PLAN-054): both refusals name a round size that fits and offer aoi_where. CI only; close after a hand run.
+- 2026-11-03: AR-2 Closed -> Closed. Owner said yes 2026-11-03. Option (c) was already built 2026-09-24: create_project_folder_structure (project_tools.py, 5 tests, tracker 1.7). The row was stale; nothing new to build.
