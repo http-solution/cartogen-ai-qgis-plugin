@@ -1,5 +1,53 @@
 [
  {
+  "id": "P1",
+  "defect": "Exported layout pages from the A1 script showed an empty Legend and a blank map frame",
+  "found_by": "Live run 2026-11-04 (agent); I saw it in a rendered PDF",
+  "status": "Open",
+  "pr": "",
+  "next": "Reproduce in the CI live job to tell the plugin from the script, then fix"
+ },
+ {
+  "id": "P2",
+  "defect": "Undo card for a filled column offers a destructive remove, then refuses only on Apply",
+  "found_by": "Live run 2026-11-04, row V9",
+  "status": "Open",
+  "pr": "",
+  "next": "Test that fails first, then refuse before the card"
+ },
+ {
+  "id": "P3",
+  "defect": "'Animate the layer over time' did not call export_temporal_animation_frames (issue 362)",
+  "found_by": "Live run 2026-11-04, row V4 (project was unsaved, no evidence folder)",
+  "status": "Open",
+  "pr": "",
+  "next": "Rerun with a saved project, then fix the routing"
+ },
+ {
+  "id": "P4",
+  "defect": "Chat export after reopening the project had 32 of 40 messages",
+  "found_by": "Live run 2026-11-04, row B5",
+  "status": "Open",
+  "pr": "",
+  "next": "Cause unconfirmed; reproduce"
+ },
+ {
+  "id": "P5",
+  "defect": "Help showed the wrong Qt version",
+  "found_by": "Live run 2026-11-04, row W13",
+  "status": "Fixed, not rerun live",
+  "pr": "569",
+  "next": "Rerun W13 in round 2"
+ },
+ {
+  "id": "P6",
+  "defect": "Panel connection dropdown did not follow a connection saved from Settings (issue 510)",
+  "found_by": "Live run 2026-11-04, rows A2/A3",
+  "status": "Fixed, not rerun live",
+  "pr": "569",
+  "next": "Rerun A2/A3 in round 2"
+ },
+ {
   "id": "D1",
   "defect": "Fetch tools skipped the egress gate",
   "found_by": "Hand-test W11",

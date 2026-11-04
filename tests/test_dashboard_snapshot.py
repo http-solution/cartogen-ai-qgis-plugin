@@ -10,7 +10,7 @@ spec = importlib.util.spec_from_file_location("dashboard_snapshot", ROOT / "tool
 snap = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(snap)
 
-SUMMARY_KEYS = {"as_of", "version", "release_state", "tools", "tests_run", "tests_sandbox_errors", "open_prs", "open_pr_note", "ledger_total",
+SUMMARY_KEYS = {"live_testable", "live_working", "live_partly", "live_failing", "live_not_seen", "live_not_testable", "live_run_date", "live_needs_recheck", "as_of", "version", "release_state", "tools", "tests_run", "tests_sandbox_errors", "open_prs", "open_pr_note", "ledger_total",
                 "ledger_by_hand", "ledger_partly", "ledger_not", "plans_total", "plans_planned", "plans_abandoned", "plans_in_progress", "plans_done",
                 "tasks_open", "tasks_waiting_on_owner"}
 

@@ -1,0 +1,440 @@
+{
+ "_about": "What a live run actually showed, per ledger feature (PLAN-057). working = the run saw it do what the ledger says, with evidence saved; partly = some of it seen or a fault seen and since fixed but not rerun; failing = seen not to work. A feature not listed here has not been seen live. Written from docs/HAND_TEST_RESULTS_full_smoke_2026-11-04.md and the saved evidence; an AI agent ran the rows, a person did not. tools/live_results.py checks every id and row exists.",
+ "runs": {
+  "2026-11-04-agent-windows": {
+   "date": "2026-11-04",
+   "by": "AI agent on the owner's Windows 11 computer, QGIS 4.2.3, Gemini (hosted)",
+   "baseline_commit": "903ae3c7b8ba6717ed6fead4163d57c0390a767e",
+   "package": "cartogen_ai_full_smoke_1.18.5",
+   "triage": "docs/HAND_TEST_RESULTS_full_smoke_2026-11-04.md"
+  }
+ },
+ "current_run": "2026-11-04-agent-windows",
+ "features": {
+  "task-grid-cell-size-suggestion": {
+   "status": "working",
+   "rows": "D5-task-grid",
+   "note": "The 1 km refusal named a 4 km size and offered aoi_where; the 4 km grid held 3,080 tasks."
+  },
+  "task-grid-aoi-where": {
+   "status": "working",
+   "rows": "D5-task-grid",
+   "note": "A District_1 grid of 5 features; smoke_admin stayed unfiltered."
+  },
+  "geojson-auto-name-safe": {
+   "status": "working",
+   "rows": "D5-task-grid",
+   "note": "The named GeoJSON was written in the temp folder and its name reported."
+  },
+  "load-tabular-twice-adds-nothing": {
+   "status": "working",
+   "rows": "C1-load-and-scripts",
+   "note": "The second load added no layer and said it was already loaded."
+  },
+  "add-layer-from-path-forwards-sublayer": {
+   "status": "working",
+   "rows": "C1-load-and-scripts",
+   "note": "smoke_roads (24 features) opened, not the first table of the file."
+  },
+  "script-worker-survives-print-and-odd-results": {
+   "status": "working",
+   "rows": "C1-load-and-scripts",
+   "note": "A script that prints and returns a set and a date answered normally."
+  },
+  "script-unapplied-edit-is-a-failure": {
+   "status": "working",
+   "rows": "C1-load-and-scripts",
+   "note": "The reply said the change was NOT applied."
+  },
+  "change-detection-accepts-raster-files": {
+   "status": "working",
+   "rows": "D2-damage-and-risk",
+   "note": "Two loaded ASCII rasters gave a change layer (step 1)."
+  },
+  "nearest-feature-distance-in-metres": {
+   "status": "working",
+   "rows": "D2-damage-and-risk",
+   "note": "distance_m added in metres (step 5)."
+  },
+  "route-risk-buffer-in-metres": {
+   "status": "working",
+   "rows": "D2-damage-and-risk",
+   "note": "Exactly Events A and B counted within 500 m (step 6)."
+  },
+  "forecast-trigger-percent-mode": {
+   "status": "working",
+   "rows": "D2-damage-and-risk",
+   "note": "A 0-100 probability column was accepted; both stations triggered (step 7)."
+  },
+  "matrix-access-legs": {
+   "status": "working",
+   "rows": "D4-network-access",
+   "note": "access_leg_m shown beside the road costs."
+  },
+  "classify-counts-access-leg": {
+   "status": "working",
+   "rows": "D4-network-access",
+   "note": "Counts given with the off-road leg included."
+  },
+  "access-gap-uses-the-named-speed-field": {
+   "status": "partly",
+   "rows": "D4-network-access",
+   "note": "Numbers given with speed_kmh named; a blocked or slowed road was not tried."
+  },
+  "export-routing-and-dxf": {
+   "status": "working",
+   "rows": "E4-exports",
+   "note": "DXF, xlsx (2 sheets) and the map PDF were written and opened."
+  },
+  "export-spreadsheet": {
+   "status": "working",
+   "rows": "E4-exports",
+   "note": "DXF, xlsx (2 sheets) and the map PDF were written and opened."
+  },
+  "point-layer-kept-or-said-temporary": {
+   "status": "working",
+   "rows": "E4-exports",
+   "note": "pts_test was saved and present after reopening."
+  },
+  "file-output-wave-e1": {
+   "status": "working",
+   "rows": "E4-exports",
+   "note": "Statistics numbers came back through the generic Processing tool."
+  },
+  "tidy-vector-tile": {
+   "status": "working",
+   "rows": "E4-exports",
+   "note": "tidy_project_layers ran with a mesh layer loaded and did not fail."
+  },
+  "rc48-batch1-fixes": {
+   "status": "partly",
+   "rows": "E4-exports",
+   "note": "The map PDF was valid; the tidy confirm card was not exercised (the row's duplicate setup was wrong)."
+  },
+  "obfuscate-admin-snap-cross-crs": {
+   "status": "working",
+   "rows": "E2-obfuscate",
+   "note": "5 of 5 points landed inside their admin unit across two CRSs, attributes kept."
+  },
+  "graduated-no-data-class": {
+   "status": "working",
+   "rows": "E5-raster-styling",
+   "note": "The feature with no value was grey and listed as No data in the legend."
+  },
+  "result-gate-hook": {
+   "status": "working",
+   "rows": "W1-gate-on",
+   "note": "cartogen/checks recorded on smoke_admin; no new run with the gate off."
+  },
+  "fetched-data-source-record": {
+   "status": "working",
+   "rows": "W2-gate-fetch W3-provenance",
+   "note": "Source name, URL, licence, date and coverage recorded; the report carries a Data source line."
+  },
+  "verified-workflow-report": {
+   "status": "working",
+   "rows": "W4-report",
+   "note": "The report was written with checks, sources and ordered steps."
+  },
+  "hdx-search-ranked": {
+   "status": "working",
+   "rows": "W5-hdx-ranked",
+   "note": "The tool result carries score and why per data set; licence, country and date matched HDX."
+  },
+  "workflow-file-export": {
+   "status": "working",
+   "rows": "W8-export",
+   "note": "Preview before the file; the file passed check_workflow_file with no leak."
+  },
+  "workflow-file-import": {
+   "status": "working",
+   "rows": "W9-import-good W10-import-bad",
+   "note": "Dialog, checksum, mapping and run worked; the six broken files were each refused with their sentence."
+  },
+  "workflow-file-validator": {
+   "status": "working",
+   "rows": "W9-import-good W10-import-bad",
+   "note": "Dialog, checksum, mapping and run worked; the six broken files were each refused with their sentence."
+  },
+  "gates-on-fetch-and-confirm-paths": {
+   "status": "partly",
+   "rows": "W11-import-egress F2-fetch-card",
+   "note": "The card appeared before anything was sent, with the download warning; Cancel sent nothing. The Apply path was not run."
+  },
+  "loaded-dem-is-not-a-fetch": {
+   "status": "working",
+   "rows": "V3-contour",
+   "note": "generate_contours only; no fetch."
+  },
+  "contours-vs-relief-routing-016": {
+   "status": "working",
+   "rows": "V3-contour",
+   "note": "generate_contours only; no fetch."
+  },
+  "temp-folder-location-note": {
+   "status": "working",
+   "rows": "V3-contour",
+   "note": "The tool result carries storage_note naming the temp folder (the reply did not repeat it)."
+  },
+  "linked-charts-routing": {
+   "status": "working",
+   "rows": "V6-charts",
+   "note": "A layout chart was added, no HTML dashboard."
+  },
+  "algorithm-beats-task-directive": {
+   "status": "working",
+   "rows": "V7-merge",
+   "note": "A merge ran with no unrelated plan."
+  },
+  "plain-language-discovery": {
+   "status": "working",
+   "rows": "V8-raster",
+   "note": "gdal:rasterize ran on the population field; no WorldPop plan."
+  },
+  "metadata-read-no-task": {
+   "status": "working",
+   "rows": "B1-routing-plain",
+   "note": "The right tools ran with no unrelated plan."
+  },
+  "raster-expression-routing": {
+   "status": "working",
+   "rows": "B1-routing-plain",
+   "note": "The right tools ran with no unrelated plan."
+  },
+  "named-algorithm-no-task": {
+   "status": "working",
+   "rows": "B1-routing-plain",
+   "note": "The right tools ran with no unrelated plan."
+  },
+  "router-top-k": {
+   "status": "working",
+   "rows": "B1-routing-plain",
+   "note": "tool_count 29 (28 plus find_tools)."
+  },
+  "stac-search-cloud-filter": {
+   "status": "working",
+   "rows": "B2-routing-places-data",
+   "note": "geocode then STAC search with dates and max_cloud_cover 20."
+  },
+  "scene-search-gets-area-and-dates": {
+   "status": "working",
+   "rows": "B2-routing-places-data",
+   "note": "geocode then STAC search with dates and max_cloud_cover 20."
+  },
+  "named-data-source-gets-its-own-tool": {
+   "status": "working",
+   "rows": "B2-routing-places-data",
+   "note": "fetch_usgs_earthquakes and fetch_ucdp_conflict_events ran."
+  },
+  "place-lookup-offered-with-data-fetches": {
+   "status": "partly",
+   "rows": "B2-routing-places-data",
+   "note": "Footprints worked with a place lookup; the population fetch errored before a download."
+  },
+  "map-tasks-start-with-a-fetch-tool": {
+   "status": "partly",
+   "rows": "B2-routing-places-data",
+   "note": "One of two prompts fetched; the other asked for confirmation first."
+  },
+  "arabic-french-routing-phrases": {
+   "status": "partly",
+   "rows": "B3-language",
+   "note": "Arabic called the OSM tool; the French step was run in the same chat and not judged."
+  },
+  "task-tools-always-offered": {
+   "status": "working",
+   "rows": "B4-long-request",
+   "note": "The four prescribed tools were offered, est_tools_tokens 8,224 (was 10,544), tool_count steady at 29, the run ended with a done/not-done summary."
+  },
+  "long-request-floor": {
+   "status": "working",
+   "rows": "B4-long-request",
+   "note": "The four prescribed tools were offered, est_tools_tokens 8,224 (was 10,544), tool_count steady at 29, the run ended with a done/not-done summary."
+  },
+  "found-tools-capped": {
+   "status": "working",
+   "rows": "B4-long-request",
+   "note": "The four prescribed tools were offered, est_tools_tokens 8,224 (was 10,544), tool_count steady at 29, the run ended with a done/not-done summary."
+  },
+  "turn-wrap-up-answer-round": {
+   "status": "working",
+   "rows": "B4-long-request",
+   "note": "The four prescribed tools were offered, est_tools_tokens 8,224 (was 10,544), tool_count steady at 29, the run ended with a done/not-done summary."
+  },
+  "empty-fetch-adds-no-layer": {
+   "status": "working",
+   "rows": "D1-fetch-live",
+   "note": "No layer for an empty GDACS or UCDP result."
+  },
+  "geocode-returns-the-place-bounding-box": {
+   "status": "working",
+   "rows": "D1-fetch-live",
+   "note": "The box was given in both coordinate orders."
+  },
+  "admin-boundary-borders-stay-visible": {
+   "status": "working",
+   "rows": "D1-fetch-live",
+   "note": "Borders visible; names appeared when zoomed in."
+  },
+  "admin-layer-zoom-labels": {
+   "status": "working",
+   "rows": "D1-fetch-live",
+   "note": "Borders visible; names appeared when zoomed in."
+  },
+  "gdacs-country-filter-reaches-the-live-path": {
+   "status": "partly",
+   "rows": "D1-fetch-live",
+   "note": "Yemen returned no alerts; a non-empty country case was not tried."
+  },
+  "coverage-chart-is-drawn": {
+   "status": "working",
+   "rows": "D3-coverage-sitrep-jiaf",
+   "note": "Chart, report and sitrep layout produced."
+  },
+  "coverage-report-missing-target": {
+   "status": "working",
+   "rows": "D3-coverage-sitrep-jiaf",
+   "note": "Chart, report and sitrep layout produced."
+  },
+  "sitrep-key-figures-come-from-the-data": {
+   "status": "working",
+   "rows": "D3-coverage-sitrep-jiaf",
+   "note": "Chart, report and sitrep layout produced."
+  },
+  "hand-test-layout-check-script": {
+   "status": "working",
+   "rows": "A1-layout-script",
+   "note": "11 of 11 script checks passed on Windows fonts and the footers read complete on the exported pages."
+  },
+  "layout-footer-check-numbers": {
+   "status": "working",
+   "rows": "A1-layout-script",
+   "note": "11 of 11 script checks passed on Windows fonts and the footers read complete on the exported pages."
+  },
+  "layout-footer-sources-disclaimer": {
+   "status": "working",
+   "rows": "A1-layout-script",
+   "note": "11 of 11 script checks passed on Windows fonts and the footers read complete on the exported pages."
+  },
+  "layout-credits-line": {
+   "status": "working",
+   "rows": "A1-layout-script",
+   "note": "11 of 11 script checks passed on Windows fonts and the footers read complete on the exported pages."
+  },
+  "layout-name-as-requested": {
+   "status": "working",
+   "rows": "A1-layout-script",
+   "note": "11 of 11 script checks passed on Windows fonts and the footers read complete on the exported pages."
+  },
+  "layout-page-sizes": {
+   "status": "working",
+   "rows": "A1-layout-script",
+   "note": "11 of 11 script checks passed on Windows fonts and the footers read complete on the exported pages."
+  },
+  "export-presets-and-names": {
+   "status": "working",
+   "rows": "A1-layout-script",
+   "note": "11 of 11 script checks passed on Windows fonts and the footers read complete on the exported pages."
+  },
+  "map-profiles": {
+   "status": "working",
+   "rows": "A1-layout-script",
+   "note": "11 of 11 script checks passed on Windows fonts and the footers read complete on the exported pages."
+  },
+  "layout-branding-3a": {
+   "status": "working",
+   "rows": "A1-layout-script",
+   "note": "11 of 11 script checks passed on Windows fonts and the footers read complete on the exported pages."
+  },
+  "layout-signoff-3b": {
+   "status": "working",
+   "rows": "A1-layout-script",
+   "note": "11 of 11 script checks passed on Windows fonts and the footers read complete on the exported pages."
+  },
+  "layout-profile-reread-016": {
+   "status": "working",
+   "rows": "A1-layout-script",
+   "note": "11 of 11 script checks passed on Windows fonts and the footers read complete on the exported pages."
+  },
+  "disclaimer-wording-owner": {
+   "status": "working",
+   "rows": "A1-layout-script",
+   "note": "11 of 11 script checks passed on Windows fonts and the footers read complete on the exported pages."
+  },
+  "footer-measured-in-real-font-016": {
+   "status": "working",
+   "rows": "A1-layout-script",
+   "note": "11 of 11 script checks passed on Windows fonts and the footers read complete on the exported pages."
+  },
+  "layout-legend-fits-frame": {
+   "status": "partly",
+   "rows": "A1-layout-script",
+   "note": "The script check passes, but the exported pages show a Legend box with no entries and a blank map frame: unconfirmed whether the plugin or the script's own project."
+  },
+  "layout-export-gate": {
+   "status": "partly",
+   "rows": "E1-protection-lineage",
+   "note": "A publication export was refused with a list of problems; the reason-and-confirm path was not run."
+  },
+  "layout-items-free-placement": {
+   "status": "partly",
+   "rows": "E3-layout-model",
+   "note": "Placement was reported; overlap was not judged."
+  },
+  "layout-cod-3c": {
+   "status": "working",
+   "rows": "E3-layout-model",
+   "note": "The COD credit came first on the footer's Credits line."
+  },
+  "elevation-profile-along-layer": {
+   "status": "partly",
+   "rows": "V5-profile",
+   "note": "A profile item along the road was added; no evidence folder was saved."
+  },
+  "abandoned-bundles-released-live": {
+   "status": "partly",
+   "rows": "V2-stop",
+   "note": "Stop worked, no layer was added and the next request worked; memory was read 3 hours late."
+  },
+  "cli-bridge-runner-and-claude-adapter": {
+   "status": "working",
+   "rows": "A3-cli-bridge",
+   "note": "Claude Code CLI found without Browse on Windows and answered."
+  },
+  "cli-program-found-on-every-os": {
+   "status": "working",
+   "rows": "A3-cli-bridge",
+   "note": "Claude Code CLI found without Browse on Windows and answered."
+  },
+  "settings-sections-by-purpose": {
+   "status": "working",
+   "rows": "A2-settings-connections",
+   "note": "The Settings groups read and opened."
+  },
+  "connections-window": {
+   "status": "partly",
+   "rows": "A2-settings-connections",
+   "note": "The window and Test worked; the panel dropdown did not follow the saved connection (fixed since, not rerun); the bad-key error is raw JSON."
+  },
+  "settings-api-provider-test-button": {
+   "status": "partly",
+   "rows": "A2-settings-connections",
+   "note": "The window and Test worked; the panel dropdown did not follow the saved connection (fixed since, not rerun); the bad-key error is raw JSON."
+  },
+  "cli-providers-opt-in-settings": {
+   "status": "partly",
+   "rows": "A2-settings-connections",
+   "note": "The window and Test worked; the panel dropdown did not follow the saved connection (fixed since, not rerun); the bad-key error is raw JSON."
+  },
+  "environment-detection": {
+   "status": "partly",
+   "rows": "W13-environment",
+   "note": "The Help line matched QGIS except Qt (6.11.0 against 6.11.1: fixed since, not rerun); the log line and the Settings copy were not looked at."
+  },
+  "chat-export-after-reopen": {
+   "status": "failing",
+   "rows": "B5-chat-formatting",
+   "note": "The export held 32 of 40 messages; whether the agent's typing lost them or the plugin did is unconfirmed."
+  }
+ }
+}

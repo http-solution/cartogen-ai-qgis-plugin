@@ -84,6 +84,22 @@ def run_tests(repo):
     return int(ran.group(1)), problems
 
 
+def _live_counts(repo, ledger):
+    """The measure the owner asked for (PLAN-057): of the features a live run can test, how many were SEEN working, partly, failing, or not seen. Read from
+    docs/LIVE_RESULTS.json, which records only what a live run showed. `live_needs_recheck` is the regression gate: seen working, source changed since."""
+    sys.path.insert(0, str(repo / "tools"))
+    import live_results
+    doc = json.loads((repo / "docs" / "LIVE_RESULTS.json").read_text(encoding="utf-8"))
+    s = live_results.summary(doc, ledger, live_results.not_testable())
+    run = next(iter(doc["runs"].values()))
+    try:
+        recheck = len(live_results.needs_recheck(doc, ledger, live_results.changed_since(run["baseline_commit"]), live_results.head_sha()))
+    except Exception:                                                  # a shallow clone has no baseline; say unknown, not zero
+        recheck = -1
+    return {"live_testable": s["testable"], "live_working": s["working"], "live_partly": s["partly"], "live_failing": s["failing"],
+            "live_not_seen": s["not_tested"], "live_not_testable": s["not_testable"], "live_run_date": run["date"], "live_needs_recheck": recheck}
+
+
 def build(out, repo=REPO, facts=None):
     """Writes the five dashboard files into `out` and returns the summary row. `facts` carries what a checkout cannot know. Pure apart from the files."""
     facts = dict(facts or {})
@@ -100,6 +116,7 @@ def build(out, repo=REPO, facts=None):
     open_tasks = [t for t in tasks if not t["status"].startswith("Closed")]
     meta = (repo / "metadata.txt").read_text(encoding="utf-8")
     count = lambda rows, key, value: sum(1 for r in rows if r[key] == value)   # noqa: E731
+    live = _live_counts(repo, ledger)
     summary = {
         "as_of": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "version": re.search(r"^version=(.+)$", meta, re.M).group(1).strip(),
@@ -111,6 +128,7 @@ def build(out, repo=REPO, facts=None):
         "ledger_not": classes.count("Not hand-verified"),
         "plans_total": len(plans), "plans_planned": count(plans, "status", "planned"), "plans_abandoned": count(plans, "status", "abandoned"),
         "plans_in_progress": count(plans, "status", "in progress"), "plans_done": count(plans, "status", "done"),
+        **live,
         "tasks_open": len(open_tasks), "tasks_waiting_on_owner": sum(1 for t in open_tasks if t["status"] in ("Waiting on you", "Decision needed")),
     }
     write("summary.json", [summary])
