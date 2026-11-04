@@ -2351,11 +2351,12 @@
   },
   {
     "id": "live-results-gate",
-    "feature": "docs/LIVE_RESULTS.json records what a live run saw per ledger feature; tools/live_results.py validates it and, with --gate, lists features seen working or partly whose source files changed since the run and have not been rechecked; the dashboard counts from it",
+    "feature": "docs/LIVE_RESULTS.json records what a live run saw per ledger feature; tools/live_results.py validates it and, with --gate, lists features seen working or partly whose source files, or the modules they import directly, changed since the run and have not been rechecked (exit 2 if the baseline commit is missing); tools/local_ci.sh runs it; the dashboard counts from it",
     "issues": [],
     "since": "1.18.6",
     "sources": [
       "tools/live_results.py",
+      "tools/local_ci.sh",
       "docs/LIVE_RESULTS.json",
       "tools/dashboard_snapshot.py",
       "docs/plans/PLAN-057-live-results-and-regression-gate.md"
@@ -2364,6 +2365,8 @@
       "tests/test_live_results.py::TestRecord::test_the_committed_record_has_no_problems",
       "tests/test_live_results.py::TestProblems::test_working_feature_without_a_guard_is_refused",
       "tests/test_live_results.py::TestGate::test_only_working_or_partly_features_with_changed_sources_need_a_recheck",
+      "tests/test_live_results.py::TestBaselineAndDependencies::test_a_missing_baseline_is_reported_not_swallowed",
+      "tests/test_live_results.py::TestBaselineAndDependencies::test_a_change_to_a_direct_import_flags_the_feature",
       "tests/test_dashboard_snapshot.py"
     ],
     "hand_verified": "not verified: offline tests only. The record itself comes from an AI agent's live run, not a person's.",

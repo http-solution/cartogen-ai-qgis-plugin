@@ -93,8 +93,9 @@ def _live_counts(repo, ledger):
     s = live_results.summary(doc, ledger, live_results.not_testable())
     run = next(iter(doc["runs"].values()))
     try:
-        recheck = len(live_results.needs_recheck(doc, ledger, live_results.changed_since(run["baseline_commit"]), live_results.head_sha()))
-    except Exception:                                                  # a shallow clone has no baseline; say unknown, not zero
+        changed = live_results.changed_since(run["baseline_commit"])
+        recheck = len(live_results.needs_recheck(doc, ledger, changed, live_results.head_sha(), live_results.dependencies(ledger, repo)))
+    except live_results.BaselineMissingError:                          # a shallow clone has no baseline: say unknown (-1), never a made-up count
         recheck = -1
     return {"live_testable": s["testable"], "live_working": s["working"], "live_partly": s["partly"], "live_failing": s["failing"],
             "live_not_seen": s["not_tested"], "live_not_testable": s["not_testable"], "live_run_date": run["date"], "live_needs_recheck": recheck}

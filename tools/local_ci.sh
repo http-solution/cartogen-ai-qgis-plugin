@@ -29,6 +29,11 @@ python -m mypy || status=1
 step "feature ledger (finished work must stay protected)"
 python tools/ledger_guard.py --base origin/main || status=1
 
+step "live-results gate (a release / big-change check: informational here, set RELEASE=1 to make it fail)"
+python tools/live_results.py
+python tools/live_results.py --gate; gate=$?
+if [ "$gate" -ne 0 ] && [ "${RELEASE:-}" = "1" ]; then echo "FAILED: features seen working live changed since the run (or the baseline is missing); rerun their rows"; status=1; fi
+
 step "release zip"
 python plugin_upload.py >/dev/null 2>&1 && test -f cartogen_ai.zip && python -c "
 import zipfile, os

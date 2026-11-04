@@ -8,6 +8,7 @@ docs/LIVE_RESULTS.json records only what a live run saw (an agent or a person dr
 regression guarantee for stable releases and big changes: a feature seen working live whose source files then change must be rechecked live (a rerun
 of its row) and stamped with `rechecked_at` = the commit it was rechecked on, or the release check fails."""
 import argparse
+import ast
 import json
 import subprocess
 import sys
@@ -71,14 +72,15 @@ def summary(doc, features, nht):
             "not_tested": testable - sum(counts.values())}
 
 
-def needs_recheck(doc, features, changed, head=None):
-    """Ids recorded working/partly whose source files are in `changed` and that have not been rechecked on this head. Pure."""
+def needs_recheck(doc, features, changed, head=None, deps=None):
+    """Ids recorded working/partly whose source files (or, when `deps` is given, the files they import directly) are in `changed` and that have not
+    been rechecked on this head. Pure."""
     out = []
     for f in features:
         entry = doc.get("features", {}).get(f["id"])
         if not entry or entry.get("status") not in ("working", "partly"):
             continue
-        if not changed & set(f.get("sources", [])):
+        if not changed & ((deps or {}).get(f["id"]) or set(f.get("sources", []))):
             continue
         if head and entry.get("rechecked_at") == head:
             continue
@@ -86,8 +88,66 @@ def needs_recheck(doc, features, changed, head=None):
     return out
 
 
-def changed_since(baseline):
-    out = subprocess.run(["git", "diff", "--name-only", f"{baseline}...HEAD"], cwd=ROOT, capture_output=True, text=True, check=True)  # noqa: S603, S607 -- fixed argv
+class BaselineMissingError(Exception):
+    """The commit the live run was made on is not in this clone (a shallow CI checkout), so 'what changed since' cannot be answered."""
+
+
+def _module_file(root, dotted):
+    base = Path(root) / "src" / Path(*dotted.split("."))
+    for candidate in (base.with_suffix(".py"), base / "__init__.py"):
+        if candidate.is_file():
+            return candidate.relative_to(root).as_posix()
+    return None
+
+
+def imports_of(path, root):
+    """Repository-relative paths of the cartogen_ai modules `path` imports directly (absolute or relative; not what those import in turn). Pure given the files."""
+    file = Path(root) / path
+    parts = list(file.relative_to(Path(root) / "src").with_suffix("").parts)
+    package = parts[:-1]                      # for an __init__.py the file IS the package, so the same slice holds
+    found = set()
+    for node in ast.walk(ast.parse(file.read_text(encoding="utf-8"))):
+        if isinstance(node, ast.Import):
+            names = [a.name for a in node.names]
+        elif isinstance(node, ast.ImportFrom):
+            base = package[:len(package) - (node.level - 1)] if node.level else []
+            module = ".".join([*base, *([node.module] if node.module else [])])
+            submodules = [m for m in (_module_file(root, f"{module}.{a.name}") for a in node.names) if m]
+            names = [] if submodules else [module]               # `from pkg import name` is the name's module when it is one, else the package itself
+            found.update(submodules)
+        else:
+            continue
+        found.update(m for m in (_module_file(root, n) for n in names if n.startswith("cartogen_ai")) if m)
+    return found
+
+
+def dependencies(features, root=ROOT):
+    """{feature id: its source files plus the modules those sources import directly}. One level only: transitive reach would flag most of the ledger for
+    any change to a shared helper (115 of 152 features for net.py), which is noise; direct reach flags 21. Pure given the files."""
+    out = {}
+    for f in features:
+        deps = set(f.get("sources", []))
+        for source in f.get("sources", []):
+            if source.startswith("src/") and source.endswith(".py") and (Path(root) / source).is_file():
+                deps |= imports_of(source, root)
+        out[f["id"]] = deps
+    return out
+
+
+def _run_git(*args):
+    return subprocess.run(["git", *args], cwd=ROOT, capture_output=True, text=True, check=False)  # noqa: S603, S607 -- fixed argv
+
+
+def changed_since(baseline, fetch=True):
+    """Files changed between the baseline commit and HEAD. Raises BaselineMissingError (never returns a guess) if the baseline is not in this clone and cannot be fetched."""
+    if _run_git("cat-file", "-e", f"{baseline}^{{commit}}").returncode != 0:
+        if fetch:
+            _run_git("fetch", "--quiet", "origin", baseline)
+        if _run_git("cat-file", "-e", f"{baseline}^{{commit}}").returncode != 0:
+            raise BaselineMissingError(f"baseline commit {baseline[:9]} is not in this clone; fetch full history (git fetch --unshallow) and rerun")
+    out = _run_git("diff", "--name-only", f"{baseline}...HEAD")
+    if out.returncode != 0:
+        raise BaselineMissingError(f"git diff from baseline {baseline[:9]} failed (a shallow clone has no merge base; run git fetch --unshallow): {out.stderr.strip()[:160]}")
     return set(out.stdout.split())
 
 
@@ -108,7 +168,12 @@ def main():
     code = 1 if bad else 0
     if args.gate:
         run = next(iter(doc["runs"].values()))
-        hit = needs_recheck(doc, feats, changed_since(run["baseline_commit"]), head_sha())
+        try:
+            changed = changed_since(run["baseline_commit"])
+        except BaselineMissingError as exc:
+            print("cannot check the gate:", exc)
+            return 2
+        hit = needs_recheck(doc, feats, changed, head_sha(), dependencies(feats))
         print(f"{len(hit)} feature(s) seen working/partly live have changed sources since {run['baseline_commit'][:9]} and need a live recheck:")
         for fid in hit:
             print("  -", fid, "(", doc["features"][fid]["rows"], ")")
