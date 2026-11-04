@@ -1,0 +1,26 @@
+# PLAN-056: The full live smoke package (every feature not yet verified by a person)
+
+Status: in progress
+
+## Goal
+The ledger lists 147 features that no person has fully verified (5 partly, 142 not). Moving to the next stable release needs a person to run them. This plan makes that one package: rows grouped in sessions A to F, with the exact inputs, what to do, what to expect and what evidence to save, and with a check that no ledger entry is left out and that every input file a row needs is in the package and valid.
+
+## Scope
+- `docs/FULL_SMOKE_ROWS.json`: 22 new rows (sessions A to F) plus the session and ledger entries of the 22 existing rows of `docs/HAND_TEST_V2_ROWS.json`, which are included unchanged. Each row has Covers, Needs, Starts from, Do, Expect, Save, Pass if, Cost, files.
+- `not_hand_testable` in that file names the 14 entries a person cannot test, each with its reason: 11 are "offline only by design" in the ledger itself (CI checks over the repository), plus `every-tool-callable-in-qgis` (CI calls every tool), `result-checks-pure` (a pure module with no user-visible behaviour; its hook is covered) and `update-task-without-an-id-is-explained` (no prompt reliably triggers it).
+- `tools/make_full_smoke_fixtures.py` generates the inputs no earlier package had (a 220 km area for the task-grid refusal, two ASCII rasters with a .prj, a 60,000-point CSV for the MCP size warning, a MultiPoint file, a 2dm mesh, a percent forecast table, a route line through two events, a COD map profile). `tools/build_full_smoke.py` builds the zip and stops if any ledger entry is uncovered or any named file is missing. `tools/verify_inputs.py` (shipped in 6_tools) checks the unzipped files against SHA256SUMS.txt.
+- `tools/check_evidence.py` now reads a row's `checks` list (several prompts with expected and forbidden tools per row); `tools/collect_evidence.py` finds a row folder from any `<letter><number>` snap name (B1, D2), not only W and V.
+- Out of scope: running any row (needs QGIS, a model, a person); changing plugin behaviour.
+
+## Acceptance
+- `tests/test_full_smoke_package.py` (32 tests): every unverified ledger entry is covered or named not hand-testable, nothing else is named, every expected tool exists in the registry, every file a row names is shipped, every layer a row expects is inside the shipped GeoPackage, the COD profile passes the plugin's own validator, the grids/CSV/route/mesh are what the rows say, the zip builds with a checklist and a result line per row, and `verify_inputs.py` passes on the unzipped package and catches a damaged and a missing file.
+- By hand: a person runs the rows and sends the folder back; `5_check_evidence.py` reads it.
+
+## Guard tests
+`tests/test_full_smoke_package.py`; ledger entry `full-smoke-package`.
+
+## Rollback
+Delete the builder, the rows file and the fixtures generator; `check_evidence.py` and `collect_evidence.py` keep working for the v2 rows (the changes are additive).
+
+## Status log
+- 2026-11-03: written and built; offline checks pass. No row has been run by a person. The rows were written from the ledger text, the tool schemas and the map-profile documentation without a QGIS install: a row whose instruction does not produce the stated result is a finding about the row, not necessarily about the plugin, and should be reported as such.

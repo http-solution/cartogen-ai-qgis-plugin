@@ -1,0 +1,272 @@
+#!/usr/bin/env python3
+"""Builds the FULL live smoke package (PLAN-056): one zip that covers every ledger entry that is not verified by hand.
+
+    python tools/build_full_smoke.py --plugin-zip dist/cartogen_ai_v<version>.zip [--out-dir DIR]
+
+Output: <out-dir or dist>/cartogen_ai_full_smoke_<version>.zip. Contents (all under one top folder):
+  README_FIRST.txt        what to do, in order, on one page
+  EVIDENCE_HOWTO.txt      where evidence goes and the two lines that collect it
+  COVERAGE.md            every ledger entry -> the row that covers it (or why a person cannot test it)
+  1_plugin/               the plugin zip and its SHA-256
+  2_layout_check/         the model-free layout script (row A1)
+  3_SHEET.md              the rows, by session, each with Starts from / Do / Expect / Save / Needs / Inputs
+  3_ROWS.json             the same rows as data (5_check_evidence.py reads it)
+  3_test_files/           EVERY input a row names (checked at build time: a missing file stops the build)
+  4_RESULTS.csv           one line per row to fill in
+  5_check_evidence.py     reads the returned folder and prints a verdict per row
+  6_tools/                collect_evidence.py (QGIS console), mcp_probe.py, check_workflow_file.py, summarize_usage_log.py
+  results/                evidence/<row>/CHECKLIST.txt per row, outputs/, screens/, logs/
+The 22 rows of docs/HAND_TEST_V2_ROWS.json are included unchanged; the new rows are in docs/FULL_SMOKE_ROWS.json."""
+import hashlib
+import json
+import re
+import sys
+import tempfile
+import zipfile
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import build_hand_test_v2 as v2          # (same folder; reuses the checklist text, version and fixture folders)
+import make_full_smoke_fixtures as fixtures
+
+REPO = v2.REPO
+FULL_ROWS = REPO / "docs" / "FULL_SMOKE_ROWS.json"
+LEDGER = REPO / "docs" / "FEATURE_LEDGER.json"
+FIXTURE_TOKEN = re.compile(r"\b(?:smoke|before|after)_[A-Za-z0-9_]*\.(?:qgz|gpkg|tif|csv|pdf|docx|asc|prj|geojson|2dm|json)\b")
+TOOLS_FOLDER = (*v2.TOOLS_FOLDER, "verify_inputs.py")
+
+
+def load():
+    return json.loads(FULL_ROWS.read_text(encoding="utf-8"))
+
+
+def all_rows(doc=None):
+    """The combined rows in running order: session A to F; inside a session the new rows first, then the v2 rows. Each has session and covers. Pure."""
+    doc = doc or load()
+    combined = []
+    for index, row in enumerate(doc["rows"]):
+        combined.append((row["session"], 0, index, row))
+    for index, row in enumerate(v2.rows()):
+        extra = doc["v2_rows"][row["id"]]
+        merged = dict(row, session=extra["session"], covers=list(extra["covers"]))
+        combined.append((extra["session"], 1, index, merged))
+    return [row for _s, _k, _i, row in sorted(combined, key=lambda item: item[:3])]
+
+
+def ledger_not_verified():
+    """The ids of the ledger entries that are not verified by hand, by the dashboard's own (conservative) rule. Pure given the files."""
+    sys.path.insert(0, str(REPO / "tools"))
+    import dashboard_snapshot
+    features = json.loads(LEDGER.read_text(encoding="utf-8"))["features"]
+    return [f["id"] for f in features if dashboard_snapshot.ledger_class(f.get("hand_verified")) != "Verified by hand"]
+
+
+def coverage_problems(rows, doc, ledger_ids):
+    """[problem sentence] for ledger entries nobody covers, covered twice by nobody-testable, or named but unknown. Empty means every one is accounted for. Pure."""
+    covered = {i for row in rows for i in row["covers"]}
+    nht = set(doc["not_hand_testable"])
+    problems = [f"{i}: covered by no row and not listed as not hand-testable" for i in ledger_ids if i not in covered and i not in nht]
+    problems += [f"{i}: named by a row but it is not an unverified ledger entry" for i in sorted(covered - set(ledger_ids))]
+    problems += [f"{i}: listed as not hand-testable but it is not an unverified ledger entry" for i in sorted(nht - set(ledger_ids))]
+    problems += [f"{i}: both covered by a row and listed as not hand-testable" for i in sorted(covered & nht)]
+    return problems
+
+
+def coverage_page(rows, doc, ledger_ids, features):
+    by_id = {f["id"]: f for f in features}
+    owner = {}
+    for row in rows:
+        for i in row["covers"]:
+            owner.setdefault(i, []).append(row["id"])
+    out = ["# Coverage: every ledger entry that is not verified by hand\n",
+           f"{len(ledger_ids)} entries. {len(owner)} are covered by at least one row; {len(doc['not_hand_testable'])} cannot be tested by a person (reason given).\n",
+           "| Ledger entry | Row(s) | What it is |", "|---|---|---|"]
+    for i in ledger_ids:
+        what = by_id[i]["feature"].replace("|", "/").replace("\n", " ")[:110]
+        if i in owner:
+            out.append(f"| {i} | {', '.join(owner[i])} | {what} |")
+        else:
+            out.append(f"| {i} | NOT HAND-TESTABLE: {doc['not_hand_testable'][i]} | {what} |")
+    return "\n".join(out) + "\n"
+
+
+def sheet(rows, doc, v):
+    out = [f"# Cartogen AI {v} - full live smoke test\n",
+           "Run the sessions in order (A to F). Each row starts from the state it names; none depends on another. Needs = what you must have for that row.\n"]
+    last = None
+    for row in rows:
+        if row["session"] != last:
+            last = row["session"]
+            out += [f"\n## Session {doc['sessions'][last]}\n"]
+        out += [f"### {row['id']}: {v2.fill(row['title'], v)}", "",
+                f"- **Covers:** {', '.join(row['covers']) or 'documentation only'}", f"- **Needs:** {row['needs']}",
+                f"- **Starts from:** {v2.fill(row['starts_from'], v)}", f"- **Do:** {v2.fill(row['do'], v)}",
+                f"- **Expect:** {v2.fill(row['expect'], v)}", f"- **Save:** {v2.fill(row['evidence'], v)}"]
+        for key, label in (("inputs", "Inputs"), ("outputs", "Outputs"), ("pass_if", "Pass if"), ("cost", "Cost")):
+            if row.get(key):
+                out.append(f"- **{label}:** {v2.fill(row[key], v)}")
+        if row.get("files"):
+            out.append("- **Files (in 3_test_files):** " + ", ".join(row["files"]))
+        out.append("")
+    return "\n".join(out)
+
+
+def readme(v, count):
+    return (f"Cartogen AI {v} - FULL live smoke test ({count} rows in 6 sessions)\n"
+            "=======================================================================\n\n"
+            "WHAT THIS IS: every feature in the ledger that is not yet verified by a person, as rows you can run. COVERAGE.md lists each feature and its row.\n\n"
+            "1_plugin/            the plugin zip (SHA-256 in checksum_sha256.txt)\n"
+            "2_layout_check/      the model-free layout script (row A1)\n"
+            "3_SHEET.md           THE ROWS: read and run these, in order A to F\n"
+            "3_test_files/        every input file a row names; open smoke_start.qgz from this folder (its data files sit beside it)\n"
+            "4_RESULTS.csv        fill in the result of every row (Pass / Partial / Fail / Skip) and one line of notes\n"
+            "EVIDENCE_HOWTO.txt   how to collect evidence: READ FIRST\n"
+            "results\\             one folder per row, each with a CHECKLIST.txt of what to save\n"
+            "5_check_evidence.py  not for you: it reads what you send back\n"
+            "6_tools/             collect_evidence.py (QGIS console), mcp_probe.py, check_workflow_file.py, verify_inputs.py (terminal), summarize_usage_log.py\n\n"
+            "BEFORE YOU START\n"
+            "  0. Terminal, in this folder:  python 6_tools/verify_inputs.py 3_test_files   (every input present and unchanged, or it names the file)\n"
+            "  1. Install the plugin (see UPDATING below). Open QGIS.\n"
+            "  2. In Cartogen Settings tick 'Save an evidence folder for each request'. Connect the model you will test (a hosted key or Ollama) in Connections.\n"
+            "  3. Do the two evidence lines in EVIDENCE_HOWTO.txt once per QGIS session.\n"
+            "SESSIONS (what each needs)\n"
+            "  A  no model, no key: layout script, Settings, CLI (about 45 minutes)\n"
+            "  B  chat routing: a real model (about 1 hour)\n"
+            "  C  loading data, Stop, Undo: a real model\n"
+            "  D  analysis, fetched data, checks, provenance: a real model and internet\n"
+            "  E  privacy gates, layouts, exports: a real model\n"
+            "  F  MCP server, workflow files, close-out: a terminal with Python 3.10+, optionally an MCP client\n"
+            "  A row you cannot run (no key, no internet, no CLI): write Skip and why. Never leave it blank.\n"
+            "AT THE END\n"
+            "  python 5_check_evidence.py results      (row F3) and send back: the results folder, 4_RESULTS.csv, the cartogen_evidence folder.\n\n"
+            + v2.fill(v2.UPDATE_STEPS, v))
+
+
+EVIDENCE_PAGE = """HOW TO COLLECT EVIDENCE (read this once, 3 minutes)
+=====================================================
+
+WHERE IT GOES: the folder "results" in this package, already laid out:
+  results\\evidence\\<row id>\\   one folder per row (A1-layout-script, B1-routing-plain, ...). Each has a CHECKLIST.txt: exactly what to put in it.
+  results\\outputs\\<row id>\\    files a row makes (reports, exports, probe results). You copy them here.
+  results\\screens\\            screenshots you take by hand, named as the row says (D1-borders.png ...).
+  results\\logs\\               the CartogenAI log per row (written for you).
+
+ONCE PER QGIS SESSION (after installing the plugin and opening the copy of smoke_start.qgz):
+  1. In QGIS open Plugins > Python Console. Paste these two lines, with <bundle> replaced by the full path of this unzipped folder:
+       exec(open(r"<bundle>\\6_tools\\collect_evidence.py", encoding="utf-8").read())
+       begin(r"<bundle>")
+     It prints "ready". In Cartogen Settings tick "Save an evidence folder for each request".
+
+AFTER EACH ROW (about ten seconds):
+  2. As soon as the reply is complete, type in the console:  snap('B1')   (the row's letter and number; two-part rows say snap('B3a') and snap('B3b'))
+     It saves, into that row's folder: screenshots of the QGIS window and the map, the layer table, the plugin's records on every layer
+     (layer_properties.json), the CartogenAI log, the project state, and the tools the plugin called (plugin_evidence). The reason for anything
+     it could not save is in snap_errors.txt.
+  3. Copy by hand what the row's CHECKLIST.txt lists: exported files into results\\outputs\\<row id>\\, screenshots into results\\screens\\.
+  4. Write Pass / Partial / Fail / Skip and one line of notes in 4_RESULTS.csv. Never edit a saved file. If you could not save something, write "not saved: why".
+
+ROWS THAT NEED NO QGIS CONSOLE: A1 prints its own folder; F-rows with mcp_probe.py, check_workflow_file.py and 5_check_evidence.py run in a normal terminal
+(the row gives the command).
+
+SENDING IT BACK: zip the whole "results" folder, and send it with 4_RESULTS.csv and the cartogen_evidence folder.
+"""
+
+
+def generated_files(tmp):
+    fixtures.write_all(tmp)
+    generated = {name: Path(tmp) / name for name in fixtures.FILES}
+    sheet_path = Path(tmp) / "language_review_sheet.csv"
+    import language_review
+    code = language_review.main(["export", str(sheet_path)])           # the module's own command line, called in-process (it writes the sheet and returns 0)
+    if code not in (0, None) or not sheet_path.is_file():
+        raise SystemExit("tools/language_review.py could not write the review sheet")
+    generated["language_review_sheet.csv"] = sheet_path
+    return generated
+
+
+def find_source(name, generated):
+    for folder in (v2.INPUTS, v2.EXTRA_INPUTS):
+        if (folder / name).is_file():
+            return folder / name
+    return generated.get(name)
+
+
+def needed_files(rows, text):
+    names = set(v2.PROJECT_FILES)
+    for row in rows:
+        names.update(row.get("files", []))
+    in_folders = {Path(name).name for name in names if "/" in name}           # smoke_cod.json is shipped as cartogen_profiles/smoke_cod.json
+    names.update(token for token in FIXTURE_TOKEN.findall(text) if token not in in_folders)
+    return names
+
+
+def main(argv):
+    if "--plugin-zip" not in argv:
+        raise SystemExit("usage: build_full_smoke.py --plugin-zip FILE.zip [--out-dir DIR]")
+    plugin_zip = Path(argv[argv.index("--plugin-zip") + 1]).resolve()
+    v = v2.version()
+    if f"_v{v}.zip" not in plugin_zip.name:
+        raise SystemExit(f"{plugin_zip.name} is not the {v} build")
+    doc = load()
+    rows = all_rows(doc)
+    ledger_ids = ledger_not_verified()
+    problems = coverage_problems(rows, doc, ledger_ids)
+    if problems:
+        raise SystemExit("coverage is incomplete:\n  " + "\n  ".join(problems))
+    text = sheet(rows, doc, v)
+    stale = v2.stale_words(text)
+    if stale:
+        raise SystemExit(f"the sheet names {stale}, which went stale; fix the rows")
+    features = json.loads(LEDGER.read_text(encoding="utf-8"))["features"]
+    top = f"cartogen_ai_full_smoke_{v}"
+    out_dir = Path(argv[argv.index("--out-dir") + 1]).resolve() if "--out-dir" in argv else REPO / "dist"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out = out_dir / f"{top}.zip"
+    digest = hashlib.sha256(plugin_zip.read_bytes()).hexdigest()
+    results = "id,session,title,covers,result (Pass/Partial/Fail/Skip),notes\n" + "".join(
+        f"{r['id']},{r['session']},\"{v2.fill(r['title'], v).replace(chr(34), chr(39))}\",\"{' '.join(r['covers'])}\",,\n" for r in rows)
+    combined = {"_about": doc["_about"], "rows": rows}
+    with tempfile.TemporaryDirectory() as tmp, zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as z:
+        generated = generated_files(tmp)
+        z.writestr(f"{top}/README_FIRST.txt", readme(v, len(rows)).replace("\n", "\r\n"))
+        z.write(plugin_zip, f"{top}/1_plugin/{plugin_zip.name}")
+        z.writestr(f"{top}/1_plugin/checksum_sha256.txt", f"{digest}  {plugin_zip.name}\n")
+        z.write(REPO / "tools" / "layout_check_script.py", f"{top}/2_layout_check/layout_check_script.py")
+        for tool in TOOLS_FOLDER:
+            z.write(REPO / "tools" / tool, f"{top}/6_tools/{tool}")
+        z.writestr(f"{top}/3_SHEET.md", text)
+        z.writestr(f"{top}/3_ROWS.json", json.dumps(combined, indent=1, ensure_ascii=False))
+        z.writestr(f"{top}/4_RESULTS.csv", results)
+        z.writestr(f"{top}/COVERAGE.md", coverage_page(rows, doc, ledger_ids, features))
+        z.writestr(f"{top}/EVIDENCE_HOWTO.txt", EVIDENCE_PAGE.replace("\n", "\r\n"))
+        z.write(REPO / "docs" / "WORKFLOW_FILES.md", f"{top}/3_test_files/WORKFLOW_FILES.md")
+        for row in rows:
+            z.writestr(f"{top}/results/evidence/{row['id']}/CHECKLIST.txt", v2.checklist(row, v))
+            z.writestr(f"{top}/results/outputs/{row['id']}/PUT_OUTPUT_FILES_HERE.txt",
+                       f"Files row {row['id']} makes go here (see ../../evidence/{row['id']}/CHECKLIST.txt).\r\n")
+        z.writestr(f"{top}/results/screens/PUT_SCREENSHOTS_HERE.txt", "Screenshots a row asks for, named as the row says.\r\n")
+        z.writestr(f"{top}/results/logs/WRITTEN_BY_SNAP.txt", "snap() writes one CartogenAI log per row here.\r\n")
+        z.writestr(f"{top}/results/README.txt", "Everything the run produces goes here: evidence/, outputs/, screens/, logs/. How: see ../EVIDENCE_HOWTO.txt.\r\n")
+        z.write(REPO / "tools" / "check_evidence.py", f"{top}/5_check_evidence.py")
+        shipped = set()
+        for name in sorted(needed_files(rows, text)):
+            source = find_source(name, generated)
+            if source is None:
+                raise SystemExit(f"a row names {name}, which is in no fixture folder and is not generated")
+            z.write(source, f"{top}/3_test_files/{name}")
+            shipped.add(name)
+        for folder in (v2.INPUTS, v2.EXTRA_INPUTS):                      # the pinned smoke inputs are all shipped: a row may use any of them
+            for source in sorted(folder.iterdir()):
+                if source.is_file() and source.name not in shipped and not source.name.endswith(".aux.xml"):
+                    z.write(source, f"{top}/3_test_files/{source.name}")
+                    shipped.add(source.name)
+        for name in sorted(set(generated) - shipped):
+            z.write(generated[name], f"{top}/3_test_files/{name}")
+            shipped.add(name)
+        sums = [f"{hashlib.sha256(z.read(f'{top}/3_test_files/{name}')).hexdigest()}  {name}" for name in sorted(shipped | {"WORKFLOW_FILES.md"})]
+        z.writestr(f"{top}/3_test_files/SHA256SUMS.txt", "\n".join(sums) + "\n")
+    print(f"wrote {out} ({out.stat().st_size // 1024} KB), {len(rows)} rows, {len(ledger_ids)} ledger entries accounted for")
+
+
+if __name__ == "__main__":
+    main(sys.argv)
