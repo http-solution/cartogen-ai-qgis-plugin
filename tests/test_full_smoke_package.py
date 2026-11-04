@@ -264,6 +264,12 @@ class TestThePackage(unittest.TestCase):
             self.assertTrue(any("smoke_mesh.2dm" in p and "missing" in p for p in problems), problems)
             self.assertTrue(any("row D2-damage-and-risk needs smoke_prob.csv" in p for p in problems), problems)
 
+    def test_the_agent_prompt_ships_and_names_the_files_it_tells_the_agent_to_use(self):
+        text = self.zip.read(f"{self.top}/AGENT_PROMPT.md").decode("utf-8")
+        for name in ("verify_inputs.py", "5_check_evidence.py", "4_RESULTS.csv", "3_SHEET.md", "COVERAGE.md", "EVIDENCE_HOWTO.txt", "README_FIRST.txt"):
+            self.assertIn(name, text)
+            self.assertTrue(any(n.endswith("/" + name) for n in self.names()), name)
+
     def test_the_language_review_sheet_has_phrases(self):
         text = self.zip.read(f"{self.top}/3_test_files/language_review_sheet.csv").decode("utf-8-sig")
         self.assertGreater(len(list(csv.DictReader(io.StringIO(text)))), 100)

@@ -121,6 +121,7 @@ def readme(v, count):
             "3_test_files/        every input file a row names; open smoke_start.qgz from this folder (its data files sit beside it)\n"
             "4_RESULTS.csv        fill in the result of every row (Pass / Partial / Fail / Skip) and one line of notes\n"
             "EVIDENCE_HOWTO.txt   how to collect evidence: READ FIRST\n"
+            "AGENT_PROMPT.md      the prompt to give an AI agent that runs this package for you\n"
             "results\\             one folder per row, each with a CHECKLIST.txt of what to save\n"
             "5_check_evidence.py  not for you: it reads what you send back\n"
             "6_tools/             collect_evidence.py (QGIS console), mcp_probe.py, check_workflow_file.py, verify_inputs.py (terminal), summarize_usage_log.py\n\n"
@@ -239,6 +240,7 @@ def main(argv):
         z.writestr(f"{top}/4_RESULTS.csv", results)
         z.writestr(f"{top}/COVERAGE.md", coverage_page(rows, doc, ledger_ids, features))
         z.writestr(f"{top}/EVIDENCE_HOWTO.txt", EVIDENCE_PAGE.replace("\n", "\r\n"))
+        z.write(REPO / "docs" / "FULL_SMOKE_AGENT_PROMPT.md", f"{top}/AGENT_PROMPT.md")          # for an AI agent that runs the package instead of a person
         z.write(REPO / "docs" / "WORKFLOW_FILES.md", f"{top}/3_test_files/WORKFLOW_FILES.md")
         for row in rows:
             z.writestr(f"{top}/results/evidence/{row['id']}/CHECKLIST.txt", v2.checklist(row, v))
