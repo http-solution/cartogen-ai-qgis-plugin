@@ -10,7 +10,7 @@ spec = importlib.util.spec_from_file_location("dashboard_snapshot", ROOT / "tool
 snap = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(snap)
 
-SUMMARY_KEYS = {"live_testable", "live_working", "live_partly", "live_failing", "live_not_seen", "live_not_testable", "live_run_date", "live_needs_recheck", "as_of", "version", "release_state", "tools", "tests_run", "tests_sandbox_errors", "open_prs", "open_pr_note", "ledger_total",
+SUMMARY_KEYS = {"live_recheck_label", "live_testable", "live_working", "live_partly", "live_failing", "live_not_seen", "live_not_testable", "live_run_date", "live_needs_recheck", "as_of", "version", "release_state", "tools", "tests_run", "tests_sandbox_errors", "open_prs", "open_pr_note", "ledger_total",
                 "ledger_by_hand", "ledger_partly", "ledger_not", "plans_total", "plans_planned", "plans_abandoned", "plans_in_progress", "plans_done",
                 "tasks_open", "tasks_waiting_on_owner"}
 
@@ -74,6 +74,30 @@ class TestBuild(unittest.TestCase):
         import re
         text = "".join(p.read_text(encoding="utf-8") for p in self.out.glob("*.json"))
         self.assertFalse(re.search(r"sk-[A-Za-z0-9_-]{16,}|AIza[0-9A-Za-z_-]{20,}|Bearer\s+[A-Za-z0-9._-]{16,}", text))
+
+
+class TestLiveRecheckCount(unittest.TestCase):
+    """The recheck count is a number or -1 (unknown); the page must say 'unknown' for -1, never print it as a count."""
+
+    def test_a_missing_baseline_gives_minus_one_not_a_guess(self):
+        from unittest import mock
+        import live_results
+        with mock.patch.object(live_results, "changed_since", side_effect=live_results.BaselineMissingError("no baseline")):
+            out = Path(tempfile.mkdtemp())
+            self.assertEqual(snap.build(out, ROOT, {})["live_needs_recheck"], -1)
+
+    def test_a_present_baseline_gives_the_count_that_the_gate_prints(self):
+        import live_results
+        doc, feats = live_results.load(), live_results.ledger()
+        expected = len(live_results.needs_recheck(doc, feats, live_results.changed_since(next(iter(doc["runs"].values()))["baseline_commit"]),
+                                                  live_results.head_sha(), live_results.dependencies(feats)))
+        out = Path(tempfile.mkdtemp())
+        self.assertEqual(snap.build(out, ROOT, {})["live_needs_recheck"], expected)
+
+    def test_the_label_the_page_prints_says_unknown_for_minus_one_and_the_number_otherwise(self):
+        self.assertEqual(snap.recheck_label(-1), "unknown")
+        self.assertEqual(snap.recheck_label(0), "0")
+        self.assertEqual(snap.recheck_label(17), "17")
 
 
 class TestRunTestsParser(unittest.TestCase):
