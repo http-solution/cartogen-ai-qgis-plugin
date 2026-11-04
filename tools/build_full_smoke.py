@@ -16,7 +16,11 @@ Output: <out-dir or dist>/cartogen_ai_full_smoke_<version>.zip. Contents (all un
   5_check_evidence.py     reads the returned folder and prints a verdict per row
   6_tools/                collect_evidence.py (QGIS console), mcp_probe.py, check_workflow_file.py, summarize_usage_log.py
   results/                evidence/<row>/CHECKLIST.txt per row, outputs/, screens/, logs/
-The 22 rows of docs/HAND_TEST_V2_ROWS.json are included unchanged; the new rows are in docs/FULL_SMOKE_ROWS.json."""
+The 22 rows of docs/HAND_TEST_V2_ROWS.json are included unchanged; the new rows are in docs/FULL_SMOKE_ROWS.json.
+
+    --only ID,ID,...   or   --only @docs/ROUND2_ROWS.json   [--label round2]
+builds a package of just those rows (PLAN-059, round 2): the zip is named cartogen_ai_full_smoke_<version>_<label>.zip, 3_ROWS.json, 4_RESULTS.csv, COVERAGE.md and the
+results folders hold only those rows, and only the files they name are required. Coverage of the FULL set is still checked first, so a subset cannot hide a gap."""
 import hashlib
 import json
 import re
@@ -92,6 +96,55 @@ def coverage_page(rows, doc, ledger_ids, features):
     return "\n".join(out) + "\n"
 
 
+def build_note(plugin_zip, digest, v):
+    """1_plugin/BUILD.txt: which commit the plugin zip was built from and its checksum. The version stays 1.18.5 while 1.18.6 is held, so an older 1.18.5 on the
+    tester's machine would otherwise look identical. Never raises: an unreadable git state is written as 'unknown'."""
+    import subprocess
+    try:
+        commit = subprocess.run(["git", "rev-parse", "HEAD"], cwd=REPO, capture_output=True, text=True, check=True).stdout.strip()   # noqa: S607 -- fixed argv
+    except Exception:                                    # the note is advice; a missing git must not stop the build
+        commit = "unknown"
+    return (f"plugin zip: {plugin_zip.name}\ncommit: {commit}\nsha256: {digest}\n\n"
+            f"The plugin keeps the same version number ({v}) as the build you may already have installed, because the next release is held. Install THIS zip over it "
+            "(Plugins > Manage and Install Plugins > Install from ZIP), restart QGIS, and compare the SHA-256 of the zip you installed with the line above before "
+            "you start. If it differs, you are not testing this build.\n")
+
+
+def parse_only(arg):
+    """The row ids of `--only`: a comma list ('A1-layout-script,V4-animate') or '@path' to a JSON file whose "rows" is an object keyed by row id. Pure given the file."""
+    if arg.startswith("@"):
+        return list(json.loads(Path(arg[1:]).read_text(encoding="utf-8"))["rows"])
+    return [part.strip() for part in arg.split(",") if part.strip()]
+
+
+def select_rows(rows, only):
+    """The rows named in `only`, in the sheet's running order. Refuses an empty list and any id that is not a row (named, never ignored). Pure."""
+    if not only:
+        raise SystemExit("--only names no rows")
+    known = {row["id"] for row in rows}
+    unknown = [i for i in only if i not in known]
+    if unknown:
+        raise SystemExit("--only names rows that do not exist: " + ", ".join(unknown))
+    chosen = set(only)
+    return [row for row in rows if row["id"] in chosen]
+
+
+def subset_coverage_page(rows, features):
+    """COVERAGE.md for a subset package: the ledger entries these rows cover, and which row covers each. Pure."""
+    by_id = {f["id"]: f for f in features}
+    owner = {}
+    for row in rows:
+        for i in row["covers"]:
+            owner.setdefault(i, []).append(row["id"])
+    out = [f"# Coverage: the ledger entries these {len(rows)} rows cover\n",
+           f"{len(owner)} entries. This is a subset package (see README_FIRST.txt): the rest of the ledger is in the full package.\n",
+           "| Ledger entry | Row(s) | What it is |", "|---|---|---|"]
+    for i in sorted(owner):
+        what = by_id[i]["feature"].replace("|", "/").replace("\n", " ")[:110] if i in by_id else ""
+        out.append(f"| {i} | {', '.join(owner[i])} | {what} |")
+    return "\n".join(out) + "\n"
+
+
 def sheet(rows, doc, v):
     out = [f"# Cartogen AI {v} - full live smoke test\n",
            "Run the sessions in order (A to F). Each row starts from the state it names; none depends on another. Needs = what you must have for that row.\n"]
@@ -113,11 +166,19 @@ def sheet(rows, doc, v):
     return "\n".join(out)
 
 
-def readme(v, count):
-    return (f"Cartogen AI {v} - FULL live smoke test ({count} rows in 6 sessions)\n"
-            "=======================================================================\n\n"
-            "WHAT THIS IS: every feature in the ledger that is not yet verified by a person, as rows you can run. COVERAGE.md lists each feature and its row.\n\n"
-            "1_plugin/            the plugin zip (SHA-256 in checksum_sha256.txt)\n"
+def readme(v, count, label=None):
+    if label:
+        head = (f"Cartogen AI {v} - live smoke test, ROUND 2 ({count} rows)\n"
+                "=======================================================================\n\n"
+                f"WHAT THIS IS: only the rows to rerun after the fixes of 2026-11-04 ({count} rows, not the full {len(all_rows())}). Each row exists because a feature seen working live "
+                "has since changed code, or a fix has never been seen working, or a case was never tested. 3_ROWS.json and COVERAGE.md say which. Row B4 (the most expensive) "
+                "goes last and only if the provider has quota. Skip a row you cannot run and say why.\n\n")
+    else:
+        head = (f"Cartogen AI {v} - FULL live smoke test ({count} rows in 6 sessions)\n"
+                "=======================================================================\n\n"
+                "WHAT THIS IS: every feature in the ledger that is not yet verified by a person, as rows you can run. COVERAGE.md lists each feature and its row.\n\n")
+    return (head +
+            "1_plugin/            the plugin zip (SHA-256 in checksum_sha256.txt; BUILD.txt says which commit it is and how to be sure you installed it)\n"
             "2_layout_check/      the model-free layout script (row A1)\n"
             "3_SHEET.md           THE ROWS: read and run these, in order A to F\n"
             "3_test_files/        every input file a row names; open smoke_start.qgz from this folder (its data files sit beside it)\n"
@@ -216,7 +277,7 @@ def needed_files(rows, text):
 
 def main(argv):
     if "--plugin-zip" not in argv:
-        raise SystemExit("usage: build_full_smoke.py --plugin-zip FILE.zip [--out-dir DIR]")
+        raise SystemExit("usage: build_full_smoke.py --plugin-zip FILE.zip [--out-dir DIR] [--only ID,ID,... | --only @rows.json [--label NAME]]")
     plugin_zip = Path(argv[argv.index("--plugin-zip") + 1]).resolve()
     v = v2.version()
     if f"_v{v}.zip" not in plugin_zip.name:
@@ -224,15 +285,19 @@ def main(argv):
     doc = load()
     rows = all_rows(doc)
     ledger_ids = ledger_not_verified()
-    problems = coverage_problems(rows, doc, ledger_ids)
+    problems = coverage_problems(rows, doc, ledger_ids)         # always checked on the FULL set, so a subset can never hide a gap in the full package
     if problems:
         raise SystemExit("coverage is incomplete:\n  " + "\n  ".join(problems))
+    subset = "--only" in argv
+    label = (argv[argv.index("--label") + 1] if "--label" in argv else "subset") if subset else None
+    if subset:
+        rows = select_rows(rows, parse_only(argv[argv.index("--only") + 1]))
     text = sheet(rows, doc, v)
     stale = v2.stale_words(text)
     if stale:
         raise SystemExit(f"the sheet names {stale}, which went stale; fix the rows")
     features = json.loads(LEDGER.read_text(encoding="utf-8"))["features"]
-    top = f"cartogen_ai_full_smoke_{v}"
+    top = f"cartogen_ai_full_smoke_{v}" + (f"_{label}" if subset else "")
     out_dir = Path(argv[argv.index("--out-dir") + 1]).resolve() if "--out-dir" in argv else REPO / "dist"
     out_dir.mkdir(parents=True, exist_ok=True)
     out = out_dir / f"{top}.zip"
@@ -242,16 +307,17 @@ def main(argv):
     combined = {"_about": doc["_about"], "rows": rows}
     with tempfile.TemporaryDirectory() as tmp, zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as z:
         generated = generated_files(tmp)
-        z.writestr(f"{top}/README_FIRST.txt", readme(v, len(rows)).replace("\n", "\r\n"))
+        z.writestr(f"{top}/README_FIRST.txt", readme(v, len(rows), label if subset else None).replace("\n", "\r\n"))
         z.write(plugin_zip, f"{top}/1_plugin/{plugin_zip.name}")
         z.writestr(f"{top}/1_plugin/checksum_sha256.txt", f"{digest}  {plugin_zip.name}\n")
+        z.writestr(f"{top}/1_plugin/BUILD.txt", build_note(plugin_zip, digest, v).replace("\n", "\r\n"))
         z.write(REPO / "tools" / "layout_check_script.py", f"{top}/2_layout_check/layout_check_script.py")
         for tool in TOOLS_FOLDER:
             z.write(REPO / "tools" / tool, f"{top}/6_tools/{tool}")
         z.writestr(f"{top}/3_SHEET.md", text)
         z.writestr(f"{top}/3_ROWS.json", json.dumps(combined, indent=1, ensure_ascii=False))
         z.writestr(f"{top}/4_RESULTS.csv", results)
-        z.writestr(f"{top}/COVERAGE.md", coverage_page(rows, doc, ledger_ids, features))
+        z.writestr(f"{top}/COVERAGE.md", subset_coverage_page(rows, features) if subset else coverage_page(rows, doc, ledger_ids, features))
         z.writestr(f"{top}/EVIDENCE_HOWTO.txt", EVIDENCE_PAGE.replace("\n", "\r\n"))
         z.write(REPO / "docs" / "FULL_SMOKE_AGENT_PROMPT.md", f"{top}/AGENT_PROMPT.md")          # for an AI agent that runs the package instead of a person
         z.write(REPO / "docs" / "WORKFLOW_FILES.md", f"{top}/3_test_files/WORKFLOW_FILES.md")
@@ -287,7 +353,8 @@ def main(argv):
         # CI run of PR 569, 2026-11-04).
         sums = [f"{digests[name]}  {name}" for name in sorted(digests)]
         z.writestr(f"{top}/3_test_files/SHA256SUMS.txt", "\n".join(sums) + "\n")
-    print(f"wrote {out} ({out.stat().st_size // 1024} KB), {len(rows)} rows, {len(ledger_ids)} ledger entries accounted for")
+    covered = len({i for row in rows for i in row["covers"]})
+    print(f"wrote {out} ({out.stat().st_size // 1024} KB), {len(rows)} rows, " + (f"{covered} ledger entries covered (subset)" if subset else f"{len(ledger_ids)} ledger entries accounted for"))
 
 
 if __name__ == "__main__":

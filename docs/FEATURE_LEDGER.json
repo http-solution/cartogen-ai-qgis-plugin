@@ -2370,14 +2370,19 @@
       "tools/check_evidence.py",
       "tools/collect_evidence.py",
       "docs/FULL_SMOKE_ROWS.json",
-      "docs/plans/PLAN-056-full-smoke-package.md"
+      "docs/ROUND2_ROWS.json",
+      "docs/plans/PLAN-056-full-smoke-package.md",
+      "docs/plans/PLAN-059-round-2-live-package.md"
     ],
     "guards": [
       "tests/test_full_smoke_package.py::TestCoverage::test_every_unverified_ledger_entry_is_accounted_for_and_nothing_else_is_named",
       "tests/test_full_smoke_package.py::TestThePackage::test_every_file_a_row_names_is_in_3_test_files",
       "tests/test_full_smoke_package.py::TestThePackage::test_every_layer_a_row_expects_is_inside_the_shipped_geopackage",
       "tests/test_full_smoke_package.py::TestGeneratedInputs::test_the_cod_profile_passes_the_plugins_own_validator",
-      "tests/test_full_smoke_package.py::TestThePackage::test_the_input_verifier_passes_on_the_unzipped_package_and_catches_damage"
+      "tests/test_full_smoke_package.py::TestThePackage::test_the_input_verifier_passes_on_the_unzipped_package_and_catches_damage",
+      "tests/test_smoke_round2.py::TestTheSubsetPackage::test_the_rows_file_holds_exactly_the_chosen_rows_in_running_order",
+      "tests/test_smoke_round2.py::TestTheSubsetPackage::test_the_package_says_which_build_it_carries_so_an_old_1_18_5_is_not_tested_by_mistake",
+      "tests/test_smoke_round2.py::TestSelectRows::test_an_unknown_id_is_named_not_ignored"
     ],
     "hand_verified": "not verified: no row has been run by a person. The package structure and every input are tested offline; whether a row's instruction produces its stated result in a real QGIS with a real model is exactly what the package is for. The rows were written without a QGIS install.",
     "hand_row": "row F3-check-evidence of the full smoke package: run the sessions, then python 5_check_evidence.py results"

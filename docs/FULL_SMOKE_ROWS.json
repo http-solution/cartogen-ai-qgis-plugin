@@ -404,6 +404,34 @@
    "cost": "21 short requests"
   },
   {
+   "id": "B6-mesh-to-raster",
+   "issue": "#380",
+   "session": "B",
+   "title": "The mesh case of issue 380: 'turn the mesh results into a raster' reaches the mesh rasterize algorithm, not a flood-hazard plan",
+   "covers": [
+    "plain-requests-not-sent-to-a-wrong-task"
+   ],
+   "needs": "person and a real model",
+   "starts_from": "A new project; add 3_test_files\\smoke_mesh.2dm through Layer > Add Layer > Add Mesh Layer (it appears as smoke_mesh); SAVE the project into results\\outputs\\B6-mesh-to-raster\\ before the first request (the plugin writes its evidence folder next to a saved project); a fresh chat (see EVIDENCE_HOWTO.txt, 'Fresh chat'), 'Save an evidence folder for each request' ticked in Settings",
+   "do": "Send: Turn the mesh results of the flood model into a raster map I can overlay. If the assistant asks which dataset group or pixel size to use, answer with the smallest thing that lets it continue (the first dataset group, a pixel size of 0.001) and note the extra turn.",
+   "expect": "Issue 380, case B41: in the owner's 1.18.0 run this request was answered with a flood-hazard mapping plan ('Map flood hazards', score 0.42) instead of the algorithm. Now the assistant goes for native:meshrasterize (it appears in the tool call's arguments or the reply), no mapping-task plan about flood hazard or population is announced, and no fetch tool is called. A raster layer from the mesh is added to the project, or the algorithm fails for a stated parameter reason.",
+   "evidence": "snap('B6') after the last reply; the evidence folder's steps.jsonl lists the tools and the algorithm id; screenshot of the reply -> results\\screens\\B6-reply.png. Copy the exact algorithm id from the call into the notes.",
+   "files": [
+    "smoke_mesh.2dm"
+   ],
+   "pass_if": "native:meshrasterize is called and no flood-hazard plan or fetch tool appears. A raster layer exists = Pass; the algorithm chosen but failing on a parameter = Partial (quote the error); a flood-hazard plan or a download = Fail.",
+   "cost": "one to three requests",
+   "prompt": "Turn the mesh results of the flood model into a raster map I can overlay",
+   "expected_tools": [
+    "run_allowlisted_processing_algorithm"
+   ],
+   "forbidden_tools": [
+    "fetch_worldpop_population",
+    "fetch_gdacs_disaster_alerts",
+    "fetch_dem"
+   ]
+  },
+  {
    "id": "C1-load-and-scripts",
    "issue": "S",
    "session": "C",
