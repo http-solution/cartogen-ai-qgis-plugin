@@ -5,6 +5,7 @@
 - every tool name a row expects exists in the registry;
 - the zip really builds, holds a checklist per row, and the evidence checker reads the rows' prompt checks.
 What it cannot prove: that a row's instructions produce the stated result in a real QGIS with a real model. That is what the package is for."""
+import contextlib
 import csv
 import io
 import json
@@ -148,8 +149,8 @@ class TestGeneratedInputs(unittest.TestCase):
         self.assertIn("UTM_Zone_36N", prj)
         self.assertEqual(prj, (self.dir / "after_fixture.prj").read_text(encoding="utf-8"))
         # the districts the rows ask about: the grid must cover the whole of smoke_admin, in the same CRS (EPSG:32636). The first version sat 900 km away.
-        db = sqlite3.connect(ROOT / "docs" / "release_smoke_assets" / "inputs" / "smoke_data.gpkg")
-        srs, min_x, min_y, max_x, max_y = db.execute("select srs_id, min_x, min_y, max_x, max_y from gpkg_contents where table_name = 'smoke_admin'").fetchone()
+        with contextlib.closing(sqlite3.connect(ROOT / "docs" / "release_smoke_assets" / "inputs" / "smoke_data.gpkg")) as db:
+            srs, min_x, min_y, max_x, max_y = db.execute("select srs_id, min_x, min_y, max_x, max_y from gpkg_contents where table_name = 'smoke_admin'").fetchone()
         self.assertEqual(srs, 32636)
         x0, y0, size = float(head["xllcorner"]), float(head["yllcorner"]), float(head["cellsize"])
         self.assertLessEqual(x0, min_x)
@@ -241,7 +242,8 @@ class TestThePackage(unittest.TestCase):
                 with tempfile.TemporaryDirectory() as d:
                     path = Path(d) / gpkg
                     path.write_bytes(self.zip.read(f"{self.top}/3_test_files/{gpkg}"))
-                    found = {r[0] for r in sqlite3.connect(path).execute("select table_name from gpkg_contents")}
+                    with contextlib.closing(sqlite3.connect(path)) as db:              # closed before the folder is removed: Windows refuses to delete an open file
+                        found = {r[0] for r in db.execute("select table_name from gpkg_contents")}
                 self.assertTrue(set(layers) <= found, f"{row['id']}: {sorted(set(layers) - found)} not in {gpkg} (has {sorted(found)})")
 
     def test_the_start_project_opens_layers_that_sit_beside_it(self):
@@ -272,6 +274,18 @@ class TestThePackage(unittest.TestCase):
             self.assertIn(f"{self.top}/6_tools/{tool}", self.names())
         self.assertIn(f"{self.top}/5_check_evidence.py", self.names())
         self.assertIn(f"{self.top}/2_layout_check/layout_check_script.py", self.names())
+
+    def test_the_sums_are_those_of_the_source_files_and_the_builder_never_reads_the_zip_back_while_writing_it(self):
+        import hashlib
+        sums = dict(line.split("  ", 1)[::-1] for line in self.zip.read(f"{self.top}/3_test_files/SHA256SUMS.txt").decode("utf-8").splitlines())
+        for name, source in (("smoke_data.gpkg", ROOT / "docs" / "release_smoke_assets" / "inputs"), ("smoke_events.csv", ROOT / "docs" / "hand_test_v2_inputs")):
+            self.assertEqual(sums[name], hashlib.sha256((source / name).read_bytes()).hexdigest(), name)
+        self.assertEqual(sums["WORKFLOW_FILES.md"], hashlib.sha256((ROOT / "docs" / "WORKFLOW_FILES.md").read_bytes()).hexdigest())
+        self.assertEqual(sums["smoke_prob.csv"], hashlib.sha256(self.zip.read(f"{self.top}/3_test_files/smoke_prob.csv")).hexdigest())
+        # Windows guard (cannot be run on Linux): zipfile cannot read back an entry written with write() while the archive is open for writing
+        source_text = (ROOT / "tools" / "build_full_smoke.py").read_text(encoding="utf-8")
+        body = source_text.split("with tempfile.TemporaryDirectory() as tmp, zipfile.ZipFile(out", 1)[1]
+        self.assertNotIn("z.read(", body)
 
     def test_the_input_verifier_passes_on_the_unzipped_package_and_catches_damage(self):
         import verify_inputs

@@ -263,22 +263,29 @@ def main(argv):
         z.writestr(f"{top}/results/logs/WRITTEN_BY_SNAP.txt", "snap() writes one CartogenAI log per row here.\r\n")
         z.writestr(f"{top}/results/README.txt", "Everything the run produces goes here: evidence/, outputs/, screens/, logs/. How: see ../EVIDENCE_HOWTO.txt.\r\n")
         z.write(REPO / "tools" / "check_evidence.py", f"{top}/5_check_evidence.py")
+        digests = {"WORKFLOW_FILES.md": hashlib.sha256((REPO / "docs" / "WORKFLOW_FILES.md").read_bytes()).hexdigest()}     # from the SOURCE files: see below
         shipped = set()
         for name in sorted(needed_files(rows, text)):
             source = find_source(name, generated)
             if source is None:
                 raise SystemExit(f"a row names {name}, which is in no fixture folder and is not generated")
             z.write(source, f"{top}/3_test_files/{name}")
+            digests[name] = hashlib.sha256(Path(source).read_bytes()).hexdigest()
             shipped.add(name)
         for folder in (v2.INPUTS, v2.EXTRA_INPUTS):                      # the pinned smoke inputs are all shipped: a row may use any of them
             for source in sorted(folder.iterdir()):
                 if source.is_file() and source.name not in shipped and not source.name.endswith(".aux.xml"):
                     z.write(source, f"{top}/3_test_files/{source.name}")
+                    digests[source.name] = hashlib.sha256(source.read_bytes()).hexdigest()
                     shipped.add(source.name)
         for name in sorted(set(generated) - shipped):
             z.write(generated[name], f"{top}/3_test_files/{name}")
+            digests[name] = hashlib.sha256(Path(generated[name]).read_bytes()).hexdigest()
             shipped.add(name)
-        sums = [f"{hashlib.sha256(z.read(f'{top}/3_test_files/{name}')).hexdigest()}  {name}" for name in sorted(shipped | {"WORKFLOW_FILES.md"})]
+        # The sums come from the source files, never from reading the zip back while it is still being written: on Windows zipfile cannot read an entry just
+        # added with write() (its name is kept with backslashes in memory and forward slashes in the file: BadZipFile 'File name in directory ... differ';
+        # CI run of PR 569, 2026-11-04).
+        sums = [f"{digests[name]}  {name}" for name in sorted(digests)]
         z.writestr(f"{top}/3_test_files/SHA256SUMS.txt", "\n".join(sums) + "\n")
     print(f"wrote {out} ({out.stat().st_size // 1024} KB), {len(rows)} rows, {len(ledger_ids)} ledger entries accounted for")
 
