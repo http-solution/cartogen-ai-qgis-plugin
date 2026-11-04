@@ -2348,6 +2348,26 @@
     ],
     "hand_verified": "not verified: no row has been run by a person. The package structure and every input are tested offline; whether a row's instruction produces its stated result in a real QGIS with a real model is exactly what the package is for. The rows were written without a QGIS install.",
     "hand_row": "row F3-check-evidence of the full smoke package: run the sessions, then python 5_check_evidence.py results"
+  },
+  {
+    "id": "live-results-gate",
+    "feature": "docs/LIVE_RESULTS.json records what a live run saw per ledger feature; tools/live_results.py validates it and, with --gate, lists features seen working or partly whose source files changed since the run and have not been rechecked; the dashboard counts from it",
+    "issues": [],
+    "since": "1.18.6",
+    "sources": [
+      "tools/live_results.py",
+      "docs/LIVE_RESULTS.json",
+      "tools/dashboard_snapshot.py",
+      "docs/plans/PLAN-057-live-results-and-regression-gate.md"
+    ],
+    "guards": [
+      "tests/test_live_results.py::TestRecord::test_the_committed_record_has_no_problems",
+      "tests/test_live_results.py::TestProblems::test_working_feature_without_a_guard_is_refused",
+      "tests/test_live_results.py::TestGate::test_only_working_or_partly_features_with_changed_sources_need_a_recheck",
+      "tests/test_dashboard_snapshot.py"
+    ],
+    "hand_verified": "not verified: offline tests only. The record itself comes from an AI agent's live run, not a person's.",
+    "hand_row": "none: this is the measure, not a feature a person runs"
   }
 ]
 }
