@@ -1060,7 +1060,7 @@
     "since": "1.18.0 (unreleased change)",
     "sources": ["src/cartogen_ai/core/agent/chat_persistence.py", "src/cartogen_ai/core/agent/tools/data_export_tools.py"],
     "guards": ["tests/test_persistence_live.py::TestTwentyExchangesSurviveReopen::test_all_forty_messages_are_in_the_export_after_save_and_reopen_and_the_delete_empties_it", "tests/test_chat_transcript_live.py::TestChatTranscriptInARealProject::test_it_survives_saving_and_reopening_the_project_file"],
-    "hand_verified": "partly: the owner's 1.18.0 run exported all 20 exchanges (40 messages, times, retention note) from the live chat; the reopened project was CI only"
+    "hand_verified": "partly: the owner's 1.18.0 run exported all 20 exchanges (40 messages, times, retention note) from the live chat; the reopened project was CI only. The 2026-11-04 agent run (row B5) exported 32 messages, but every request the plugin received was in it (transcript_dropped 0; evidence folders t16 to t31 are 16 requests); the agent had sent 14 B5 requests, not 20, so it is not a plugin loss on that evidence. The 20-exchange reopen was not seen at full size in that run; rerun B5 with an exact count"
   },
   {
     "id": "point-layer-kept-or-said-temporary",

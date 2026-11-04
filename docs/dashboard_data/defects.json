@@ -3,33 +3,33 @@
   "id": "P1",
   "defect": "Exported layout pages from the A1 script showed an empty Legend and a blank map frame",
   "found_by": "Live run 2026-11-04 (agent); I saw it in a rendered PDF",
-  "status": "Open",
-  "pr": "",
-  "next": "Reproduce in the CI live job to tell the plugin from the script, then fix"
+  "status": "Built, CI only",
+  "pr": "573",
+  "next": "Cause inferred (no CRS, unframed canvas, legend left to QGIS's filter); rerun row A1 and a person looks at the pages"
  },
  {
   "id": "P2",
   "defect": "Undo card for a filled column offers a destructive remove, then refuses only on Apply",
   "found_by": "Live run 2026-11-04, row V9",
-  "status": "Open",
-  "pr": "",
-  "next": "Test that fails first, then refuse before the card"
+  "status": "Built, CI only",
+  "pr": "573",
+  "next": "Rerun row V9"
  },
  {
   "id": "P3",
   "defect": "'Animate the layer over time' did not call export_temporal_animation_frames (issue 362)",
   "found_by": "Live run 2026-11-04, row V4 (project was unsaved, no evidence folder)",
-  "status": "Open",
-  "pr": "",
-  "next": "Rerun with a saved project, then fix the routing"
+  "status": "Built, CI only",
+  "pr": "573",
+  "next": "The tool needed a field the model had to know; why the model skipped it is unconfirmed. Rerun row V4 with a saved project"
  },
  {
   "id": "P4",
-  "defect": "Chat export after reopening the project had 32 of 40 messages",
+  "defect": "Chat export after reopening held 32 of 40 messages (row B5)",
   "found_by": "Live run 2026-11-04, row B5",
-  "status": "Open",
+  "status": "Not a plugin loss on the evidence",
   "pr": "",
-  "next": "Cause unconfirmed; reproduce"
+  "next": "Every request the plugin received was in it (16 requests); 14 B5 requests were sent, not 20. Rerun B5 with an exact count"
  },
  {
   "id": "P5",
