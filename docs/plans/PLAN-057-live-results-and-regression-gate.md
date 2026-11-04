@@ -15,6 +15,9 @@ The owner's rule: a stable release or a big change is judged by the live smoke t
 ## Acceptance
 `tests/test_live_results.py` (10 tests): the committed record has no problems; counts add up; unknown ids, rows and statuses, a claimed untestable feature, a "working" feature with no guard and a missing note are each refused; the gate lists only working/partly features whose sources changed and releases a feature rechecked on the current head. `tests/test_dashboard_snapshot.py` pins the new summary columns.
 
+## Guard tests
+`tests/test_live_results.py`, `tests/test_dashboard_snapshot.py`; ledger entry `live-results-gate`.
+
 ## Rollback
 Delete the three files; the dashboard falls back to the ledger counts.
 
