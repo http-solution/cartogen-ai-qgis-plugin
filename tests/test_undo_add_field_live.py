@@ -59,6 +59,23 @@ class TestUndoOfAddField(unittest.TestCase):
         self.assertIn("now holds values", snap["refusal"])
         self.assertIn("important", [f["notes"] for f in self.layer.getFeatures()])
 
+    def test_the_preview_of_undoing_a_filled_field_is_a_refusal_not_a_confirmation_card(self):
+        """Live run 2026-11-04, row V9: the card for a filled column offered a destructive remove; the refusal came only after Apply. Written without a
+        QGIS install, so CI's first run is its first execution."""
+        from unittest.mock import MagicMock, patch
+        from cartogen_ai.core.agent.tools import transaction_tools as tt
+        snap = self._add()
+        idx = self.layer.fields().indexOf("notes")
+        self.layer.startEditing()
+        self.assertTrue(self.layer.changeAttributeValue(next(iter(self.layer.getFeatures())).id(), idx, "important"))
+        self.assertTrue(self.layer.commitChanges())
+        undo = dict(snap, tool_name="add_field")
+        with patch.dict(tt._BOUND, {"log": MagicMock()}):
+            result = tt._undo_via_snapshot({"name": "add_field", "index": 0, "undo": undo}, undo, confirmed=False)
+        self.assertNotIn("requires_confirmation", result)
+        self.assertIn("now holds values", result["error"])
+        self.assertGreaterEqual(self.layer.fields().indexOf("notes"), 0)
+
     def test_adding_a_field_that_exists_records_nothing_to_undo(self):
         self._add()
         self.assertIsNone(self.reg.get_snapshot_fn("add_field")({"layer_name": "towns", "field_name": "notes"}))

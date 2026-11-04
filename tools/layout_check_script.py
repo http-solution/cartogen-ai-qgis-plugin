@@ -48,8 +48,8 @@ def plugin_version(package):
 
 def run(output_dir=None, quiet=False):  # noqa: C901 -- one flat list of independent checks; splitting it would hide that
     """Runs every check; returns the list of results (also written to layout_check.json). Never raises: a check that fails is reported as failed."""
-    from qgis.core import (Qgis, QgsCategorizedSymbolRenderer, QgsFeature, QgsGeometry, QgsProject, QgsRasterLayer,
-                           QgsRendererCategory, QgsSymbol, QgsVectorLayer)
+    from qgis.core import (Qgis, QgsCategorizedSymbolRenderer, QgsCoordinateReferenceSystem, QgsFeature, QgsGeometry, QgsProject, QgsRasterLayer,
+                           QgsRectangle, QgsRendererCategory, QgsSymbol, QgsVectorLayer)
     from qgis.PyQt.QtGui import QColor, QImage
 
     started = time.time()
@@ -71,6 +71,36 @@ def run(output_dir=None, quiet=False):  # noqa: C901 -- one flat list of indepen
     def reset_project():
         QgsProject.instance().clear()
         QgsProject.instance().setFileName(os.path.join(out, "layout_check.qgz"))     # so project-relative folders (profiles) resolve here
+        QgsProject.instance().setCrs(QgsCoordinateReferenceSystem("EPSG:4326"))     # clear() leaves none; the 2026-11-04 pages read "CRS unknown" and the maps were blank
+
+    def frame_view():
+        """The layout follows the map view, so frame the canvas on the layers like a user who zoomed to the data. Without a canvas (headless) nothing can be framed."""
+        with contextlib.suppress(Exception):
+            from qgis.PyQt.QtCore import QCoreApplication
+            from qgis.utils import iface
+            if iface is None:
+                return
+            box = QgsRectangle()
+            for layer in QgsProject.instance().mapLayers().values():
+                box.combineExtentWith(layer.extent())
+            if not box.isNull():
+                box.scale(1.2)
+                iface.mapCanvas().setExtent(box)
+                iface.mapCanvas().refresh()
+                QCoreApplication.processEvents()
+
+    def map_shows_layers(res):
+        """True/False: does the layout's main map intersect the layers it should show; None when there is no canvas to follow (headless)."""
+        with contextlib.suppress(Exception):
+            from qgis.utils import iface
+            if iface is None:
+                return None
+            map_item = layout_of(res).itemById("MAP_MAIN")
+            box = QgsRectangle()
+            for layer in QgsProject.instance().mapLayers().values():
+                box.combineExtentWith(layer.extent())
+            return bool(map_item.extent().intersects(box))
+        return None
 
     def zones(name, categories, x0=43.9):
         layer = QgsVectorLayer("Polygon?crs=EPSG:4326&field=kind:string", name, "memory")
@@ -116,6 +146,7 @@ def run(output_dir=None, quiet=False):  # noqa: C901 -- one flat list of indepen
 
     def make(title, **kw):
         from cartogen_ai.core.agent.tools.layout_tools import create_print_layout
+        frame_view()
         res = create_print_layout(title, confirmed=True, body_text="Finding", **kw)
         if not res.get("success"):
             raise RuntimeError(f"create_print_layout failed: {res}")
@@ -139,7 +170,11 @@ def run(output_dir=None, quiet=False):  # noqa: C901 -- one flat list of indepen
                 ok = bool(check) and check.get("fits") is True and check.get("content_mm", 1e9) <= check.get("frame_mm", 0) + 0.5
                 if check.get("dropped"):
                     ok = ok and "more layer" in title
-                return ok, {"legend_check": check, "legend_title": title, "listed": len(res.get("legend_layers", []))}, [pdf]
+                shows = map_shows_layers(res)
+                leg = layout_of(res).itemById("LEGEND")
+                ok = ok and shows is not False                       # None = no canvas to follow (headless): not measurable, not a failure
+                return ok, {"legend_check": check, "legend_title": title, "listed": len(res.get("legend_layers", [])),
+                            "map_shows_the_layers": shows, "legend_filtered_by_map": leg.legendFilterByMapEnabled()}, [pdf]
             record(f"L1-{size}", f"legend fits its frame ({size} {orientation}, 7 layers x 14 classes)",
                    "content height not larger than the frame; if layers were left out the title says how many", legend_check)
 

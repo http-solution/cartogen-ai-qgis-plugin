@@ -177,6 +177,19 @@ def field_holds_values(layer, index):
         return True
 
 
+def _precheck_added_field(snapshot):
+    """The refusal text when undo cannot remove the field without losing data, else None. Asked BEFORE the confirmation card (live run 2026-11-04, row V9:
+    the card for a filled column offered a destructive remove and the refusal only came after Apply). A missing layer or field is not a refusal."""
+    layer = _layer_by_id(snapshot["layer_id"])
+    if layer is None:
+        return None
+    idx = layer.fields().indexOf(snapshot["field_name"])
+    if idx != -1 and field_holds_values(layer, idx):
+        return (f"The field '{snapshot['field_name']}' now holds values, so removing it would lose data. Nothing was changed. "
+                "If you want it gone anyway, ask me to delete the field; that asks for your confirmation first.")
+    return None
+
+
 def _restore_added_field(snapshot):
     layer = _layer_by_id(snapshot["layer_id"])
     if layer is None:
@@ -184,9 +197,9 @@ def _restore_added_field(snapshot):
     idx = layer.fields().indexOf(snapshot["field_name"])
     if idx == -1:
         return True          # already gone some other way
-    if field_holds_values(layer, idx):
-        snapshot["refusal"] = (f"The field '{snapshot['field_name']}' now holds values, so removing it would lose data. Nothing was changed. "
-                               "If you want it gone anyway, ask me to delete the field; that asks for your confirmation first.")
+    refusal = _precheck_added_field(snapshot)
+    if refusal:
+        snapshot["refusal"] = refusal
         return False
     try:
         from ._edit_session import EditError, edit_command
@@ -399,6 +412,14 @@ SNAPSHOT_REGISTRY = {
     ),
     **dict.fromkeys(_STYLE_TOOLS, (_snapshot_style, _restore_style)),
 }
+
+
+# Optional per-tool check run before the confirmation card: returns the reason undo cannot be done, or None. Only tools with a refusal rule are here.
+PRECHECK_REGISTRY = {"add_field": _precheck_added_field}
+
+
+def get_precheck_fn(tool_name):
+    return PRECHECK_REGISTRY.get(tool_name)
 
 
 def get_snapshot_fn(tool_name):

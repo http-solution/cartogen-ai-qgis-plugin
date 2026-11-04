@@ -1011,13 +1011,46 @@
     "hand_row": "V5-profile"
   },
   {
+    "id": "animation-uses-temporal-settings",
+    "feature": "export_temporal_animation_frames needs only the layer when the layer was already made temporal (set_layer_temporal): it reads the start and end fields from the layer's temporal settings; its description says an events layer with a single date field fits; with no usable field the error names the layer's date fields",
+    "issues": ["#362"],
+    "since": "1.18.6 (unreleased change)",
+    "sources": ["src/cartogen_ai/core/agent/tools/export_tools.py", "src/cartogen_ai/core/agent/tools/project_ops_tools.py", "docs/plans/PLAN-058-live-run-plugin-defects.md"],
+    "guards": [
+      "tests/test_animation_fields_default.py::TestResolveFields::test_a_missing_start_field_comes_from_the_layers_temporal_settings",
+      "tests/test_animation_fields_default.py::TestTheToolUsesIt::test_the_animation_runs_without_a_start_field_when_the_layer_is_temporal",
+      "tests/test_animation_fields_default.py::TestTheSchemaAndDescription::test_only_the_layer_is_required",
+      "tests/test_animation_fields_live.py::TestResolveAnimationFieldsOnARealLayer::test_a_layer_made_temporal_by_the_plugin_gives_its_start_field_back",
+      "tests/test_wp_d_routing.py::TestTheThreeIssueRowsAreOffered::test_the_tools_each_prompt_needs_are_offered"
+    ],
+    "hand_verified": "not verified: two agent live runs (2026-11-03, 2026-11-04, Gemini) answered 'animate the layer over time' with a how-to and no call to this tool, after the temporal step passed. The router and find_tools both offer the tool offline, so why the model did not call it is unconfirmed; this change removes the required field it had to know and describes the events case. CI only; row V4-animate is the hand check.",
+    "hand_row": "V4-animate"
+  },
+  {
+    "id": "legend-not-filtered-away",
+    "feature": "A layout's Legend is not run through QGIS's filter-by-map-content when that filter can only empty it: when the map has no CRS or when no layer lies on the map the legend holds every layer unfiltered, and the reply warns in plain words (no coordinate system set; the map shows none of the layers); when the map shows the data the filter stays on",
+    "issues": [],
+    "since": "1.18.6 (unreleased change)",
+    "sources": ["src/cartogen_ai/core/agent/tools/layout_style.py", "src/cartogen_ai/core/agent/tools/layout_tools.py", "tools/layout_check_script.py", "docs/plans/PLAN-058-live-run-plugin-defects.md"],
+    "guards": [
+      "tests/test_legend_when_map_shows_nothing.py::TestLegendFilterFollowsWhatTheLegendHolds::test_when_no_layer_is_on_the_map_the_legend_lists_them_all_and_is_not_filtered_away",
+      "tests/test_legend_when_map_shows_nothing.py::TestAnUnknownMapCrs::test_the_filter_is_off_when_the_map_has_no_crs_even_if_layers_are_on_the_map",
+      "tests/test_legend_when_map_shows_nothing.py::TestLegendFilterFollowsWhatTheLegendHolds::test_when_some_layers_are_on_the_map_the_filter_stays_on",
+      "tests/test_legend_when_map_shows_nothing_live.py::TestTheLegendIsNotFilteredAway::test_a_project_with_no_crs_keeps_every_layer_in_an_unfiltered_legend_and_says_why",
+      "tests/test_legend_when_map_shows_nothing_live.py::TestTheLegendIsNotFilteredAway::test_a_map_that_shows_the_data_still_filters_by_map_and_warns_of_nothing",
+      "tests/test_layout_legend_fit.py"
+    ],
+    "hand_verified": "not verified: in the 2026-11-04 agent live run every exported page of the layout script had a Legend box with only its heading and a blank map, footer 'CRS unknown | Scale 1:232,624,042,192', while the check table said 7 layers were listed. The cause is inferred, not reproduced: the project had no CRS (QgsProject.clear() leaves none) and the canvas was not on the layers, and the legend was left to QGIS's filter-by-map, which cannot keep layers it cannot place in an unknown CRS (the plugin already turns that filter off for access maps for a similar loss, rc11 S8). The script now sets a CRS, frames the canvas and measures that the map shows the layers. CI only; row A1-layout-script is the hand check, and a person must look at the pages.",
+    "hand_row": "A1-layout-script"
+  },
+  {
     "id": "undo-add-field",
     "feature": "undo_last_operation reverses add_field: the new field is removed again while it is empty; once it holds values undo refuses, says so, and changes nothing (deleting a filled column stays a deliberate delete_field step that asks)",
     "issues": ["#425"],
     "since": "1.18.0 (unreleased change)",
     "sources": ["src/cartogen_ai/core/agent/tools/_snapshot_registry.py", "src/cartogen_ai/core/agent/tools/transaction_tools.py", "src/cartogen_ai/core/agent/tools/attribute_edit_tools.py"],
-    "guards": ["tests/test_undo_add_field.py::TestSnapshotAndRestore::test_an_empty_field_is_removed", "tests/test_undo_add_field.py::TestSnapshotAndRestore::test_a_filled_field_is_kept_and_the_reason_is_given", "tests/test_undo_add_field.py::TestTheUndoToolPassesTheReasonOn::test_a_refusal_reaches_the_user_instead_of_a_generic_failure", "tests/test_undo_add_field_live.py::TestUndoOfAddField::test_an_empty_new_field_is_taken_away_by_undo", "tests/test_undo_add_field_live.py::TestUndoOfAddField::test_a_field_that_was_filled_after_it_was_added_is_kept", "tests/test_snapshot_registry.py::TestRegistryLookups::test_priority_subset_tools_are_all_registered"],
-    "hand_verified": "not verified: CI only (the rc48 observation was that undo left the field in place; row V9-undo-field is the hand check)",
+    "guards": ["tests/test_undo_add_field.py::TestSnapshotAndRestore::test_an_empty_field_is_removed", "tests/test_undo_add_field.py::TestSnapshotAndRestore::test_a_filled_field_is_kept_and_the_reason_is_given", "tests/test_undo_add_field.py::TestTheUndoToolPassesTheReasonOn::test_a_refusal_reaches_the_user_instead_of_a_generic_failure", "tests/test_undo_add_field.py::TestTheUndoToolPassesTheReasonOn::test_a_filled_field_is_refused_at_the_preview_with_no_confirmation_card", "tests/test_undo_add_field_live.py::TestUndoOfAddField::test_the_preview_of_undoing_a_filled_field_is_a_refusal_not_a_confirmation_card", "tests/test_undo_add_field_live.py::TestUndoOfAddField::test_an_empty_new_field_is_taken_away_by_undo", "tests/test_undo_add_field_live.py::TestUndoOfAddField::test_a_field_that_was_filled_after_it_was_added_is_kept", "tests/test_snapshot_registry.py::TestRegistryLookups::test_priority_subset_tools_are_all_registered"],
+    "hand_verified": "partly: the 2026-11-04 agent live run (row V9) saw undo of a filled column offer a destructive remove card and refuse only after Apply (an agent, not a person); the refusal now comes before the card (PLAN-058), CI only, not rerun live. The empty-field undo and the refusal text were not seen live",
     "hand_row": "V9-undo-field"
   },
   {
@@ -1027,7 +1060,7 @@
     "since": "1.18.0 (unreleased change)",
     "sources": ["src/cartogen_ai/core/agent/chat_persistence.py", "src/cartogen_ai/core/agent/tools/data_export_tools.py"],
     "guards": ["tests/test_persistence_live.py::TestTwentyExchangesSurviveReopen::test_all_forty_messages_are_in_the_export_after_save_and_reopen_and_the_delete_empties_it", "tests/test_chat_transcript_live.py::TestChatTranscriptInARealProject::test_it_survives_saving_and_reopening_the_project_file"],
-    "hand_verified": "partly: the owner's 1.18.0 run exported all 20 exchanges (40 messages, times, retention note) from the live chat; the reopened project was CI only"
+    "hand_verified": "partly: the owner's 1.18.0 run exported all 20 exchanges (40 messages, times, retention note) from the live chat; the reopened project was CI only. The 2026-11-04 agent run (row B5) exported 32 messages, but every request the plugin received was in it (transcript_dropped 0; evidence folders t16 to t31 are 16 requests); the agent had sent 14 B5 requests, not 20, so it is not a plugin loss on that evidence. The 20-exchange reopen was not seen at full size in that run; rerun B5 with an exact count"
   },
   {
     "id": "point-layer-kept-or-said-temporary",

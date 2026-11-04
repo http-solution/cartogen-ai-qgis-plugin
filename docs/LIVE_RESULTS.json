@@ -432,9 +432,9 @@
    "note": "The Help line matched QGIS except Qt (6.11.0 against 6.11.1: fixed since, not rerun); the log line and the Settings copy were not looked at."
   },
   "chat-export-after-reopen": {
-   "status": "failing",
+   "status": "partly",
    "rows": "B5-chat-formatting",
-   "note": "The export held 32 of 40 messages; whether the agent's typing lost them or the plugin did is unconfirmed."
+   "note": "The export held 32 of 40 messages, but it held every request the plugin received: transcript_dropped 0, and the evidence folders t16 to t31 (no gaps, t1 to t82 in the whole run) are 16 requests = 32 messages, 2 from B4 and 14 from B5 (the table and 13 short ones, not the 20 the row asks for). Seen working on what was sent; the 20-exchange case and the reopened chat were not seen at full size; rerun with an exact count."
   }
  }
 }

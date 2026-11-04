@@ -82,6 +82,39 @@ class TestTheUndoToolPassesTheReasonOn(unittest.TestCase):
         self.assertIn("now holds values", result["error"])
         log.mark_undone.assert_not_called()
 
+    def _entry(self):
+        undo = {"kind": "restore_added_field", "tool_name": "add_field", "layer_id": "layer1", "field_name": "notes"}
+        return {"name": "add_field", "index": 0, "undo": undo}, undo
+
+    def test_a_filled_field_is_refused_at_the_preview_with_no_confirmation_card(self):
+        """V9 (live run 2026-11-04): undoing a filled column showed a destructive confirmation card, and the refusal only came after Apply."""
+        log = MagicMock()
+        entry, undo = self._entry()
+        with patch.object(tt, "QGIS_AVAILABLE", True), patch.dict(tt._BOUND, {"log": log}), patch.object(reg, "_layer_by_id", return_value=_layer(["hello"])):
+            result = tt._undo_via_snapshot(entry, undo, confirmed=False)
+        self.assertNotIn("requires_confirmation", result)
+        self.assertNotEqual(result.get("status"), "PREVIEW_REQUIRED")
+        self.assertIn("now holds values", result["error"])
+        log.mark_undone.assert_not_called()
+
+    def test_an_empty_field_still_gets_the_confirmation_card(self):
+        entry, undo = self._entry()
+        with patch.object(tt, "QGIS_AVAILABLE", True), patch.dict(tt._BOUND, {"log": MagicMock()}), patch.object(reg, "_layer_by_id", return_value=_layer([None])):
+            result = tt._undo_via_snapshot(entry, undo, confirmed=False)
+        self.assertEqual(result["status"], "PREVIEW_REQUIRED")
+
+    def test_a_kind_with_no_precheck_still_gets_the_card_and_a_missing_layer_does_too(self):
+        undo = {"kind": "restore_style", "tool_name": "apply_categorized_style", "layer_id": "x"}
+        with patch.dict(tt._BOUND, {"log": MagicMock()}):
+            self.assertEqual(tt._undo_via_snapshot({"name": "apply_categorized_style", "index": 0, "undo": undo}, undo, confirmed=False)["status"], "PREVIEW_REQUIRED")
+        entry, undo = self._entry()
+        with patch.dict(tt._BOUND, {"log": MagicMock()}), patch.object(reg, "_layer_by_id", return_value=None):
+            self.assertEqual(tt._undo_via_snapshot(entry, undo, confirmed=False)["status"], "PREVIEW_REQUIRED")
+
+    def test_the_precheck_is_registered_for_add_field_only(self):
+        self.assertIs(reg.get_precheck_fn("add_field"), reg._precheck_added_field)
+        self.assertIsNone(reg.get_precheck_fn("apply_categorized_style"))
+
     def test_the_tool_description_says_the_limit(self):
         from cartogen_ai.core.agent.tools import TOOLS_SCHEMA
         desc = next(t["function"]["description"] for t in TOOLS_SCHEMA if t["function"]["name"] == "undo_last_operation")

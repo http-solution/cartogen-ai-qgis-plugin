@@ -10,7 +10,7 @@ name-to-function dispatch.
 """
 
 from .registry import register_tool
-from ._snapshot_registry import get_restore_fn
+from ._snapshot_registry import get_precheck_fn, get_restore_fn
 
 try:
     from qgis.core import QgsProject
@@ -147,6 +147,10 @@ def _undo_via_snapshot(entry, undo, confirmed):
     kind = undo.get("kind", "change")
     label = kind.replace("restore_", "") if kind else "change"
     if not confirmed:
+        precheck = get_precheck_fn(undo.get("tool_name"))
+        refusal = precheck(undo) if precheck else None
+        if refusal:                                  # refuse before offering a card for a step that would lose data (live run 2026-11-04, row V9)
+            return {"error": refusal}
         return {
             "status": "PREVIEW_REQUIRED",
             "requires_confirmation": True,
