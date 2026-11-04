@@ -3,6 +3,7 @@
     exec(open(r"<PACKAGE>\\tools\\collect_evidence.py", encoding="utf-8").read())
     setup(r"<PACKAGE>\\results")        # once per session: sets the output folder, starts capturing the CartogenAI log
     snap("N1")                          # after each row: log text, screenshots, layer table, project state
+    shot("D1-borders")                  # a screenshot of the QGIS window as results/screens/D1-borders.png (for a row that names one)
     snap("N1", note="what I saw")       # optional one-line note, also written to the row's folder
 
 snap(row) writes results/evidence/<row>/ :
@@ -51,9 +52,9 @@ def begin(bundle):
 
 
 def _row_folder(row):
-    """results/evidence/<full row id>/ for a snap name such as 'W1a' (the bundle ships one folder per row, named by the row id). Falls back to the
+    """results/evidence/<full row id>/ for a snap name such as 'W1a' or 'B1' (the bundle ships one folder per row, named by the row id). Falls back to the
     snap name when no folder matches. Pure."""
-    head = re.match(r"^(W\d+|V\d+)", str(row))
+    head = re.match(r"^([A-Z]\d+)", str(row))              # W1a -> W1, V3 -> V3, and the full smoke package's B1, D2 ... : the first letter and number
     base = os.path.join(_STATE["out"], "evidence")
     if head and os.path.isdir(base):
         for name in sorted(os.listdir(base)):
@@ -108,16 +109,22 @@ def _layers():
 
 
 def _plugin_version():
+    """'version=...' from the metadata.txt above the cartogen_ai package, else 'unknown (why)'. cartogen_ai is a namespace package (no __init__.py), so its
+    __file__ is None: the folder comes from __path__ and the search walks up to the plugin folder (hand run 2026-11-04: project.json said 'unknown')."""
     try:
         import cartogen_ai
-        meta = os.path.join(os.path.dirname(cartogen_ai.__file__), "metadata.txt")
-        with open(meta, encoding="utf-8") as fh:
-            for line in fh:
-                if line.startswith("version="):
-                    return line.strip()
+        folder = os.path.abspath(next(iter(cartogen_ai.__path__)))
+        for _ in range(4):
+            meta = os.path.join(folder, "metadata.txt")
+            if os.path.isfile(meta):
+                with open(meta, encoding="utf-8") as fh:
+                    for line in fh:
+                        if line.startswith("version="):
+                            return line.strip()
+            folder = os.path.dirname(folder)
     except Exception as exc:
         return f"unknown ({exc})"
-    return "unknown"
+    return "unknown (metadata.txt not found above the package)"
 
 
 def _copy_plugin_evidence(out):
@@ -145,6 +152,24 @@ def _copy_plugin_evidence(out):
     if tools:
         with open(os.path.join(out, "tools_called.txt"), "w", encoding="utf-8") as fh:
             fh.write("\n".join(tools) + "\n")
+
+
+def shot(name):
+    """Saves a screenshot of the whole QGIS window as results/screens/<name>.png (adds .png when missing) and returns the path. For rows that name a
+    screenshot file: an agent or a person on a remote desktop cannot always save one by hand (hand run 2026-11-04: eleven named screenshots were missing).
+    Opens nothing and changes nothing in QGIS. Raises with a plain sentence when begin() was not run or the window cannot be read."""
+    from qgis.PyQt.QtWidgets import QApplication
+    from qgis.utils import iface
+    if not _STATE["out"]:
+        raise RuntimeError("call begin(<bundle folder>) first")
+    safe = re.sub(r"[^A-Za-z0-9._-]", "_", str(name)) or "screenshot"
+    path = os.path.join(_STATE["out"], "screens", safe if safe.lower().endswith(".png") else safe + ".png")
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    QApplication.processEvents()
+    if not iface.mainWindow().grab().save(path):
+        raise RuntimeError(f"the window could not be saved to {path}")
+    print(f"collect_evidence: screenshot saved to {path}")
+    return path
 
 
 def snap(row, note=""):

@@ -247,6 +247,7 @@ class CartogenAiDockWidget(QDockWidget):
     def open_settings(self):
         from .settings_dialog import CartogenAiSettingsDialog
         dialog = CartogenAiSettingsDialog(self)
+        dialog.connection_saved.connect(self._refresh_after_connection_change)          # a connection saved from inside Settings counts even if Settings is cancelled
         if dialog.exec():
             self.statusSignal.emit("Settings saved")
             self._refresh_after_connection_change()

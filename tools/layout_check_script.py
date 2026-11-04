@@ -5,7 +5,7 @@ In the QGIS Python console (the plugin must be installed and enabled):
 
     exec(open(r"C:\\path\\to\\layout_check_script.py", encoding="utf-8").read())
 
-It writes, into a new folder beside the script (or the folder given to run()):
+It writes, into a new folder in your system temp folder named cartogen_layout_check_<date-time> (or the folder given to run()); the last line it prints names it:
   layout_check.json   one entry per check: id, what was expected, what was measured, pass/fail
   layout_check.txt    the same as a table, plus the plugin version and the fonts QGIS found
   *.pdf, *.png        every layout it built, exported, to look at
@@ -30,6 +30,20 @@ FULL_SIGN_OFF = {"prepared_by": "Tester", "reviewed_by": "Reviewer Test", "revie
 OSM_URI = "type=xyz&url=https://tile.openstreetmap.org/%7Bz%7D/%7Bx%7D/%7By%7D.png&zmax=19&zmin=0"
 DISCLAIMER_START = "Boundaries, names, and designations"
 DISCLAIMER_END = "external distribution."
+
+
+def plugin_version(package):
+    """The plugin's version text from the metadata.txt that sits above the cartogen_ai package, '' when it cannot be found. cartogen_ai has no __init__.py (it is a
+    namespace package), so its __file__ is None: the folder comes from __path__. Hand run 2026-11-04: the table printed 'plugin ?' because __file__ was used. Never raises."""
+    with contextlib.suppress(Exception):
+        folder = os.path.abspath(next(iter(package.__path__)))
+        for _ in range(4):
+            meta = os.path.join(folder, "metadata.txt")
+            if os.path.isfile(meta):
+                with open(meta, encoding="utf-8") as handle:
+                    return next((line.strip().split("=", 1)[1] for line in handle if line.startswith("version=")), "")
+            folder = os.path.dirname(folder)
+    return ""
 
 
 def run(output_dir=None, quiet=False):  # noqa: C901 -- one flat list of independent checks; splitting it would hide that
@@ -271,11 +285,7 @@ def run(output_dir=None, quiet=False):  # noqa: C901 -- one flat list of indepen
     with contextlib.suppress(Exception):
         from qgis.PyQt.QtGui import QFontDatabase
         fonts = [f for f in ("Segoe UI", "Arial", "Calibri", "DejaVu Sans") if f in QFontDatabase.families()]
-    version = ""
-    with contextlib.suppress(Exception):
-        meta = os.path.normpath(os.path.join(os.path.dirname(os.path.dirname(__import__("cartogen_ai").__file__)), "..", "metadata.txt"))
-        with open(meta, encoding="utf-8") as handle:
-            version = next((line.strip().split("=", 1)[1] for line in handle if line.startswith("version=")), "")
+    version = plugin_version(__import__("cartogen_ai"))
     summary = {"qgis": Qgis.version(), "plugin_version": version, "fonts_found": fonts, "folder": out, "seconds": round(time.time() - started, 1),
                "passed": sum(1 for r in results if r["ok"]), "failed": [r["id"] for r in results if not r["ok"]], "checks": results}
     with open(os.path.join(out, "layout_check.json"), "w", encoding="utf-8") as handle:
@@ -294,5 +304,5 @@ def run(output_dir=None, quiet=False):  # noqa: C901 -- one flat list of indepen
     return summary
 
 
-if __name__ == "__main__":
+if __name__ in ("__main__", "__console__"):          # the QGIS Python console runs exec()'d code as __console__: without it the script printed nothing (hand run 2026-11-04)
     run()

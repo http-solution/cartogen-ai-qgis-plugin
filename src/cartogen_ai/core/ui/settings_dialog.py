@@ -1,5 +1,5 @@
 
-from qgis.PyQt.QtCore import Qt
+from qgis.PyQt.QtCore import Qt, pyqtSignal
 from qgis.PyQt.QtWidgets import (
     QDialog, QVBoxLayout, QLabel, QApplication,
     QLineEdit, QComboBox, QFormLayout, QDialogButtonBox, QWidget, QCheckBox, QHBoxLayout, QPushButton, QSpinBox,
@@ -39,6 +39,11 @@ from .theme_palette import extract_theme_palette as _extract_theme_palette
 
 
 class CartogenAiSettingsDialog(QDialog):
+    # Emitted when the Connections window, opened from here, is saved. The Connections window writes the chosen connection to the settings itself, so the
+    # panel's dropdown must follow even if this Settings window is then cancelled (hand run 2026-11-04, rows A2/A3: Connections said Claude Code, the panel
+    # still showed Codex CLI, because the dock refreshed only when Settings itself was accepted).
+    connection_saved = pyqtSignal()
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Cartogen AI — Settings")
@@ -517,6 +522,7 @@ QPushButton#settingsCancelButton {{
         dialog = CartogenAiConnectionsDialog(self)
         if dialog.exec():
             self._update_connection_summary()
+            self.connection_saved.emit()
 
     def _update_connection_summary(self):
         provider = normalize_provider(self.settings.value(PROVIDER_KEY, "openrouter"))

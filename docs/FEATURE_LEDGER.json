@@ -1575,9 +1575,11 @@
       "tests/test_connections_window_live.py::TestConnectionsWindow::test_declining_the_consent_does_nothing",
       "tests/test_connections_window_live.py::TestConnectionsWindow::test_the_small_sign_in_button_also_waits_for_the_login",
       "tests/test_connections_window.py::TestDetection::test_both_sign_in_buttons_wait_for_the_login_and_a_typed_path_is_looked_at",
-      "tests/test_connections_window.py::TestDetection::test_detection_never_switches_the_connection_by_itself"
+      "tests/test_connections_window.py::TestDetection::test_detection_never_switches_the_connection_by_itself",
+      "tests/test_connection_panel_sync.py::TestPanelFollowsAConnectionSavedFromSettings::test_the_dock_connects_the_signal_to_its_dropdown_refresh_before_showing_settings",
+      "tests/test_connections_window_live.py::TestConnectionsWindow::test_saving_connections_from_inside_settings_tells_the_panel_even_if_settings_is_cancelled"
     ],
-    "hand_verified": "not verified: CI only (nobody has opened the window; the layout has never been looked at)",
+    "hand_verified": "not verified by a person: an agent-driven live run (2026-11-04, rows A2/A3) opened the window and every page and found the panel dropdown still on the old connection after Use this connection and OK when Connections was opened from Settings; fixed (the dock now refreshes when a connection is saved from inside Settings), CI only and not re-run. Earlier state: CI only (nobody had opened the window)",
     "hand_row": "SPIKE-1 (open Plugins > Cartogen AI > Connections..., look at each page, press Use this connection, OK, and check the panel dropdown)"
   },
   {
@@ -2280,9 +2282,10 @@
       "tests/test_environment_live.py::TestEnvironmentLive::test_the_start_up_check_stays_quiet_on_a_supported_machine_and_warns_on_an_old_one",
       "tests/test_environment.py::TestReportText::test_nothing_personal_is_in_it",
       "tests/test_environment.py::TestWhereTheNoteAndTheSectionAre::test_an_unexpected_tool_failure_carries_the_machine_only_when_it_looks_like_a_qgis_version_problem",
-      "tests/test_environment_live.py::TestSettingsSectionLive::test_the_section_shows_the_report_and_copy_puts_it_on_the_clipboard"
+      "tests/test_environment_live.py::TestSettingsSectionLive::test_the_section_shows_the_report_and_copy_puts_it_on_the_clipboard",
+      "tests/test_environment_qt_runtime.py::TestQtVersionIsTheRuntimeOne::test_the_running_library_wins_over_the_build_constant"
     ],
-    "hand_verified": "not verified: CI only. The live tests were written without a QGIS install (CI's first run is their first execution). Never run on a macOS or Linux desktop, and the warning has not been seen by a person. The thresholds (QGIS 4.2, Python 3.10) are the project's rules, not measurements. Stage 2 is the separate ledger entry cli-flag-fallback. Stage 3 (added 2026-11-03, same state: CI only): a 'This computer' section in Settings with a Copy button, and the machine line added to an unexpected tool failure that looks like a QGIS or Qt version problem. No tool declares a minimum QGIS version (none needs one yet).",
+    "hand_verified": "not verified by a person: an agent-driven live run on Windows 11 (2026-11-04, row W13) read the Help line and found Qt 6.11.0 where QGIS's own About said 6.11.1 (the build-time constant was used); fixed to read the running Qt (CI only, not re-run); QGIS, OS, architecture and Python matched. The log line, the Settings Copy step and the start-up check were not looked at. Earlier state: not verified: CI only. The live tests were written without a QGIS install (CI's first run is their first execution). Never run on a macOS or Linux desktop, and the warning has not been seen by a person. The thresholds (QGIS 4.2, Python 3.10) are the project's rules, not measurements. Stage 2 is the separate ledger entry cli-flag-fallback. Stage 3 (added 2026-11-03, same state: CI only): a 'This computer' section in Settings with a Copy button, and the machine line added to an unexpected tool failure that looks like a QGIS or Qt version problem. No tool declares a minimum QGIS version (none needs one yet).",
     "hand_row": "row W13-environment of the hand-test rows: open the Help on each OS you have and compare the 'This computer' line with Help > About QGIS"
   },
   {
@@ -2321,6 +2324,30 @@
     ],
     "hand_verified": "not verified: offline tests for the arithmetic and the wording; the live test (a 5 by 3 degree box at 1 km is refused, then the suggested size works) was written without a QGIS install, so CI's first run is its first execution. The suggestion for a grid cut to an irregular outline is an estimate (tasks scale with one over size squared; cells along the edge do not scale exactly), and says so. The limit itself (5,000) is unchanged.",
     "hand_row": "none yet: ask for 'a 1 km task grid over all of Yemen' with the country boundary loaded; expect a refusal that names a size, then ask for that size"
+  },
+  {
+    "id": "full-smoke-package",
+    "feature": "tools/build_full_smoke.py builds one live smoke package whose rows (docs/FULL_SMOKE_ROWS.json plus the 22 v2 rows) cover every ledger entry that is not verified by hand, or name why a person cannot test it; it ships every input file a row needs (generated ones included), a SHA-256 list and a verifier, a checklist per row, and an evidence checker that reads rows with several prompts",
+    "issues": [],
+    "since": "1.18.6",
+    "sources": [
+      "tools/build_full_smoke.py",
+      "tools/make_full_smoke_fixtures.py",
+      "tools/verify_inputs.py",
+      "tools/check_evidence.py",
+      "tools/collect_evidence.py",
+      "docs/FULL_SMOKE_ROWS.json",
+      "docs/plans/PLAN-056-full-smoke-package.md"
+    ],
+    "guards": [
+      "tests/test_full_smoke_package.py::TestCoverage::test_every_unverified_ledger_entry_is_accounted_for_and_nothing_else_is_named",
+      "tests/test_full_smoke_package.py::TestThePackage::test_every_file_a_row_names_is_in_3_test_files",
+      "tests/test_full_smoke_package.py::TestThePackage::test_every_layer_a_row_expects_is_inside_the_shipped_geopackage",
+      "tests/test_full_smoke_package.py::TestGeneratedInputs::test_the_cod_profile_passes_the_plugins_own_validator",
+      "tests/test_full_smoke_package.py::TestThePackage::test_the_input_verifier_passes_on_the_unzipped_package_and_catches_damage"
+    ],
+    "hand_verified": "not verified: no row has been run by a person. The package structure and every input are tested offline; whether a row's instruction produces its stated result in a real QGIS with a real model is exactly what the package is for. The rows were written without a QGIS install.",
+    "hand_row": "row F3-check-evidence of the full smoke package: run the sessions, then python 5_check_evidence.py results"
   }
 ]
 }

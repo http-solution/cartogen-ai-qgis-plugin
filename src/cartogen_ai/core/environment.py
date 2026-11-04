@@ -28,6 +28,19 @@ def parse_version(text):
     return tuple(int(part) for part in found.group(1).split(".")) if found else ()
 
 
+def qt_version_text(qtcore):
+    """The Qt version this process is RUNNING: qVersion() of the given QtCore module, else its QT_VERSION_STR (the version PyQt was built against), else ''.
+    Hand run 2026-11-04 (W13, Windows): the Help said Qt 6.11.0 while QGIS's About window said 6.11.1, because QT_VERSION_STR is a build-time constant.
+    Never raises. Pure given the module."""
+    with contextlib.suppress(Exception):
+        running = str(qtcore.qVersion() or "")
+        if running:
+            return running
+    with contextlib.suppress(Exception):
+        return str(qtcore.QT_VERSION_STR or "")
+    return ""
+
+
 def _qgis_versions():
     """(QGIS version text, Qt version text, GDAL version text); '' for each one that cannot be read. Never raises."""
     qgis_text = qt_text = gdal_text = ""
@@ -35,8 +48,8 @@ def _qgis_versions():
         from qgis.core import Qgis
         qgis_text = str(Qgis.QGIS_VERSION)
     with contextlib.suppress(Exception):
-        from qgis.PyQt.QtCore import QT_VERSION_STR
-        qt_text = str(QT_VERSION_STR)
+        from qgis.PyQt import QtCore
+        qt_text = qt_version_text(QtCore)
     with contextlib.suppress(Exception):
         from osgeo import gdal
         gdal_text = str(gdal.__version__)
