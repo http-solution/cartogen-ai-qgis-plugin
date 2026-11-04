@@ -62,7 +62,7 @@ One list to follow up and plan from. It replaces the session task list (101 entr
 | DEF-21 | Owner run 2026-11-01 ('hospitals and clinics in Taiz per district on a printable map'): 24 tool calls, then stopped at the 450,000-token turn budget with the request incomplete. Causes seen: five find_tools lookups each kept up to eight schemas for the rest of the turn (tool list about 28 to 65, fixed by a cap in this change), the OpenStreetMap download timed out four times (DEF-7, mirrors still open), and after the tool said not to retry the model kept trying other routes (virtual layer, HDX search, more processing). | A long request ends unfinished and expensive. | Claude | DEF-7 | M | P1 | In progress | owner transcript 2026-11-01 |
 | DEF-22 | Owner run 2026-11-01 (log): native:extractbyexpression returned 0 features twice for the Taiz districts (10:38:16 and 10:41:04), after get_attributes and run_query; the model then moved on. Cause unknown (the log holds no arguments). When a filter returns 0 features, the result should say which field values exist so the model can correct the spelling (Taiz, Taizz, Ta'izz). | A silent 0 sends the model down other routes and spends tokens. | Claude |  | S | P2 | In progress | owner log 2026-11-01 |
 | DEF-23 | Undoing a filled new column (row V9, live run 2026-11-04) offered a destructive remove-field confirmation card; the refusal came only after Apply. | The card invites a data-loss click the plugin then refuses. | Claude |  | S | P2 | In progress | live run 2026-11-04 (agent) |
-| DEF-24 | 'Animate the layer over time' (row V4, issue 362, live run 2026-11-04) did not call export_temporal_animation_frames. The project was unsaved, so there is no evidence folder showing why. | A documented feature the model does not reach. | Claude |  | M | P2 | Not started | live run 2026-11-04 (agent) |
+| DEF-24 | 'Animate the layer over time' (row V4, issue 362, live run 2026-11-04) did not call export_temporal_animation_frames. The project was unsaved, so there is no evidence folder showing why. | A documented feature the model does not reach. | Claude |  | M | P2 | In progress | live run 2026-11-04 (agent) |
 | DEF-25 | Exported pages of the A1 layout script (live run 2026-11-04) showed an empty Legend and a blank map frame. Plugin or script cause unconfirmed; reproduce in the CI live job first. | A map product with an empty legend is the failure the layout checks exist to catch. | Claude |  | M | P1 | Not started | live run 2026-11-04 (agent) |
 | DEF-26 | Chat export after reopening the project held 32 of 40 messages (row B5, live run 2026-11-04); the ledger records 40 of 40 in the owner's 1.18.0 run. Cause unconfirmed. | A data export that silently drops messages. | Claude |  | S | P2 | Not started | live run 2026-11-04 (agent) |
 | BUD-1 | Decide how the per-turn token budget (max_turn_tokens, default 450,000) counts cached tokens. Today input plus output tokens are counted in full; in the owner's 2026-11-01 run 55 percent of the input (241,830 of 439,564 tokens) was served from cache, which providers bill at a fraction. Options: keep, count cached tokens at 10 percent, or show both numbers and budget on billed tokens. | The budget stopped a run that, counted by cost, was less than half used. | You |  | S | P2 | In progress | owner log 2026-11-01 |
@@ -174,8 +174,8 @@ Source: the owner's analysis document of nine flagship QGIS AI plugins, checked 
 
 | Status | Rows |
 |---|---|
-| In progress | 37 |
-| Not started | 30 |
+| In progress | 38 |
+| Not started | 29 |
 | Waiting on you | 14 |
 | Closed | 8 |
 | Blocked | 5 |
@@ -298,3 +298,4 @@ Newest last. One line per status change; written by `tools/master_list.py set`.
 - 2026-11-03: AR-2 Closed -> Closed. Owner said yes 2026-11-03. Option (c) was already built 2026-09-24: create_project_folder_structure (project_tools.py, 5 tests, tracker 1.7). The row was stale; nothing new to build.
 - 2026-11-04: DEF-6 In progress -> In progress. Owner decision 2026-11-03: suggest a cell size (do not change the limit). Built (PLAN-054). Seen working in the 2026-11-04 live run (row D5): the 1 km refusal named 4 km and offered aoi_where; the 4 km grid held 3,080 tasks. Agent-observed, not a person's run; close on the owner's say.
 - 2026-11-04: DEF-23 In progress -> In progress. PLAN-058: the refusal now comes before the confirmation card (precheck registry); unit and live tests written, CI only, not rerun in a live run.
+- 2026-11-04: DEF-24 Not started -> In progress. PLAN-058: start_field optional (read from the layer's temporal settings), description covers an events layer with one date field, error names the date fields. Router and find_tools already offered the tool, so why the model skipped it is unconfirmed. CI only; rerun row V4.

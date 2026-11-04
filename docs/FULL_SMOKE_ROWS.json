@@ -33,7 +33,8 @@
   "V4-animate": {
    "session": "B",
    "covers": [
-    "fragment-guard"
+    "fragment-guard",
+    "animation-uses-temporal-settings"
    ]
   },
   "V5-profile": {

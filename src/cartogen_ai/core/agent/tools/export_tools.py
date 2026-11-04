@@ -2595,10 +2595,29 @@ def _temporal_subset_expression(start_field, end_field, frame_date_iso):
     return expr
 
 
+def _resolve_animation_fields(layer, start_field, end_field):
+    """(start_field, end_field, problem). An explicit start_field is used as given. Without one, the layer's own temporal settings are used (what
+    set_layer_temporal recorded), because a model that was just told 'make the layer temporal using the date field' should not have to be asked for the field
+    again (live runs 2026-11-03 and 2026-11-04, row V4: it answered with a how-to instead of calling this tool). With neither, the problem names the layer's
+    date fields. Never raises."""
+    if start_field:
+        return start_field, end_field, None
+    with contextlib.suppress(Exception):          # a layer type without temporal properties just has no settings to read
+        props = layer.temporalProperties()
+        if props.isActive() and props.startField():
+            return props.startField(), end_field or props.endField() or None, None
+    names = [f.name() for f in layer.fields()]
+    dated = [f.name() for f in layer.fields() if "date" in str(f.typeName()).lower() or "time" in str(f.typeName()).lower()]
+    if dated:
+        return None, None, ("Give start_field, or make the layer temporal first with set_layer_temporal. Its date fields: " + ", ".join(f"'{n}'" for n in dated) + ".")
+    return None, None, "The layer has no date or date-time field to animate over. It has: " + ", ".join(names) + "."
+
+
 @register_tool(
     "export_temporal_animation_frames",
-    "Render one PNG frame per time step from a layer with start/end period fields already in the "
-    "project -- e.g. control-area polygons over 2016-2026 -- by filtering the layer to each frame's "
+    "Animate a layer over time: render one PNG frame per time step from a layer with start/end period fields already in the "
+    "project -- e.g. control-area polygons over 2016-2026 -- or from an events layer with a single date field (points that "
+    "stay visible from their date onward, so the map fills up frame by frame), by filtering the layer to each frame's "
     "date and exporting the current map canvas view, so the frames can be assembled into a GIF/video "
     "outside QGIS (e.g. with ffmpeg) for a native, non-HTML animation. This is the QGIS-native "
     "sibling of generate_temporal_dashboard's HTML output -- use this one when a video/GIF file is "
@@ -2606,18 +2625,19 @@ def _temporal_subset_expression(start_field, end_field, frame_date_iso):
     "changed between frames (so the animation doesn't visually jump) -- pan/zoom to the desired "
     "extent yourself before calling this. Optionally applies a categorized style once via "
     "category_field before rendering frames. The layer's filter is restored to what it was before "
-    "the call once done, even on failure.",
+    "the call once done, even on failure. If the layer was already made temporal (set_layer_temporal) leave start_field "
+    "out: its start and end fields are used; for an events layer with a single date field, give that field as start_field.",
     {
         "type": "object",
         "properties": {
             "layer_name": {"type": "string"},
-            "start_field": {"type": "string", "description": "Date/text field holding when each feature's period began."},
+            "start_field": {"type": "string", "description": "Date/text field holding when each feature's period began (the date, for an events layer). Optional when the layer is already temporal."},
             "end_field": {"type": "string", "description": "Optional date/text field holding when the period ended. A feature with no value here stays visible from its start onward."},
             "category_field": {"type": "string", "description": "Optional field to categorize/color the layer by (e.g. controlling faction) before rendering frames -- applied once via apply_categorized_style."},
             "output_dir": {"type": "string", "description": "Directory to write frame_0001.png, frame_0002.png, etc. Defaults to a new temp directory."},
             "step_days": {"type": "integer", "description": "Days between frames. Defaults to 30."},
         },
-        "required": ["layer_name", "start_field"],
+        "required": ["layer_name"],
     },
     # Integration audit 2026-10-16: this tool had no aliases, so "animate the layer over time" offered it before the temporal tools of package B
     # existed and stopped offering it once set_layer_temporal / set_project_time_range took the "time" and "layer" word matches.
@@ -2626,7 +2646,7 @@ def _temporal_subset_expression(start_field, end_field, frame_date_iso):
         "over time as frames",
     ],
 )
-def export_temporal_animation_frames(layer_name, start_field, end_field=None, category_field=None, output_dir=None, step_days=30):
+def export_temporal_animation_frames(layer_name, start_field=None, end_field=None, category_field=None, output_dir=None, step_days=30):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
     if iface is None:
@@ -2635,6 +2655,9 @@ def export_temporal_animation_frames(layer_name, start_field, end_field=None, ca
     layer = _find_layer_by_name(layer_name)
     if layer is None:
         return {"error": f"Layer '{layer_name}' not found"}
+    start_field, end_field, problem = _resolve_animation_fields(layer, start_field, end_field)
+    if problem:
+        return {"error": problem}
     field_names = [f.name() for f in layer.fields()]
     if start_field not in field_names:
         return {"error": f"Field '{start_field}' not found in '{layer_name}'"}
