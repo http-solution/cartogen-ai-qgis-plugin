@@ -184,7 +184,8 @@
     "layout-credits-line",
     "footer-measured-in-real-font-016",
     "disclaimer-wording-owner",
-    "layout-geometry-problems"
+    "layout-geometry-problems",
+    "legend-not-filtered-away"
    ],
    "needs": "QGIS only (no model, no key, no network)",
    "starts_from": "QGIS open with any project, the plugin enabled",

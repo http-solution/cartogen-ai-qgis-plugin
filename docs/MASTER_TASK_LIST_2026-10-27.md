@@ -63,7 +63,7 @@ One list to follow up and plan from. It replaces the session task list (101 entr
 | DEF-22 | Owner run 2026-11-01 (log): native:extractbyexpression returned 0 features twice for the Taiz districts (10:38:16 and 10:41:04), after get_attributes and run_query; the model then moved on. Cause unknown (the log holds no arguments). When a filter returns 0 features, the result should say which field values exist so the model can correct the spelling (Taiz, Taizz, Ta'izz). | A silent 0 sends the model down other routes and spends tokens. | Claude |  | S | P2 | In progress | owner log 2026-11-01 |
 | DEF-23 | Undoing a filled new column (row V9, live run 2026-11-04) offered a destructive remove-field confirmation card; the refusal came only after Apply. | The card invites a data-loss click the plugin then refuses. | Claude |  | S | P2 | In progress | live run 2026-11-04 (agent) |
 | DEF-24 | 'Animate the layer over time' (row V4, issue 362, live run 2026-11-04) did not call export_temporal_animation_frames. The project was unsaved, so there is no evidence folder showing why. | A documented feature the model does not reach. | Claude |  | M | P2 | In progress | live run 2026-11-04 (agent) |
-| DEF-25 | Exported pages of the A1 layout script (live run 2026-11-04) showed an empty Legend and a blank map frame. Plugin or script cause unconfirmed; reproduce in the CI live job first. | A map product with an empty legend is the failure the layout checks exist to catch. | Claude |  | M | P1 | Not started | live run 2026-11-04 (agent) |
+| DEF-25 | Exported pages of the A1 layout script (live run 2026-11-04) showed an empty Legend and a blank map frame. Plugin or script cause unconfirmed; reproduce in the CI live job first. | A map product with an empty legend is the failure the layout checks exist to catch. | Claude |  | M | P1 | In progress | live run 2026-11-04 (agent) |
 | DEF-26 | Chat export after reopening the project held 32 of 40 messages (row B5, live run 2026-11-04); the ledger records 40 of 40 in the owner's 1.18.0 run. Cause unconfirmed. | A data export that silently drops messages. | Claude |  | S | P2 | Not started | live run 2026-11-04 (agent) |
 | BUD-1 | Decide how the per-turn token budget (max_turn_tokens, default 450,000) counts cached tokens. Today input plus output tokens are counted in full; in the owner's 2026-11-01 run 55 percent of the input (241,830 of 439,564 tokens) was served from cache, which providers bill at a fraction. Options: keep, count cached tokens at 10 percent, or show both numbers and budget on billed tokens. | The budget stopped a run that, counted by cost, was less than half used. | You |  | S | P2 | In progress | owner log 2026-11-01 |
 | TR-1 | Task register tool order has no data-fetch tool for 261 of 302 'Map ...' tasks (checked 2026-11-01); the chat then says 'Prefer these tools, in order: add_layer_from_path, ...', which steers the model away from fetching. Only 6.02 (hospitals and clinics) was fixed, to start with fetch_osm_features like 1.02 and 1.05. Derive the fetch tool from the task's keywords (facilities, roads, buildings, boundaries, population, hazards) with a check script, as tools/derive_task_io.py does for file types. | The suggested tool order is wrong for most map tasks. | Claude |  | M | P2 | In progress | owner transcript 2026-11-01 |
@@ -174,8 +174,8 @@ Source: the owner's analysis document of nine flagship QGIS AI plugins, checked 
 
 | Status | Rows |
 |---|---|
-| In progress | 38 |
-| Not started | 29 |
+| In progress | 39 |
+| Not started | 28 |
 | Waiting on you | 14 |
 | Closed | 8 |
 | Blocked | 5 |
@@ -299,3 +299,4 @@ Newest last. One line per status change; written by `tools/master_list.py set`.
 - 2026-11-04: DEF-6 In progress -> In progress. Owner decision 2026-11-03: suggest a cell size (do not change the limit). Built (PLAN-054). Seen working in the 2026-11-04 live run (row D5): the 1 km refusal named 4 km and offered aoi_where; the 4 km grid held 3,080 tasks. Agent-observed, not a person's run; close on the owner's say.
 - 2026-11-04: DEF-23 In progress -> In progress. PLAN-058: the refusal now comes before the confirmation card (precheck registry); unit and live tests written, CI only, not rerun in a live run.
 - 2026-11-04: DEF-24 Not started -> In progress. PLAN-058: start_field optional (read from the layer's temporal settings), description covers an events layer with one date field, error names the date fields. Router and find_tools already offered the tool, so why the model skipped it is unconfirmed. CI only; rerun row V4.
+- 2026-11-04: DEF-25 Not started -> In progress. PLAN-058: legend filter-by-map is off when the map has no CRS or shows none of the layers (reply says why); the A1 script now sets a CRS, frames the canvas and measures the map. Cause inferred from the agent's pages (blank map, 'CRS unknown'), not reproduced; CI only. Rerun row A1 and have a person look at the pages.

@@ -713,6 +713,10 @@ def _apply_layout_style(layout, layout_mm, project, today, template, sources, br
             ("scale bar", lambda: _style_scalebar(layout))):
         step(name, fn)
     warnings.extend(footer_warnings)
+    if chosen.get("map_shows_none"):
+        warnings.append(map_shows_none_warning())
+    if chosen.get("map_crs_unknown"):
+        warnings.append(map_crs_unknown_warning())
     return {"warnings": warnings, "legend_layers": [by_id[i].name() for i in chosen["ids"]],
             "classification": classification_prefix(levels).strip(" -"), "footer_check": footer_metrics, "legend_check": legend_report}
 
@@ -863,6 +867,16 @@ def _style_footer(layout, layout_mm, levels, source_entries=(), credit_text="", 
     return warnings
 
 
+def map_shows_none_warning():
+    return ("The map frame shows none of the layers in the legend (the map view is not on the data), so the map looks empty. The legend lists them all anyway. "
+            "Zoom the map to the data and make the layout again.")
+
+
+def map_crs_unknown_warning():
+    return ("The project has no coordinate system set, so the map's scale and CRS read 'unknown' and the legend is not filtered by the map. "
+            "Set one in Project Properties (CRS) and make the layout again.")
+
+
 def _style_legend(layout, layout_mm, ids, by_id, template, chosen):
     leg = layout.itemById("LEGEND")
     # an explicit model, not "every layer in the project". setAutoUpdateModel is deprecated since QGIS 4.0 (the rc11 log
@@ -876,17 +890,26 @@ def _style_legend(layout, layout_mm, ids, by_id, template, chosen):
     root.removeAllChildren()
     legend_ids = ids
     map_item = layout.itemById("MAP_MAIN")
+    none_on_map = False
+    crs_unknown = map_item is not None and not map_item.crs().isValid()
     if template != "access_map" and map_item is not None:
         on_map = [lid for lid, _layer in legend_layers_on_map([(i, by_id[i]) for i in ids], map_item)]
         if on_map:                      # never an empty legend because every extent test said "elsewhere"
             legend_ids = on_map
+        else:
+            none_on_map = bool(ids)
     chosen["ids"] = legend_ids
+    chosen["map_shows_none"] = none_on_map
+    chosen["map_crs_unknown"] = bool(crs_unknown) and template != "access_map"
     for layer_id in legend_ids:
         root.addLayer(by_id[layer_id])
     # Only what the map extent shows -- except for the access-map template: its layers are already limited to the VISIBLE
     # ones, and the extent filter is the one step that can silently drop a visible reach polygon (rc11 smoke S8, #129: the
     # shaded reach area was on the map but not in the legend; the exact cause was not reproduced from code).
-    leg.setLegendFilterByMapEnabled(template != "access_map")
+    # When no layer is on the map the legend holds every layer (above); QGIS's own filter would then drop them all at render, which is what an A1 page of the
+    # 2026-11-04 live run showed: a Legend box with only its heading while the check table said 7 layers were listed. So the filter is off in that case.
+    # The same goes for a map with no CRS (the pages said "CRS unknown"): QGIS cannot transform a layer's extent into it, so its filter has nothing to keep.
+    leg.setLegendFilterByMapEnabled(template != "access_map" and not none_on_map and not crs_unknown)
     leg.setTitle("Legend")
     _panel(leg, layout_mm)
 
