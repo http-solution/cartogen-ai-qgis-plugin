@@ -49,6 +49,8 @@ def all_rows(doc=None):
     for index, row in enumerate(v2.rows()):
         extra = doc["v2_rows"][row["id"]]
         merged = dict(row, session=extra["session"], covers=list(extra["covers"]))
+        for field, added in (doc.get("v2_overrides", {}).get(row["id"]) or {}).items():           # text APPENDED to a v2 row's field; the v2 rows file stays as it was
+            merged[field] = str(merged.get(field, "")) + added
         combined.append((extra["session"], 1, index, merged))
     return [row for _s, _k, _i, row in sorted(combined, key=lambda item: item[:3])]
 
@@ -129,7 +131,7 @@ def readme(v, count):
             "  0. Terminal, in this folder:  python 6_tools/verify_inputs.py 3_test_files   (every input present and unchanged, or it names the file)\n"
             "  1. Install the plugin (see UPDATING below). Open QGIS.\n"
             "  2. In Cartogen Settings tick 'Save an evidence folder for each request'. Connect the model you will test (a hosted key or Ollama) in Connections.\n"
-            "  3. Do the two evidence lines in EVIDENCE_HOWTO.txt once per QGIS session.\n"
+            "  3. Do the two evidence lines in EVIDENCE_HOWTO.txt once per QGIS session, in the QGIS Python console (never in the chat).\n"
             "SESSIONS (what each needs)\n"
             "  A  no model, no key: layout script, Settings, CLI (about 45 minutes)\n"
             "  B  chat routing: a real model (about 1 hour)\n"
@@ -165,6 +167,17 @@ AFTER EACH ROW (about ten seconds):
      it could not save is in snap_errors.txt.
   3. Copy by hand what the row's CHECKLIST.txt lists: exported files into results\\outputs\\<row id>\\, screenshots into results\\screens\\.
   4. Write Pass / Partial / Fail / Skip and one line of notes in 4_RESULTS.csv. Never edit a saved file. If you could not save something, write "not saved: why".
+
+THINGS THAT WENT WRONG IN THE FIRST RUN (2026-11-04), SO DO THESE:
+  - WHERE TO TYPE: begin(), snap() and shot() are typed in QGIS's Python console (Plugins > Python Console), NEVER in the Cartogen chat. The first run sent
+    snap('B1') to the model as a request.
+  - FRESH CHAT: 1.18.5 has no "New chat" button. The conversation follows the project: start a row from File > New (or by opening the row's project file) and the chat
+    starts empty. If the old conversation is still on screen after you switch, write that in the notes and carry on.
+  - SAVE FIRST: save the project (File > Save As, into results\\outputs\\<row id>\\) BEFORE the first request. The plugin writes its evidence folder next to a saved project;
+    an unsaved project leaves none and the row cannot be checked.
+  - SCREENSHOTS AS FILES: in the console type  shot('D1-borders')  to save the QGIS window as results\\screens\\D1-borders.png (use the name the row gives).
+  - A reply that does not repeat something the plugin recorded (a count of checks, a storage note, the 'why' of a ranking) is a Partial for the reply's wording, not a failure
+    of the plugin: judge the plugin from the saved record (layer_properties.json, steps.jsonl) when the row says so.
 
 ROWS THAT NEED NO QGIS CONSOLE: A1 prints its own folder; F-rows with mcp_probe.py, check_workflow_file.py and 5_check_evidence.py run in a normal terminal
 (the row gives the command).

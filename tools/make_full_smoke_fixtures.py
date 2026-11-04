@@ -5,7 +5,8 @@
 
 The pinned smoke fixtures (docs/release_smoke_assets/inputs, docs/hand_test_v2_inputs) are never touched; these are the files no earlier package had:
   smoke_big_area.geojson     one polygon, about 220 km by 220 km, EPSG:4326: a 1 km task grid over it is above the 5,000 task limit
-  before_fixture.asc/.prj, after_fixture.asc/.prj   two 20 x 20 ASCII grids (the second lower in the middle: a district that LOST value) with a WGS84 .prj
+  before_fixture.asc/.prj, after_fixture.asc/.prj   two 40 x 40 ASCII grids of 100 m cells in EPSG:32636 laid over smoke_admin (the second lower in the middle: a
+                             district that LOST value), each with a UTM 36N .prj. The first version put them near Aden, 900 km from smoke_admin (hand run 2026-11-04)
   smoke_many_points.csv      60,000 points (lon, lat) over Aden: a layer large enough to trigger the large-input warning of the MCP approval dialog
   smoke_multipoint.geojson   three MultiPoint features (2, 3 and 2 parts) with attributes, for obfuscate_sensitive_points
   smoke_mesh.2dm             a four-node mesh: a layer with no featureCount, for tidy_project_layers
@@ -17,8 +18,10 @@ import json
 import sys
 from pathlib import Path
 
-WGS84_PRJ = ('GEOGCS["GCS_WGS_1984",DATUM["D_WGS_1984",SPHEROID["WGS_1984",6378137.0,298.257223563]],'
+UTM36N_PRJ = ('GEOGCS["GCS_WGS_1984",DATUM["D_WGS_1984",SPHEROID["WGS_1984",6378137.0,298.257223563]],'
              'PRIMEM["Greenwich",0.0],UNIT["Degree",0.0174532925199433]]\n')
+UTM36N_PRJ = ('PROJCS["WGS_1984_UTM_Zone_36N",' + UTM36N_PRJ.strip() + ',PROJECTION["Transverse_Mercator"],PARAMETER["False_Easting",500000.0],'
+              'PARAMETER["False_Northing",0.0],PARAMETER["Central_Meridian",33.0],PARAMETER["Scale_Factor",0.9996],PARAMETER["Latitude_Of_Origin",0.0],UNIT["Meter",1.0]]\n')
 
 
 def big_area():
@@ -28,17 +31,18 @@ def big_area():
 
 
 def asc(kind):
-    """A 20 x 20 grid at 0.001 degrees from (44.9, 12.7). 'before' is a smooth slope; 'after' is the same with the middle 6 x 6 cells lowered by 40."""
+    """A 40 x 40 grid of 100 m cells from (775400, 3537600) in EPSG:32636: it covers smoke_admin (x 775580 to 778779, y 3537720 to 3540689). 'before' is a
+    smooth slope; 'after' is the same with the middle 12 x 12 cells lowered by 40."""
     rows = []
-    for r in range(20):
+    for r in range(40):
         values = []
-        for c in range(20):
+        for c in range(40):
             value = 100 + 2 * c + r
-            if kind == "after" and 7 <= r <= 12 and 7 <= c <= 12:
+            if kind == "after" and 14 <= r <= 25 and 14 <= c <= 25:
                 value -= 40
             values.append(str(value))
         rows.append(" ".join(values))
-    header = "ncols 20\nnrows 20\nxllcorner 44.9\nyllcorner 12.7\ncellsize 0.001\nNODATA_value -9999\n"
+    header = "ncols 40\nnrows 40\nxllcorner 775400\nyllcorner 3537600\ncellsize 100\nNODATA_value -9999\n"
     return header + "\n".join(rows) + "\n"
 
 
@@ -81,8 +85,8 @@ def cod_profile():
 
 FILES = {
     "smoke_big_area.geojson": big_area,
-    "before_fixture.asc": lambda: asc("before"), "before_fixture.prj": lambda: WGS84_PRJ,
-    "after_fixture.asc": lambda: asc("after"), "after_fixture.prj": lambda: WGS84_PRJ,
+    "before_fixture.asc": lambda: asc("before"), "before_fixture.prj": lambda: UTM36N_PRJ,
+    "after_fixture.asc": lambda: asc("after"), "after_fixture.prj": lambda: UTM36N_PRJ,
     "smoke_many_points.csv": many_points,
     "smoke_multipoint.geojson": multipoint,
     "smoke_mesh.2dm": mesh,

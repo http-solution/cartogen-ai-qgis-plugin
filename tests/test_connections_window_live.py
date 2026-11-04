@@ -40,6 +40,21 @@ class TestConnectionsWindow(unittest.TestCase):
         from cartogen_ai.core.ui.connections_dialog import CartogenAiConnectionsDialog
         return CartogenAiConnectionsDialog()
 
+    def test_saving_connections_from_inside_settings_tells_the_panel_even_if_settings_is_cancelled(self):
+        """Hand run 2026-11-04 (A2/A3): the panel's dropdown kept the old connection. Written without a QGIS install; CI's first run is its first execution."""
+        from unittest import mock
+        from cartogen_ai.core.ui.connections_dialog import CartogenAiConnectionsDialog
+        from cartogen_ai.core.ui.settings_dialog import CartogenAiSettingsDialog
+        dialog = CartogenAiSettingsDialog()
+        told = []
+        dialog.connection_saved.connect(lambda: told.append(1))
+        with mock.patch.object(CartogenAiConnectionsDialog, "exec", return_value=True):
+            dialog._open_connections()
+        self.assertEqual(told, [1])
+        with mock.patch.object(CartogenAiConnectionsDialog, "exec", return_value=False):
+            dialog._open_connections()
+        self.assertEqual(told, [1])           # a cancelled Connections window tells nobody
+
     def test_every_connection_has_a_row_a_page_and_a_use_button_and_the_default_is_in_use(self):
         from cartogen_ai.infrastructure.settings_keys import DEFAULT_PROVIDER
         dialog = self._dialog()

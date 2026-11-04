@@ -21,6 +21,7 @@ sys.path.insert(0, str(ROOT / "tools"))
 import build_full_smoke as full           # noqa: E402
 import check_evidence                      # noqa: E402
 import make_full_smoke_fixtures as fixtures      # noqa: E402
+import layout_check_script            # noqa: E402  (module level is standard library only; qgis is imported inside run())
 
 import cartogen_ai.core.agent.agent_orchestrator  # noqa: E402,F401  (registers every tool)
 from cartogen_ai.core.agent.tools.registry import TOOL_REGISTRY      # noqa: E402
@@ -83,6 +84,16 @@ class TestRows(unittest.TestCase):
         for row in self.rows:
             self.assertGreater(len(row["expect"]), 30, row["id"])
 
+    def test_overrides_are_appended_to_v2_rows_and_name_real_rows(self):
+        v2_ids = {r["id"] for r in full.v2.rows()}
+        for row_id, fields in self.doc["v2_overrides"].items():
+            self.assertIn(row_id, v2_ids)
+            original = next(r for r in full.v2.rows() if r["id"] == row_id)
+            merged = next(r for r in self.rows if r["id"] == row_id)
+            for field, added in fields.items():
+                self.assertTrue(merged[field].endswith(added), (row_id, field))
+                self.assertTrue(merged[field].startswith(str(original.get(field, ""))), (row_id, field))
+
     def test_the_sheet_prints_every_session_and_every_row(self):
         text = full.sheet(self.rows, self.doc, "1.0")
         for row in self.rows:
@@ -121,7 +132,7 @@ class TestGeneratedInputs(unittest.TestCase):
         self.assertGreater(estimated_cells(width_m, height_m, 1000), MAX_TASKS)
         self.assertEqual(suggest_cell_size(width_m, height_m, 1000)[0], 4000)
 
-    def test_the_ascii_grids_are_complete_and_the_second_has_lost_value_in_the_middle(self):
+    def test_the_ascii_grids_lie_over_smoke_admin_in_its_own_crs_and_the_second_has_lost_value_in_the_middle(self):
         def read(name):
             lines = (self.dir / name).read_text(encoding="utf-8").splitlines()
             head = dict(line.split() for line in lines[:6])
@@ -129,11 +140,24 @@ class TestGeneratedInputs(unittest.TestCase):
             return head, rows
         head, before = read("before_fixture.asc")
         _head2, after = read("after_fixture.asc")
-        self.assertEqual((int(head["ncols"]), int(head["nrows"])), (20, 20))
-        self.assertTrue(all(len(r) == 20 for r in before) and len(before) == 20)
+        self.assertEqual((int(head["ncols"]), int(head["nrows"])), (40, 40))
+        self.assertTrue(all(len(r) == 40 for r in before) and len(before) == 40)
         self.assertEqual(before[0][0], after[0][0])
-        self.assertEqual(before[9][9] - after[9][9], 40)
-        self.assertIn("GEOGCS", (self.dir / "before_fixture.prj").read_text(encoding="utf-8"))
+        self.assertEqual(before[20][20] - after[20][20], 40)
+        prj = (self.dir / "before_fixture.prj").read_text(encoding="utf-8")
+        self.assertIn("UTM_Zone_36N", prj)
+        self.assertEqual(prj, (self.dir / "after_fixture.prj").read_text(encoding="utf-8"))
+        # the districts the rows ask about: the grid must cover the whole of smoke_admin, in the same CRS (EPSG:32636). The first version sat 900 km away.
+        db = sqlite3.connect(ROOT / "docs" / "release_smoke_assets" / "inputs" / "smoke_data.gpkg")
+        srs, min_x, min_y, max_x, max_y = db.execute("select srs_id, min_x, min_y, max_x, max_y from gpkg_contents where table_name = 'smoke_admin'").fetchone()
+        self.assertEqual(srs, 32636)
+        x0, y0, size = float(head["xllcorner"]), float(head["yllcorner"]), float(head["cellsize"])
+        self.assertLessEqual(x0, min_x)
+        self.assertLessEqual(y0, min_y)
+        self.assertGreaterEqual(x0 + 40 * size, max_x)
+        self.assertGreaterEqual(y0 + 40 * size, max_y)
+        # the lowered block must touch the districts, or the damage score has nothing to find
+        self.assertTrue(min_x < x0 + 26 * size and max_x > x0 + 14 * size and min_y < y0 + 26 * size and max_y > y0 + 14 * size)
 
     def test_the_point_file_is_large_enough_to_trigger_the_mcp_size_warning(self):
         from cartogen_ai.core.agent.mcp_policy import LARGE_INPUT_FEATURES
@@ -264,6 +288,14 @@ class TestThePackage(unittest.TestCase):
             self.assertTrue(any("smoke_mesh.2dm" in p and "missing" in p for p in problems), problems)
             self.assertTrue(any("row D2-damage-and-risk needs smoke_prob.csv" in p for p in problems), problems)
 
+    def test_the_evidence_page_holds_the_lessons_of_the_first_run_that_rows_point_at(self):
+        page = self.zip.read(f"{self.top}/EVIDENCE_HOWTO.txt").decode("utf-8")
+        for needle in ("WHERE TO TYPE", "FRESH CHAT", "SAVE FIRST", "shot('D1-borders')", "not a failure"):
+            self.assertIn(needle, page)
+        new_rows = " ".join(str(v) for r in self.doc["rows"] for v in (r["starts_from"], r["do"]))      # the 22 rows written for this package; the v2 rows keep their own wording
+        self.assertIn("EVIDENCE_HOWTO.txt, 'Fresh chat'", new_rows)           # the rows point at a section that exists
+        self.assertNotIn("a NEW chat", new_rows)
+
     def test_the_agent_prompt_ships_and_names_the_files_it_tells_the_agent_to_use(self):
         text = self.zip.read(f"{self.top}/AGENT_PROMPT.md").decode("utf-8")
         for name in ("verify_inputs.py", "5_check_evidence.py", "4_RESULTS.csv", "3_SHEET.md", "COVERAGE.md", "EVIDENCE_HOWTO.txt", "README_FIRST.txt"):
@@ -273,6 +305,73 @@ class TestThePackage(unittest.TestCase):
     def test_the_language_review_sheet_has_phrases(self):
         text = self.zip.read(f"{self.top}/3_test_files/language_review_sheet.csv").decode("utf-8-sig")
         self.assertGreater(len(list(csv.DictReader(io.StringIO(text)))), 100)
+
+
+class TestTheCheckerRunsEndToEnd(unittest.TestCase):
+    """Hand run 2026-11-04: 5_check_evidence.py crashed with KeyError 'failed' after printing its rows (a loop variable shadowed the layout check), read '0 rows'
+    because 4_RESULTS.csv sits beside the script, and called a confirm turn a FAIL. Run main() the way the package runs it."""
+    def make(self, root):
+        root = Path(root)
+        (root / "results").mkdir()
+        (root / "results" / "layout_check.json").write_text(json.dumps({"qgis": "4", "plugin_version": "1", "fonts_found": [], "passed": 1, "failed": [],
+                                                                       "checks": [{"id": "L1", "title": "t", "ok": True, "got": {}}]}), encoding="utf-8")
+        for index, (request, tools) in enumerate([("dem@1 > 100 on the dem", ["raster_calculator"]), ("dem@1 > 100 on the dem", [])]):
+            folder = root / "results" / f"t{index}"
+            folder.mkdir()
+            (folder / "summary.md").write_text(f"## Request\n{request}\n## Steps\n", encoding="utf-8")
+            (folder / "steps.jsonl").write_text("\n".join(json.dumps({"tool": t}) for t in tools), encoding="utf-8")
+        (root / "4_RESULTS.csv").write_text("id,session,title,covers,result (Pass/Partial/Fail/Skip),notes\nB1,B,x,y,Pass,n\nB2,B,x,y,,\n", encoding="utf-8")
+        rows = root / "rows.json"
+        rows.write_text(json.dumps({"rows": [{"id": "B1", "checks": [{"prompt": "dem@1 > 100", "expected_tools": ["raster_calculator"]}]}]}), encoding="utf-8")
+        return rows
+
+    def test_main_finishes_reads_the_results_beside_it_and_judges_the_request_that_called_tools(self):
+        import contextlib
+        with tempfile.TemporaryDirectory() as d:
+            rows = self.make(d)
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                code = check_evidence.main(["x", str(Path(d) / "results"), "--rows", str(rows)])
+            text = out.getvalue()
+            self.assertEqual(code, 0)
+            self.assertIn("layout check: 1 of 1 passed", text)
+            self.assertIn("PASS", text)
+            self.assertNotIn("FAIL", text)
+
+    def test_the_script_as_shipped_finds_4_results_csv_beside_itself(self):
+        import shutil
+        import subprocess
+        with tempfile.TemporaryDirectory() as d:
+            rows = self.make(d)
+            shutil.copy(ROOT / "tools" / "check_evidence.py", Path(d) / "5_check_evidence.py")
+            done = subprocess.run([sys.executable, "-I", str(Path(d) / "5_check_evidence.py"), str(Path(d) / "results"), "--rows", str(rows)],
+                                  capture_output=True, text=True, check=False)
+            self.assertEqual(done.returncode, 0, done.stderr)
+            self.assertIn("results file: 2 rows, 1 left blank: B2", done.stdout)
+
+
+class TestTheScriptsRunInTheQgisConsole(unittest.TestCase):
+    """Hand run 2026-11-04: exec() of the layout script printed nothing (the console's __name__ is __console__), its table said 'plugin ?' and project.json said
+    'unknown' (cartogen_ai is a namespace package, so __file__ is None)."""
+    def test_the_layout_script_also_runs_when_exec_d_in_the_console(self):
+        source = (ROOT / "tools" / "layout_check_script.py").read_text(encoding="utf-8")
+        self.assertIn('if __name__ in ("__main__", "__console__"):', source)
+
+    def test_the_version_is_found_through_the_namespace_package_path(self):
+        import types
+        with tempfile.TemporaryDirectory() as d:
+            package = Path(d) / "plugin" / "src" / "cartogen_ai"
+            package.mkdir(parents=True)
+            (Path(d) / "plugin" / "metadata.txt").write_text("name=x\nversion=9.8.7\n", encoding="utf-8")
+            namespace = types.SimpleNamespace(__file__=None, __path__=[str(package)])
+            self.assertEqual(layout_check_script.plugin_version(namespace), "9.8.7")
+            self.assertEqual(layout_check_script.plugin_version(types.SimpleNamespace(__path__=[str(Path(d) / "nowhere")])), "")
+            self.assertEqual(layout_check_script.plugin_version(types.SimpleNamespace()), "")
+
+    def test_the_evidence_collector_finds_the_version_of_this_checkout_and_has_a_screenshot_helper(self):
+        import collect_evidence
+        self.assertRegex(collect_evidence._plugin_version(), r"^version=\d")
+        self.assertTrue(callable(collect_evidence.shot))
 
 
 class TestEvidenceChecksOnMultiPromptRows(unittest.TestCase):

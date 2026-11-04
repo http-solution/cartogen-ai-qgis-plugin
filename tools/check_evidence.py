@@ -22,7 +22,9 @@ def load_layout_check(folder):
 
 
 def load_results(folder):
-    found = sorted(Path(folder).rglob("4_RESULTS.csv"))
+    """The rows of 4_RESULTS.csv: inside `folder` if it is there, else beside this script (the package keeps it next to 5_check_evidence.py, one level above
+    results/, which is the folder people pass). Hand run 2026-11-04: it was pointed at results/ and read '0 rows'."""
+    found = sorted(Path(folder).rglob("4_RESULTS.csv")) or sorted(Path(__file__).resolve().parent.glob("4_RESULTS.csv"))
     if not found:
         return []
     with open(found[0], encoding="utf-8-sig", newline="") as handle:
@@ -54,7 +56,8 @@ def verdict_for_row(row, requests):
     matches = [r for r in requests if prompt in r[0].lower()]
     if not matches:
         return "NO EVIDENCE", "no evidence folder holds this request (was 'Save an evidence folder for each request' ticked?)"
-    _request, tools, name = matches[-1]
+    with_tools = [m for m in matches if m[1]]
+    _request, tools, name = (with_tools or matches)[-1]          # a later 'confirm' turn repeats the prompt but calls nothing (W1 showed a false FAIL)
     forbidden = [t for t in row.get("forbidden_tools", []) if t in tools]
     too_many = [f"{t} x{tools.count(t)} (limit {n})" for t, n in (row.get("max_calls") or {}).items() if tools.count(t) > n]
     wanted = row.get("expected_tools", [])
@@ -121,8 +124,8 @@ def main(argv):
     lines.append(f"evidence folders: {len(requests)}")
     if rows_file.is_file():
         for row in json.loads(rows_file.read_text(encoding="utf-8")).get("rows", []):
-            for label, check in expected_tool_checks(row):
-                verdict, note = verdict_for_row(check, requests)
+            for label, expected in expected_tool_checks(row):          # not `check`: that name holds the layout check, read again below
+                verdict, note = verdict_for_row(expected, requests)
                 lines.append(f"  {verdict:11} {label}: {note}")
     print("\n".join(lines))
     records = record_lines(folder)

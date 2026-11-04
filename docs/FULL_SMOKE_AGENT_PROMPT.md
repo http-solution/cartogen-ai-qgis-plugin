@@ -25,21 +25,24 @@ You need: QGIS 4.2.x desktop (Windows if possible), a model connection the user 
 8. **Scope:** act only on the test project and the package folder. No other files, accounts or network services. Press "Allow once" or "Confirm" only for the exact call a row names; refuse anything else and record it.
 9. **Cost:** stop a row and mark it Blocked if the same provider error repeats three times. Run `B4-long-request` last of session B and only if the provider has quota; it is the most expensive row.
 10. **Do not fix, patch or reconfigure the plugin or the package** to get a pass. Do not read the plugin source to decide what is expected.
+11. **Where you type.** `begin()`, `snap()` and `shot()` go ONLY in QGIS's Python console (Plugins > Python Console). Never type them, or any command, into the Cartogen chat box: that sends them to the model as a request and spoils the row (the first agent run did exactly this with `snap('B1')`). Before typing, check which window and which box has focus.
+12. **Judge the plugin from its own record when the row says so.** Where a row points at `layer_properties.json`, `steps.jsonl` or a tool result, that is the plugin's output. If the model's reply leaves out something the record holds (a count of checks, a storage note, the "why" of a ranking), that is a Partial for the reply's wording, not a failure of the plugin. Say which.
+13. **Check the row's own premise before blaming the plugin.** If a row's setup cannot produce what it expects (data in the wrong place, a layer with another name, an algorithm outside the rule's scope), record kind ROW and what you found; do not mark the feature Fail.
 
 ## 3. Procedure
 **Step 0 (once).** In a terminal in the package folder run `python 6_tools/verify_inputs.py 3_test_files`. If anything is MISSING or CHANGED, stop and report it. Record QGIS version, OS, plugin version (Help panel), the model and provider you will use.
 **Step 1 (once per QGIS session).** Install the plugin as `README_FIRST.txt` says; open `3_test_files/smoke_start.qgz` from that folder; tick "Save an evidence folder for each request"; paste the two evidence lines from `EVIDENCE_HOWTO.txt` into the QGIS Python console.
 **Step 2. Run the rows in `3_SHEET.md` order, A then B then C then D then E then F.** For each row:
-1. Reach the state in **Starts from** exactly (a fresh chat, the named layers, the named file). Rows are independent; restart QGIS or open a new project when the row says so.
+1. Reach the state in **Starts from** exactly (a fresh chat, the named layers, the named file). Rows are independent; restart QGIS or open a new project when the row says so. There is no "New chat" button in 1.18.5: the conversation follows the project, so File > New (or opening the row's project file) starts an empty chat; if the old conversation is still shown, say so in the notes. SAVE the project into `results/outputs/<row id>/` before the first request: the plugin writes its evidence folder next to a saved project, and an unsaved project leaves none.
 2. Do the steps in **Do**, one at a time, waiting for each reply to finish. Replace `<F>` and `<bundle>` with real paths.
 3. As soon as the reply is complete run `snap('<row letter and number>')` (e.g. `snap('B1')`; `snap('B3a')` / `snap('B3b')` for two-part rows). Read what it printed; if it lists anything NOT SAVED, say so in the notes.
-4. Save what **Save** asks for (outputs into `results/outputs/<row id>/`, screenshots into `results/screens/` with the names given).
+4. Save what **Save** asks for (outputs into `results/outputs/<row id>/`). For a named screenshot type `shot('<name>')` in the Python console: it saves the QGIS window as `results/screens/<name>.png`. Do not leave a screenshot as something only you saw.
 5. Compare against **Expect** and **Pass if**. For rows with prompts and expected tools, open `plugin_evidence/*/steps.jsonl` and list the tools actually called, in order.
 6. Add one line to `4_RESULTS.csv`: `Pass`, `Partial`, `Fail`, `Skip` (cannot run, with the reason) or `Blocked` (started but an environment problem stopped it). Notes: what you saw, the quoted evidence, the failure kind (PLUGIN / ROW / ENVIRONMENT), file paths.
 Never leave a row blank. If a row needs a person you cannot be (two fluent readers in B3, an unaided reader in W12, a physical second computer), mark Skip and say exactly what a human must do.
 
 ## 4. Rows that deserve extra care
-- **A1** run the layout script, then open every exported page and report any cut-off, overlap or edge overrun by page name. Pass only if every check is PASS and you can describe each page.
+- **A1** run the layout script, then open every exported page and report any cut-off, overlap or edge overrun by page name. Describe the Legend box of each page: does it list layer entries, or only its heading? Is the map frame drawn, or blank? Pass only if every check is PASS and you can describe each page.
 - **V2-stop** record memory before, during and a minute after Stop with the operating system's own tool; say the numbers.
 - **E1, F2, W1, W11 (gates):** the proof is whether a card appeared BEFORE anything was sent or written. Record the card text and what existed in the project at that moment.
 - **D5-task-grid and B2:** quote the refusal and the size it names; then actually do what it says.
@@ -53,7 +56,7 @@ Never leave a row blank. If a row needs a person you cannot be (two fluent reade
 - You suspect the plugin and the row disagree: report both, do not resolve it yourself.
 
 ## 6. Finish
-1. Run `python 5_check_evidence.py results` and save its output to `results/outputs/F3-check-evidence/checker.txt`.
+1. From the package folder run `python 5_check_evidence.py results` and save its output to `results/outputs/F3-check-evidence/checker.txt`.
 2. Zip `results/` (do not include keys), plus `4_RESULTS.csv` and the `cartogen_evidence` folder.
 3. Write `REPORT.md` with: environment (QGIS, OS, plugin, model); counts of Pass / Partial / Fail / Skip / Blocked; a table of every row with its result and one-line reason; then **Defects** (each: row, ledger feature ids from `COVERAGE.md`, kind, exact quoted evidence, steps to reproduce, severity: data loss or protected-data leak > wrong result > confusing message > cosmetic); then **Not tested** (every Skip/Blocked with the reason and what a human must do); then **Per feature**: for each ledger id a row covers, one of `verified` (every covering row Pass), `partly`, `failed`, `not tested`.
 4. State plainly what you could NOT judge. Do not say the release is ready or not ready; give the counts and the defects, and let the owner decide.
