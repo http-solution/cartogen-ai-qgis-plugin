@@ -84,6 +84,11 @@ def run_tests(repo):
     return int(ran.group(1)), problems
 
 
+def recheck_label(count):
+    """What the page prints for 'seen working, code changed since': the count, or 'unknown' (-1) when the baseline commit is not in the clone. Pure."""
+    return "unknown" if count < 0 else str(count)
+
+
 def _live_counts(repo, ledger):
     """The measure the owner asked for (PLAN-057): of the features a live run can test, how many were SEEN working, partly, failing, or not seen. Read from
     docs/LIVE_RESULTS.json, which records only what a live run showed. `live_needs_recheck` is the regression gate: seen working, source changed since."""
@@ -98,7 +103,7 @@ def _live_counts(repo, ledger):
     except live_results.BaselineMissingError:                          # a shallow clone has no baseline: say unknown (-1), never a made-up count
         recheck = -1
     return {"live_testable": s["testable"], "live_working": s["working"], "live_partly": s["partly"], "live_failing": s["failing"],
-            "live_not_seen": s["not_tested"], "live_not_testable": s["not_testable"], "live_run_date": run["date"], "live_needs_recheck": recheck}
+            "live_not_seen": s["not_tested"], "live_not_testable": s["not_testable"], "live_run_date": run["date"], "live_needs_recheck": recheck, "live_recheck_label": recheck_label(recheck)}
 
 
 def build(out, repo=REPO, facts=None):

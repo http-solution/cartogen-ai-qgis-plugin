@@ -1,6 +1,7 @@
 """PLAN-052: the dashboard's data generator works against this repository and keeps the shapes the dashboard page reads. Offline; no QGIS, no network."""
 import importlib.util
 import json
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -10,7 +11,7 @@ spec = importlib.util.spec_from_file_location("dashboard_snapshot", ROOT / "tool
 snap = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(snap)
 
-SUMMARY_KEYS = {"live_testable", "live_working", "live_partly", "live_failing", "live_not_seen", "live_not_testable", "live_run_date", "live_needs_recheck", "as_of", "version", "release_state", "tools", "tests_run", "tests_sandbox_errors", "open_prs", "open_pr_note", "ledger_total",
+SUMMARY_KEYS = {"live_recheck_label", "live_testable", "live_working", "live_partly", "live_failing", "live_not_seen", "live_not_testable", "live_run_date", "live_needs_recheck", "as_of", "version", "release_state", "tools", "tests_run", "tests_sandbox_errors", "open_prs", "open_pr_note", "ledger_total",
                 "ledger_by_hand", "ledger_partly", "ledger_not", "plans_total", "plans_planned", "plans_abandoned", "plans_in_progress", "plans_done",
                 "tasks_open", "tasks_waiting_on_owner"}
 
@@ -74,6 +75,35 @@ class TestBuild(unittest.TestCase):
         import re
         text = "".join(p.read_text(encoding="utf-8") for p in self.out.glob("*.json"))
         self.assertFalse(re.search(r"sk-[A-Za-z0-9_-]{16,}|AIza[0-9A-Za-z_-]{20,}|Bearer\s+[A-Za-z0-9._-]{16,}", text))
+
+
+class TestLiveRecheckCount(unittest.TestCase):
+    """The recheck count is a number or -1 (unknown); the page must say 'unknown' for -1, never print it as a count. Hermetic: no git history needed."""
+
+    @classmethod
+    def setUpClass(cls):
+        sys.path.insert(0, str(ROOT / "tools"))                      # not every test order puts tools/ on the path first
+        import live_results
+        cls.live = live_results
+
+    def test_a_missing_baseline_gives_minus_one_not_a_guess(self):
+        from unittest import mock
+        with mock.patch.object(self.live, "changed_since", side_effect=self.live.BaselineMissingError("no baseline")):
+            self.assertEqual(snap.build(Path(tempfile.mkdtemp()), ROOT, {})["live_needs_recheck"], -1)
+
+    def test_a_present_baseline_gives_the_count_the_gate_computes(self):
+        from unittest import mock
+        changed = {"src/cartogen_ai/core/net.py"}
+        doc, feats = self.live.load(), self.live.ledger()
+        expected = len(self.live.needs_recheck(doc, feats, changed, self.live.head_sha(), self.live.dependencies(feats)))
+        self.assertGreater(expected, 0)                                  # net.py is imported by seen-working features, so the pinned input is not vacuous
+        with mock.patch.object(self.live, "changed_since", return_value=changed):
+            self.assertEqual(snap.build(Path(tempfile.mkdtemp()), ROOT, {})["live_needs_recheck"], expected)
+
+    def test_the_label_the_page_prints_says_unknown_for_minus_one_and_the_number_otherwise(self):
+        self.assertEqual(snap.recheck_label(-1), "unknown")
+        self.assertEqual(snap.recheck_label(0), "0")
+        self.assertEqual(snap.recheck_label(17), "17")
 
 
 class TestRunTestsParser(unittest.TestCase):
