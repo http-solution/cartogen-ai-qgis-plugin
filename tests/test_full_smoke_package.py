@@ -170,7 +170,7 @@ class TestGeneratedInputs(unittest.TestCase):
     def test_the_route_runs_through_events_a_and_b_and_misses_c_to_f_by_over_a_kilometre(self):
         import math
         (x1, y1), (x2, y2) = json.loads((self.dir / "smoke_route.geojson").read_text(encoding="utf-8"))["features"][0]["geometry"]["coordinates"]
-        events = list(csv.DictReader((ROOT / "docs" / "hand_test_v2_inputs" / "smoke_events.csv").open(encoding="utf-8")))
+        events = list(csv.DictReader(io.StringIO((ROOT / "docs" / "hand_test_v2_inputs" / "smoke_events.csv").read_text(encoding="utf-8"))))
 
         def metres_from_route(lon, lat):
             kx, ky = 111_320 * math.cos(math.radians(lat)), 110_574                         # metres per degree here
@@ -211,6 +211,7 @@ class TestThePackage(unittest.TestCase):
             z.writestr("stub.txt", "a stand-in so the real dist/ zip is never touched")
         full.main(["x", "--plugin-zip", str(plugin), "--out-dir", cls.tmp.name])
         cls.zip = zipfile.ZipFile(Path(cls.tmp.name) / f"cartogen_ai_full_smoke_{version}.zip")
+        cls.addClassCleanup(cls.zip.close)          # runs BEFORE the folder is removed (cleanups run last-in first-out): Windows will not delete an open file
         cls.top = cls.zip.namelist()[0].split("/")[0]
         cls.doc = full.load()
         cls.rows = full.all_rows(cls.doc)
