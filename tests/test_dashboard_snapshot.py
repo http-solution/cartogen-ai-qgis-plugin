@@ -1,6 +1,7 @@
 """PLAN-052: the dashboard's data generator works against this repository and keeps the shapes the dashboard page reads. Offline; no QGIS, no network."""
 import importlib.util
 import json
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -77,22 +78,27 @@ class TestBuild(unittest.TestCase):
 
 
 class TestLiveRecheckCount(unittest.TestCase):
-    """The recheck count is a number or -1 (unknown); the page must say 'unknown' for -1, never print it as a count."""
+    """The recheck count is a number or -1 (unknown); the page must say 'unknown' for -1, never print it as a count. Hermetic: no git history needed."""
+
+    @classmethod
+    def setUpClass(cls):
+        sys.path.insert(0, str(ROOT / "tools"))                      # not every test order puts tools/ on the path first
+        import live_results
+        cls.live = live_results
 
     def test_a_missing_baseline_gives_minus_one_not_a_guess(self):
         from unittest import mock
-        import live_results
-        with mock.patch.object(live_results, "changed_since", side_effect=live_results.BaselineMissingError("no baseline")):
-            out = Path(tempfile.mkdtemp())
-            self.assertEqual(snap.build(out, ROOT, {})["live_needs_recheck"], -1)
+        with mock.patch.object(self.live, "changed_since", side_effect=self.live.BaselineMissingError("no baseline")):
+            self.assertEqual(snap.build(Path(tempfile.mkdtemp()), ROOT, {})["live_needs_recheck"], -1)
 
-    def test_a_present_baseline_gives_the_count_that_the_gate_prints(self):
-        import live_results
-        doc, feats = live_results.load(), live_results.ledger()
-        expected = len(live_results.needs_recheck(doc, feats, live_results.changed_since(next(iter(doc["runs"].values()))["baseline_commit"]),
-                                                  live_results.head_sha(), live_results.dependencies(feats)))
-        out = Path(tempfile.mkdtemp())
-        self.assertEqual(snap.build(out, ROOT, {})["live_needs_recheck"], expected)
+    def test_a_present_baseline_gives_the_count_the_gate_computes(self):
+        from unittest import mock
+        changed = {"src/cartogen_ai/core/net.py"}
+        doc, feats = self.live.load(), self.live.ledger()
+        expected = len(self.live.needs_recheck(doc, feats, changed, self.live.head_sha(), self.live.dependencies(feats)))
+        self.assertGreater(expected, 0)                                  # net.py is imported by seen-working features, so the pinned input is not vacuous
+        with mock.patch.object(self.live, "changed_since", return_value=changed):
+            self.assertEqual(snap.build(Path(tempfile.mkdtemp()), ROOT, {})["live_needs_recheck"], expected)
 
     def test_the_label_the_page_prints_says_unknown_for_minus_one_and_the_number_otherwise(self):
         self.assertEqual(snap.recheck_label(-1), "unknown")
