@@ -72,5 +72,22 @@ class TestTheReplyWarnsWhenTheMapShowsNoneOfTheLayers(unittest.TestCase):
         self.assertIn("Zoom", text)
 
 
+class TestWhichWarningsAreRaised(unittest.TestCase):
+    """CI live run (2026-11-04): two existing live tests build a layout with no map view at all (no canvas), where no map is ever framed on anything, so 'the
+    view is not on the data' says nothing; only the no-CRS warning applies there."""
+
+    def test_both_are_raised_when_there_is_a_map_view(self):
+        out = ls.view_warnings({"map_shows_none": True, "map_crs_unknown": True}, view_known=True)
+        self.assertEqual(out, [ls.map_shows_none_warning(), ls.map_crs_unknown_warning()])
+
+    def test_the_view_warning_is_dropped_when_there_is_no_map_view(self):
+        out = ls.view_warnings({"map_shows_none": True, "map_crs_unknown": True}, view_known=False)
+        self.assertEqual(out, [ls.map_crs_unknown_warning()])
+
+    def test_nothing_is_raised_when_nothing_is_wrong(self):
+        self.assertEqual(ls.view_warnings({"map_shows_none": False, "map_crs_unknown": False}), [])
+        self.assertEqual(ls.view_warnings({}), [])
+
+
 if __name__ == "__main__":
     unittest.main()

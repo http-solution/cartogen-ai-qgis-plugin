@@ -649,14 +649,14 @@ def installed_font(family):
     return None, f"font '{family}' is not installed on this computer; the default font is used"
 
 
-def apply_layout_style(layout, layout_mm, project=None, today=None, template="standard", sources=None, branding=None):
+def apply_layout_style(layout, layout_mm, project=None, today=None, template="standard", sources=None, branding=None, view_known=True):
     """Styles the items create_print_layout made. `branding` is a map profile (logo, masthead colours, font). Returns
     {'warnings': [...], 'legend_layers': [names], 'classification': str}."""
     branding = branding or {}
     family, font_warning = installed_font(branding.get("font_family"))
     _ACTIVE_FONT["family"] = family
     try:
-        report = _apply_layout_style(layout, layout_mm, project, today, template, sources, branding)
+        report = _apply_layout_style(layout, layout_mm, project, today, template, sources, branding, view_known)
     finally:
         _ACTIVE_FONT["family"] = None
     if font_warning:
@@ -664,7 +664,7 @@ def apply_layout_style(layout, layout_mm, project=None, today=None, template="st
     return report
 
 
-def _apply_layout_style(layout, layout_mm, project, today, template, sources, branding):
+def _apply_layout_style(layout, layout_mm, project, today, template, sources, branding, view_known=True):
     warnings = []
     if not QGIS_AVAILABLE:
         return {"warnings": ["QGIS not available"], "legend_layers": [], "classification": ""}
@@ -713,10 +713,7 @@ def _apply_layout_style(layout, layout_mm, project, today, template, sources, br
             ("scale bar", lambda: _style_scalebar(layout))):
         step(name, fn)
     warnings.extend(footer_warnings)
-    if chosen.get("map_shows_none"):
-        warnings.append(map_shows_none_warning())
-    if chosen.get("map_crs_unknown"):
-        warnings.append(map_crs_unknown_warning())
+    warnings.extend(view_warnings(chosen, view_known))
     return {"warnings": warnings, "legend_layers": [by_id[i].name() for i in chosen["ids"]],
             "classification": classification_prefix(levels).strip(" -"), "footer_check": footer_metrics, "legend_check": legend_report}
 
@@ -870,6 +867,17 @@ def _style_footer(layout, layout_mm, levels, source_entries=(), credit_text="", 
 def map_shows_none_warning():
     return ("The map frame shows none of the layers in the legend (the map view is not on the data), so the map looks empty. The legend lists them all anyway. "
             "Zoom the map to the data and make the layout again.")
+
+
+def view_warnings(chosen, view_known=True):
+    """The plain-words warnings about the map view and CRS. `view_known` is False when the layout was made with no map view at all (no QGIS canvas), where the
+    map is not framed on anything and 'the view is not on the data' would say nothing. Pure."""
+    out = []
+    if chosen.get("map_shows_none") and view_known:
+        out.append(map_shows_none_warning())
+    if chosen.get("map_crs_unknown"):
+        out.append(map_crs_unknown_warning())
+    return out
 
 
 def map_crs_unknown_warning():

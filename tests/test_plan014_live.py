@@ -13,7 +13,7 @@ import unittest
 from tests.test_network_units_live import QGIS_LIVE_AVAILABLE, _boot
 
 if QGIS_LIVE_AVAILABLE:
-    from qgis.core import (QgsFeature, QgsGeometry, QgsLayoutItemLabel, QgsLayoutItemMap, QgsLayoutPoint, QgsLayoutSize, QgsMapRendererSequentialJob,
+    from qgis.core import (QgsCoordinateReferenceSystem, QgsFeature, QgsGeometry, QgsLayoutItemLabel, QgsLayoutItemMap, QgsLayoutPoint, QgsLayoutSize, QgsMapRendererSequentialJob,
                            QgsMapSettings, QgsPointXY, QgsPrintLayout, QgsProject, QgsRasterLayer, QgsRectangle, QgsVectorLayer)
     from qgis.PyQt.QtCore import QSize
     from qgis.PyQt.QtGui import QColor
@@ -32,6 +32,8 @@ class _Base(unittest.TestCase):
     def setUp(self):
         QgsProject.instance().clear()
         self.addCleanup(QgsProject.instance().clear)
+        # A real project always has a CRS; clear() leaves none, and the plugin now warns about that (PLAN-058, row A1), which this test's "no warnings" is not about.
+        QgsProject.instance().setCrs(QgsCoordinateReferenceSystem("EPSG:4326"))
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
 

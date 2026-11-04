@@ -365,7 +365,22 @@ class TestPrintLayoutStyling(unittest.TestCase):
         return res, layout, out
 
     def test_the_legend_lists_only_visible_thematic_layers(self):
-        res, layout, _ = self._layout()
+        # A real map view on the data and a project CRS, as in a QGIS window: with no view the map is not framed on anything, and the legend filter is then
+        # (rightly) off because it could only empty the legend (PLAN-058, row A1; the view-less case is tested in test_legend_when_map_shows_nothing_live.py).
+        from unittest.mock import MagicMock, patch
+        from qgis.core import QgsCoordinateReferenceSystem
+        from qgis.gui import QgsMapCanvas
+        from cartogen_ai.core.agent.tools import layout_tools
+        QgsProject.instance().setCrs(QgsCoordinateReferenceSystem("EPSG:4326"))
+        canvas = QgsMapCanvas()
+        canvas.setLayers([self.visible])
+        extent = self.visible.extent()
+        extent.scale(1.5)
+        canvas.setExtent(extent)
+        iface = MagicMock()
+        iface.mapCanvas.return_value = canvas
+        with patch.object(layout_tools, "iface", iface):
+            res, layout, _ = self._layout()
         self.assertEqual(res["legend_layers"], ["Clinics"])          # not the hidden scratch, not the "_lines_" helper
         legend = layout.itemById("LEGEND")
         self.assertFalse(legend.autoUpdateModel())
