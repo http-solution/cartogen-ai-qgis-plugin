@@ -19,6 +19,15 @@ except ImportError:
 PX_PER_MM = 5
 
 
+def _keep(name, image):
+    """Save the picture for the CI artifact (master list DEF-1); never lets a save problem fail a test."""
+    try:
+        from tests._render_artifacts import save_png
+        return save_png(name, image)
+    except Exception:                        # keeping a picture is a diagnostic, not part of what the test asserts
+        return None
+
+
 def colour_stats(image, rect_mm):
     """(share of pixels clearly coloured, share not white, pixel count) inside a rectangle given in millimetres."""
     x0, y0 = int(rect_mm.x() * PX_PER_MM), int(rect_mm.y() * PX_PER_MM)
@@ -95,6 +104,7 @@ class TestLayoutItemsRender(unittest.TestCase):
         for k in ("line", "profile"):   # rc48 A12/A6: the colour share cannot tell "thin dark line" from "nothing", so print the picture itself
             rect = self.layout.itemById(ids[k]).sceneBoundingRect()
             crop = image.copy(int(rect.x() * PX_PER_MM), int(rect.y() * PX_PER_MM), int(rect.width() * PX_PER_MM), int(rect.height() * PX_PER_MM))
+            _keep(f"items_{k}", crop)
             data = QByteArray()
             buf = QBuffer(data)
             buf.open(QIODevice.OpenModeFlag.WriteOnly)
@@ -121,8 +131,9 @@ class TestLayoutItemsRender(unittest.TestCase):
         ids = self._build()
         rect = self.layout.itemById(ids["profile"]).sceneBoundingRect()
         counts = []
-        for _ in range(5):
+        for n in range(5):
             image = QgsLayoutExporter(self.layout).renderRegionToImage(rect, QSize(int(rect.width() * PX_PER_MM), int(rect.height() * PX_PER_MM)))
+            _keep(f"profile_render_{n + 1}", image)
             counts.append(sum(1 for x in range(0, image.width(), 2) for y in range(0, image.height(), 2) if QColor(image.pixel(x, y)).hsvSaturation() > 60) * 4)
         print(f"LAYOUTRENDER profile five renders: {counts}")
         self.assertTrue(all(c >= 100 for c in counts), counts)

@@ -201,6 +201,9 @@ jobs:
       CARTOGEN_TEST_PG_DATABASE: postgres
       CARTOGEN_TEST_PG_USER: postgres
       CARTOGEN_TEST_PG_PASSWORD: cartogen_ci
+      # Master list DEF-1 (#379): the elevation-profile render was empty intermittently and the picture was never kept. The render tests write their PNGs here
+      # (tests/_render_artifacts.py) and the last step uploads the folder whatever the result.
+      CARTOGEN_LIVE_ARTIFACTS: /tmp/cartogen_live_artifacts
     steps:
       - uses: actions/checkout@v5
 
@@ -354,3 +357,15 @@ jobs:
           p2.unload()
           print('plugin_main load->unload->reload smoke test OK')
           "
+
+      - name: Keep the pictures the live render tests made
+        # Master list DEF-1 (#379): when a layout item renders empty, this is the picture to look at. if: always() so a failing run keeps it too;
+        # ignore when nothing was written (every other run).
+        if: always()
+        continue-on-error: true          # a diagnostic: if the upload itself fails it must not fail the job
+        uses: actions/upload-artifact@v4
+        with:
+          name: live-render-pngs
+          path: /tmp/cartogen_live_artifacts
+          if-no-files-found: ignore
+          retention-days: 14

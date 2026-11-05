@@ -72,7 +72,7 @@ One list to follow up and plan from. It replaces the session task list (101 entr
 
 | ID | Task | Why | Who | Depends on | Size | Pri | Status | Source |
 |---|---|---|---|---|---|---|---|---|
-| DEF-1 | Elevation-profile print item renders empty intermittently in CI (#379 observation). It failed twice on one commit and passed on a third run with no change. Add a CI step that saves the PNG when the render is empty, then debug on QGIS 4.2. | Makes release CI fail at random; cause not found (a QGIS 3.34 reproduction in the sandbox was not comparable). | Claude | - | M | P1 | Not started | PLAN-026, PR 453 CI history |
+| DEF-1 | Elevation-profile print item renders empty intermittently in CI (#379 observation). It failed twice on one commit and passed on a third run with no change. Add a CI step that saves the PNG when the render is empty, then debug on QGIS 4.2. | Makes release CI fail at random; cause not found (a QGIS 3.34 reproduction in the sandbox was not comparable). | Claude | - | M | P1 | In progress | PLAN-026, PR 453 CI history |
 | DEF-2 | Change-layer legend (D6): confirm blue-to-red with a transparent no-change area; fix if the screenshot shows otherwise. | Open since the 1.18.3 run. | Claude | OWN-2 | S | P2 | Blocked | 1.18.3 hand run D6 |
 | DEF-3 | Unrequested layers: an 'Incident' layer after GDACS (A7), a country layer after building footprints (A5). No tool in the code adds them; trace the plan that does. | Surprises the user; cause unknown. | Claude | OWN-3 | S | P2 | Blocked | 1.18.2 and 1.18.3 hand runs |
 | DEF-4 | C5 labels reported inverted: find which layer and labels. | Reported without detail. | Claude | OWN-3 | S | P2 | Blocked | 1.18.2 hand run |
@@ -174,8 +174,8 @@ Source: the owner's analysis document of nine flagship QGIS AI plugins, checked 
 
 | Status | Rows |
 |---|---|
-| In progress | 41 |
-| Not started | 25 |
+| In progress | 42 |
+| Not started | 24 |
 | Waiting on you | 14 |
 | Closed | 8 |
 | Blocked | 5 |
@@ -304,3 +304,4 @@ Newest last. One line per status change; written by `tools/master_list.py set`.
 - 2026-11-04: OWN-1 Waiting on you -> Waiting on you. Round 2 live package built (PLAN-059): dist/cartogen_ai_full_smoke_1.18.5_round2.zip, 30 rows, each with its reason in docs/ROUND2_ROWS.json. Give it to an agent (AGENT_PROMPT.md inside) on your Windows machine; a person must also look at the A1 pages. Check the plugin zip SHA-256 against 1_plugin/BUILD.txt first.
 - 2026-11-05: AR-3 Not started -> Decision needed. Measured 2026-11-05 (PLAN-060): of 792 task titles 613 find their own task, 165 find none (fragment guard, by design), 13 lose to an identical keyword set, 1 to a task with fewer strong keywords, none to more; 2 of 385 plain prompts still get a directive, both right. No length bias is measurable; pinned by tests/test_task_matcher_length_fairness.py. Changing the shared scoring is a routing change needing your go. Recommendation: close as no measurable bias.
 - 2026-11-05: AR-4 Not started -> In progress. Half stale (PLAN-060): the chunked k-means shipped 2026-10-11 (#222). The GUI-thread offloading is built for unsupervised_classification (worker thread for 250,000 cells or more, Stop works, no QGIS object in the worker); CI only. A person must watch a real QGIS window on a very large raster to see it stay responsive.
+- 2026-11-05: DEF-1 Not started -> In progress. PLAN-060: the render tests now save their PNGs (tests/_render_artifacts.py) and the live job uploads them as the artifact live-render-pngs (always, never fails the job). Cause not found: no empty render in about ten live runs on 2026-11-04. The row stays open until one happens and its pictures are read.
