@@ -39,6 +39,7 @@ from ._qgis_enum_compat import resolve_qgis_enum
 from ...logger import log_event
 from ... import _background_processing as _bg
 from ... import _chunked as _ck
+from ... import cancel_signal
 from ._layer_checks import require_valid_layer
 
 try:
@@ -1493,9 +1494,48 @@ def _build_network_distance_matrix(network, geoms, extra_params=None, source_crs
     while a finite one is available) instead of crashing on a missing
     matrix entry."""
     n = len(geoms)
-    matrix = [[0.0] * n for _ in range(n)]
     context = _network_context()
     undirected = not (extra_params and extra_params.get("DIRECTION_FIELD"))
+
+    def pair_cost(i, j):
+        """One native point-to-point call: float cost, or inf when the pair fails. Rebuilds the whole road graph every time."""
+        params = {
+            "INPUT": network,
+            "STRATEGY": 1 if fastest else 0,
+            "DEFAULT_SPEED": default_speed,
+            "TOLERANCE": 0,
+            "OUTPUT": "memory:",
+        }
+        if extra_params:
+            params.update(extra_params)
+        try:
+            params["START_POINT"] = _point_for_network(geoms[i].asPoint(), source_crs, network)
+            params["END_POINT"] = _point_for_network(geoms[j].asPoint(), source_crs, network)
+            output = _run_network_algorithm("native:shortestpathpointtopoint", params, context, network, "Delivery route")
+            result_layer = output.get("OUTPUT")
+            feats = list(result_layer.getFeatures()) if result_layer is not None else []
+            cost = feats[0]["cost"] if feats else None
+            return float(cost) if cost is not None else float("inf")
+        except _bg.AnalysisCancelledError:
+            raise
+        except Exception:
+            return float("inf")
+
+    if single_tree_costs_available():
+        # Master list HU-3: one Dijkstra tree per origin (the routine travel_time_matrix uses, checked against the native tool in CI) instead of a graph build per pair.
+        extra = extra_params or {}
+        ellipsoid = context.ellipsoid()
+
+        def tree_costs(i, dests):
+            origin_xy = _point_xy_in_network_crs(geoms[i].asPoint(), source_crs, network)
+            dest_xys = [_point_xy_in_network_crs(geoms[j].asPoint(), source_crs, network) for j in dests]
+            return _single_tree_costs(network, origin_xy, dest_xys, "fastest" if fastest else "shortest", default_speed, extra.get("SPEED_FIELD"),
+                                      extra.get("DIRECTION_FIELD"), extra.get("VALUE_FORWARD", "yes"), extra.get("VALUE_BACKWARD", "-1"),
+                                      extra.get("VALUE_BOTH", "no"), ellipsoid)
+
+        return _matrix_from_trees(n, undirected, tree_costs, pair_cost, cancel_signal.is_cancelled)
+
+    matrix = [[0.0] * n for _ in range(n)]
     for i in range(n):
         for j in range(n):
             if i == j:
@@ -1503,30 +1543,36 @@ def _build_network_distance_matrix(network, geoms, extra_params=None, source_crs
             if undirected and j < i:
                 matrix[i][j] = matrix[j][i]
                 continue
-            start = geoms[i].asPoint()
-            end = geoms[j].asPoint()
-            params = {
-                "INPUT": network,
-                "STRATEGY": 1 if fastest else 0,
-                "DEFAULT_SPEED": default_speed,
-                "TOLERANCE": 0,
-                "OUTPUT": "memory:",
-            }
-            if extra_params:
-                params.update(extra_params)
-            try:
-                params["START_POINT"] = _point_for_network(start, source_crs, network)
-                params["END_POINT"] = _point_for_network(end, source_crs, network)
-                output = _run_network_algorithm("native:shortestpathpointtopoint", params, context, network,
-                                                "Delivery route")
-                result_layer = output.get("OUTPUT")
-                feats = list(result_layer.getFeatures()) if result_layer is not None else []
-                cost = feats[0]["cost"] if feats else None
-                matrix[i][j] = float(cost) if cost is not None else float("inf")
-            except _bg.AnalysisCancelledError:
-                raise
-            except Exception:
-                matrix[i][j] = float("inf")
+            matrix[i][j] = pair_cost(i, j)
+    return matrix
+
+
+def _matrix_from_trees(n, undirected, tree_costs, pair_cost, is_cancelled):
+    """The n x n cost matrix of a stop list from one shortest-path tree per origin. Pure given its callables.
+
+    tree_costs(i, dest_indices) -> costs aligned with dest_indices (a number, or None when unreachable), or raises when the tree for origin i cannot be built;
+    pair_cost(i, j) -> the cost of one pair by the slow native route (used for an origin whose tree failed); is_cancelled() -> True after Stop.
+    A two-way network is symmetric, so only the stops AFTER i are asked of origin i (n - 1 trees); with one-way streets every origin gets every other stop (n trees).
+    An unreachable pair is infinity, so the visiting order goes around it. Raises AnalysisCancelledError when Stop is pressed between origins."""
+    matrix = [[0.0] * n for _ in range(n)]
+    for i in range(n):
+        dests = [j for j in range(n) if j != i and (not undirected or j > i)]
+        if not dests:
+            continue
+        if is_cancelled():
+            raise _bg.AnalysisCancelledError("Stopped by the user.")
+        try:
+            costs = tree_costs(i, dests)
+        except _bg.AnalysisCancelledError:
+            raise
+        except Exception as exc:                            # the origin could not be tied into the graph: ask the native tool pair by pair, as before
+            log_event("swallowed_exception", tag="Logistics", tool="delivery_matrix_tree", error_class=type(exc).__name__, error=True)
+            costs = [pair_cost(i, j) for j in dests]
+        for j, cost in zip(dests, costs, strict=True):
+            value = float(cost) if cost is not None else float("inf")
+            matrix[i][j] = value
+            if undirected:
+                matrix[j][i] = value
     return matrix
 
 

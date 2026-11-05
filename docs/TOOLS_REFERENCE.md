@@ -830,7 +830,7 @@ Supervised classification using training polygons.
 
 ### `unsupervised_classification`
 
-Unsupervised K-Means raster classification of up to the first 8 bands into num_classes spectral classes (1..num_classes; 0 = no data). Classes are statistical clusters of pixel values, NOT land-cover categories: label them yourself. Reproducible with a seed; works through the raster in blocks, so memory is not the limit, but a raster over 400 million cells is refused (clip it first).
+Unsupervised K-Means raster classification of up to the first 8 bands into num_classes spectral classes (1..num_classes; 0 = no data). Classes are statistical clusters of pixel values, NOT land-cover categories: label them yourself. Reproducible with a seed; works through the raster in blocks, so memory is not the limit, and on a large raster it runs in the background so QGIS stays responsive and Stop works; a raster over 400 million cells is refused (clip it first).
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|

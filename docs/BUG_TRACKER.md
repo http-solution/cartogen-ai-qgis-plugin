@@ -181,6 +181,8 @@ full fix history (e.g. the gemini.py header-auth fix in v1.2.28, the two real bu
 fixed in `route_optimization_prototype.py` in v1.2.33). None of that history is duplicated
 here; this file starts tracking forward from today.
 
+**Update 2026-11-05 (HY-2 sweep).** "None currently" was true of the September entries above and is not true of the project: open defects are tracked as `DEF-n` rows in `docs/MASTER_TASK_LIST_2026-10-27.md` (with owner, priority and status), and the plugin faults a live QGIS run found are listed in `docs/dashboard_data/defects.json` and recorded per feature in `docs/LIVE_RESULTS.json`. New bugs go there; this file keeps the history of the ones fixed in September and October. Nothing above was re-verified in this sweep.
+
 ## Known non-bugs (do not re-file these)
 
 Recorded here specifically so a future session doesn't rediscover these and mistake them for

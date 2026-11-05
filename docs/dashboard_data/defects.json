@@ -83,24 +83,24 @@
   "id": "G1",
   "defect": "A confirmed fetch still downloads on the UI thread",
   "found_by": "Code reading",
-  "status": "Open",
+  "status": "Accepted, warned",
   "pr": "",
-  "next": "none"
+  "next": "Confirmation card now warns QGIS may pause during the download (PLAN-055 gap A). Download still runs on the UI thread after Apply; moving it to a worker is the owner's decision and not done"
  },
  {
   "id": "G2",
   "defect": "Stray-fragment and plan gates are not asked for fetch tools",
   "found_by": "Code reading",
-  "status": "Open",
+  "status": "Fixed (CI only)",
   "pr": "",
-  "next": "none"
+  "next": "Stray-fragment check now runs for fetch tools (PLAN-055 gap B, tests/test_fetch_tools_stray_fragment.py). The plan gate only covers DELETE/PUBLISH, so it never applied to fetch tools; pinned by a test"
  },
  {
   "id": "G3",
   "defect": "MCP server freezes QGIS if a client blocks its main thread",
   "found_by": "Agent report",
-  "status": "Unchecked",
+  "status": "Reviewed, mitigated",
   "pr": "",
-  "next": "none"
+  "next": "MCP exposes no download tool and is no worse than chat (PLAN-055 gap D). The approval dialog now shows layer feature counts and warns from 50,000 features. Not seen by a person"
  }
 ]

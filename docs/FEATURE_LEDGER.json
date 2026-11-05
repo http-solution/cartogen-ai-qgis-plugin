@@ -1044,6 +1044,38 @@
     "hand_row": "A1-layout-script"
   },
   {
+    "id": "unsupervised-classification-in-background",
+    "feature": "unsupervised_classification runs its blocked k-means on a worker thread (run_callable) for a raster of 250,000 cells or more, so QGIS stays responsive and Stop works; it is given the source path, never the layer; Stop returns a plain 'Stopped' result; a small raster is run in place",
+    "issues": ["#222"],
+    "since": "1.18.6 (unreleased change)",
+    "sources": ["src/cartogen_ai/core/agent/tools/raster_tools.py", "src/cartogen_ai/core/agent/tools/raster_numpy.py", "src/cartogen_ai/core/_background_processing.py", "docs/plans/PLAN-060-master-list-not-started-batch.md"],
+    "guards": [
+      "tests/test_unsupervised_background.py::TestBackgroundWiring::test_a_large_raster_goes_through_the_background_runner",
+      "tests/test_unsupervised_background.py::TestBackgroundWiring::test_the_worker_callable_touches_no_qgis_object",
+      "tests/test_unsupervised_background.py::TestBackgroundWiring::test_stop_gives_a_plain_stopped_result_not_a_failure_trace",
+      "tests/test_raster_numpy_live.py::TestNumpyRasterTools::test_a_large_raster_goes_through_the_background_runner_and_gives_the_same_clusters"
+    ],
+    "hand_verified": "not verified: CI only. The chunked k-means itself (#222, 2026-10-11) is older and tested; the offloading is new. Whether the window really stays responsive on a very large raster can only be seen by a person watching a real QGIS window; CI cannot show it.",
+    "hand_row": "none: needs a raster of tens of millions of cells and a person watching the window; no package row has one"
+  },
+  {
+    "id": "delivery-matrix-from-trees",
+    "feature": "optimize_delivery_route builds its stop-to-stop road distance matrix from one shortest-path tree per origin (n-1 trees on a two-way network, n with one-way streets) instead of one native point-to-point call, and one graph build, per stop pair; an origin whose tree cannot be built falls back to the native pair calls; Stop is honoured between origins; without the tree routine the old native path runs unchanged",
+    "issues": [],
+    "since": "1.18.6 (unreleased change)",
+    "sources": ["src/cartogen_ai/core/agent/tools/logistics_tools.py", "docs/plans/PLAN-060-master-list-not-started-batch.md"],
+    "guards": [
+      "tests/test_delivery_matrix_trees.py::TestAssembly::test_a_two_way_network_needs_one_tree_per_origin_except_the_last",
+      "tests/test_delivery_matrix_trees.py::TestAssembly::test_one_way_streets_keep_every_direction_so_every_origin_gets_a_tree",
+      "tests/test_delivery_matrix_trees.py::TestTheMatrixBuilder::test_without_it_the_native_pair_calls_are_used_exactly_as_before",
+      "tests/test_delivery_matrix_trees.py::TestTheMatrixBuilder::test_the_speed_and_direction_settings_reach_the_tree",
+      "tests/test_delivery_matrix_live.py::TestDeliveryMatrixTreesMatchNative::test_shortest_distance_matrix_matches_the_native_calls",
+      "tests/test_delivery_matrix_live.py::TestDeliveryMatrixTreesMatchNative::test_one_way_streets_give_the_same_asymmetric_matrix"
+    ],
+    "hand_verified": "not verified: CI only. Equal costs to the native calls are checked live on a 5 x 5 grid (shortest, fastest with a speed field, one-way streets, and the visiting order). The speed-up (45 graph builds down to 9 for 10 stops) is counted, not timed: the package has no road network of tens of thousands of roads, so the minutes saved on real roads are not measured.",
+    "hand_row": "none: the gain only shows on a real network of tens of thousands of roads; the package has none"
+  },
+  {
     "id": "undo-add-field",
     "feature": "undo_last_operation reverses add_field: the new field is removed again while it is empty; once it holds values undo refuses, says so, and changes nothing (deleting a filled column stays a deliberate delete_field step that asks)",
     "issues": ["#425"],
@@ -2370,14 +2402,19 @@
       "tools/check_evidence.py",
       "tools/collect_evidence.py",
       "docs/FULL_SMOKE_ROWS.json",
-      "docs/plans/PLAN-056-full-smoke-package.md"
+      "docs/ROUND2_ROWS.json",
+      "docs/plans/PLAN-056-full-smoke-package.md",
+      "docs/plans/PLAN-059-round-2-live-package.md"
     ],
     "guards": [
       "tests/test_full_smoke_package.py::TestCoverage::test_every_unverified_ledger_entry_is_accounted_for_and_nothing_else_is_named",
       "tests/test_full_smoke_package.py::TestThePackage::test_every_file_a_row_names_is_in_3_test_files",
       "tests/test_full_smoke_package.py::TestThePackage::test_every_layer_a_row_expects_is_inside_the_shipped_geopackage",
       "tests/test_full_smoke_package.py::TestGeneratedInputs::test_the_cod_profile_passes_the_plugins_own_validator",
-      "tests/test_full_smoke_package.py::TestThePackage::test_the_input_verifier_passes_on_the_unzipped_package_and_catches_damage"
+      "tests/test_full_smoke_package.py::TestThePackage::test_the_input_verifier_passes_on_the_unzipped_package_and_catches_damage",
+      "tests/test_smoke_round2.py::TestTheSubsetPackage::test_the_rows_file_holds_exactly_the_chosen_rows_in_running_order",
+      "tests/test_smoke_round2.py::TestTheSubsetPackage::test_the_package_says_which_build_it_carries_so_an_old_1_18_5_is_not_tested_by_mistake",
+      "tests/test_smoke_round2.py::TestSelectRows::test_an_unknown_id_is_named_not_ignored"
     ],
     "hand_verified": "not verified: no row has been run by a person. The package structure and every input are tested offline; whether a row's instruction produces its stated result in a real QGIS with a real model is exactly what the package is for. The rows were written without a QGIS install.",
     "hand_row": "row F3-check-evidence of the full smoke package: run the sessions, then python 5_check_evidence.py results"
