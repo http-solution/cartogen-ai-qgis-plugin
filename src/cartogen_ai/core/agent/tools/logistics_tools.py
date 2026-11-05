@@ -1565,7 +1565,8 @@ def _matrix_from_trees(n, undirected, tree_costs, pair_cost, is_cancelled):
             costs = tree_costs(i, dests)
         except _bg.AnalysisCancelledError:
             raise
-        except Exception:                                   # the origin could not be tied into the graph: ask the native tool pair by pair, as before
+        except Exception as exc:                            # the origin could not be tied into the graph: ask the native tool pair by pair, as before
+            log_event("swallowed_exception", tag="Logistics", tool="delivery_matrix_tree", error_class=type(exc).__name__, error=True)
             costs = [pair_cost(i, j) for j in dests]
         for j, cost in zip(dests, costs, strict=True):
             value = float(cost) if cost is not None else float("inf")

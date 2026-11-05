@@ -867,7 +867,6 @@ def unsupervised_classification(layer_name, num_classes, seed=0):
         # GitHub #222 (audit A15): rows are read and classified a block at a time, so memory no longer limits the raster size.
         # Audit A14 / master list AR-4: the work is GDAL and numpy only, so it runs on a worker thread while QGIS stays responsive and Stop works. It is given
         # the source PATH, never the layer (QgsMapLayer objects are only safe on the GUI thread). A raster too small to be felt (under 250,000 cells) is run in place.
-        from ... import _background_processing as _bg
         source, cells = ras.source(), int(ras.width()) * int(ras.height())
         path, info, valid_cells = _bg.run_callable(lambda: raster_numpy.classify_raster_file(source, k, seed=int(seed)),
                                                    label="Unsupervised classification", use_background=cells >= _BACKGROUND_MIN_CELLS)
