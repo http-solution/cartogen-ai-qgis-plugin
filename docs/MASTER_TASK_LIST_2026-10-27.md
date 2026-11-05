@@ -110,7 +110,7 @@ One list to follow up and plan from. It replaces the session task list (101 entr
 | ID | Task | Why | Who | Depends on | Size | Pri | Status | Source |
 |---|---|---|---|---|---|---|---|---|
 | HY-1 | Set the 14 stale plan statuses from their own logs; fold PLAN-020 into PLAN-021; close PLAN-024 to PLAN-026 when their hand rows pass; mark PLAN-019 done. | Status words no longer match the logs. | Claude | - | S | P2 | In progress | PLAN-022 N1 |
-| HY-2 | Sweep IMPLEMENTATION_TRACKER.md (2,746 lines; duplicate sections 1.19 to 1.24; stale list at the top) and BUG_TRACKER.md. | The trackers are the planning source and are out of date. | Claude | - | M | P2 | Not started | PLAN-022 N3 |
+| HY-2 | Sweep IMPLEMENTATION_TRACKER.md (2,746 lines; duplicate sections 1.19 to 1.24; stale list at the top) and BUG_TRACKER.md. | The trackers are the planning source and are out of date. | Claude | - | M | P2 | In progress | PLAN-022 N3 |
 | HY-3 | CI and release hygiene: pin the Windows runner, check upload-artifact against the Node notice, add an optional status_note input to release.yml (releases cannot be edited from this session type), generate the README test count. | A release cannot say 'not hand-tested' without a manual edit. | Claude | - | S | P2 | In progress | PLAN-022 N4 |
 | HY-4 | Prune the 190-odd remote branches (merged and abandoned claude/* branches); keep the open ones. | 193 remote branches; it hides what is live. | Both | OWN-8 | S | P3 | Not started | repository state |
 | HY-5 | Clean the session task list: drop the 84 completed entries, keep this list's open rows. | The list is a history, not a plan. | Claude | - | XS | P3 | Closed | this document |
@@ -174,8 +174,8 @@ Source: the owner's analysis document of nine flagship QGIS AI plugins, checked 
 
 | Status | Rows |
 |---|---|
-| In progress | 43 |
-| Not started | 21 |
+| In progress | 44 |
+| Not started | 20 |
 | Waiting on you | 14 |
 | Closed | 9 |
 | Blocked | 5 |
@@ -308,3 +308,4 @@ Newest last. One line per status change; written by `tools/master_list.py set`.
 - 2026-11-05: HY-5 Not started -> Closed. 2026-11-05 (PLAN-060): this session's task list held 7 completed entries (the 84 in the row belonged to an earlier session) and none open from this list; all deleted, the open rows live in this master list.
 - 2026-11-05: HU-3 Not started -> In progress. PLAN-060: (a) built: the delivery-route matrix now uses one shortest-path tree per origin instead of a graph build per stop pair (45 builds down to 9 for 10 stops; native fallback kept); CI only, speed counted not timed on real roads. (b) default speeds by road class: needs your decision (a modelling choice). (c) whole-country travel_time_matrix: needs a real country-sized network to profile; not started.
 - 2026-11-05: HU-5 Not started -> Decision needed. Read 2026-11-05 (PLAN-060): (1) task-runner callbacks at unload: done 2026-10-06 (plugin_epoch, test_plugin_epoch); only the live look (OI-224) is missing. (2) find_region wrong country: resolved 2026-09-28 (caller used the canvas centre); the row text is stale. (3) output layers piling up: 63 addMapLayer call sites in 26 files, only calculate_service_area replaces a same-named layer. Replace, group or mark superseded is your call; nothing changed until you choose.
+- 2026-11-05: HY-2 Not started -> In progress. PLAN-060: swept as far as it can be checked: current-status block at the top of IMPLEMENTATION_TRACKER, the six duplicate section numbers made unique, dated updates appended to 1.8, 1.15, 1.16, the 2026-09-25 note and the A15 row, BUG_TRACKER's 'None currently' now points to the master list; tests/test_tracker_hygiene.py keeps it so. Not done: the rest of the 2,700 lines were not re-verified entry by entry. Closed once you agree that is enough.

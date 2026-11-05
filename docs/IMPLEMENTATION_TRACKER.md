@@ -1,5 +1,13 @@
 # Cartogen AI — Implementation Tracker
 
+> **Current status (2026-11-05, HY-2 sweep).** The opening paragraphs below are the 2026-09-20 snapshot (177 tools, 1,958 tests, `v1.16.0-rc1`) and are **history**, kept as written.
+> Today: 298 tools in the live registry, about 6,000 offline tests, 156 guarded features in `docs/FEATURE_LEDGER.json`, 60 plans in `docs/plans/`, version 1.18.5 with 1.18.6 held.
+> The planning source is `docs/MASTER_TASK_LIST_2026-10-27.md` (open work, one row each), what has been seen working in a real QGIS run is `docs/LIVE_RESULTS.json`
+> (checked by `python tools/live_results.py --gate`), and the guarded features and their tests are in `docs/FEATURE_LEDGER.json`. This file keeps the decisions, the history and the
+> reasons; where it disagrees with those three, they win. Section numbers 1.19 to 1.24 were each used twice; the earlier set is now 1.19a to 1.24a (nothing outside this file
+> referred to it; the references to "1.23" in PLAN-021 and PLAN-022 mean the rc20 audit, which keeps its number).
+
+
 **Cut as `v1.5.7-rc5`, then corrected to `v1.16.0-rc1`, both 2026-09-20** — the Phase 11
 completion, the AST-sandbox bypass fix, and the 2 keyboard-navigation fixes this file's own
 entries below describe as "not yet cut into a release" were first released as rc5
@@ -100,6 +108,8 @@ with `CONTRIBUTING.md` §3 ("flag, don't silently fix if it's a judgment call").
 > everywhere: assumed speeds by road class would make travel times far more realistic (recommended, changes results).**
 > Earlier: QGIS no longer freezes (Stop and progress work), network tools work in real metres/hours, README tool counts
 > corrected to 178.
+>
+> **Update 2026-11-05 (HU-3).** (2) is fixed: `optimize_delivery_route` now builds its stop matrix from one shortest-path tree per origin (9 graph builds for 10 stops instead of 45), with the old per-pair call kept as the fallback (CI only; counted, not timed on real roads). (1) and (3) are still open: a country-sized network to profile is not available here, and default speeds by road class are a modelling choice for the owner.
 
 > **2026-09-24 — `v1.16.0-rc5` cut and published as a prerelease** (tag
 > `commercial-plugin-v1.16.0-rc5` on `d140adc`, PR #23 — renamed to `cartogen-ai-v1.16.0-rc5`
@@ -797,6 +807,8 @@ one confirmed live case; this decision just confirms that pattern as where the *
 rather than reopening the formula question each time.
 
 ---
+
+**Update 2026-11-05 (AR-3).** Measured, not changed (PLAN-060, master list AR-3). Asking every one of the 792 tasks' own titles for its task: 613 find it, 165 find none ("too short to be a request", the fragment guard, by design), 13 lose to a task whose keyword set is identical, 1 loses to a task with fewer strong keywords, none to one with more; and only 2 of the 385 plain prompts still get a task directive, both right. So no short-definition bias is measurable on the register's own wording, and the targeted re-rank of 2026-09-19 stands. Pinned by `tests/test_task_matcher_length_fairness.py`. Changing the shared formula would still be a routing change for the owner to decide; the recommendation is to close this as "no measurable bias".
 
 ### 1.9 ~~`run_allowlisted_processing_algorithm` outputs are always fully visible, even purely-internal ones~~
 
@@ -1503,6 +1515,8 @@ for the on-canvas behavior change itself (no live QGIS in this sandbox to confir
 names the right region against a real project); the text-extraction and reprojection-fallback
 logic themselves are fully unit-tested.
 
+**Update 2026-11-05.** Resolved, as the "Resolved, 2026-09-28" paragraph above says: the cause was the caller using the canvas centre, not `find_region`. The heading's "needs live Geofabrik data" is history.
+
 ### 1.16 "Smart mapping" -- analysis-tool output layers pile up uncoordinated across a multi-step session, beyond the one confirmed-and-fixed mechanism
 
 **Added 2026-09-28.** Live report, a multi-step session on the same project (the exact one
@@ -1600,6 +1614,8 @@ it deserves its own dedicated pass with its own live-verification plan.
 
 ---
 
+**Update 2026-11-05 (HU-5).** Scope measured, nothing changed: 63 `addMapLayer(` call sites in 26 files; only `calculate_service_area` (and one site in `critical_link_tools.py`) replaces a same-named layer. Whether to replace, group or mark superseded layers is still the owner's decision (master list HU-5).
+
 ### 1.17 rc7 smoke-test findings still open after rc8 (added 2026-09-30)
 
 Source: `docs/RC7_SMOKE_TEST_FINDINGS_2026-09-30.md`; GitHub #72 (umbrella) and #73-#97. rc8 fixed or mitigated
@@ -1645,7 +1661,7 @@ they work in (SECURITY.md §7 updated); users who explicitly left the old defaul
 opening Settings and pressing OK; the UI still restores only the agent's 10-message window on reopen (showing the whole transcript is a
 possible follow-up). NOT verified in a real QGIS session; real-QGIS round-trip tests are in `tests/test_chat_transcript_live.py`.
 
-### 1.19 Advanced web search and filtering results against reliable sources (first version built 2026-10-12)
+### 1.19a Advanced web search and filtering results against reliable sources (first version built 2026-10-12)
 
 **Status: first version built** as `find_incident_reports` (`tools/incident_search_tools.py`; 211 tools). It does not search the open web: it asks a fixed table of
 sources in parallel (GDACS, USGS, NASA EONET, UCDP candidate events, ReliefWeb disasters RSS), keeps what matches the country / bbox and dates, tags every record
@@ -1731,7 +1747,7 @@ Open decisions for the owner: which sources count as reliable, whether API keys 
 social media is in scope at all. Related: HX4 (credentialed integrations) covers ACLED and similar and should be built together.
 Do not call this shipped in release notes until it exists and has been tested against the live services.
 
-### 1.20 Remaining requests/urllib calls moved to QGIS's network stack (task 71, 2026-10-11)
+### 1.20a Remaining requests/urllib calls moved to QGIS's network stack (task 71, 2026-10-11)
 
 Done in this change: the last direct `urllib` opener, `vector_tools._build_safe_opener()` (used by `add_layer_from_path` URL
 prefetch and the humanitarian downloads, including WorldPop and OSM extracts), now goes through `core/net.stream_following`:
@@ -1750,7 +1766,7 @@ Deliberately left, with the reason:
 - `search_web` uses the third-party `ddgs` package, which makes its own HTTP calls (not proxy-aware). Replaced by task 72 (tracker 1.19).
 - `urllib.parse` imports are string handling, not network calls.
 
-### 1.21 API-cost optimisation: measured request size and what is left (2026-10-11)
+### 1.21a API-cost optimisation: measured request size and what is left (2026-10-11)
 
 Measured offline (no model call; ~4 characters per token, so approximate), on rc34 code:
 - All 208 tool schemas together: ~60,600 tokens. The router sends 9 to 40 per request: ~1,100 tokens for "hello", ~4,000 for a
@@ -1769,7 +1785,7 @@ offer. Not done, and each needs a real model to verify (none is available in thi
 4. Drop tool schemas from later rounds once the model has chosen its tools (risk: it cannot call a tool it needs next).
 Recommendation: do 3 first, so the others are judged on numbers, then 1 behind a setting.
 
-### 1.22 USGS earthquake and UCDP conflict-event tools (built 2026-10-11, not yet released)
+### 1.22a USGS earthquake and UCDP conflict-event tools (built 2026-10-11, not yet released)
 
 `tools/event_data_tools.py`: `fetch_usgs_earthquakes` (FDSN GeoJSON; bbox, days, minimum magnitude; layer coloured by magnitude band) and
 `fetch_ucdp_conflict_events` (UCDP Candidate Events CSV read from ucdp.uu.se/downloads: the newest file is found on the page each time,
@@ -1784,7 +1800,7 @@ CREATE operation, registered in the router, dispatch and docs (210 tools).
 - UCDP data is preliminary and weeks old; every result says so and names the dataset's newest event date. UCDP's JSON API is not used
   (it needs a token). Not yet in `metadata.txt` / CHANGELOG / in-plugin "what's new": do that with the next version bump (CONTRIBUTING §8).
 
-### 1.23 Chunked unsupervised classification (#222 / audit A15), built 2026-10-11
+### 1.23a Chunked unsupervised classification (#222 / audit A15), built 2026-10-11
 
 `raster_numpy.classify_in_blocks` / `classify_raster_file`: first pass reads row blocks (about 4,000,000 values each) and draws a proportional random
 sample of valid cells; centres are fitted on that sample (`fit_centers`, factored out of `kmeans`); second pass assigns every cell and writes the
@@ -1792,7 +1808,7 @@ block to the output GeoTIFF. Replaces the whole-raster read and the 25M-cell / 6
 block logic (`tests/test_raster_numpy.py`); a GDAL multi-block live test is in `tests/test_raster_numpy_live.py` (first CI run). **Not measured:** run time
 and peak memory on a real large raster; no mid-run cancel in this tool. See `docs/OPEN_ISSUES_STATUS_2026-10-11.md` for the issue list.
 
-### 1.24 Processing-cost audit and freeze fixes (2026-10-12)
+### 1.24a Processing-cost audit and freeze fixes (2026-10-12)
 
 Full write-up: `docs/PROCESSING_COST_AUDIT_2026-10-12.md`; ranking tool: `tools/audit_processing_cost.py`. Built: `tools/_chunked.py` (slice long GUI-thread loops
 into about 50 ms pieces, honour Stop, report progress; used at 62 `getFeatures()` sites), hub-siting matrix in slices and its ranking / greedy / route ordering
@@ -2681,7 +2697,7 @@ Still open:
 |----|---------|-------------------|----------------|
 | A06 | `execute_pyqgis_script` worker shares writable sources with the project | **Fixed (owner chose read-only copies)**: local-file vector layers are exported to a temp GeoPackage and local rasters copied, scratch layers repointed; live-tested in Docker. Database/web-service layers have no file to copy and stay writable by the script; a script's edits to file-backed layers are discarded, not reconciled | **Update 2026-10-10 (#220):** database / web-service layers are now locked read-only in the scratch project (`_lock_uncopyable_layers`), so a script reads them but `startEditing()` is refused; live-tested in Docker QGIS 4.2.2. Remaining limit: a script can still reach a database through its own connection code, which the AST sandbox (not this lock) restricts |
 | A14 | Expensive tools (large raster/vector ops) block the GUI thread | **Started (owner chose polygonize + zonal stats first)**: `zonal_statistics` computes on a geometry-only copy via `native:zonalstatisticsfb` through the background runner (>=200 zones) and writes `zs_mean/median/stdev` back as one edit command; `extract_features_from_imagery` runs model inference and polygonize/WKT export through the new `run_callable` (no QGIS objects off the GUI thread). Live-tested: zonal stats (both paths) and `run_callable` (result, error, GUI stays responsive, Stop); the extraction path needs FastSAM and is NOT live-tested. **Update 2026-10-10 (#221):** `run_allowlisted_processing_algorithm` calls of NATIVE algorithms (not the ones that change the user's own layer) now run through `run_algorithm`; live-tested in Docker QGIS 4.2.2. **Correction 2026-10-10:** the first version also sent the raster tools (`_run_raster_and_add`, gdal: algorithms) through the runner; that crashed the QGIS 4.2.2 CI live job with a segfault in 2 of 4 runs (PR #249, #251), so `is_thread_safe_algorithm` now keeps every non-`native:` algorithm (gdal:, qgis:, script:) on the GUI thread. The raster-tool freeze (#221) is therefore NOT fixed; the cause of the crash is not known. NOT done: the other direct `processing.run` calls (contours, task-grid zonal stats, several logistics merges and reprojections, `raster_tools` calls outside `_run_raster_and_add`) and tools that touch QGIS objects directly. No timing measurement on a large raster was made, so the responsiveness gain is by design, not measured here | Move the remaining direct `processing.run` calls over; measure on a large raster |
-| A15 | Classification holds the whole raster in memory | **Guard shipped** (cells x bands budget, 60M values, clear error); chunked k-means still not built | Chunk k-means later if larger rasters are needed |
+| A15 | Classification holds the whole raster in memory | **Chunked k-means shipped 2026-10-11 (§1.23a, #222)**; the old "guard shipped, chunking not built" text is superseded. 2026-11-05: the classification also runs on a worker thread for large rasters (AR-4, CI only) | Chunk k-means later if larger rasters are needed |
 | A16 | Abandoned processing bundles are never released in `_background_processing.py` | **Fixed offline**: released when the task reports Complete/Terminated, swept on each run; the real QgsTask signal path is not live-tested | Add a live test that abandons a task |
 | A18 | Bootstrap namespace eviction in the root `__init__.py` | **Last-resort path now scoped** (`claimed_module_names`; the normal path was scoped by #167); reload/upgrade behaviour still needs the §1.10 human test | Run the fresh-profile/upgrade gate |
 
