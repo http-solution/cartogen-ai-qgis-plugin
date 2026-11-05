@@ -113,7 +113,7 @@ One list to follow up and plan from. It replaces the session task list (101 entr
 | HY-2 | Sweep IMPLEMENTATION_TRACKER.md (2,746 lines; duplicate sections 1.19 to 1.24; stale list at the top) and BUG_TRACKER.md. | The trackers are the planning source and are out of date. | Claude | - | M | P2 | Not started | PLAN-022 N3 |
 | HY-3 | CI and release hygiene: pin the Windows runner, check upload-artifact against the Node notice, add an optional status_note input to release.yml (releases cannot be edited from this session type), generate the README test count. | A release cannot say 'not hand-tested' without a manual edit. | Claude | - | S | P2 | In progress | PLAN-022 N4 |
 | HY-4 | Prune the 190-odd remote branches (merged and abandoned claude/* branches); keep the open ones. | 193 remote branches; it hides what is live. | Both | OWN-8 | S | P3 | Not started | repository state |
-| HY-5 | Clean the session task list: drop the 84 completed entries, keep this list's open rows. | The list is a history, not a plan. | Claude | - | XS | P3 | Not started | this document |
+| HY-5 | Clean the session task list: drop the 84 completed entries, keep this list's open rows. | The list is a history, not a plan. | Claude | - | XS | P3 | Closed | this document |
 
 ## F. Capability programme (PLAN-023: releases R1 to R12, one release per package)
 
@@ -138,7 +138,7 @@ One list to follow up and plan from. It replaces the session task list (101 entr
 |---|---|---|---|---|---|---|---|---|
 | HU-1 | HX4 tools once keys exist: Kobo/ODK pull, ACLED, GloFAS/CHIRPS, Logistics Cluster, LandScan. | Blocked on OWN-10. | Claude | OWN-10 | L | P3 | Blocked | gap analysis H10 |
 | HU-2 | JIAF: re-check flag formulas and the Annex 4 reader when OWN-9 material arrives; closing the blockers stays your decision. | Two open validation blockers. | Claude | OWN-9 | M | P3 | Blocked | JIAF2 |
-| HU-3 | travel_time_matrix about 8 minutes on a whole country; optimize_delivery_route builds the graph per stop pair; assumed speeds by road class (only 0.9 percent of Jordan's roads carry a speed). | Performance and realism limits. | Claude | - | L | P3 | Not started | BUG-2026-09-25-3, W-39 |
+| HU-3 | travel_time_matrix about 8 minutes on a whole country; optimize_delivery_route builds the graph per stop pair; assumed speeds by road class (only 0.9 percent of Jordan's roads carry a speed). | Performance and realism limits. | Claude | - | L | P3 | In progress | BUG-2026-09-25-3, W-39 |
 | HU-4 | Raster-unit check (people per cell versus density) in population exposure; points into the admin CRS in damage counting; score-write labels. | Result-correctness items in the same class as RM-A. | Claude | RM-A | M | P2 | Not started | W-40 |
 | HU-5 | Smaller carry-overs: task-runner callbacks at unload (#167 tail), find_region naming the wrong country, output layers piling up in long sessions. | Known, minor. | Claude | - | M | P3 | Not started | W-41 to W-43 |
 
@@ -174,10 +174,10 @@ Source: the owner's analysis document of nine flagship QGIS AI plugins, checked 
 
 | Status | Rows |
 |---|---|
-| In progress | 42 |
-| Not started | 24 |
+| In progress | 43 |
+| Not started | 22 |
 | Waiting on you | 14 |
-| Closed | 8 |
+| Closed | 9 |
 | Blocked | 5 |
 | Decision needed | 4 |
 | Closed (record) | 1 |
@@ -305,3 +305,5 @@ Newest last. One line per status change; written by `tools/master_list.py set`.
 - 2026-11-05: AR-3 Not started -> Decision needed. Measured 2026-11-05 (PLAN-060): of 792 task titles 613 find their own task, 165 find none (fragment guard, by design), 13 lose to an identical keyword set, 1 to a task with fewer strong keywords, none to more; 2 of 385 plain prompts still get a directive, both right. No length bias is measurable; pinned by tests/test_task_matcher_length_fairness.py. Changing the shared scoring is a routing change needing your go. Recommendation: close as no measurable bias.
 - 2026-11-05: AR-4 Not started -> In progress. Half stale (PLAN-060): the chunked k-means shipped 2026-10-11 (#222). The GUI-thread offloading is built for unsupervised_classification (worker thread for 250,000 cells or more, Stop works, no QGIS object in the worker); CI only. A person must watch a real QGIS window on a very large raster to see it stay responsive.
 - 2026-11-05: DEF-1 Not started -> In progress. PLAN-060: the render tests now save their PNGs (tests/_render_artifacts.py) and the live job uploads them as the artifact live-render-pngs (always, never fails the job). Cause not found: no empty render in about ten live runs on 2026-11-04. The row stays open until one happens and its pictures are read.
+- 2026-11-05: HY-5 Not started -> Closed. 2026-11-05 (PLAN-060): this session's task list held 7 completed entries (the 84 in the row belonged to an earlier session) and none open from this list; all deleted, the open rows live in this master list.
+- 2026-11-05: HU-3 Not started -> In progress. PLAN-060: (a) built: the delivery-route matrix now uses one shortest-path tree per origin instead of a graph build per stop pair (45 builds down to 9 for 10 stops; native fallback kept); CI only, speed counted not timed on real roads. (b) default speeds by road class: needs your decision (a modelling choice). (c) whole-country travel_time_matrix: needs a real country-sized network to profile; not started.
