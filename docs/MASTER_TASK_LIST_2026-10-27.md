@@ -140,7 +140,7 @@ One list to follow up and plan from. It replaces the session task list (101 entr
 | HU-2 | JIAF: re-check flag formulas and the Annex 4 reader when OWN-9 material arrives; closing the blockers stays your decision. | Two open validation blockers. | Claude | OWN-9 | M | P3 | Blocked | JIAF2 |
 | HU-3 | travel_time_matrix about 8 minutes on a whole country; optimize_delivery_route builds the graph per stop pair; assumed speeds by road class (only 0.9 percent of Jordan's roads carry a speed). | Performance and realism limits. | Claude | - | L | P3 | In progress | BUG-2026-09-25-3, W-39 |
 | HU-4 | Raster-unit check (people per cell versus density) in population exposure; points into the admin CRS in damage counting; score-write labels. | Result-correctness items in the same class as RM-A. | Claude | RM-A | M | P2 | Not started | W-40 |
-| HU-5 | Smaller carry-overs: task-runner callbacks at unload (#167 tail), find_region naming the wrong country, output layers piling up in long sessions. | Known, minor. | Claude | - | M | P3 | Not started | W-41 to W-43 |
+| HU-5 | Smaller carry-overs: task-runner callbacks at unload (#167 tail), find_region naming the wrong country, output layers piling up in long sessions. | Known, minor. | Claude | - | M | P3 | Decision needed | W-41 to W-43 |
 
 ## H. Architecture decisions (deferred, yours)
 
@@ -175,11 +175,11 @@ Source: the owner's analysis document of nine flagship QGIS AI plugins, checked 
 | Status | Rows |
 |---|---|
 | In progress | 43 |
-| Not started | 22 |
+| Not started | 21 |
 | Waiting on you | 14 |
 | Closed | 9 |
 | Blocked | 5 |
-| Decision needed | 4 |
+| Decision needed | 5 |
 | Closed (record) | 1 |
 | **Total** | **98** |
 
@@ -307,3 +307,4 @@ Newest last. One line per status change; written by `tools/master_list.py set`.
 - 2026-11-05: DEF-1 Not started -> In progress. PLAN-060: the render tests now save their PNGs (tests/_render_artifacts.py) and the live job uploads them as the artifact live-render-pngs (always, never fails the job). Cause not found: no empty render in about ten live runs on 2026-11-04. The row stays open until one happens and its pictures are read.
 - 2026-11-05: HY-5 Not started -> Closed. 2026-11-05 (PLAN-060): this session's task list held 7 completed entries (the 84 in the row belonged to an earlier session) and none open from this list; all deleted, the open rows live in this master list.
 - 2026-11-05: HU-3 Not started -> In progress. PLAN-060: (a) built: the delivery-route matrix now uses one shortest-path tree per origin instead of a graph build per stop pair (45 builds down to 9 for 10 stops; native fallback kept); CI only, speed counted not timed on real roads. (b) default speeds by road class: needs your decision (a modelling choice). (c) whole-country travel_time_matrix: needs a real country-sized network to profile; not started.
+- 2026-11-05: HU-5 Not started -> Decision needed. Read 2026-11-05 (PLAN-060): (1) task-runner callbacks at unload: done 2026-10-06 (plugin_epoch, test_plugin_epoch); only the live look (OI-224) is missing. (2) find_region wrong country: resolved 2026-09-28 (caller used the canvas centre); the row text is stale. (3) output layers piling up: 63 addMapLayer call sites in 26 files, only calculate_service_area replaces a same-named layer. Replace, group or mark superseded is your call; nothing changed until you choose.
