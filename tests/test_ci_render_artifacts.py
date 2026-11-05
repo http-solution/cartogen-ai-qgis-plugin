@@ -3,6 +3,7 @@ cause was never found because the picture was never kept: the render test printe
 the live render tests save their PNGs through tests/_render_artifacts.save_png into $CARTOGEN_LIVE_ARTIFACTS, and the live job uploads that folder whatever the result.
 Offline. What it cannot show: why the render is sometimes empty; the next occurrence will now leave the picture to look at."""
 import os
+import re
 import sys
 import tempfile
 import unittest
@@ -54,23 +55,29 @@ class TestSavePng(unittest.TestCase):
 
 
 class TestTheLiveJobKeepsThePictures(unittest.TestCase):
+    """Reads the workflow as text, on purpose: PyYAML is not installed in the CI test jobs, so a test that imported it failed there (PR 574, 2026-11-05)."""
+
     @classmethod
     def setUpClass(cls):
-        import yaml
-        cls.workflow = yaml.safe_load((ROOT / ".github" / "workflows" / "tests.yml").read_text(encoding="utf-8"))
-        cls.job = cls.workflow["jobs"]["qgis-live-tests"]
+        cls.text = (ROOT / ".github" / "workflows" / "tests.yml").read_text(encoding="utf-8")
+        start = cls.text.index("  qgis-live-tests:")
+        following = [m.start() for m in re.finditer(r"^  [A-Za-z0-9_-]+:\s*$", cls.text[start + 10:], re.M)]
+        cls.job = cls.text[start:(start + 10 + following[0]) if following else len(cls.text)]
 
     def test_the_job_sets_the_folder_the_tests_write_to(self):
-        self.assertIn(ra.ENV, self.job["env"])
+        self.assertIn(f"      {ra.ENV}: /tmp/cartogen_live_artifacts", self.job)
 
-    def test_the_folder_is_uploaded_whatever_the_test_result(self):
-        uploads = [s for s in self.job["steps"] if str(s.get("uses", "")).startswith("actions/upload-artifact")]
-        self.assertEqual(len(uploads), 1)
-        step = uploads[0]
-        self.assertEqual(str(step.get("if")).strip(), "always()")
-        self.assertEqual(step["with"]["path"], self.job["env"][ra.ENV])
-        self.assertEqual(step["with"]["if-no-files-found"], "ignore")
-        self.assertIs(step.get("continue-on-error"), True)        # a diagnostic upload must never fail the live job
+    def test_there_is_exactly_one_upload_step_and_it_keeps_the_folder_whatever_the_result(self):
+        self.assertEqual(self.job.count("uses: actions/upload-artifact@"), 1)
+        step = self.job[self.job.index("- name: Keep the pictures the live render tests made"):]
+        self.assertRegex(step, r"(?m)^        if: always\(\)\s*$")
+        self.assertRegex(step, r"(?m)^        continue-on-error: true")          # a diagnostic upload must never fail the live job
+        self.assertIn("          path: /tmp/cartogen_live_artifacts", step)
+        self.assertIn("          if-no-files-found: ignore", step)
+
+    def test_the_folder_in_the_step_is_the_folder_in_the_env(self):
+        env = re.search(rf"{ra.ENV}: (\S+)", self.job).group(1)
+        self.assertIn(f"path: {env}", self.job)
 
     def test_the_render_tests_save_their_pictures_through_the_helper(self):
         text = (ROOT / "tests" / "test_layout_items_render_live.py").read_text(encoding="utf-8")
