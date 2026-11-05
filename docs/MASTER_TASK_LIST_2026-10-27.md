@@ -148,8 +148,8 @@ One list to follow up and plan from. It replaces the session task list (101 entr
 |---|---|---|---|---|---|---|---|---|
 | AR-1 | Agent pipeline redesign (intent, inspector, planner) and a deterministic plan, validate, execute model. | Large change; only after RM-A shows what a gate buys. | You | RM-A | XL | P3 | Decision needed | tracker 1.5, 1.6 |
 | AR-2 | Standard project folder architecture with immutable raw data. | Product opinion. | You | - | M | P3 | Closed | tracker 1.7 |
-| AR-3 | task_matcher keyword normalisation favours short task definitions (partly mitigated in 1.18.1 and 1.18.4). | Routing fairness. | Claude | - | M | P3 | Not started | tracker 1.8 |
-| AR-4 | Chunked k-means for very large rasters; further GUI-thread offloading. | Guard shipped, chunking not. | Claude | - | M | P3 | Not started | A14, A15 |
+| AR-3 | task_matcher keyword normalisation favours short task definitions (partly mitigated in 1.18.1 and 1.18.4). | Routing fairness. | Claude | - | M | P3 | Decision needed | tracker 1.8 |
+| AR-4 | Chunked k-means for very large rasters; further GUI-thread offloading. | Guard shipped, chunking not. | Claude | - | M | P3 | In progress | A14, A15 |
 | AR-5 | Recorded as scoped and not recommended: vector memory stores, constrained decoding libraries, RestrictedPython, Presidio egress scan, semantic router. | Keep the record so they are not rediscovered. | You | - | - | - | Closed (record) | W-49 |
 | AR-6 | Whole-code-base structure audit and staged reorganisation (PLAN-040): import cycle of 30 tool modules, 20 copies of one helper, unenforced layering, unused exception hierarchy. Stages 0 to 6 proposed; moving tool files into subpackages is not recommended. | You asked to reorganise everything; the audit says where the real problems are and what each fix costs. | You | - | M | P2 | Waiting on you | owner request 2026-10-28, PLAN-040 |
 
@@ -174,12 +174,12 @@ Source: the owner's analysis document of nine flagship QGIS AI plugins, checked 
 
 | Status | Rows |
 |---|---|
-| In progress | 40 |
-| Not started | 27 |
+| In progress | 41 |
+| Not started | 25 |
 | Waiting on you | 14 |
 | Closed | 8 |
 | Blocked | 5 |
-| Decision needed | 3 |
+| Decision needed | 4 |
 | Closed (record) | 1 |
 | **Total** | **98** |
 
@@ -302,3 +302,5 @@ Newest last. One line per status change; written by `tools/master_list.py set`.
 - 2026-11-04: DEF-25 Not started -> In progress. PLAN-058: legend filter-by-map is off when the map has no CRS or shows none of the layers (reply says why); the A1 script now sets a CRS, frames the canvas and measures the map. Cause inferred from the agent's pages (blank map, 'CRS unknown'), not reproduced; CI only. Rerun row A1 and have a person look at the pages.
 - 2026-11-04: DEF-26 Not started -> In progress. Read against the agent's returned folders: the export held every request the plugin received (transcript_dropped 0; evidence t16 to t31 = 16 requests = 32 messages); 14 B5 requests were sent, not 20. Not a plugin loss on that evidence; no code change. Row B5 now asks for an exact count. Rerun B5 to see the full 20 through reopen; close then.
 - 2026-11-04: OWN-1 Waiting on you -> Waiting on you. Round 2 live package built (PLAN-059): dist/cartogen_ai_full_smoke_1.18.5_round2.zip, 30 rows, each with its reason in docs/ROUND2_ROWS.json. Give it to an agent (AGENT_PROMPT.md inside) on your Windows machine; a person must also look at the A1 pages. Check the plugin zip SHA-256 against 1_plugin/BUILD.txt first.
+- 2026-11-05: AR-3 Not started -> Decision needed. Measured 2026-11-05 (PLAN-060): of 792 task titles 613 find their own task, 165 find none (fragment guard, by design), 13 lose to an identical keyword set, 1 to a task with fewer strong keywords, none to more; 2 of 385 plain prompts still get a directive, both right. No length bias is measurable; pinned by tests/test_task_matcher_length_fairness.py. Changing the shared scoring is a routing change needing your go. Recommendation: close as no measurable bias.
+- 2026-11-05: AR-4 Not started -> In progress. Half stale (PLAN-060): the chunked k-means shipped 2026-10-11 (#222). The GUI-thread offloading is built for unsupervised_classification (worker thread for 250,000 cells or more, Stop works, no QGIS object in the worker); CI only. A person must watch a real QGIS window on a very large raster to see it stay responsive.

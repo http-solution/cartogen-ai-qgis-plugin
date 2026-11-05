@@ -846,7 +846,10 @@ def raster_clip(raster_layer, mask_layer):
     )
 
 
-@register_tool("unsupervised_classification", "Unsupervised K-Means raster classification of up to the first 8 bands into num_classes spectral classes (1..num_classes; 0 = no data). Classes are statistical clusters of pixel values, NOT land-cover categories: label them yourself. Reproducible with a seed; works through the raster in blocks, so memory is not the limit, but a raster over 400 million cells is refused (clip it first).", {"type": "object", "properties": {"layer_name": {"type": "string"}, "num_classes": {"type": "integer", "description": "Number of clusters, 2 to 50."}, "seed": {"type": "integer", "description": "Random seed (default 0)."}}, "required": ["layer_name", "num_classes"]})
+_BACKGROUND_MIN_CELLS = 250_000          # below this the classification takes well under a second: no worker thread, no nested event loop
+
+
+@register_tool("unsupervised_classification", "Unsupervised K-Means raster classification of up to the first 8 bands into num_classes spectral classes (1..num_classes; 0 = no data). Classes are statistical clusters of pixel values, NOT land-cover categories: label them yourself. Reproducible with a seed; works through the raster in blocks, so memory is not the limit, and on a large raster it runs in the background so QGIS stays responsive and Stop works; a raster over 400 million cells is refused (clip it first).", {"type": "object", "properties": {"layer_name": {"type": "string"}, "num_classes": {"type": "integer", "description": "Number of clusters, 2 to 50."}, "seed": {"type": "integer", "description": "Random seed (default 0)."}}, "required": ["layer_name", "num_classes"]})
 def unsupervised_classification(layer_name, num_classes, seed=0):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
@@ -862,7 +865,12 @@ def unsupervised_classification(layer_name, num_classes, seed=0):
     k = int(num_classes)
     try:
         # GitHub #222 (audit A15): rows are read and classified a block at a time, so memory no longer limits the raster size.
-        path, info, valid_cells = raster_numpy.classify_raster_file(ras.source(), k, seed=int(seed))
+        # Audit A14 / master list AR-4: the work is GDAL and numpy only, so it runs on a worker thread while QGIS stays responsive and Stop works. It is given
+        # the source PATH, never the layer (QgsMapLayer objects are only safe on the GUI thread). A raster too small to be felt (under 250,000 cells) is run in place.
+        from ... import _background_processing as _bg
+        source, cells = ras.source(), int(ras.width()) * int(ras.height())
+        path, info, valid_cells = _bg.run_callable(lambda: raster_numpy.classify_raster_file(source, k, seed=int(seed)),
+                                                   label="Unsupervised classification", use_background=cells >= _BACKGROUND_MIN_CELLS)
         new_layer = QgsRasterLayer(path, f"{layer_name}_classified")
         if not new_layer.isValid():
             return {"error": "The classified raster could not be loaded."}
@@ -872,6 +880,8 @@ def unsupervised_classification(layer_name, num_classes, seed=0):
         return {"success": True, "layer_name": f"{layer_name}_classified", "classes": k, "styled": styled, "bands_used": info["bands_used"],
                 "valid_cells": int(valid_cells), "seed": int(seed),
                 "note": "Classes are statistical clusters of the band values, not land-cover categories; name them from knowledge of the area."}
+    except _bg.AnalysisCancelledError as e:
+        return {"error": f"Stopped: {e}", "cancelled": True}
     except ValueError as e:
         return {"error": f"unsupervised_classification: {e}"}
     except ImportError:

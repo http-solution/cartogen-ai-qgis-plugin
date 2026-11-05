@@ -1044,6 +1044,21 @@
     "hand_row": "A1-layout-script"
   },
   {
+    "id": "unsupervised-classification-in-background",
+    "feature": "unsupervised_classification runs its blocked k-means on a worker thread (run_callable) for a raster of 250,000 cells or more, so QGIS stays responsive and Stop works; it is given the source path, never the layer; Stop returns a plain 'Stopped' result; a small raster is run in place",
+    "issues": ["#222"],
+    "since": "1.18.6 (unreleased change)",
+    "sources": ["src/cartogen_ai/core/agent/tools/raster_tools.py", "src/cartogen_ai/core/agent/tools/raster_numpy.py", "src/cartogen_ai/core/_background_processing.py", "docs/plans/PLAN-060-master-list-not-started-batch.md"],
+    "guards": [
+      "tests/test_unsupervised_background.py::TestBackgroundWiring::test_a_large_raster_goes_through_the_background_runner",
+      "tests/test_unsupervised_background.py::TestBackgroundWiring::test_the_worker_callable_touches_no_qgis_object",
+      "tests/test_unsupervised_background.py::TestBackgroundWiring::test_stop_gives_a_plain_stopped_result_not_a_failure_trace",
+      "tests/test_raster_numpy_live.py::TestNumpyRasterTools::test_a_large_raster_goes_through_the_background_runner_and_gives_the_same_clusters"
+    ],
+    "hand_verified": "not verified: CI only. The chunked k-means itself (#222, 2026-10-11) is older and tested; the offloading is new. Whether the window really stays responsive on a very large raster can only be seen by a person watching a real QGIS window; CI cannot show it.",
+    "hand_row": "none: needs a raster of tens of millions of cells and a person watching the window; no package row has one"
+  },
+  {
     "id": "undo-add-field",
     "feature": "undo_last_operation reverses add_field: the new field is removed again while it is empty; once it holds values undo refuses, says so, and changes nothing (deleting a filled column stays a deliberate delete_field step that asks)",
     "issues": ["#425"],

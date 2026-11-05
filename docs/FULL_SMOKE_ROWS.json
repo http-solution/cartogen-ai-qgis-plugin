@@ -161,7 +161,8 @@
   "every-tool-callable-in-qgis": "a CI-only proof by design: the live job calls every tool; no person can add to it",
   "result-checks-pure": "a pure module that changes no behaviour a user can see; its hook (result-gate-hook) is covered by row W1-gate-on",
   "update-task-without-an-id-is-explained": "no prompt reliably makes a model send a null id; covered by tests/test_task_manager.py",
-    "live-results-gate": "the measure itself (a record and a repository check), not behaviour a person can run in QGIS"
+    "live-results-gate": "the measure itself (a record and a repository check), not behaviour a person can run in QGIS",
+    "unsupervised-classification-in-background": "needs a raster of tens of millions of cells and a person watching a real QGIS window stay responsive; the package has no such raster"
  },
  "rows": [
   {
