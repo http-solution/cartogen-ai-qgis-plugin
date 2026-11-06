@@ -1,0 +1,28 @@
+# PLAN-061: Round-2 live results (2026-11-05) read against the evidence
+
+Status: in progress
+
+## Goal
+Turn the returned round-2 folder into a record the project can act on: what was seen working, what was seen failing, what is still unproven, and which defects are new. The agent's own verdicts are kept apart from what was re-read here.
+
+## Scope
+The upload `cartogen_ai_full_smoke_1.18.5_round2.zip` (30 rows, plugin zip SHA-256 `bceff41d...ec410d` = commit 728dad3, QGIS 4.2.3, Windows 11, Gemini hosted; the agent matched the SHA). Checked by this plan: `tools/check_evidence.py` over the folder, then the raw files behind V9, V4, A1, W13, B5, E4, C1, D1. Not re-read: the other rows' evidence; their verdicts below are the agent's.
+
+## Acceptance
+- Every feature whose evidence was read is in `docs/LIVE_RESULTS.json` under run `2026-11-05-agent-windows-round2` with a note naming the files it rests on.
+- Every new defect has a master-list row and a dashboard defect line; none is called fixed without a test and none is closed without an owner look.
+- `python tools/live_results.py`, `python tools/ledger_guard.py` and `python tools/master_list.py check` pass.
+
+## Guard tests
+`tests/test_result_gate_table_output.py` and `tests/test_result_gate_table_live.py` (DEF-28), `tests/test_live_results.py`, `tests/test_dashboard_snapshot.py`, `tests/test_smoke_round2.py`.
+
+## Rollback
+Revert the commit: the changes are one guard in `result_gate.summarize_layer`, records under `docs/`, and one appended sentence on row V9.
+
+## Status log
+- 2026-11-06: results read. `check_evidence.py`: layout check 11 of 11, 30 rows filled in, 167 evidence folders, 16 request groups matched on tools. The agent's verdicts: 8 Pass, 22 Partial, 0 Fail. Two things in the folder disagree with each other: `results/logs/round2_run_notes.txt` says "partial pass", snap not run, no screenshots, rows A2 and B to F not run (its first section is from an earlier pass), while the folder holds 167 evidence folders, 31 screenshots and verdicts for all 30 rows; and the notes mention a `REPORT.md` that is not in the upload; B4 is "Skip" there and "Partial" in the CSV. The CSV and the evidence folders were used, the notes file was not.
+- 2026-11-06: **seen working, evidence read.** V9 (P2): at t19 `undo_last_operation` returned "The field 'notes' now holds values ... Nothing was changed" at once with no card; the field and its 5 values stayed (the row's old Expect, a card then a refusal at Apply, predates the fix and is updated). V4 (P3): `export_temporal_animation_frames` was called with `layer_name` only after the layer was made temporal and wrote 4 frames; the reply also gave ffmpeg steps, which the row calls a wording Partial. A1 (P1): the saved pages show a populated legend and a framed map; the empty-legend and blank-map symptom did not recur.
+- 2026-11-06: **seen failing or wrong, new.** (1) DEF-27: the A1 legend is cut at its frame bottom on `legend_A4_Landscape.pdf` (classes 0-10 of 14) and `legend_A3_Portrait.pdf` (0-3) while L1-A4 and L1-A3 report fits true with content 88.0 mm equal to frame 88.0 mm; cause not found. (2) DEF-28: a table output got a geometry FAIL; cause found in `result_gate.summarize_layer` and fixed here, offline tests failed before the change, live test written without QGIS. (3) DEF-29: `generate_situation_dashboard` returned "'list' object has no attribute 'get'" (C1, t12); no traceback was saved and reading the code did not locate it. (4) DEF-9: the evidence collector's log files are empty for 28 of 28 snaps, so the overload change did not fix it.
+- 2026-11-06: **unresolved.** W13: the Help line says Qt 6.11.1, the agent's console qVersion() says 6.11.0, the About window was not compared; the same function in one process should not disagree, so it stays partly. A2: "Use this connection" on the other providers was not run, so the P6 dropdown fix is not confirmed. B5: 17 of 20 requests reached the model (three typed while a reply ran, not delivered), export 34 = 17 + 17, transcript_dropped 0: no loss, but the 20-exchange case is still unseen. D1 (agent): the reply said it zoomed to one district while the canvas stayed at country extent; `zoom_to_feature` is in the steps as ok; not checked against the screenshot here. C1 (agent): the internet note sits at the bottom of the dashboard page, the row expects the top.
+- 2026-11-06: **environment, not the plugin (agent's reading).** Overpass timed out or returned 502/503 in B2 and B3, so the Arabic and French answers were not seen; the two-reader language review is still undone. WorldPop was refused at the 240 MB download card (as the row asks).
+- 2026-11-06: the AR-4 and HU-3 code was in the tested build (728dad3) but no row exercises it; they stay "CI only". Per-row verdicts (agent): Pass: B1, B6, V5, W2, W8, W9, W11, E4. Partial: A1, A2, W13, B2, B3, B4, B5, V3, V4, C1, V2, V9, D1, D3, D4, W1, W3, E1, E3, E5, F2, W10.

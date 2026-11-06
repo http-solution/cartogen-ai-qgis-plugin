@@ -3,25 +3,25 @@
   "id": "P1",
   "defect": "Exported layout pages from the A1 script showed an empty Legend and a blank map frame",
   "found_by": "Live run 2026-11-04 (agent); I saw it in a rendered PDF",
-  "status": "Built, CI only",
+  "status": "Seen fixed live (round 2)",
   "pr": "573",
-  "next": "Cause inferred (no CRS, unframed canvas, legend left to QGIS's filter); rerun row A1 and a person looks at the pages"
+  "next": "Pages no longer empty. A person still looks at them; the clipped legend is P7"
  },
  {
   "id": "P2",
   "defect": "Undo card for a filled column offers a destructive remove, then refuses only on Apply",
   "found_by": "Live run 2026-11-04, row V9",
-  "status": "Built, CI only",
+  "status": "Fixed, seen live (round 2)",
   "pr": "573",
-  "next": "Rerun row V9"
+  "next": "Evidence t19: refused at once, no card. Row V9 text updated"
  },
  {
   "id": "P3",
   "defect": "'Animate the layer over time' did not call export_temporal_animation_frames (issue 362)",
   "found_by": "Live run 2026-11-04, row V4 (project was unsaved, no evidence folder)",
-  "status": "Built, CI only",
+  "status": "Fixed, seen live (round 2)",
   "pr": "573",
-  "next": "The tool needed a field the model had to know; why the model skipped it is unconfirmed. Rerun row V4 with a saved project"
+  "next": "Tool called with the layer only, 4 frames. Reply also gave ffmpeg steps; not-temporal-first case not seen"
  },
  {
   "id": "P4",
@@ -35,17 +35,17 @@
   "id": "P5",
   "defect": "Help showed the wrong Qt version",
   "found_by": "Live run 2026-11-04, row W13",
-  "status": "Fixed, not rerun live",
+  "status": "Not confirmed (round 2)",
   "pr": "569",
-  "next": "Rerun W13 in round 2"
+  "next": "Help says Qt 6.11.1; the agent's console said 6.11.0; About not compared. Rerun W13 with the About screenshot"
  },
  {
   "id": "P6",
   "defect": "Panel connection dropdown did not follow a connection saved from Settings (issue 510)",
   "found_by": "Live run 2026-11-04, rows A2/A3",
-  "status": "Fixed, not rerun live",
+  "status": "Not confirmed (round 2)",
   "pr": "569",
-  "next": "Rerun A2/A3 in round 2"
+  "next": "A2 was Partial: 'Use this connection' on the other providers was not run"
  },
  {
   "id": "D1",
@@ -102,5 +102,29 @@
   "status": "Reviewed, mitigated",
   "pr": "",
   "next": "MCP exposes no download tool and is no worse than chat (PLAN-055 gap D). The approval dialog now shows layer feature counts and warns from 50,000 features. Not seen by a person"
+ },
+ {
+  "id": "P7",
+  "defect": "Exported A1 legend is cut at the bottom of its frame (A4 shows classes 0-10 of 14, A3 shows 0-3) while the L1 check says it fits",
+  "found_by": "Round 2 live run 2026-11-05, row A1; PDFs read by me",
+  "status": "Open",
+  "pr": "",
+  "next": "Cause not found; reproduce in the CI live job, then fix the measurement (DEF-27)"
+ },
+ {
+  "id": "P8",
+  "defect": "A table output got 'geometry: 1 of 1 invalid or empty' = FAIL and the model was told to call the result wrong",
+  "found_by": "Round 2 live run, row E4, evidence t60",
+  "status": "Fixed on branch, not merged",
+  "pr": "",
+  "next": "Cause: result_gate counted table rows as empty geometries (DEF-28). Rerun E4 step 7 after merge"
+ },
+ {
+  "id": "P9",
+  "defect": "generate_situation_dashboard failed with 'list' object has no attribute 'get'",
+  "found_by": "Round 2 live run, row C1, evidence t12",
+  "status": "Open",
+  "pr": "",
+  "next": "No traceback saved; cause not located by reading. Reproduce in CI (DEF-29)"
  }
 ]

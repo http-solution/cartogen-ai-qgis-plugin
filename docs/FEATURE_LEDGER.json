@@ -2076,7 +2076,9 @@
       "tests/test_result_gate.py::TestWhereTheGateIsCalled::test_the_network_and_two_phase_branch_runs_the_gate_after_the_call",
       "tests/test_result_gate.py::TestWhereTheGateIsCalled::test_the_tools_that_write_a_score_field_are_classified_so_the_gate_covers_them",
       "tests/test_result_gate_live.py::TestResultGateLive::test_a_result_listing_several_created_layers_checks_each_and_names_which",
-      "tests/test_result_gate_live.py::TestResultGateLive::test_an_empty_created_layer_is_a_failed_check"
+      "tests/test_result_gate_live.py::TestResultGateLive::test_an_empty_created_layer_is_a_failed_check",
+      "tests/test_result_gate_table_output.py::TestTableOutputsHaveNoGeometryCheck::test_a_table_row_is_not_an_empty_geometry",
+      "tests/test_result_gate_table_live.py::TestTableOutputHasNoGeometryCheck::test_a_no_geometry_layer_has_no_geometry_summary"
     ],
     "hand_verified": "not verified: the offline tests are CI; the live tests run on real QGIS layers but were written without a QGIS install (CI's first run is their first execution). Updated 2026-11-02: the fetch tools that create a layer (network-only and two-phase paths) are gated too, results that list `layers_created` (service area) have each of their first five layers checked, and calls inside run_steps go through the same gate (found by reading: they use _execute_tool). None of that has run in a real session; the live tests are CI's first run. Only tools whose result carries layer_name get checks, so most CREATE tools are not checked yet. The 'does the model say so in plain words' acceptance needs a person.",
     "hand_row": "Hand-test rows W1-gate-on, W2-gate-fetch (1.18.5 hand-test package, PLAN-050): run the severity index on a layer whose indicator fields are all equal (the smoke fixtures) and check the answer says the score is the same everywhere; then set cartogen_ai/result_gate=false and confirm no checks appear"
