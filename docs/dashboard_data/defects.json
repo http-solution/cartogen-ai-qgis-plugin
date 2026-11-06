@@ -107,9 +107,9 @@
   "id": "P7",
   "defect": "Exported A1 legend is cut at the bottom of its frame (A4 shows classes 0-10 of 14, A3 shows 0-3) while the L1 check says it fits",
   "found_by": "Round 2 live run 2026-11-05, row A1; PDFs read by me",
-  "status": "Open",
+  "status": "Built, CI only",
   "pr": "",
-  "next": "Cause not found; reproduce in the CI live job, then fix the measurement (DEF-27)"
+  "next": "Measurement fixed (cause likely, unproven); if one layer alone cannot fit the frame the check now fails honestly. Rerun row A1 and look at the pages (DEF-27)"
  },
  {
   "id": "P8",
@@ -123,8 +123,8 @@
   "id": "P9",
   "defect": "generate_situation_dashboard failed with 'list' object has no attribute 'get'",
   "found_by": "Round 2 live run, row C1, evidence t12",
-  "status": "Open",
+  "status": "Built, CI only",
   "pr": "",
-  "next": "No traceback saved; cause not located by reading. Reproduce in CI (DEF-29)"
+  "next": "Cause found: popup_labels passed as a list. Fixed and tested offline; rerun row C1 step 6 (DEF-29)"
  }
 ]

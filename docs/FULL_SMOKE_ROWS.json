@@ -444,7 +444,8 @@
     "add-layer-from-path-forwards-sublayer",
     "script-worker-survives-print-and-odd-results",
     "script-unapplied-edit-is-a-failure",
-    "dashboard-internet-note"
+    "dashboard-internet-note",
+    "situation-dashboard-popup-labels"
    ],
    "needs": "person and a real model",
    "starts_from": "A new empty project; a fresh chat (see EVIDENCE_HOWTO.txt, 'Fresh chat'), 'Save an evidence folder for each request' ticked in Settings; SAVE the project into results\\outputs\\C1-load-and-scripts\\ before the first request (the plugin writes its evidence folder next to a saved project; an unsaved project leaves none)",

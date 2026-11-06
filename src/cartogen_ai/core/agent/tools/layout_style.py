@@ -497,6 +497,28 @@ def pick_legend_scale(heights_by_scale, frame_h_mm, slack_mm=LEGEND_FIT_SLACK_MM
     return None
 
 
+def legend_height_measured(heights_by_scale, frame_h_mm, tolerance_mm=0.01):
+    """False when every height tried equals the frame's own height, which means the legend was not measured at all (the item answered with its frame).
+    Round-2 live run 2026-11-05, row A1: both exported legends were visibly cut at the frame bottom while the report said content 88.0 mm = frame 88.0 mm
+    (A4) and 35.0 mm = 35.0 mm (A3) with 7 layers of 14 classes: the legend has resizeToContents off, so adjustBoxSize() left the frame size in place and
+    the check compared the frame with itself. Three scales that give three different heights are a measurement; one number equal to the frame is not. Pure."""
+    heights = [height for _scale, height in heights_by_scale]
+    return bool(heights) and not all(abs(height - frame_h_mm) <= tolerance_mm for height in heights)
+
+
+def measure_legend_content(leg):
+    """The height QGIS says the legend's content needs, in the item's units. The legend is fixed-size on purpose (layout_tools: resizeToContents off, so
+    long labels wrap instead of running off the page), and adjustBoxSize() only sizes an item that resizes to contents, so the switch is turned on for the
+    reading and put back after, whatever happens."""
+    was = leg.resizeToContents()
+    leg.setResizeToContents(True)
+    try:
+        leg.adjustBoxSize()
+        return leg.rect().height()
+    finally:
+        leg.setResizeToContents(was)
+
+
 def legend_title_with_note(base, dropped):
     """The legend title, with the number of layers that did not fit named in it, so a shortened legend says so. Pure."""
     return base if dropped <= 0 else f"{base} ({dropped} more layer{'s' if dropped != 1 else ''} not shown)"
@@ -944,8 +966,7 @@ def _fit_legend(layout, layout_mm, chosen, report):
     base_symbol = leg.symbolHeight()
 
     def content_height():
-        leg.adjustBoxSize()                       # QGIS sizes the item to what the legend needs; read it, then put the frame back
-        return leg.rect().height()
+        return measure_legend_content(leg)        # QGIS sizes the item to what the legend needs; the frame is put back below
 
     tried = []
     for scale in LEGEND_SCALES:
@@ -968,10 +989,12 @@ def _fit_legend(layout, layout_mm, chosen, report):
         _style_legend_fonts(layout, picked)
         leg.setSymbolHeight(base_symbol * picked)
     final = content_height()
+    measured = legend_height_measured([*tried, (picked, final)], frame_h)
     leg.attemptResize(QgsLayoutSize(width, frame_h, layout_mm))
     if dropped:
         leg.setTitle(legend_title_with_note("Legend", dropped))
-    report.update({"frame_mm": round(frame_h, 2), "content_mm": round(final, 2), "scale": picked, "dropped": dropped, "fits": final <= frame_h + LEGEND_FIT_SLACK_MM})
+    report.update({"frame_mm": round(frame_h, 2), "content_mm": round(final, 2), "scale": picked, "dropped": dropped, "measured": measured,
+                   "fits": measured and final <= frame_h + LEGEND_FIT_SLACK_MM})
     return [f"legend: {dropped} layer{'s' if dropped != 1 else ''} did not fit the legend frame and {'are' if dropped != 1 else 'is'} not listed (the title says so)"] if dropped else []
 
 

@@ -621,6 +621,22 @@
     "hand_verified": "not hand-tested"
   },
   {
+    "id": "situation-dashboard-popup-labels",
+    "feature": "generate_situation_dashboard builds a dashboard from the hazard layers it fetched (fires, EONET events, GDACS alerts) without failing on the popup labels: the labels it passes are a field-to-label dict, and a list of labels given by position is also read (a short list labels only what it covers)",
+    "issues": [],
+    "since": "1.18.6 (unreleased)",
+    "sources": [
+          "src/cartogen_ai/core/agent/tools/export_tools.py",
+          "src/cartogen_ai/core/agent/tools/hazard_monitoring_tools.py"
+    ],
+    "guards": [
+          "tests/test_dashboard_popup_labels.py::TestPopupLabelsAsAList::test_a_list_aligned_with_the_fields_gives_each_field_its_label",
+          "tests/test_dashboard_popup_labels.py::TestTheSituationDashboardPassesLabelsTheDashboardReads::test_every_layer_config_it_builds_has_dict_labels"
+    ],
+    "hand_verified": "not verified: found in the round-2 live run 2026-11-05 (row C1, evidence t12: \"'list' object has no attribute 'get'\"); the cause was read from the code and reproduced offline; the fix has not been seen on a real dashboard",
+    "hand_row": "Row C1-load-and-scripts step 6 (the situation dashboard for Aden): it must write the HTML file without the error"
+  },
+  {
     "id": "tidy-duplicate-source-normalised",
     "feature": "tidy_project_layers matches a duplicate layer whatever way its data source was loaded, and lists same-name layers it did not match",
     "issues": [120],
@@ -909,7 +925,7 @@
     "issues": [],
     "since": "1.18.0 (unreleased change)",
     "sources": ["src/cartogen_ai/core/agent/tools/layout_style.py", "src/cartogen_ai/core/agent/tools/layout_tools.py", "docs/plans/PLAN-021-all-open-issues-and-hand-run-findings.md"],
-    "guards": ["tests/test_layout_legend_fit.py::TestLegendFit::test_the_first_scale_that_fits_is_chosen", "tests/test_layout_legend_fit.py::TestLegendFit::test_nothing_fits_returns_none_so_entries_are_dropped", "tests/test_layout_legend_fit.py::TestLegendFit::test_the_title_names_how_many_layers_were_left_out", "tests/test_layout_fit_live.py::TestLayoutFitsItsFrames::test_a_legend_with_far_more_entries_than_its_frame_is_fitted_and_says_so"],
+    "guards": ["tests/test_layout_legend_fit.py::TestLegendFit::test_the_first_scale_that_fits_is_chosen", "tests/test_layout_legend_fit.py::TestLegendFit::test_nothing_fits_returns_none_so_entries_are_dropped", "tests/test_layout_legend_fit.py::TestLegendFit::test_the_title_names_how_many_layers_were_left_out", "tests/test_layout_fit_live.py::TestLayoutFitsItsFrames::test_a_legend_with_far_more_entries_than_its_frame_is_fitted_and_says_so", "tests/test_legend_measurement.py::TestAnAnswerEqualToTheFrameIsNotAMeasurement::test_every_height_equal_to_the_frame_means_not_measured", "tests/test_legend_measured_live.py::TestTheLegendIsMeasured::test_many_entries_are_measured_and_the_report_matches_the_page"],
     "hand_verified": "not verified: CI only; the cause (fixed frame, resizeToContents off, seven layers in 49.5 mm) was read from the owner's 1.18.0 layout file, the fix has not been looked at on a real export",
     "hand_row": "layout_check.json check ids for the legend (tools/layout_check_script.py, v2 bundle part A)"
   },

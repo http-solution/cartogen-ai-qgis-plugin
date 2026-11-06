@@ -1094,6 +1094,13 @@ def _resolve_popup_kwargs(folium_module, name, features, popup_fields, popup_lab
     None if there's nothing to show. Mutates `warnings` in place -- same
     convention every other warning collected while building the map
     already uses."""
+    # Round-2 live run 2026-11-05 (row C1, evidence t12): generate_situation_dashboard handed popup_labels over as a LIST aligned with popup_fields, and the
+    # popup_labels.get(f) below raised "'list' object has no attribute 'get'" for the whole dashboard. A list is read by position against the fields as given
+    # (before any are dropped); anything that is neither a list nor a dict is ignored, so a bad label argument can no longer break the page.
+    if isinstance(popup_labels, (list, tuple)):
+        popup_labels = dict(zip(popup_fields or [], popup_labels, strict=False))        # strict=False on purpose: a short list labels only what it covers
+    elif not isinstance(popup_labels, dict):
+        popup_labels = None
     if popup_fields:
         popup_fields = [f for f in popup_fields if not str(f).startswith("__cartogen_")]
     if not popup_fields and features:

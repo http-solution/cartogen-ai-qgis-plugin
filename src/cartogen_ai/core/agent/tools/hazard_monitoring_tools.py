@@ -778,7 +778,7 @@ def generate_situation_dashboard(bbox, output_path=None, title=None,
             layers_config.append({
                 "layer_name": fires["layer_name"],
                 "popup_fields": ["confidence", "brightness", "frp", "acq_date", "acq_time"],
-                "popup_labels": ["Confidence", "Brightness", "Fire Radiative Power", "Date", "Time"],
+                "popup_labels": dict(zip(["confidence", "brightness", "frp", "acq_date", "acq_time"], ["Confidence", "Brightness", "Fire Radiative Power", "Date", "Time"], strict=True)),
             })
 
     if include_eonet:
@@ -789,7 +789,7 @@ def generate_situation_dashboard(bbox, output_path=None, title=None,
             layers_config.append({
                 "layer_name": eonet["layer_name"],
                 "popup_fields": ["title", "category", "date"],
-                "popup_labels": ["Event", "Category", "Date"],
+                "popup_labels": dict(zip(["title", "category", "date"], ["Event", "Category", "Date"], strict=True)),
             })
 
     if include_disasters:
@@ -800,7 +800,7 @@ def generate_situation_dashboard(bbox, output_path=None, title=None,
             layers_config.append({
                 "layer_name": disasters["layer_name"],
                 "popup_fields": ["name", "alert_level", "description", "country"],
-                "popup_labels": ["Event", "Alert Level", "Description", "Country"],
+                "popup_labels": dict(zip(["name", "alert_level", "description", "country"], ["Event", "Alert Level", "Description", "Country"], strict=True)),
             })
 
     if not layers_config:
