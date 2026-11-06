@@ -12,31 +12,31 @@
   "what": "Stop a long request; memory comes back",
   "agent_result": "Partial",
   "after_recheck": "Partial",
-  "note": "Stop was pressed about 50 s late; rerun",
+  "note": "Round 2 (agent): Stop at about 12 s, no output layer, next request worked; memory 402.9 -> 409.2 -> 408.7 MB read with psutil, not the Windows tool; peak not sampled",
   "needs_rerun": true
  },
  {
   "row": "V3-contour",
   "what": "Contour lines do not start a download",
   "agent_result": "Pass",
-  "after_recheck": "Pass",
-  "note": "",
+  "after_recheck": "Partial",
+  "note": "Round 2 (agent): only generate_contours called, storage note present; the reply did not name the temporary folder (wording)",
   "needs_rerun": false
  },
  {
   "row": "V4-animate",
   "what": "'animate the layer over time' runs the animation tool",
   "agent_result": "Fail",
-  "after_recheck": "Fail",
-  "note": "Model gave a how-to; a model-choice result, not a plugin fault",
-  "needs_rerun": true
+  "after_recheck": "Partial",
+  "note": "Round 2: export_temporal_animation_frames called with the layer only and wrote 4 frames (evidence read by me); the reply also gave ffmpeg steps. Layer not made temporal first: not tried",
+  "needs_rerun": false
  },
  {
   "row": "V5-profile",
   "what": "Elevation profile added once",
   "agent_result": "Pass",
   "after_recheck": "Pass",
-  "note": "",
+  "note": "Round 2 (agent): set_layer_elevation, add_layout_elevation_profile, two list calls, curve rendered",
   "needs_rerun": false
  },
  {
@@ -68,23 +68,23 @@
   "what": "Undo of add_field",
   "agent_result": "Partial",
   "after_recheck": "Partial",
-  "note": "Attribute-table screenshots missing; behaviour matched",
+  "note": "Round 2: undo of the filled field refused at once with no card, field and 5 values kept (evidence t19 read by me). That is the fix; the row text predates it and is updated",
   "needs_rerun": false
  },
  {
   "row": "W1-gate-on",
   "what": "Result checks recorded on a computed layer",
   "agent_result": "Fail",
-  "after_recheck": "Fail",
-  "note": "Plugin bug: a confirmed step skipped the result gate. Fixed in #554",
-  "needs_rerun": true
+  "after_recheck": "Partial",
+  "note": "Round 2 (agent): checks recorded after Apply and off with the setting; reply did not state a count of checks (wording). Fix from #554 seen working",
+  "needs_rerun": false
  },
  {
   "row": "W2-gate-fetch",
   "what": "A fetched layer gets checks and a source record",
   "agent_result": "Pass",
   "after_recheck": "Pass",
-  "note": "",
+  "note": "Round 2 (agent): source record and checks on the fetched layer",
   "needs_rerun": false
  },
  {
@@ -92,7 +92,7 @@
   "what": "Provenance and spatial report print the data source",
   "agent_result": "Partial",
   "after_recheck": "Partial",
-  "note": "QA text ignored stored checks. Fixed in #555 (open)",
+  "note": "Round 2 (agent): source printed; the report line is not worded 'Data source:' and no 'licence not checked' sentence",
   "needs_rerun": true
  },
  {
@@ -132,7 +132,7 @@
   "what": "Export a workflow file",
   "agent_result": "Pass",
   "after_recheck": "Pass",
-  "note": "",
+  "note": "Round 2 (agent): preview first, file accepted by check_workflow_file.py",
   "needs_rerun": false
  },
  {
@@ -140,24 +140,24 @@
   "what": "Open, map, run a workflow file",
   "agent_result": "Fail",
   "after_recheck": "Pass",
-  "note": "Failure was the package: the checker printed the wrong fingerprint",
+  "note": "Round 2 (agent): dialog fingerprint equals the saved lineage; both steps ran",
   "needs_rerun": false
  },
  {
   "row": "W10-import-bad",
   "what": "Six broken files refused in plain words",
   "agent_result": "Pass",
-  "after_recheck": "Pass",
-  "note": "",
+  "after_recheck": "Partial",
+  "note": "Round 2 (agent): all six refused in plain sentences; per-file screenshots not saved",
   "needs_rerun": false
  },
  {
   "row": "W11-import-egress",
   "what": "A restricted area stops at the card",
   "agent_result": "Fail",
-  "after_recheck": "Fail",
-  "note": "Plugin bug: fetch tools skipped the egress gate. Fixed in #554",
-  "needs_rerun": true
+  "after_recheck": "Pass",
+  "note": "Round 2 (agent): the run stopped at the usual card, no download. Fix from #554 seen working",
+  "needs_rerun": false
  },
  {
   "row": "W12-guide",
@@ -165,6 +165,46 @@
   "agent_result": "Skip",
   "after_recheck": "Skip",
   "note": "Needs a reader who did not write it",
+  "needs_rerun": true
+ },
+ {
+  "row": "A1-layout-script",
+  "what": "Model-free layout check and the exported pages",
+  "agent_result": "Partial",
+  "after_recheck": "Partial",
+  "note": "Round 2: 11 of 11 checks passed, but the saved PDFs showed a legend cut at its frame (read by me) while the check said it fits. Cause found on real QGIS in CI and fixed in #575 (not seen on a page yet)",
+  "needs_rerun": true
+ },
+ {
+  "row": "B6-mesh-to-raster",
+  "what": "'Turn the mesh results into a raster' (issue 380)",
+  "agent_result": "Pass",
+  "after_recheck": "Pass",
+  "note": "Round 2 (agent): find_processing_algorithm then native:meshrasterize ran, raster layer made, no flood-hazard plan, no clarification turn",
+  "needs_rerun": false
+ },
+ {
+  "row": "W13-environment",
+  "what": "Help names this computer's QGIS, Qt, OS and Python",
+  "agent_result": "Partial",
+  "after_recheck": "Partial",
+  "note": "Round 2: Help says Qt 6.11.1, the agent's console said 6.11.0, About window not compared; no screenshot saved. Unresolved",
+  "needs_rerun": true
+ },
+ {
+  "row": "E4-exports",
+  "what": "DXF, spreadsheet, CSV, PDF map, tidy-up",
+  "agent_result": "Pass",
+  "after_recheck": "Pass",
+  "note": "Round 2 (agent): files open. Found: a statistics table got a false 'geometry invalid' FAIL; fixed in #575",
+  "needs_rerun": true
+ },
+ {
+  "row": "C1-load-and-scripts",
+  "what": "Loading files, odd scripts, dashboard note",
+  "agent_result": "Partial",
+  "after_recheck": "Partial",
+  "note": "Round 2: generate_situation_dashboard failed ('list' has no 'get'); cause found and fixed in #575; internet note sits at the page bottom, row expects the top",
   "needs_rerun": true
  }
 ]
