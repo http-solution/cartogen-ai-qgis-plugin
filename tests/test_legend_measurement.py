@@ -1,69 +1,9 @@
-"""Round-2 row A1 (2026-11-05): the exported legends were cut at the frame bottom while the report said content = frame (88.0 = 88.0 mm, 35.0 = 35.0 mm).
-The legend is fixed-size (resizeToContents off), so adjustBoxSize() left the frame size in place and the check compared the frame with itself.
-Offline: the legend is a fake that, like QGIS, resizes in adjustBoxSize() only when it resizes to contents."""
+"""Round-2 row A1 (2026-11-05) and the CI probe of 2026-11-06 (DEF-27): the exported legends were cut at the frame bottom while the report said content = frame
+(88.0 = 88.0 mm, 35.0 = 35.0 mm). On real QGIS 4.2.2 adjustBoxSize() does nothing on the legend item, so every earlier "content" number was the frame itself;
+the legend renderer's own minimumSize() is the measurement now. Offline: the pure pieces only (the live test needs QGIS)."""
 import unittest
 
-from cartogen_ai.core.agent.tools.layout_style import legend_height_measured, measure_legend_content
-
-
-class FakeLegend:
-    def __init__(self, frame_h, needs_h, resize_to_contents=False):
-        self.height, self.needs, self.resize = frame_h, needs_h, resize_to_contents
-
-    def resizeToContents(self):
-        return self.resize
-
-    def setResizeToContents(self, value):
-        self.resize = value
-
-    def adjustBoxSize(self):
-        if self.resize:
-            self.height = self.needs
-
-    def rect(self):
-        return self
-
-    def __getattr__(self, name):
-        if name == "height":
-            raise AttributeError
-        raise AttributeError(name)
-
-
-class _Rect:
-    pass
-
-
-def legend(frame_h, needs_h):
-    fake = FakeLegend(frame_h, needs_h)
-    fake.rect = lambda: types_rect(fake.height)
-    return fake
-
-
-def types_rect(height):
-    rect = _Rect()
-    rect.height = lambda: height
-    return rect
-
-
-class TestMeasuringAFixedSizeLegend(unittest.TestCase):
-    def test_a_fixed_size_legend_is_measured_at_what_its_content_needs(self):
-        fake = legend(35.0, 140.0)
-        self.assertEqual(measure_legend_content(fake), 140.0)
-
-    def test_the_resize_switch_is_put_back(self):
-        fake = legend(35.0, 140.0)
-        measure_legend_content(fake)
-        self.assertFalse(fake.resizeToContents())
-
-    def test_the_switch_is_put_back_even_when_sizing_fails(self):
-        fake = legend(35.0, 140.0)
-
-        def boom():
-            raise RuntimeError("boom")
-        fake.adjustBoxSize = boom
-        with self.assertRaises(RuntimeError):
-            measure_legend_content(fake)
-        self.assertFalse(fake.resizeToContents())
+from cartogen_ai.core.agent.tools.layout_style import LEGEND_MAX_COLUMNS, LEGEND_SCALES, legend_height_measured, pick_legend_fit
 
 
 class TestAnAnswerEqualToTheFrameIsNotAMeasurement(unittest.TestCase):
@@ -78,6 +18,27 @@ class TestAnAnswerEqualToTheFrameIsNotAMeasurement(unittest.TestCase):
 
     def test_nothing_tried_is_not_measured(self):
         self.assertFalse(legend_height_measured([], 88.0))
+
+
+class TestPickingScaleAndColumns(unittest.TestCase):
+    def test_one_column_at_full_size_wins_when_it_fits(self):
+        self.assertEqual(pick_legend_fit([(1.0, 1, 40.0), (0.85, 1, 34.0)], 50.0), (1.0, 1))
+
+    def test_a_smaller_scale_in_one_column_is_preferred_to_more_columns(self):
+        candidates = [(1.0, 1, 60.0), (0.85, 1, 51.0), (0.7, 1, 42.0), (1.0, 2, 30.0)]
+        self.assertEqual(pick_legend_fit(candidates, 50.0), (0.7, 1))
+
+    def test_columns_are_used_when_no_scale_fits_in_one(self):
+        # the numbers of the CI probe: one layer of 14 classes is about 123 mm high in one column, the A3 frame is 49.5 mm
+        candidates = [(1.0, 1, 123.0), (0.85, 1, 105.0), (0.7, 1, 86.0), (1.0, 2, 63.0), (0.85, 2, 54.0), (0.7, 2, 45.0)]
+        self.assertEqual(pick_legend_fit(candidates, 49.5), (0.7, 2))
+
+    def test_nothing_fits_gives_none(self):
+        self.assertIsNone(pick_legend_fit([(1.0, 1, 860.0), (0.7, 4, 300.0)], 49.5))
+
+    def test_the_search_space_is_what_the_fit_loop_assumes(self):
+        self.assertEqual(list(LEGEND_SCALES), sorted(LEGEND_SCALES, reverse=True))
+        self.assertGreaterEqual(LEGEND_MAX_COLUMNS, 2)
 
 
 if __name__ == "__main__":

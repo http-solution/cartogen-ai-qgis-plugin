@@ -19,6 +19,7 @@ class TestTheLegendIsMeasured(TestLayoutFitsItsFrames):
                 self._layers(7, 14)
                 check = self._make(page_size=size, page_orientation=orientation)["legend_check"]
                 self.assertTrue(check["measured"], check)
+                self.assertGreater(check["content_mm"], 0, check)
                 if check["fits"]:
                     self.assertLessEqual(check["content_mm"], check["frame_mm"] + 0.5, check)
                 else:

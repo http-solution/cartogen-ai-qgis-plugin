@@ -109,7 +109,7 @@
   "found_by": "Round 2 live run 2026-11-05, row A1; PDFs read by me",
   "status": "Built, CI only",
   "pr": "",
-  "next": "Measurement fixed (cause likely, unproven); if one layer alone cannot fit the frame the check now fails honestly. Rerun row A1 and look at the pages (DEF-27)"
+  "next": "Cause confirmed by a CI probe: adjustBoxSize does nothing on the legend item. Now measured with QgsLegendRenderer and split into up to 4 columns; CI only. Rerun row A1 and look at the pages (DEF-27)"
  },
  {
   "id": "P8",

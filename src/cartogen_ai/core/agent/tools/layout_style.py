@@ -506,17 +506,28 @@ def legend_height_measured(heights_by_scale, frame_h_mm, tolerance_mm=0.01):
     return bool(heights) and not all(abs(height - frame_h_mm) <= tolerance_mm for height in heights)
 
 
-def measure_legend_content(leg):
-    """The height QGIS says the legend's content needs, in the item's units. The legend is fixed-size on purpose (layout_tools: resizeToContents off, so
-    long labels wrap instead of running off the page), and adjustBoxSize() only sizes an item that resizes to contents, so the switch is turned on for the
-    reading and put back after, whatever happens."""
-    was = leg.resizeToContents()
-    leg.setResizeToContents(True)
-    try:
-        leg.adjustBoxSize()
-        return leg.rect().height()
-    finally:
-        leg.setResizeToContents(was)
+def measure_legend_size(leg, layout):
+    """(width, height) in mm that the legend's CONTENT needs, from QGIS's own legend renderer over the item's model and settings (columns included).
+    CI probe 2026-11-06 on real QGIS 4.2.2 (DEF-27): adjustBoxSize() does nothing on this item, even after the frame was shrunk to 20 x 10 mm and
+    resizeToContents was switched on, so every earlier 'content' number was the frame itself; QgsLegendRenderer.minimumSize() gave the real size
+    (1 layer x 3 classes: 43.3 mm high; 7 layers x 14 classes: 860.3 mm). The model is the unfiltered one, so with filter-by-map on this can only
+    over-state the need, never under-state it."""
+    from qgis.core import QgsLayoutUtils, QgsLegendRenderer
+    context = QgsLayoutUtils.createRenderContextForLayout(layout, None)
+    size = QgsLegendRenderer(leg.model(), leg.legendSettings()).minimumSize(context)
+    return size.width(), size.height()
+
+
+LEGEND_MAX_COLUMNS = 4       # a legend whose layer is too tall for its frame is split into up to this many columns before any layer is dropped
+
+
+def pick_legend_fit(candidates, frame_h_mm, slack_mm=LEGEND_FIT_SLACK_MM):
+    """The first (scale, columns) whose content height fits the frame, or None. `candidates`: [(scale, columns, height_mm), ...] in the order tried
+    (one column at every scale first, then two columns at every scale, ...). Pure."""
+    for scale, columns, height in candidates:
+        if height <= frame_h_mm + slack_mm:
+            return scale, columns
+    return None
 
 
 def legend_title_with_note(base, dropped):
@@ -956,45 +967,59 @@ def _style_legend_fonts(layout, scale=1.0):
 
 
 def _fit_legend(layout, layout_mm, chosen, report):
-    """Makes the legend fit the frame the template gave it: smaller text and symbols first, then fewer layers (the last ones in the tree, the
-    ones drawn underneath), with the number left out written into the title. Never leaves an entry cut in half. Fills `report` with the numbers and
-    returns warnings. The frame itself keeps its size and place."""
+    """Makes the legend fit the frame the template gave it: smaller text and symbols first, then more columns (a layer that is too tall alone is split
+    across them), then fewer layers (the last ones in the tree, the ones drawn underneath), with the number left out written into the title. Never leaves
+    an entry cut in half when it can be avoided. Fills `report` with the numbers and returns warnings. The frame itself keeps its size and place."""
     leg = layout.itemById("LEGEND")
     if leg is None:
         return []
     width, frame_h = leg.rect().width(), leg.rect().height()
     base_symbol = leg.symbolHeight()
 
-    def content_height():
-        return measure_legend_content(leg)        # QGIS sizes the item to what the legend needs; the frame is put back below
-
-    tried = []
-    for scale in LEGEND_SCALES:
+    def apply(scale, columns):
         _style_legend_fonts(layout, scale)
         leg.setSymbolHeight(base_symbol * scale)
-        tried.append((scale, content_height()))
-    picked = pick_legend_scale(tried, frame_h)
+        leg.setColumnCount(columns)
+        leg.setSplitLayer(columns > 1)
+
+    def measure(columns):
+        """Content height in mm, or None when more than one column is wider than the frame (that arrangement cannot be used)."""
+        content_w, content_h = measure_legend_size(leg, layout)
+        return None if columns > 1 and content_w > width + LEGEND_FIT_SLACK_MM else content_h
+
+    tried, candidates = [], []
+    for columns in range(1, LEGEND_MAX_COLUMNS + 1):
+        for scale in LEGEND_SCALES:
+            apply(scale, columns)
+            height = measure(columns)
+            if height is not None:
+                tried.append((scale, height))
+                candidates.append((scale, columns, height))
+    picked = pick_legend_fit(candidates, frame_h)
     dropped = 0
     if picked is None:
-        picked = LEGEND_SCALES[-1]
-        _style_legend_fonts(layout, picked)
-        leg.setSymbolHeight(base_symbol * picked)
+        scale, columns = LEGEND_SCALES[-1], LEGEND_MAX_COLUMNS
+        # with the widest arrangement that still fits the frame's width, else one column
+        usable = [c for _s, c, _h in candidates if c > 1] or [1]
+        columns = max(usable)
+        picked = (scale, columns)
+        apply(scale, columns)
         root = leg.model().rootGroup()
-        while len(root.findLayers()) > 1 and content_height() > frame_h + LEGEND_FIT_SLACK_MM:
+        while len(root.findLayers()) > 1 and (measure(columns) or 0) > frame_h + LEGEND_FIT_SLACK_MM:
             last = root.findLayers()[-1]
             chosen["ids"] = [i for i in chosen.get("ids", []) if i != last.layerId()]
             root.removeChildNode(last)
             dropped += 1
     else:
-        _style_legend_fonts(layout, picked)
-        leg.setSymbolHeight(base_symbol * picked)
-    final = content_height()
-    measured = legend_height_measured([*tried, (picked, final)], frame_h)
+        apply(*picked)
+    final = measure(picked[1])
+    final = final if final is not None else measure_legend_size(leg, layout)[1]
+    measured = legend_height_measured([*tried, (picked[0], final)], frame_h)
     leg.attemptResize(QgsLayoutSize(width, frame_h, layout_mm))
     if dropped:
         leg.setTitle(legend_title_with_note("Legend", dropped))
-    report.update({"frame_mm": round(frame_h, 2), "content_mm": round(final, 2), "scale": picked, "dropped": dropped, "measured": measured,
-                   "fits": measured and final <= frame_h + LEGEND_FIT_SLACK_MM})
+    report.update({"frame_mm": round(frame_h, 2), "content_mm": round(final, 2), "scale": picked[0], "columns": picked[1], "dropped": dropped,
+                   "measured": measured, "fits": measured and final <= frame_h + LEGEND_FIT_SLACK_MM})
     return [f"legend: {dropped} layer{'s' if dropped != 1 else ''} did not fit the legend frame and {'are' if dropped != 1 else 'is'} not listed (the title says so)"] if dropped else []
 
 
