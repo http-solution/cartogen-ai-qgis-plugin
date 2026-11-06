@@ -167,3 +167,20 @@ class TestTheFullPackageIsUnchanged(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestTheFailureProtocolShipsInEveryPackage(unittest.TestCase):
+    """The tester's rules for a failed row are in the package, not only in a chat message."""
+    TEXT = (ROOT / "docs" / "FULL_SMOKE_FAILURE_PROTOCOL.md").read_text(encoding="utf-8")
+
+    def test_it_asks_for_the_captures_a_developer_needs(self):
+        for needle in ("clock", "snap(", "traceback", "Network Logger", "Steps to reproduce", "not saved", "REPEATABLE", "BUILD.txt"):
+            self.assertIn(needle.lower(), self.TEXT.lower(), needle)
+
+    def test_it_does_not_promise_raw_prompts_or_replies_in_the_log(self):
+        self.assertIn("does not log raw prompts", self.TEXT)
+
+    def test_the_builder_copies_it_and_the_readme_lists_it(self):
+        source = (ROOT / "tools" / "build_full_smoke.py").read_text(encoding="utf-8")
+        self.assertIn("FULL_SMOKE_FAILURE_PROTOCOL.md", source)
+        self.assertIn("FAILURE_PROTOCOL.md  ", source)

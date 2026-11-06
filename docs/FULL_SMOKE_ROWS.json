@@ -444,7 +444,8 @@
     "add-layer-from-path-forwards-sublayer",
     "script-worker-survives-print-and-odd-results",
     "script-unapplied-edit-is-a-failure",
-    "dashboard-internet-note"
+    "dashboard-internet-note",
+    "situation-dashboard-popup-labels"
    ],
    "needs": "person and a real model",
    "starts_from": "A new empty project; a fresh chat (see EVIDENCE_HOWTO.txt, 'Fresh chat'), 'Save an evidence folder for each request' ticked in Settings; SAVE the project into results\\outputs\\C1-load-and-scripts\\ before the first request (the plugin writes its evidence folder next to a saved project; an unsaved project leaves none)",
@@ -831,7 +832,8 @@
    "starts_from": " SAVE the project into results\\outputs\\<row id>\\ before the first request: the plugin writes its evidence folder next to a saved project, and an unsaved project leaves none (V4 and V5 had none in the 2026-11-04 run)."
   },
   "V9-undo-field": {
-   "do": " Confirm every undo card with Apply, including the one in the last step: it offers to remove the filled column, and the check that refuses it runs when you press Apply, not when the card is shown. Copy the card's wording into the notes. (The first agent run pressed Cancel there, so the refusal was never seen.)"
+   "do": " Confirm every undo card with Apply, including the one in the last step: it offers to remove the filled column, and the check that refuses it runs when you press Apply, not when the card is shown. Copy the card's wording into the notes. (The first agent run pressed Cancel there, so the refusal was never seen.)",
+   "expect": " Since PR 573 the refusal comes at once with NO card (round 2, 2026-11-05: undo_last_operation returned 'The field notes now holds values, so removing it would lose data. Nothing was changed' straight away): that is the expected result. A card that offers to remove the filled column is a Fail; a card followed by a refusal only at Apply is the old behaviour (the fix is missing)."
   },
   "W1-gate-on": {
    "expect": " The proof is the record: layer_properties.json must show cartogen/checks on smoke_admin after W1a and no new run after W1b. How the reply words it is a model choice: a reply that does not state the count is a Partial for the reply, not a failure of the gate."

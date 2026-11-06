@@ -136,13 +136,18 @@ def summarize_layer(layer, written_fields, cap=SAMPLE_CAP):
     seen = invalid = empty = 0
     stats = {f: {"count": 0, "null": 0, "distinct": 0, "min": None, "max": None, "fingerprint": None, "_values": set()} for f in written_fields
              if layer.fields().indexOf(f) >= 0}
+    # Round-2 live run 2026-11-05 (row E4, evidence t60): native:basicstatisticsforfields wrote a one-row TABLE, and every row of a table has no geometry,
+    # so the loop below counted it as an empty geometry and the check said "1 of 1 geometries (100%) are invalid or empty" -> FAIL, with a note telling the
+    # model to call the result wrong. A layer with no geometry has no geometries to check: the key stays None, which result_checks reads as "not known" (skip).
+    spatial = bool(layer.isSpatial())
     for feature in layer.getFeatures(QgsFeatureRequest().setLimit(cap)):
         seen += 1
-        geometry = feature.geometry()
-        if geometry is None or geometry.isNull() or geometry.isEmpty():
-            empty += 1
-        elif not geometry.isGeosValid():
-            invalid += 1
+        if spatial:
+            geometry = feature.geometry()
+            if geometry is None or geometry.isNull() or geometry.isEmpty():
+                empty += 1
+            elif not geometry.isGeosValid():
+                invalid += 1
         for field, stat in stats.items():
             value = feature[field]
             if _is_null(value):
@@ -158,7 +163,7 @@ def summarize_layer(layer, written_fields, cap=SAMPLE_CAP):
         stat["distinct"] = len(stat.pop("_values"))      # capped at 2: all the checks need is "one value or more"
     summary = {"name": layer.name(), "crs_authid": crs.authid() if crs.isValid() else None,
                "crs_geographic": crs.isGeographic() if crs.isValid() else None, "feature_count": total, "input_feature_count": None,
-               "geometry": {"total": seen, "invalid": invalid, "empty": empty} if seen else None, "fields": stats}
+               "geometry": {"total": seen, "invalid": invalid, "empty": empty} if seen and spatial else None, "fields": stats}
     return summary, ((seen, total) if total > seen else None)
 
 

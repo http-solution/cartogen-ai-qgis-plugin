@@ -7,6 +7,14 @@
    "baseline_commit": "903ae3c7b8ba6717ed6fead4163d57c0390a767e",
    "package": "cartogen_ai_full_smoke_1.18.5",
    "triage": "docs/HAND_TEST_RESULTS_full_smoke_2026-11-04.md"
+  },
+  "2026-11-05-agent-windows-round2": {
+   "date": "2026-11-05",
+   "by": "AI agent on the owner's Windows 11 computer, QGIS 4.2.3, Gemini (hosted); 30 rows, 22 Partial and 8 Pass by the agent's own verdicts",
+   "baseline_commit": "728dad3d9a64adec77a04dae93e9ba17a3c672af",
+   "package": "cartogen_ai_full_smoke_1.18.5_round2",
+   "triage": "docs/plans/PLAN-061-round-2-results.md",
+   "scope_of_this_record": "Only the features whose raw evidence (steps.jsonl, layer_properties.json, the exported PDFs) was read for this record are updated below; every other row's verdict stays the agent's and is listed in PLAN-061. current_run stays the 2026-11-04 run so the regression gate keeps its older baseline."
   }
  },
  "current_run": "2026-11-04-agent-windows",
@@ -122,9 +130,10 @@
    "note": "The feature with no value was grey and listed as No data in the legend."
   },
   "result-gate-hook": {
-   "status": "working",
-   "rows": "W1-gate-on",
-   "note": "cartogen/checks recorded on smoke_admin; no new run with the gate off."
+   "status": "partly",
+   "rows": "W1-gate-on W2-gate-fetch E4-exports",
+   "run": "2026-11-05-agent-windows-round2",
+   "note": "Checks recorded on smoke_admin and on a fetched layer (W1, W2). But E4 (t60): a table output of native:basicstatisticsforfields got 'geometry: 1 of 1 geometries (100%) invalid or empty' = FAIL and a note telling the model to call the result wrong. Fixed on this branch (DEF-28), not rerun live."
   },
   "fetched-data-source-record": {
    "status": "working",
@@ -367,9 +376,10 @@
    "note": "11 of 11 script checks passed on Windows fonts and the footers read complete on the exported pages."
   },
   "layout-legend-fits-frame": {
-   "status": "partly",
+   "status": "failing",
    "rows": "A1-layout-script",
-   "note": "The script check passes, but the exported pages show a Legend box with no entries and a blank map frame: unconfirmed whether the plugin or the script's own project."
+   "run": "2026-11-05-agent-windows-round2",
+   "note": "The empty-legend and blank-map symptom of 2026-11-04 is gone (the saved pages show entries and a framed map). But legend_A4_Landscape.pdf shows classes 0-10 of 14 with the next one cut at the frame bottom and legend_A3_Portrait.pdf shows 0-3, while L1-A4 and L1-A3 report fits true (content 88.0 mm = frame 88.0 mm). Read from the saved PDFs by me and by the agent. Cause not found (DEF-27)."
   },
   "layout-export-gate": {
    "status": "partly",
@@ -429,12 +439,31 @@
   "environment-detection": {
    "status": "partly",
    "rows": "W13-environment",
-   "note": "The Help line matched QGIS except Qt (6.11.0 against 6.11.1: fixed since, not rerun); the log line and the Settings copy were not looked at."
+   "run": "2026-11-05-agent-windows-round2",
+   "note": "The Help line now reads Qt 6.11.1 (the value QGIS's About window gave in round 1). The agent's own console qVersion() gave 6.11.0, which the same function in the same process should not disagree with: unexplained. The About window, the log line and the Settings copy were not compared and no snap or screenshot was saved for this row, so it is not confirmed either way."
   },
   "chat-export-after-reopen": {
    "status": "partly",
    "rows": "B5-chat-formatting",
    "note": "The export held 32 of 40 messages, but it held every request the plugin received: transcript_dropped 0, and the evidence folders t16 to t31 (no gaps, t1 to t82 in the whole run) are 16 requests = 32 messages, 2 from B4 and 14 from B5 (the table and 13 short ones, not the 20 the row asks for). Seen working on what was sent; the 20-exchange case and the reopened chat were not seen at full size; rerun with an exact count."
+  },
+  "undo-add-field": {
+   "status": "working",
+   "rows": "V9-undo-field",
+   "run": "2026-11-05-agent-windows-round2",
+   "note": "Evidence t15-t19: add_field, undo with a card and Apply (field gone), add and fill 5 rows, then undo_last_operation returned at once 'The field notes now holds values, so removing it would lose data. Nothing was changed' with no card; the field and its 5 values stayed. The row's old Expect (card, then refusal at Apply) predates the fix and is updated."
+  },
+  "animation-uses-temporal-settings": {
+   "status": "working",
+   "rows": "V4-animate",
+   "run": "2026-11-05-agent-windows-round2",
+   "note": "Evidence t3-t4: after set_layer_temporal(start_field date), 'animate the layer over time' called export_temporal_animation_frames with layer_name only and wrote 4 frames. The reply then also gave ffmpeg steps (the row says no hand instructions: a wording Partial); the frame count was not in the reply. Not seen: a layer that was not made temporal first."
+  },
+  "legend-not-filtered-away": {
+   "status": "partly",
+   "rows": "A1-layout-script",
+   "run": "2026-11-05-agent-windows-round2",
+   "note": "On the same pages the legend lists layers and the map frame shows data. The fix path itself (filter-by-map turned off when the map shows nothing) was not exercised: layout_check.json says legend_filtered_by_map true and map_shows_the_layers true."
   }
  }
 }
