@@ -158,7 +158,7 @@ def evidence_table(rows, v):
     for row in rows:
         files = row.get("files") or []
         inputs = v2.fill(row["inputs"], v) if row.get("inputs") else ""
-        given = "; ".join(x for x in ((", ".join(files)) if files else "", inputs) if x) or "none beyond the starting project named below (you type the request into the chat)"
+        given = "; ".join(x for x in ((", ".join(files)) if files else "", inputs) if x) or "none: no file from 3_test_files is named for this row (what you need is in 'Starts from' and in 3_SHEET.md)"
         out += [f"## {row['id']}: {v2.fill(row['title'], v)}", "",
                 f"- **You need:** {row['needs']}",
                 f"- **Starts from:** {v2.fill(row['starts_from'], v)}",
