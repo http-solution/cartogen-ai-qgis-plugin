@@ -41,6 +41,15 @@ def qt_version_text(qtcore):
     return ""
 
 
+def qt_built_text(qtcore):
+    """The Qt version PyQt was BUILT against (QT_VERSION_STR), or ''. Never raises. Reported next to the running version only when the two differ, so a
+    Help line that disagrees with another tool explains itself: round 2 (2026-11-05, row W13) saw 6.11.1 in the Help and 6.11.0 from the tester's console,
+    and one of the two is the build constant."""
+    with contextlib.suppress(Exception):
+        return str(qtcore.QT_VERSION_STR or "")
+    return ""
+
+
 def _qgis_versions():
     """(QGIS version text, Qt version text, GDAL version text); '' for each one that cannot be read. Never raises."""
     qgis_text = qt_text = gdal_text = ""
@@ -67,8 +76,15 @@ def detect():
     """{'os', 'os_release', 'arch', 'python', 'qgis', 'qt', 'gdal'}, all text, '' when unreadable. Reads this machine; never raises."""
     system = _safe(platform.system)
     qgis_text, qt_text, gdal_text = _qgis_versions()
-    return {"os": _SYSTEM_NAMES.get(system, system), "os_release": _safe(platform.release), "arch": _safe(platform.machine),
-            "python": _safe(platform.python_version), "qgis": qgis_text, "qt": qt_text, "gdal": gdal_text}
+    found = {"os": _SYSTEM_NAMES.get(system, system), "os_release": _safe(platform.release), "arch": _safe(platform.machine),
+             "python": _safe(platform.python_version), "qgis": qgis_text, "qt": qt_text, "gdal": gdal_text}
+    built = ""
+    with contextlib.suppress(Exception):
+        from qgis.PyQt import QtCore
+        built = qt_built_text(QtCore)
+    if built and qt_text and built != qt_text:
+        found["qt_built"] = built
+    return found
 
 
 def describe(found):
@@ -77,7 +93,7 @@ def describe(found):
     if found.get("qgis"):
         parts.append(f"QGIS {found['qgis']}")
     if found.get("qt"):
-        parts.append(f"Qt {found['qt']}")
+        parts.append(f"Qt {found['qt']}" + (f" (PyQt built with {found['qt_built']})" if found.get("qt_built") else ""))
     system = " ".join(p for p in (found.get("os"), found.get("os_release")) if p)
     if system:
         parts.append(system + (f" ({found['arch']})" if found.get("arch") else ""))

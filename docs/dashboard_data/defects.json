@@ -107,24 +107,24 @@
   "id": "P7",
   "defect": "Exported A1 legend is cut at the bottom of its frame (A4 shows classes 0-10 of 14, A3 shows 0-3) while the L1 check says it fits",
   "found_by": "Round 2 live run 2026-11-05, row A1; PDFs read by me",
-  "status": "Built, CI only",
+  "status": "Merged (#575), CI only",
   "pr": "",
-  "next": "Cause confirmed by a CI probe: adjustBoxSize does nothing on the legend item. Now measured with QgsLegendRenderer and split into up to 4 columns; CI only. Rerun row A1 and look at the pages (DEF-27)"
+  "next": "Measured with the legend renderer and split into up to 4 columns. Rerun row A1 and look at the pages (DEF-27)"
  },
  {
   "id": "P8",
   "defect": "A table output got 'geometry: 1 of 1 invalid or empty' = FAIL and the model was told to call the result wrong",
   "found_by": "Round 2 live run, row E4, evidence t60",
-  "status": "Fixed on branch, not merged",
+  "status": "Merged (#575), CI only",
   "pr": "",
-  "next": "Cause: result_gate counted table rows as empty geometries (DEF-28). Rerun E4 step 7 after merge"
+  "next": "Table outputs get no geometry check. Rerun row E4 step 7 (DEF-28)"
  },
  {
   "id": "P9",
   "defect": "generate_situation_dashboard failed with 'list' object has no attribute 'get'",
   "found_by": "Round 2 live run, row C1, evidence t12",
-  "status": "Built, CI only",
+  "status": "Merged (#575), CI only",
   "pr": "",
-  "next": "Cause found: popup_labels passed as a list. Fixed and tested offline; rerun row C1 step 6 (DEF-29)"
+  "next": "popup_labels list handled both sides. Rerun row C1 step 6 (DEF-29)"
  }
 ]

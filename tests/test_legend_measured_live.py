@@ -26,9 +26,27 @@ class TestTheLegendIsMeasured(TestLayoutFitsItsFrames):
                     self.assertGreater(check["content_mm"], check["frame_mm"] + 0.5, check)
 
 
+    def test_two_columns_are_shorter_than_one_and_the_report_names_what_the_item_has(self):
+        # Self-audit 2026-11-06: CI proved the measurement is real but nothing showed that more columns shorten the legend.
+        from cartogen_ai.core.agent.tools.layout_style import measure_legend_size
+        self._layers(1, 14)
+        res = self._make(page_size="A3", page_orientation="Portrait")
+        layout = QgsProject.instance().layoutManager().layoutByName(res["layout_name"])
+        leg = layout.itemById("LEGEND")
+        self.assertEqual(leg.columnCount(), res["legend_check"]["columns"], res["legend_check"])
+        leg.setColumnCount(1)
+        one = measure_legend_size(leg, layout)[1]
+        leg.setColumnCount(2)
+        leg.setSplitLayer(True)
+        two = measure_legend_size(leg, layout)[1]
+        self.assertLess(two, one, (one, two))
+
+
 def load_tests(loader, tests, pattern):
     suite = unittest.TestSuite()
-    suite.addTests(loader.loadTestsFromName("test_many_entries_are_measured_and_the_report_matches_the_page", TestTheLegendIsMeasured))
+    for name in ("test_many_entries_are_measured_and_the_report_matches_the_page",
+                 "test_two_columns_are_shorter_than_one_and_the_report_names_what_the_item_has"):
+        suite.addTests(loader.loadTestsFromName(name, TestTheLegendIsMeasured))
     return suite
 
 

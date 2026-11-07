@@ -23,6 +23,7 @@ import os
 import re
 
 from ...disclaimer_text import LAYOUT_DISCLAIMER
+from ...logger import log_event
 from .routing_style import ACCESS_STYLES
 
 try:
@@ -521,6 +522,12 @@ def measure_legend_size(leg, layout):
 LEGEND_MAX_COLUMNS = 4       # a legend whose layer is too tall for its frame is split into up to this many columns before any layer is dropped
 
 
+def legend_needs_dropping(height_mm, frame_h_mm, slack_mm=LEGEND_FIT_SLACK_MM):
+    """True when the legend still does not fit and another layer should go. An arrangement that could not be measured (None: wider than the frame) does
+    not fit. A self-audit of 2026-11-06 found the loop treating None as 0, which stopped dropping layers as if the legend fitted. Pure."""
+    return height_mm is None or height_mm > frame_h_mm + slack_mm
+
+
 def pick_legend_fit(candidates, frame_h_mm, slack_mm=LEGEND_FIT_SLACK_MM):
     """The first (scale, columns) whose content height fits the frame, or None. `candidates`: [(scale, columns, height_mm), ...] in the order tried
     (one column at every scale first, then two columns at every scale, ...). Pure."""
@@ -998,14 +1005,12 @@ def _fit_legend(layout, layout_mm, chosen, report):
     picked = pick_legend_fit(candidates, frame_h)
     dropped = 0
     if picked is None:
-        scale, columns = LEGEND_SCALES[-1], LEGEND_MAX_COLUMNS
-        # with the widest arrangement that still fits the frame's width, else one column
-        usable = [c for _s, c, _h in candidates if c > 1] or [1]
-        columns = max(usable)
-        picked = (scale, columns)
-        apply(scale, columns)
+        # the smallest text, in the widest arrangement that still fits the frame's width (else one column), then fewer layers
+        columns = max([c for _s, c, _h in candidates if c > 1] or [1])
+        picked = (LEGEND_SCALES[-1], columns)
+        apply(*picked)
         root = leg.model().rootGroup()
-        while len(root.findLayers()) > 1 and (measure(columns) or 0) > frame_h + LEGEND_FIT_SLACK_MM:
+        while len(root.findLayers()) > 1 and legend_needs_dropping(measure(columns), frame_h):
             last = root.findLayers()[-1]
             chosen["ids"] = [i for i in chosen.get("ids", []) if i != last.layerId()]
             root.removeChildNode(last)
@@ -1020,6 +1025,7 @@ def _fit_legend(layout, layout_mm, chosen, report):
         leg.setTitle(legend_title_with_note("Legend", dropped))
     report.update({"frame_mm": round(frame_h, 2), "content_mm": round(final, 2), "scale": picked[0], "columns": picked[1], "dropped": dropped,
                    "measured": measured, "fits": measured and final <= frame_h + LEGEND_FIT_SLACK_MM})
+    log_event("legend_fit", tag="Layout", scale=picked[0], columns=picked[1], dropped=dropped, measured=measured, fits=report["fits"])    # numbers only
     return [f"legend: {dropped} layer{'s' if dropped != 1 else ''} did not fit the legend frame and {'are' if dropped != 1 else 'is'} not listed (the title says so)"] if dropped else []
 
 
