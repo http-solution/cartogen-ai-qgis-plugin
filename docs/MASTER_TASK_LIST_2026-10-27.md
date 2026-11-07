@@ -45,6 +45,7 @@ One list to follow up and plan from. It replaces the session task list (101 entr
 | OWN-14 | Provide real-data samples when the matching release approaches: case-count file (R2), a DEM site and the engineer's report (R4), a depot and orders sample (R5), parcels and a store list (R6). | Known-answer tests and hand rows need real inputs. | You | - | M | P3 | Waiting on you | PLAN-023 Q7 to Q11 |
 | OWN-15 | Re-run the nine model-choice rows (A5, A6, C1, C3, C4, C6, D4, E2, S5) with the Claude provider, and send the 40 MB evidence folder (needed for DEF-10, DEF-11, DEF-12). | The runbook's own method for telling a model problem from a tool problem. | You | - | S | P1 | Waiting on you | 1.18.4 smoke run 2026-10-27/28 |
 | OWN-16 | Hand-verify the Connections window and the guided Claude Code / Codex setup on your Windows machine with the 2026-10-30 zip: open Plugins > Cartogen AI > Connections..., on each CLI page press the main button and follow it (install, sign in, connect, use), press OK, send one chat message; send a screenshot of each CLI page and the first error text. | Everything about the CLI connections is CI-only (stand-ins for the registry, where.exe, the login shell, the sign-in terminal and the model); the first real Codex run found three faults that CI could not see. | You | LEAD-8 | S | P0 | Waiting on you | PLAN-041 |
+| OWN-17 | Run the round-3 package (39 rows, GitHub issue 576) on the CURRENT build on live QGIS 4.2.3, with the agent route used in round 2: it covers every feature never seen live (52) and every feature seen only on an older build whose code changed since (52). A3, V1, W7 and F1 need a person or an MCP client; Skip what you cannot run and say why. | This is the one run that turns the built fixes into live evidence; old versions are not tested. | You |  | L | P0 | Waiting on you | owner decision 2026-11-07 |
 
 ## B. Verification and hand-test follow-up
 
@@ -181,9 +182,9 @@ Source: the owner's analysis document of nine flagship QGIS AI plugins, checked 
 | Blocked | 19 |
 | Closed | 14 |
 | Decision needed | 11 |
-| Waiting on you | 10 |
+| Waiting on you | 11 |
 | Closed (record) | 1 |
-| **Total** | **101** |
+| **Total** | **102** |
 
 ## How to keep it current
 
@@ -351,3 +352,4 @@ Newest last. One line per status change; written by `tools/master_list.py set`.
 - 2026-11-07: OWN-3 Waiting on you -> Closed. Retired 2026-11-07 on the owner's decision: an old version is not tested once the code has changed. The same features are checked on the current build by the round-2 package (GitHub issue 576). D3 and D4 are in that package. A5, A7, C5 and S5 are not, so DEF-3 and DEF-4 stay Blocked until the problem is seen again on a current build.
 - 2026-11-07: OWN-2 Waiting on you -> Closed. Retired 2026-11-07 on the owner's decision: an old version is not tested once the code has changed. The same features are checked on the current build by the round-2 package (GitHub issue 576). D6 (change-layer legend) is not in the current package; DEF-2 stays Blocked until the legend is seen again on a current build.
 - 2026-11-07: HT-1 In progress -> Closed. Goal reached: the 1.18.4 results were triaged, fixed and 1.18.5 was published (tag cartogen-ai-v1.18.5). The owner runs of the old Sections N and P are retired (see OWN-1); the current check is round 2 on build 58d69b4.
+- 2026-11-07: OWN-17 Not started -> Waiting on you. Package defined in PLAN-062 (docs/ROUND3_ROWS.json, 39 rows); it is built from main after PR 578 merges so BUILD.txt names a main commit. Supersedes the rerun checklist of issue 576 (its rows A1, A2, B3, B5, C1, D1, E4, W13 are in it). Nothing in the package has been run.

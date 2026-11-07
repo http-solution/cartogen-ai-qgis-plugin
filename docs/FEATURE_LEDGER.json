@@ -2434,7 +2434,8 @@
       "tests/test_smoke_round2.py::TestTheSubsetPackage::test_the_rows_file_holds_exactly_the_chosen_rows_in_running_order",
       "tests/test_smoke_round2.py::TestTheSubsetPackage::test_the_package_says_which_build_it_carries_so_an_old_1_18_5_is_not_tested_by_mistake",
       "tests/test_smoke_round2.py::TestSelectRows::test_an_unknown_id_is_named_not_ignored"
-    ],
+    ,
+      "tests/test_smoke_round3.py::TestRound3Rows::test_every_feature_never_seen_live_is_covered_by_a_listed_row"],
     "hand_verified": "not verified: no row has been run by a person. The package structure and every input are tested offline; whether a row's instruction produces its stated result in a real QGIS with a real model is exactly what the package is for. The rows were written without a QGIS install.",
     "hand_row": "row F3-check-evidence of the full smoke package: run the sessions, then python 5_check_evidence.py results"
   },

@@ -169,9 +169,11 @@ def sheet(rows, doc, v):
 
 def readme(v, count, label=None):
     if label:
-        head = (f"Cartogen AI {v} - live smoke test, ROUND 2 ({count} rows)\n"
+        # The round is named from the label ("round3" -> "ROUND 3"): this text said ROUND 2 for every subset until round 3 was built (2026-11-07).
+        name = re.sub(r"ROUND(\d+)", r"ROUND \1", str(label).upper())
+        head = (f"Cartogen AI {v} - live smoke test, {name} ({count} rows)\n"
                 "=======================================================================\n\n"
-                f"WHAT THIS IS: only the rows to rerun after the fixes of 2026-11-04 ({count} rows, not the full {len(all_rows())}). Each row exists because a feature seen working live "
+                f"WHAT THIS IS: only the rows to run on THIS build ({count} rows, not the full {len(all_rows())}). Each row exists because a feature seen working live "
                 "has since changed code, or a fix has never been seen working, or a case was never tested. 3_ROWS.json and COVERAGE.md say which. Row B4 (the most expensive) "
                 "goes last and only if the provider has quota. Skip a row you cannot run and say why.\n\n")
     else:
