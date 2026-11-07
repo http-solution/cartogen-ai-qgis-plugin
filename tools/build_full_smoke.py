@@ -13,6 +13,7 @@ Output: <out-dir or dist>/cartogen_ai_full_smoke_<version>.zip. Contents (all un
   3_SHEET.md              the rows, by session, each with Starts from / Do / Expect / Save / Needs / Inputs
   3_ROWS.json             the same rows as data (5_check_evidence.py reads it)
   3_test_files/           EVERY input a row names (checked at build time: a missing file stops the build)
+  EVIDENCE_TABLE.md       per row: needs, input files, evidence to save, pass condition
   4_RESULTS.csv           one line per row to fill in
   5_check_evidence.py     reads the returned folder and prints a verdict per row
   6_tools/                collect_evidence.py (QGIS console), mcp_probe.py, check_workflow_file.py, summarize_usage_log.py
@@ -146,6 +147,27 @@ def subset_coverage_page(rows, features):
     return "\n".join(out) + "\n"
 
 
+def evidence_table(rows, v):
+    """EVIDENCE_TABLE.md: for every row, in running order, what it needs, which input files it uses and exactly what evidence to save, on one page that can be read
+    without opening 3_SHEET.md. Asked for by the owner on 2026-11-07 ('mention on each row what evidence is needed'). Pure."""
+    out = [f"# Cartogen AI {v} - what each row needs and what evidence to save\n",
+           "Read EVIDENCE_HOWTO.txt once (3 minutes) and FAILURE_PROTOCOL.md before the first row. The rows are in running order; 3_SHEET.md has the full steps.\n",
+           ("**For EVERY row, whatever the result:** run `snap('<row id>')` in the QGIS Python console right after the reply (never in the chat), write Pass / Partial / Fail / Skip "
+            "and one line of notes in 4_RESULTS.csv, and take the screenshots the row names. **If a row fails or looks wrong:** screenshot first, then `snap`, then the rest of "
+            "FAILURE_PROTOCOL.md, before you retry anything.\n")]
+    for row in rows:
+        files = row.get("files") or []
+        inputs = v2.fill(row["inputs"], v) if row.get("inputs") else ""
+        given = "; ".join(x for x in ((", ".join(files)) if files else "", inputs) if x) or "none beyond the starting project named below (you type the request into the chat)"
+        out += [f"## {row['id']}: {v2.fill(row['title'], v)}", "",
+                f"- **You need:** {row['needs']}",
+                f"- **Starts from:** {v2.fill(row['starts_from'], v)}",
+                f"- **Input files (in 3_test_files):** {given}",
+                f"- **Evidence to save:** {v2.fill(row['evidence'], v)}",
+                f"- **Pass when:** {v2.fill(row.get('pass_if') or row['expect'], v)}", ""]
+    return "\n".join(out)
+
+
 def sheet(rows, doc, v):
     out = [f"# Cartogen AI {v} - full live smoke test\n",
            "Run the sessions in order (A to F). Each row starts from the state it names; none depends on another. Needs = what you must have for that row.\n"]
@@ -185,6 +207,7 @@ def readme(v, count, label=None):
             "2_layout_check/      the model-free layout script (row A1)\n"
             "3_SHEET.md           THE ROWS: read and run these, in order A to F\n"
             "3_test_files/        every input file a row names; open smoke_start.qgz from this folder (its data files sit beside it)\n"
+            "EVIDENCE_TABLE.md    per row: what you need, the input files, exactly what evidence to save, and when it passes (one page; 3_SHEET.md has the full steps)\n"
             "4_RESULTS.csv        fill in the result of every row (Pass / Partial / Fail / Skip) and one line of notes\n"
             "EVIDENCE_HOWTO.txt   how to collect evidence: READ FIRST\n"
             "FAILURE_PROTOCOL.md  what to capture the moment a row fails (screenshot with clock, logs, input, steps) and the block to paste in the notes\n"
@@ -319,6 +342,7 @@ def main(argv):
         for tool in TOOLS_FOLDER:
             z.write(REPO / "tools" / tool, f"{top}/6_tools/{tool}")
         z.writestr(f"{top}/3_SHEET.md", text)
+        z.writestr(f"{top}/EVIDENCE_TABLE.md", evidence_table(rows, v))
         z.writestr(f"{top}/3_ROWS.json", json.dumps(combined, indent=1, ensure_ascii=False))
         z.writestr(f"{top}/4_RESULTS.csv", results)
         z.writestr(f"{top}/COVERAGE.md", subset_coverage_page(rows, features) if subset else coverage_page(rows, doc, ledger_ids, features))

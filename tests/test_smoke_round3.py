@@ -61,3 +61,24 @@ class TestTheReadmeNamesTheRound(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestTheEvidenceTable(unittest.TestCase):
+    """Every package carries EVIDENCE_TABLE.md: for each row what is needed, the input files, the evidence to save and when it passes."""
+    def test_every_row_has_its_evidence_and_input_lines(self):
+        chosen = [row for row in full.all_rows() if row["id"] in rows()]
+        text = full.evidence_table(chosen, "1.18.5")
+        for row in chosen:
+            self.assertIn(f"## {row['id']}:", text)
+        self.assertEqual(text.count("**Evidence to save:**"), len(chosen))
+        self.assertEqual(text.count("**Input files (in 3_test_files):**"), len(chosen))
+        self.assertEqual(text.count("**Pass when:**"), len(chosen))
+
+    def test_it_says_what_to_do_for_every_row_and_on_a_failure(self):
+        text = full.evidence_table(full.all_rows()[:1], "1.18.5")
+        self.assertIn("snap(", text)
+        self.assertIn("FAILURE_PROTOCOL.md", text)
+
+    def test_a_row_with_input_files_names_them(self):
+        row = next(r for r in full.all_rows() if r.get("files"))
+        self.assertIn(row["files"][0], full.evidence_table([row], "1.18.5"))
