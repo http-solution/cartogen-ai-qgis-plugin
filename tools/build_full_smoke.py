@@ -46,6 +46,35 @@ def load():
     return json.loads(FULL_ROWS.read_text(encoding="utf-8"))
 
 
+# Where the package keeps its scripts. Row texts (the v2 rows were written for another bundle layout) name them by the repository's paths; a tester in an unzipped
+# package has 6_tools\\ and 5_check_evidence.py instead. Round 3 audit, 2026-11-07: W6, W7, F1, W8 and W10 said `python mcp_probe.py` and `python check_workflow_file.py`
+# (not at the package root), W6 said `python tools/check_evidence.py` (no tools folder), and W3, W4, W6, W7, W8 and W10 said to save into results\\outputs\\W6 and so on, a
+# folder that does not exist (the folders are named by the full row id); round 2 ended with both W8 and W8-export, W10 and W10-import-bad.
+_SCRIPT_REWRITES = (
+    (re.compile(r"python3? tools[\\/]check_evidence\.py"), "python 5_check_evidence.py results"),
+    (re.compile(r"python3? (?:tools[\\/])?(mcp_probe|check_workflow_file|summarize_usage_log|verify_inputs)\.py"), r"python 6_tools/\1.py"),
+)
+
+
+def localize_text(text, row_id):
+    """`text` with the commands and results folders written for this package's own layout (see _SCRIPT_REWRITES). Pure."""
+    for pattern, replacement in _SCRIPT_REWRITES:
+        text = pattern.sub(replacement, text)
+    short = row_id.split("-")[0]
+    if short != row_id:
+        text = re.sub(r"(results[\\/]+(?:outputs|evidence)[\\/]+)" + re.escape(short) + r"(?![A-Za-z0-9_\-])", lambda m: m.group(1) + row_id, text)
+    return text.replace("<row id>", row_id)
+
+
+def localize_row(row):
+    """A copy of `row` with every text field passed through localize_text. Pure."""
+    out = dict(row)
+    for key, value in row.items():
+        if isinstance(value, str):
+            out[key] = localize_text(value, row["id"])
+    return out
+
+
 def all_rows(doc=None):
     """The combined rows in running order: session A to F; inside a session the new rows first, then the v2 rows. Each has session and covers. Pure."""
     doc = doc or load()
@@ -58,7 +87,7 @@ def all_rows(doc=None):
         for field, added in (doc.get("v2_overrides", {}).get(row["id"]) or {}).items():           # text APPENDED to a v2 row's field; the v2 rows file stays as it was
             merged[field] = str(merged.get(field, "")) + added
         combined.append((extra["session"], 1, index, merged))
-    return [row for _s, _k, _i, row in sorted(combined, key=lambda item: item[:3])]
+    return [localize_row(row) for _s, _k, _i, row in sorted(combined, key=lambda item: item[:3])]
 
 
 def ledger_not_verified():

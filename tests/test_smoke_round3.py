@@ -82,3 +82,37 @@ class TestTheEvidenceTable(unittest.TestCase):
     def test_a_row_with_input_files_names_them(self):
         row = next(r for r in full.all_rows() if r.get("files"))
         self.assertIn(row["files"][0], full.evidence_table([row], "1.18.5"))
+
+
+class TestInstructionsMatchThePackageLayout(unittest.TestCase):
+    """Round 3 audit, 2026-11-07: rows named scripts and results folders the package does not have (python mcp_probe.py, python tools/check_evidence.py,
+    results/outputs/W10). Every instruction must point at something the unzipped package contains."""
+    FIELDS = ("starts_from", "do", "expect", "evidence", "inputs", "outputs", "pass_if")
+
+    def texts(self):
+        for row in full.all_rows():
+            for key in self.FIELDS:
+                if isinstance(row.get(key), str):
+                    yield row["id"], key, row[key]
+
+    def test_no_row_names_a_script_by_a_path_the_package_does_not_have(self):
+        import re
+        scripts = {Path(name).name for name in full.TOOLS_FOLDER}
+        for row_id, key, text in self.texts():
+            self.assertNotRegex(text, r"python3? (?!6_tools/|5_check_evidence\.py)(?:tools[\\/])?[A-Za-z_]+\.py", f"{row_id}.{key}")
+            for name in re.findall(r"python3? 6_tools/([A-Za-z_]+\.py)", text):
+                self.assertIn(name, scripts, f"{row_id}.{key}")
+
+    def test_every_results_folder_a_row_names_is_a_row_folder(self):
+        import re
+        ids = {row["id"] for row in full.all_rows()}
+        for row_id, key, text in self.texts():
+            for folder in re.findall(r"results[\\/]+(?:outputs|evidence)[\\/]+([A-Za-z0-9_\-]+)", text):
+                self.assertIn(folder, ids, f"{row_id}.{key}: results folder {folder}")
+
+    def test_the_localising_is_what_does_it(self):
+        self.assertEqual(full.localize_text("python mcp_probe.py A B", "W6-mcp-probe"), "python 6_tools/mcp_probe.py A B")
+        self.assertEqual(full.localize_text("python tools/check_evidence.py shows", "W6-mcp-probe"), "python 5_check_evidence.py results shows")
+        self.assertEqual(full.localize_text("results\\outputs\\W10\\expected.json", "W10-import-bad"), "results\\outputs\\W10-import-bad\\expected.json")
+        self.assertEqual(full.localize_text("results\\outputs\\W10-import-bad\\x", "W10-import-bad"), "results\\outputs\\W10-import-bad\\x")
+        self.assertEqual(full.localize_text("results\\outputs\\<row id>\\", "V4-animate"), "results\\outputs\\V4-animate\\")

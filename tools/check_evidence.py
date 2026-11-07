@@ -113,7 +113,7 @@ def main(argv):
     lines = []
     check = load_layout_check(folder)
     if check is None:
-        lines.append("layout check: layout_check.json not found (was tools/layout_check_script.py run?)")
+        lines.append("layout check: layout_check.json not found (was the layout check script run?)")
     else:
         lines.append(f"layout check: {check['passed']} of {len(check['checks'])} passed (QGIS {check.get('qgis')}, plugin {check.get('plugin_version')}, fonts {check.get('fonts_found')})")
         lines.extend(f"  FAIL {e['id']} {e['title']}\n       measured: {json.dumps(e['got'], default=str)[:500]}" for e in check["checks"] if not e["ok"])
