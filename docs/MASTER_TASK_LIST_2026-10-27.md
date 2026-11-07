@@ -29,10 +29,10 @@ One list to follow up and plan from. It replaces the session task list (101 entr
 
 | ID | Task | Why | Who | Depends on | Size | Pri | Status | Source |
 |---|---|---|---|---|---|---|---|---|
-| OWN-1 | Install 1.18.4 and run Section N of the 1.18.4 test package (8 checks, about 15 minutes); then the rest as time allows. Save the CartogenAI log and a screenshot per row. | Hand-verifies the fixes of PRs 449, 452-456 (damage score, distances in degrees, wrong task card, IPC names, GDACS). Nothing from 1.18.2 to 1.18.4 is hand-verified yet except the three 1.18.2 checks. | You | - | S | P0 | Waiting on you | 1.18.4 test package, TEST_RUNBOOK.md |
-| OWN-2 | Send the screenshot of the change-layer legend (row D6: is it blue-to-red, is the no-change area transparent?). | The colour stops are correct in code; without the picture the fault cannot be located. | You | - | XS | P2 | Waiting on you | 1.18.3 hand run D6 |
-| OWN-3 | For the rows that failed without a found cause, send the per-prompt Log Messages text: unrequested layers (A5 country layer, A7 Incident layer), C5 inverted labels, D3, D4, S5. | Last two runs' logs held only the verdict line; the causes of these rows are unknown. | You | OWN-1 | S | P1 | Waiting on you | 1.18.3 hand run |
-| OWN-4 | Run the 1.18.1-bundle rows V3 to V8 so issues #362 (V4, V5, V6) and #380 (V3, V7, V8) can be closed or fixed. | The only two open GitHub issues; waiting since 2026-10-23. | You | - | S | P1 | Waiting on you | PLAN-021, PLAN-022 N0 |
+| OWN-1 | Install 1.18.4 and run Section N of the 1.18.4 test package (8 checks, about 15 minutes); then the rest as time allows. Save the CartogenAI log and a screenshot per row. | Hand-verifies the fixes of PRs 449, 452-456 (damage score, distances in degrees, wrong task card, IPC names, GDACS). Nothing from 1.18.2 to 1.18.4 is hand-verified yet except the three 1.18.2 checks. | You | - | S | P0 | Closed | 1.18.4 test package, TEST_RUNBOOK.md |
+| OWN-2 | Send the screenshot of the change-layer legend (row D6: is it blue-to-red, is the no-change area transparent?). | The colour stops are correct in code; without the picture the fault cannot be located. | You | - | XS | P2 | Closed | 1.18.3 hand run D6 |
+| OWN-3 | For the rows that failed without a found cause, send the per-prompt Log Messages text: unrequested layers (A5 country layer, A7 Incident layer), C5 inverted labels, D3, D4, S5. | Last two runs' logs held only the verdict line; the causes of these rows are unknown. | You | OWN-1 | S | P1 | Closed | 1.18.3 hand run |
+| OWN-4 | Run the 1.18.1-bundle rows V3 to V8 so issues #362 (V4, V5, V6) and #380 (V3, V7, V8) can be closed or fixed. | The only two open GitHub issues; waiting since 2026-10-23. | You | - | S | P1 | Closed | PLAN-021, PLAN-022 N0 |
 | OWN-5 | Confirm or change the roadmap order A to G in the roadmap audit (this unlocks plans and issues for RM-A to RM-D). | Nothing in the roadmap can start without it. | You | - | XS | P1 | Closed | ROADMAP_AUDIT_2026-10-27.md |
 | OWN-6 | Answer the PLAN-022 N6 questions: temporary-layer note for incident, hazard and event layers; undo for rename_field and delete_field; add a clean-profile install row; stable versus pre-release channel; architecture items. | Small product choices that block HY work and wording of releases. | You | - | S | P2 | Decision needed | PLAN-022 N6 |
 | OWN-7 | Confirm or change the PLAN-023 defaults (questions Q1 to Q15: persona model 'lens, never a gate', one primary plus one secondary persona, Power BI hand-off files only, assumed speeds only on request, and so on). | Needed before the profile programme starts. | You | - | S | P2 | Decision needed | PLAN-023 (branch claude/pending-work-master-list) |
@@ -50,7 +50,7 @@ One list to follow up and plan from. It replaces the session task list (101 entr
 
 | ID | Task | Why | Who | Depends on | Size | Pri | Status | Source |
 |---|---|---|---|---|---|---|---|---|
-| HT-1 | Triage the 1.18.4 results into defects, write a failing test per defect, fix, and cut 1.18.5. | The loop that has produced 1.18.2, 1.18.3 and 1.18.4. | Claude | OWN-1, OWN-3 | M | P0 | In progress | release process |
+| HT-1 | Triage the 1.18.4 results into defects, write a failing test per defect, fix, and cut 1.18.5. | The loop that has produced 1.18.2, 1.18.3 and 1.18.4. | Claude | OWN-1, OWN-3 | M | P0 | Closed | release process |
 | HT-2 | Ledger traceability: add a hand_row (a row id or 'none: reason') to every 'not verified' ledger entry (27 now, 12 at the time of PLAN-022) and make a test fail when a new entry has neither. | The ledger is the contract; 'not verified' must say which hand row would verify it. | Claude | - | M | P2 | Closed | PLAN-022 N2 |
 | HT-3 | Build eval rows for model tool choice (prompt, expected tool) and measure them: D3 (survey tool), D4 (presence-gap write), S5 (refuse a trigger with no threshold). Change prompts or descriptions only with a measured gain. | The router already offers the right tools; what the model picks has never been measured. | Claude | OWN-3 | M | P2 | Blocked | 1.18.3 hand run, W-4 |
 | HT-4 | Verification debt, CI only today: Windows and macOS QGIS; large, messy, non-English and database-backed user data; numerical correctness of Processing outputs; delineate_watershed on a real DEM versus the engineer's report; a real Geofabrik extract and prompt-cache check. | Built and passing in CI, never run by a person. | Both | OWN-11, OWN-14 | L | P3 | Blocked | W-5 to W-9 |
@@ -177,11 +177,11 @@ Source: the owner's analysis document of nine flagship QGIS AI plugins, checked 
 
 | Status | Rows |
 |---|---|
-| In progress | 47 |
+| In progress | 46 |
 | Blocked | 19 |
-| Waiting on you | 14 |
+| Closed | 14 |
 | Decision needed | 11 |
-| Closed | 9 |
+| Waiting on you | 10 |
 | Closed (record) | 1 |
 | **Total** | **101** |
 
@@ -346,3 +346,8 @@ Newest last. One line per status change; written by `tools/master_list.py set`.
 - 2026-11-07: OWN-1 Waiting on you -> Waiting on you. Superseded (2026-11-07): 1.18.5 is published and round 2 (build 728dad3, 30 rows with evidence folders) ran after it; the 1.18.4 Section N package is no longer the current test. Recommendation: retire this row; the current ask is the round-2 rerun, GitHub issue 576.
 - 2026-11-07: OWN-4 Waiting on you -> Waiting on you. Mostly done by agent runs (2026-11-07 reading): V3, V4, V5 and B6 (the mesh case) in round 2; V6, V7, V8 Pass in the earlier v2 hand-test run (docs/dashboard_data/hand_tests.json). All agent-run, one model (Gemini), none by a person. Recommendation: close #362 (I4, I6, I9 each seen once), keep #380 open (B28 and B32 not rerun, routing change not done), retire this row.
 - 2026-11-07: OWN-13 Waiting on you -> Waiting on you. Recommendation (2026-11-07): open the alert first and read what it matched. The 2026-10-09 scan of tree and history found no secrets and CI gitleaks passes, so a false positive or an already-revoked test string is likely, but dismiss it with that reason only after you have seen it. I cannot read repository alerts from here.
+- 2026-11-07: OWN-1 Waiting on you -> Closed. Retired 2026-11-07 on the owner's decision: an old version is not tested once the code has changed. The same features are checked on the current build by the round-2 package (GitHub issue 576). The 1.18.4 Section N package is not run.
+- 2026-11-07: OWN-4 Waiting on you -> Closed. Retired 2026-11-07 on the owner's decision: an old version is not tested once the code has changed. The same features are checked on the current build by the round-2 package (GitHub issue 576). The V3 to V8 rows were seen by agent runs (round 2 and the earlier v2 run); whether to close issues #362 and #380 is a separate decision.
+- 2026-11-07: OWN-3 Waiting on you -> Closed. Retired 2026-11-07 on the owner's decision: an old version is not tested once the code has changed. The same features are checked on the current build by the round-2 package (GitHub issue 576). D3 and D4 are in that package. A5, A7, C5 and S5 are not, so DEF-3 and DEF-4 stay Blocked until the problem is seen again on a current build.
+- 2026-11-07: OWN-2 Waiting on you -> Closed. Retired 2026-11-07 on the owner's decision: an old version is not tested once the code has changed. The same features are checked on the current build by the round-2 package (GitHub issue 576). D6 (change-layer legend) is not in the current package; DEF-2 stays Blocked until the legend is seen again on a current build.
+- 2026-11-07: HT-1 In progress -> Closed. Goal reached: the 1.18.4 results were triaged, fixed and 1.18.5 was published (tag cartogen-ai-v1.18.5). The owner runs of the old Sections N and P are retired (see OWN-1); the current check is round 2 on build 58d69b4.

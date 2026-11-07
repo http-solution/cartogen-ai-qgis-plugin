@@ -25,6 +25,8 @@ Still open and not fixed: why the evidence collector's log files are empty (DEF-
 
 ## 3. Owner queue, in the order I recommend
 
+Principle set by the owner on 2026-11-07: only the current build is tested. Nothing below asks for a run on an older version.
+
 | # | What | Why it matters | My recommendation |
 |---|---|---|---|
 | 1 | **Run the round-2 package** (GitHub #576): A1 (look at the legend pages), C1 step 6, E4 step 7, W13 (About screenshot), A2, B5 (20 exchanges), D1, B3 | Confirms or rejects ten built fixes; unblocks closing DEF-23, 24, 25, 27, 28, 29 | Do this first, by the same agent route as round 2 (it worked), with `FAILURE_PROTOCOL.md`. About 2 hours. |
@@ -38,7 +40,7 @@ Still open and not fixed: why the evidence collector's log files are empty (DEF-
 | 9 | **HU-5** layer piling (63 `addMapLayer` sites) | Items 1 and 2 of the row are already done | Mark the row's first two items done. For the third, choose "mark superseded" (tag older results), the least risky: replacing deletes user layers, grouping needs UI work. |
 | 10 | **AR-3**, **DEF-6** | Both measured or seen working | Close both. AR-3: no length bias measured (test pins it). DEF-6: cell-size suggestion seen working live in row D5. |
 | 11 | **OWN-6, OWN-7**: the PLAN-022 and PLAN-023 question lists | Block planning, not shipping | Accept the written defaults unless you object. I did not re-read the question lists in this pass; say so and I will walk you through them in about 15 minutes. |
-| 12 | **OWN-1, OWN-3, OWN-4** | Older asks | Retire OWN-1 (superseded by round 2) and OWN-4 (done by agent runs, see #362 above). Keep OWN-3 until the A5, A7, C5, D3, D4, S5 rows are rerun. |
+| 12 | **OWN-1, OWN-2, OWN-3, OWN-4, HT-1** | Asks to test old versions | **Done on your decision (2026-11-07): an old version is not tested once the code has changed.** The five rows are closed. D3 and D4 are in the current package; A5, A7, C5, S5 and D6 are not, so DEF-2, DEF-3 and DEF-4 stay Blocked. My recommendation: close those three as "not reproduced, no evidence from a current build" and reopen if the problem is seen again, rather than adding old rows to the package. |
 | 13 | Defer | No risk from waiting | OWN-9 (JIAF material), OWN-10 (credentials), OWN-14 (samples), OWN-12 (plugins.qgis.org upload, after 1.18.6 passes), LEAD-10 (Antigravity: run `tools/agy_probe.py` only if you still want it), AR-1 and AR-6 (large reworks, after 1.18.6), PR-R3, R8 to R11 (roadmap releases out of order: finish verification debt first). |
 
 ## 4. What I can do next without you
