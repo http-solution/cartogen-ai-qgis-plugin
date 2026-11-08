@@ -134,5 +134,61 @@
   "status": "Open",
   "pr": "",
   "next": "Say plainly when an algorithm that declares an output layer made none, and hint at pixel size against the extent (DEF-30)"
+ },
+ {
+  "id": "P11",
+  "defect": "Gemini bad-key Test shows a raw JSON dump",
+  "found_by": "Round 3 tester CSV, row A2",
+  "status": "Open",
+  "pr": "",
+  "next": "Plain-words mapping (DEF-31)"
+ },
+ {
+  "id": "P12",
+  "defect": "Unticking the plugin mid-request logs CRITICAL provider and CLI errors",
+  "found_by": "Round 3 tester CSV, row V1",
+  "status": "Open",
+  "pr": "",
+  "next": "Log unload cancel quietly (DEF-32)"
+ },
+ {
+  "id": "P13",
+  "defect": "Model asks for a tool the plugin does not offer (execute_pyqgis_script, import_humanitarian_table); the task stops",
+  "found_by": "Round 3 tester CSV, row B1, B2",
+  "status": "Open",
+  "pr": "",
+  "next": "Keep the loop going with the tools that exist (DEF-33)"
+ },
+ {
+  "id": "P14",
+  "defect": "native heatmap runs unguarded with a degree radius or on polygons",
+  "found_by": "Round 3 tester CSV, row D2, E5",
+  "status": "Open",
+  "pr": "",
+  "next": "Extend the processing guards to the native algorithm (DEF-34)"
+ },
+ {
+  "id": "P15",
+  "defect": "JIAF write preview card hides the statement and blockers",
+  "found_by": "Round 3 tester CSV, row D3",
+  "status": "Open",
+  "pr": "",
+  "next": "Show them on the card (DEF-35)"
+ },
+ {
+  "id": "P16",
+  "defect": "Layout items added without a position overlap",
+  "found_by": "Round 3 tester CSV, row E3",
+  "status": "Open",
+  "pr": "",
+  "next": "Non-overlap placement with a test (DEF-37)"
+ },
+ {
+  "id": "P17",
+  "defect": "Test input smoke_data.gpkg changed by the V9 undo test",
+  "found_by": "Round 3 tester CSV, row V9, E4",
+  "status": "Open",
+  "pr": "",
+  "next": "Rows must edit a copy (DEF-36); no plugin change"
  }
 ]

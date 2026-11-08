@@ -4,7 +4,7 @@
   "what": "Update in place, then untick and tick the plugin",
   "agent_result": "Partial",
   "after_recheck": "Partial",
-  "note": "Rerun with an API provider (the CLI client reported its own cancel)",
+  "note": "Round 3 tester verdict Partial. Tester: update clean, one button, one panel. Untick during an in-flight request wrote CRITICAL model_call provider_error and cli_bridge_error (DEF-32)",
   "needs_rerun": true
  },
  {
@@ -19,8 +19,8 @@
   "row": "V3-contour",
   "what": "Contour lines do not start a download",
   "agent_result": "Pass",
-  "after_recheck": "Partial",
-  "note": "Round 2 (agent): only generate_contours called, storage note present; the reply did not name the temporary folder (wording)",
+  "after_recheck": "Pass",
+  "note": "Round 3 tester verdict Pass. Tester: generate_contours only, storage_note names the temp folder",
   "needs_rerun": false
  },
  {
@@ -28,23 +28,23 @@
   "what": "'animate the layer over time' runs the animation tool",
   "agent_result": "Fail",
   "after_recheck": "Pass",
-  "note": "Round 3: export_temporal_animation_frames called after the layer was made temporal (second time seen); reply wording not read",
+  "note": "Round 3 tester verdict Pass. Tester: set_layer_temporal then export_temporal_animation_frames",
   "needs_rerun": false
  },
  {
   "row": "V5-profile",
   "what": "Elevation profile added once",
   "agent_result": "Pass",
-  "after_recheck": "Pass",
-  "note": "Round 3: set_layer_elevation then add_layout_elevation_profile, no repeated list calls",
+  "after_recheck": "Partial",
+  "note": "Round 3 tester verdict Partial. Tester: set_layer_elevation then add_layout_elevation_profile, render check drew; layout screenshot not saved as a file",
   "needs_rerun": false
  },
  {
   "row": "V6-charts",
   "what": "Charts linked to maps become layout charts",
   "agent_result": "Pass",
-  "after_recheck": "Pass",
-  "note": "Round 3: add_layout_chart called (twice) for 'produce charts linked to maps'; the layout was not read",
+  "after_recheck": "Partial",
+  "note": "Round 3 tester verdict Partial. Tester: two add_layout_chart calls, render check drew, no HTML dashboard; layout screenshot not saved",
   "needs_rerun": false
  },
  {
@@ -67,8 +67,8 @@
   "row": "V9-undo-field",
   "what": "Undo of add_field",
   "agent_result": "Partial",
-  "after_recheck": "Pass",
-  "note": "Round 3: the undo of the filled field was refused at once ('now holds values ... nothing was changed'), second time seen",
+  "after_recheck": "Partial",
+  "note": "Round 3 tester verdict Partial. Tester: empty field undone, filled field refused at once; delete-field step not run. The V9 test left a notes column in smoke_data.gpkg (DEF-36)",
   "needs_rerun": false
  },
  {
@@ -76,7 +76,7 @@
   "what": "Result checks recorded on a computed layer",
   "agent_result": "Fail",
   "after_recheck": "Partial",
-  "note": "Round 2 (agent): checks recorded after Apply and off with the setting; reply did not state a count of checks (wording). Fix from #554 seen working",
+  "note": "Round 3 tester verdict Partial. Tester: 1 check run on the computed layer, none with the setting off; reply did not state the check count; W1b chat was restored, not fresh",
   "needs_rerun": false
  },
  {
@@ -84,23 +84,23 @@
   "what": "A fetched layer gets checks and a source record",
   "agent_result": "Pass",
   "after_recheck": "Pass",
-  "note": "Round 2 (agent): source record and checks on the fetched layer",
+  "note": "Round 3 tester verdict Pass. Tester: cartogen/sources has geoBoundaries, CC BY 4.0, retrieved date; checks present",
   "needs_rerun": false
  },
  {
   "row": "W3-provenance",
   "what": "Provenance and spatial report print the data source",
   "agent_result": "Partial",
-  "after_recheck": "Partial",
-  "note": "Round 2 (agent): source printed; the report line is not worded 'Data source:' and no 'licence not checked' sentence",
-  "needs_rerun": true
+  "after_recheck": "Pass",
+  "note": "Round 3 tester verdict Pass. Tester: report.md has the Data source line and says the licence is not checked",
+  "needs_rerun": false
  },
  {
   "row": "W4-report",
   "what": "Verified workflow report",
   "agent_result": "Pass",
   "after_recheck": "Pass",
-  "note": "",
+  "note": "Round 3 tester verdict Pass. Tester: checks first, sources, ordered steps, limitations",
   "needs_rerun": false
  },
  {
@@ -115,32 +115,32 @@
   "row": "W6-mcp-probe",
   "what": "MCP server refusals and read tools",
   "agent_result": "Pass",
-  "after_recheck": "Pass",
-  "note": "Agent-run script; the server freeze is reported but unchecked",
-  "needs_rerun": false
+  "after_recheck": "Skip",
+  "note": "Round 3 tester verdict Skip. Not run: needs a terminal outside QGIS",
+  "needs_rerun": true
  },
  {
   "row": "W7-mcp-dialog",
   "what": "MCP write asks first (Deny, Allow once, timeout)",
   "agent_result": "Pass",
-  "after_recheck": "Pass",
-  "note": "Seen by an agent, not a person",
-  "needs_rerun": false
+  "after_recheck": "Skip",
+  "note": "Round 3 tester verdict Skip. Not run: needs a person at the dialog",
+  "needs_rerun": true
  },
  {
   "row": "W8-export",
   "what": "Export a workflow file",
   "agent_result": "Pass",
   "after_recheck": "Pass",
-  "note": "Round 2 (agent): preview first, file accepted by check_workflow_file.py",
+  "note": "Round 3 tester verdict Pass. Tester: preview first, file accepted by the checker, no LEAK line",
   "needs_rerun": false
  },
  {
   "row": "W9-import-good",
   "what": "Open, map, run a workflow file",
   "agent_result": "Fail",
-  "after_recheck": "Pass",
-  "note": "Round 2 (agent): dialog fingerprint equals the saved lineage; both steps ran",
+  "after_recheck": "Partial",
+  "note": "Round 3 tester verdict Partial. Tester: run made 5 features and traced to the file; dialog screenshot not saved (modal blocks shot)",
   "needs_rerun": false
  },
  {
@@ -148,15 +148,15 @@
   "what": "Six broken files refused in plain words",
   "agent_result": "Pass",
   "after_recheck": "Partial",
-  "note": "Round 2 (agent): all six refused in plain sentences; per-file screenshots not saved",
+  "note": "Round 3 tester verdict Partial. Tester: all six refused with the expected sentences; per-file screenshots not saved",
   "needs_rerun": false
  },
  {
   "row": "W11-import-egress",
   "what": "A restricted area stops at the card",
   "agent_result": "Fail",
-  "after_recheck": "Pass",
-  "note": "Round 2 (agent): the run stopped at the usual card, no download. Fix from #554 seen working",
+  "after_recheck": "Partial",
+  "note": "Round 3 tester verdict Partial. Tester: stopped at the card, nothing sent; chat was not fresh",
   "needs_rerun": false
  },
  {
@@ -171,16 +171,16 @@
   "row": "A1-layout-script",
   "what": "Model-free layout check and the exported pages",
   "agent_result": "Partial",
-  "after_recheck": "Partial",
-  "note": "Round 3 (evidence read by me): 11 of 11 checks pass; the legends are no longer cut (4 columns, every entry whole, title says how many layers were left out). Scale-bar labels still crowd at the test data's 1:27 billion scale (a single point), a script artefact",
+  "after_recheck": "Pass",
+  "note": "Round 3 tester verdict Pass. Tester: 11 of 11 pass, eye check of 8 PDFs clean. For a person: empty Finding box on every page; scale bar on the world-extent test map reads 500,000,000,000,000,000 km (test extent)",
   "needs_rerun": false
  },
  {
   "row": "B6-mesh-to-raster",
   "what": "'Turn the mesh results into a raster' (issue 380)",
   "agent_result": "Pass",
-  "after_recheck": "Partial",
-  "note": "Round 3: routed to native:meshrasterize again, no wrong plan. The first calls failed on the model's pixel size of 5 degrees ('writeBlock() called on read-only provider') and one said 'ran successfully with no new layer output'; a second request made the raster (DEF-30)",
+  "after_recheck": "Pass",
+  "note": "Round 3 tester verdict Pass. Tester: reached native:meshrasterize and made flood_depth_raster, no flood plan; the first turn asked for dataset group and CRS. Separate defect DEF-30 (no-layer \"success\" message)",
   "needs_rerun": true
  },
  {
@@ -188,15 +188,15 @@
   "what": "Help names this computer's QGIS, Qt, OS and Python",
   "agent_result": "Partial",
   "after_recheck": "Pass",
-  "note": "Round 3 (screenshots read by me): the Help line agrees with QGIS's About window (Qt 6.11.1, Python 3.12.14, QGIS 4.2.3) and names the PyQt build (6.11.0)",
+  "note": "Round 3 tester verdict Pass. Tester: Help equals About on QGIS 4.2.3 (Qt 6.11.1, PyQt built with 6.11.0); Copy text has no folder, user or computer name",
   "needs_rerun": false
  },
  {
   "row": "E4-exports",
   "what": "DXF, spreadsheet, CSV, PDF map, tidy-up",
   "agent_result": "Pass",
-  "after_recheck": "Pass",
-  "note": "Round 3: files exported; the statistics table now gets only the feature-count check, no false geometry FAIL (DEF-28 seen fixed)",
+  "after_recheck": "Partial",
+  "note": "Round 3 tester verdict Partial. Tester: DXF, xlsx, CSV, PDF, statistics pass; PDF and DXF not opened; tidy mesh skip not verified",
   "needs_rerun": false
  },
  {
@@ -204,7 +204,7 @@
   "what": "Loading files, odd scripts, dashboard note",
   "agent_result": "Partial",
   "after_recheck": "Partial",
-  "note": "Round 3: generate_situation_dashboard now writes its HTML file (DEF-29 seen fixed). Not read: the internet note's position on the page and the offline look",
+  "note": "Round 3 tester verdict Partial. Tester: steps 1-6 right; the offline HTML open (internet off) not done (needs a person)",
   "needs_rerun": false
  },
  {
@@ -212,31 +212,143 @@
   "what": "Settings sections, Connections window, Test button, CLI opt-in",
   "agent_result": "Partial",
   "after_recheck": "Partial",
-  "note": "Round 3 (screenshots read by me): the Connections window is readable and grouped; the bad-key Test says 'HTTP error (401) ... check your API key' in plain words. 'Use this connection' on the other providers and the dropdown following a saved connection were not evidenced",
-  "needs_rerun": true
+  "note": "Round 3 tester verdict Partial. Tester: Gemini bad-key Test shows a raw JSON dump (wording, DEF-31); OpenRouter bad key reads plainly. Unticking CLI logins moved the connection to OpenRouter automatically",
+  "needs_rerun": false
  },
  {
   "row": "A3-cli-bridge",
   "what": "CLI bridge: Claude Code or Codex",
   "agent_result": "Partial",
-  "after_recheck": "Partial",
-  "note": "Round 3: Claude Code CLI 2.1.314 found and signed in; 'Answered in 10.0 s (ok)' on Check connection; Codex shown as ready. A chat answered by the CLI was not evidenced",
-  "needs_rerun": true
+  "after_recheck": "Pass",
+  "note": "Round 3 tester verdict Pass. Tester: found 2.1.314 signed in, answered in 10.0 s, chat answered \"0 layers\" with a Get layers call; old-CLI Browse sub-step skipped (one version only)",
+  "needs_rerun": false
  },
  {
   "row": "B3-language",
   "what": "Arabic and French everyday requests",
   "agent_result": "Partial",
   "after_recheck": "Partial",
-  "note": "Round 3: Arabic request called ingest_osm_features and was answered in Arabic; the French request was answered in French but made no tool call because the layer already existed. The two-reader review is not done",
-  "needs_rerun": true
+  "note": "Round 3 tester verdict Partial. Tester: Arabic called ingest_osm_features; French answered from the layer already loaded (row setup); review sheet by two readers not done (people)",
+  "needs_rerun": false
  },
  {
   "row": "B5-chat-formatting",
   "what": "Chat formatting and 20 exchanges through save and reopen",
   "agent_result": "Pass",
+  "after_recheck": "Partial",
+  "note": "Round 3 tester verdict Partial. Tester: table has no literal <br> and nbsp reads as a space; 40 messages exported; the after-reopen screenshot was not taken",
+  "needs_rerun": false
+ },
+ {
+  "row": "B1-routing-plain",
+  "what": "Plain requests reach the right tool",
+  "agent_result": "Not run",
+  "after_recheck": "Partial",
+  "note": "Tester: 4 of 5 prompts right; the chart prompt ended with \"[API error] model asked for a tool that is not available: execute_pyqgis_script\" (DEF-33); tool_count 29 (row expects 28 plus find_tools)",
+  "needs_rerun": true
+ },
+ {
+  "row": "B2-routing-places-data",
+  "what": "Place, satellite and data-source requests get the matching tool",
+  "agent_result": "Not run",
+  "after_recheck": "Partial",
+  "note": "Tester: population request called fetch_worldpop_population without geocode_and_enrich (model choice); cholera request ended on \"tool not available: import_humanitarian_table\" (DEF-33)",
+  "needs_rerun": false
+ },
+ {
+  "row": "B4-long-request",
+  "what": "One long real request stays bounded",
+  "agent_result": "Not run",
+  "after_recheck": "Partial",
+  "note": "Tester: request 1 complete (89 features, style, layout); request 2 ran only find_tools and said the styled-layer step did not run; tool_names field blank in the log so expected names could not be checked",
+  "needs_rerun": false
+ },
+ {
+  "row": "D1-fetch-live",
+  "what": "Live disaster and boundary fetches",
+  "agent_result": "Not run",
+  "after_recheck": "Partial",
+  "note": "Tester: GDACS and UCDP empty results add no layer; ADM2 335 features with borders and labels; GDACS retry and redirect hop not exercised",
+  "needs_rerun": false
+ },
+ {
+  "row": "D2-damage-and-risk",
+  "what": "Damage severity and distance guards",
+  "agent_result": "Not run",
+  "after_recheck": "Fail",
+  "note": "Tester: degree heatmap refused by hotspot_analysis, then the model made one with native:heatmapkerneldensityestimation (radius 1 degree), unguarded (DEF-34); other steps pass",
+  "needs_rerun": true
+ },
+ {
+  "row": "D3-coverage-sitrep-jiaf",
+  "what": "Coverage, QA, sitrep, JIAF preview",
+  "agent_result": "Not run",
+  "after_recheck": "Partial",
+  "note": "Tester: coverage, QA and sitrep pass; JIAF preview card shows the write description only, statement and blockers are in the payload (DEF-35); chart open blocked by script sandbox",
+  "needs_rerun": false
+ },
+ {
+  "row": "D4-network-access",
+  "what": "Road-network access analysis",
+  "agent_result": "Not run",
+  "after_recheck": "Partial",
+  "note": "Tester: matrix access leg, classify and access gap with speed_kmh pass; a blocked road changing the figure not tested",
+  "needs_rerun": false
+ },
+ {
+  "row": "E1-protection-lineage",
+  "what": "SENSITIVE data stays protected through lineage",
+  "agent_result": "Not run",
+  "after_recheck": "Partial",
+  "note": "Tester: gate blocked the attribute read; atlas plan confirmed but print_map did not run; publication export worked after an override reason",
+  "needs_rerun": false
+ },
+ {
+  "row": "E2-obfuscate",
+  "what": "Obfuscate sensitive points",
+  "agent_result": "Not run",
+  "after_recheck": "Partial",
+  "note": "Tester: multipoint part count kept; snap-to-admin check only against any unit, not per own unit",
+  "needs_rerun": false
+ },
+ {
+  "row": "E3-layout-model",
+  "what": "Layouts through the chat",
+  "agent_result": "Not run",
+  "after_recheck": "Fail",
+  "note": "Tester: chart and elevation profile placed without a position overlap the header and the map (DEF-37); frame after Zoom Full shows the DEM extent; COD credit line passes",
+  "needs_rerun": true
+ },
+ {
+  "row": "E5-raster-styling",
+  "what": "Raster and graduated styling, wrong-geometry guard",
+  "agent_result": "Not run",
+  "after_recheck": "Fail",
+  "note": "Tester: ramp and no-data class pass; kernel density on a polygon layer was not refused (DEF-34)",
+  "needs_rerun": true
+ },
+ {
+  "row": "F1-mcp-size",
+  "what": "MCP approval dialog size",
+  "agent_result": "Not run",
+  "after_recheck": "Skip",
+  "note": "Not run: needs a terminal and a person at the dialog",
+  "needs_rerun": true
+ },
+ {
+  "row": "F2-fetch-card",
+  "what": "Protected fetch card warns QGIS may pause",
+  "agent_result": "Not run",
+  "after_recheck": "Partial",
+  "note": "Tester: card text right and Cancel downloads nothing; the Apply download was refused by the source (file not recognised as a supported format)",
+  "needs_rerun": false
+ },
+ {
+  "row": "F3-check-evidence",
+  "what": "Evidence checker reads the folder",
+  "agent_result": "Not run",
   "after_recheck": "Pass",
-  "note": "Round 3: 20 requests delivered and the export holds 40 messages, transcript_dropped 0 (DEF-26 seen fixed). The table screenshot B5-table.png exists; not read",
+  "note": "Tester: exit 0; one FAIL (B3 French) is the known false alarm",
   "needs_rerun": false
  }
 ]
