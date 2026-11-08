@@ -313,3 +313,39 @@ class TestCliFailuresShowTheCliOwnReason(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestUnofferedToolGetsOneRetry(unittest.TestCase):
+    """Round 3 (rows B1, B2): the model named a tool that was not offered and the task ended on the error. Now one retry names the tools that exist."""
+
+    BAD = claude_json('{"tool_calls":[{"name":"execute_pyqgis_script","arguments":{}}]}')
+    GOOD = claude_json('{"tool_calls":[{"name":"add_layer","arguments":{"path":"x"}}]}')
+
+    def _run(self, outputs):
+        with patch.object(cb, "find_executable", return_value="/bin/claude"), patch.object(cb, "run_cli", side_effect=[(0, o, "") for o in outputs]) as run:
+            result = cb.ClaudeCliClient().complete([{"role": "user", "content": "hi"}], TOOLS)
+        return result, run
+
+    def test_parse_reply_raises_the_recoverable_error_with_the_name(self):
+        with self.assertRaises(cb.CliToolUnavailableError) as ctx:
+            cb.parse_reply('{"tool_calls":[{"name":"execute_pyqgis_script","arguments":{}}]}', NAMES)
+        self.assertEqual(ctx.exception.name, "execute_pyqgis_script")
+        self.assertIsInstance(ctx.exception, cb.CliBridgeError)
+
+    def test_retry_names_the_available_tools_and_succeeds(self):
+        result, run = self._run([self.BAD, self.GOOD])
+        self.assertEqual(run.call_count, 2)
+        second_prompt = run.call_args_list[1].args[1]
+        self.assertIn("execute_pyqgis_script", second_prompt)
+        self.assertIn("add_layer, delete_layer", second_prompt)
+        self.assertTrue(second_prompt.endswith("Your reply (one JSON object):"))
+        self.assertEqual(result["message"]["tool_calls"][0]["function"]["name"], "add_layer")
+
+    def test_a_second_unknown_tool_is_still_an_error_after_one_retry(self):
+        result, run = self._run([self.BAD, self.BAD])
+        self.assertEqual(run.call_count, 2)
+        self.assertIn("not available", result["error"])
+
+    def test_a_valid_first_reply_does_not_retry(self):
+        _, run = self._run([self.GOOD])
+        self.assertEqual(run.call_count, 1)

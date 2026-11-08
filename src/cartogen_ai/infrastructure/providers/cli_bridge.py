@@ -49,6 +49,16 @@ class CliBridgeError(Exception):
     """A CLI could not be run or its output could not be used. The message is safe to show the user (no prompt content)."""
 
 
+class CliToolUnavailableError(CliBridgeError):
+    """The model named a tool that was not offered in this request. Still an error (a guessed call could write to the user's project), but a
+    recoverable one: `complete` asks once more, naming the tools that exist. Live smoke round 3 (rows B1 prompt 5 and B2 prompt 8, Claude Code
+    CLI): the model asked for execute_pyqgis_script and import_humanitarian_table, neither offered that turn, and the task ended on the error."""
+
+    def __init__(self, name):
+        super().__init__(f"The model asked for a tool that is not available: {str(name)[:60]!r}.")
+        self.name = str(name)[:60]
+
+
 def _extra_bin_dirs(existing_only=True):
     """Folders where npm, Homebrew, Volta, nvm, bun, pnpm or scoop put CLIs. A QGIS started from a desktop icon or Finder has a
     shorter PATH than the user's terminal, so `shutil.which("codex")` fails there even though the terminal finds it (user report,
@@ -373,7 +383,7 @@ def parse_reply(text, tool_names):
             name = item.get("name") if isinstance(item, dict) else None
             args = item.get("arguments", {}) if isinstance(item, dict) else None
             if name not in known:
-                raise CliBridgeError(f"The model asked for a tool that is not available: {str(name)[:60]!r}.")
+                raise CliToolUnavailableError(name)
             if not isinstance(args, dict):
                 raise CliBridgeError(f"The model gave arguments for {name} that are not a JSON object.")
             calls.append({"id": f"cli_{uuid.uuid4().hex[:12]}", "type": "function",
@@ -381,6 +391,18 @@ def parse_reply(text, tool_names):
         return {"role": "assistant", "content": None, "tool_calls": calls}
     final = obj["final"]
     return {"role": "assistant", "content": final if isinstance(final, str) else json.dumps(final, ensure_ascii=False)}
+
+
+_REPLY_MARKER = "\n\nYour reply (one JSON object):"
+
+
+def retry_prompt(prompt, tool_name, tool_names):
+    """The prompt for the one retry after a reply named a tool that was not offered: the same prompt plus a correction that lists the tools
+    that exist. The list is the names already in the prompt, so it adds nothing the model could not see."""
+    note = (f"\n\nCORRECTION: your last reply asked for the tool {tool_name!r}, which is not available in this request. Use only these tools: "
+            f"{', '.join(n for n in tool_names if n) or '(none)'}. If none fits, answer in words with {{\"final\": \"...\"}} and say what you cannot do.")
+    head = prompt[:-len(_REPLY_MARKER)] if prompt.endswith(_REPLY_MARKER) else prompt
+    return head + note + _REPLY_MARKER
 
 
 # ---------------------------------------------------------------------------------------------------------------------------------
@@ -548,7 +570,14 @@ class _CliClient(BaseAiProvider):
         with tempfile.TemporaryDirectory(prefix="cartogen_cli_") as workdir:
             try:
                 text, usage, model = self._invoke(exe, system_text, prompt, workdir)
-                message = parse_reply(text, names)
+                try:
+                    message = parse_reply(text, names)
+                except CliToolUnavailableError as unavailable:
+                    # One retry only: a second unknown tool is reported as before, so the loop cannot spin on a model that keeps asking.
+                    log_event("cli_tool_retry", provider=self.log_name, status="retry")
+                    prompt = retry_prompt(prompt, unavailable.name, names)
+                    text, usage, model = self._invoke(exe, system_text, prompt, workdir)
+                    message = parse_reply(text, names)
             except CliBridgeError as e:
                 log_event("cli_bridge_error", provider=self.log_name, error_class="CliBridgeError",
                           duration_ms=int((time.monotonic() - started) * 1000))
