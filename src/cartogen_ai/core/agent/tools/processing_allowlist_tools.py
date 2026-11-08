@@ -679,8 +679,8 @@ def run_allowlisted_processing_algorithm(alg_id, params, new_layer_name=None):
         if value is not None and hasattr(value, "setName"):
             layers.append((key, value))
     if not layers:
-        return _with_report_fields({"success": True, "alg_id": alg_id, "message": f"'{alg_id}' ran successfully with no new layer output."},
-                                   statistics, report_files)
+        made_for_layers = (destination_keys or set()) - (file_keys or set())
+        return _with_report_fields(no_layer_result(alg_id, made_for_layers, raster_keys, params.keys()), statistics, report_files)
     if alg_id in FILE_VECTOR_ALGORITHM_IDS:
         layers = [(key, _small_result_in_memory(layer)) for key, layer in layers]
     primary_key, new_layer = layers[0]
@@ -754,6 +754,30 @@ def _add_extra_outputs(extra_layers, layer_name, alg_id, caller_named_it, projec
                 entry["styled_as"] = styled_extra
         extra.append(entry)
     return extra
+
+
+_CELL_SIZE_KEYS = ("PIXEL_SIZE", "CELL_SIZE", "CELLSIZE", "RESOLUTION")
+
+
+def no_layer_result(alg_id, layer_destinations, raster_keys, parameter_names):
+    """The reply for an algorithm that finished but harvested no layer. When it declares an output layer that did not appear, the message says
+    plainly that no layer was made, and for a raster with a cell-size parameter it names the usual cause; otherwise the old wording stays (an
+    algorithm that only reports numbers or changes something). Pure given names.
+
+    Round-3 live smoke (row B6, DEF-30): native:meshrasterize with PIXEL_SIZE 5 on a mesh a fraction of a degree wide answered "ran successfully
+    with no new layer output"; the two calls after it failed with "writeBlock() called on read-only provider". The success wording let the
+    assistant go on as if a raster existed, and nothing pointed at the cell size, which was far larger than the data."""
+    result = {"success": True, "alg_id": alg_id, "message": f"'{alg_id}' ran successfully with no new layer output."}
+    if not layer_destinations:
+        return result
+    result["layer_created"] = False
+    note = f"'{alg_id}' finished but made NO layer, so there is nothing new in the project. Do not tell the user a result layer exists."
+    cell_keys = [k for k in _CELL_SIZE_KEYS if k in (parameter_names or ())]
+    if raster_keys and cell_keys:
+        note += (f" For a raster the usual cause is a {cell_keys[0]} larger than the data's extent (it is in the layer's own units, degrees for"
+                 " latitude/longitude); try a much smaller cell size.")
+    result["message"] = note
+    return result
 
 
 def _with_report_fields(result, statistics, report_files):
