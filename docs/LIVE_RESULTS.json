@@ -15,6 +15,14 @@
    "package": "cartogen_ai_full_smoke_1.18.5_round2",
    "triage": "docs/plans/PLAN-061-round-2-results.md",
    "scope_of_this_record": "Only the features whose raw evidence (steps.jsonl, layer_properties.json, the exported PDFs) was read for this record are updated below; every other row's verdict stays the agent's and is listed in PLAN-061. current_run stays the 2026-11-04 run so the regression gate keeps its older baseline."
+  },
+  "2026-11-08-agent-windows-round3": {
+   "date": "2026-11-07 to 2026-11-08",
+   "by": "AI agent on the owner's Windows 11 computer, QGIS 4.2.3, Gemini (hosted) and Claude Code CLI 2.1.314 (A3)",
+   "baseline_commit": "58d69b4b8040692f3503aba00c6b5c8c6dcc20d9",
+   "package": "cartogen_ai_full_smoke_1.18.5_round3",
+   "triage": "docs/plans/PLAN-063-round-3-results.md",
+   "scope_of_this_record": "The results folder came back without 4_RESULTS.csv (the tester's own checker output, F3, says 39 rows and 0 blank, so it existed). Only the features whose evidence was read for this record are updated: the legend PDFs, the Help and About screenshots, steps.jsonl of C1, E4, B3, B6, D1, the B5 export and the Connections screenshots. 35 of 39 rows have evidence; V1, F1, W6 and W7 have none. The plugin zip is the same file as main at 58d69b4."
   }
  },
  "current_run": "2026-11-04-agent-windows",
@@ -130,10 +138,10 @@
    "note": "The feature with no value was grey and listed as No data in the legend."
   },
   "result-gate-hook": {
-   "status": "partly",
-   "rows": "W1-gate-on W2-gate-fetch E4-exports",
-   "run": "2026-11-05-agent-windows-round2",
-   "note": "Checks recorded on smoke_admin and on a fetched layer (W1, W2). But E4 (t60): a table output of native:basicstatisticsforfields got 'geometry: 1 of 1 geometries (100%) invalid or empty' = FAIL and a note telling the model to call the result wrong. Fixed on this branch (DEF-28), not rerun live."
+   "status": "working",
+   "rows": "W1-gate-on W2-gate-fetch W3-provenance E4-exports",
+   "run": "2026-11-08-agent-windows-round3",
+   "note": "E4: native:basicstatisticsforfields wrote a table and its checks were only 'feature_count pass' (1 passed, 0 warnings, 0 failed), no geometry failure (round 2: false FAIL). Checks recorded on W1 and W2 layers."
   },
   "fetched-data-source-record": {
    "status": "working",
@@ -248,7 +256,8 @@
   "arabic-french-routing-phrases": {
    "status": "partly",
    "rows": "B3-language",
-   "note": "Arabic called the OSM tool; the French step was run in the same chat and not judged."
+   "run": "2026-11-08-agent-windows-round3",
+   "note": "Arabic request: ingest_osm_features called and the reply is in Arabic (33 facilities, 39.7 s). French request: the reply is in French but no tool was called, because the layer from the Arabic request was already in the project, so French routing was not shown independently. The two-reader review is still undone."
   },
   "task-tools-always-offered": {
    "status": "working",
@@ -376,10 +385,10 @@
    "note": "11 of 11 script checks passed on Windows fonts and the footers read complete on the exported pages."
   },
   "layout-legend-fits-frame": {
-   "status": "failing",
+   "status": "working",
    "rows": "A1-layout-script",
-   "run": "2026-11-05-agent-windows-round2",
-   "note": "The empty-legend and blank-map symptom of 2026-11-04 is gone (the saved pages show entries and a framed map). But legend_A4_Landscape.pdf shows classes 0-10 of 14 with the next one cut at the frame bottom and legend_A3_Portrait.pdf shows 0-3, while L1-A4 and L1-A3 report fits true (content 88.0 mm = frame 88.0 mm). Read from the saved PDFs by me and by the agent. Cause not found (DEF-27)."
+   "run": "2026-11-08-agent-windows-round3",
+   "note": "layout_check.json L1-A4 and L1-A3 report measured true and fits true. The saved pages (read by me): A4 shows 4 layers of 14 classes in 4 columns at scale 0.7, every entry whole, title 'Legend (3 more layers not shown)'; A3 shows zones_6 in 4 columns with its 14 classes whole, title 'Legend (6 more layers not shown)'. Nothing cut at the frame. Seen on 2 synthetic pages; 6 other pages looked structurally right but were not read closely."
   },
   "layout-export-gate": {
    "status": "partly",
@@ -422,14 +431,16 @@
    "note": "The Settings groups read and opened."
   },
   "connections-window": {
-   "status": "partly",
-   "rows": "A2-settings-connections",
-   "note": "The window and Test worked; the panel dropdown did not follow the saved connection (fixed since, not rerun); the bad-key error is raw JSON."
+   "status": "working",
+   "rows": "A2-settings-connections A3-cli-bridge",
+   "run": "2026-11-08-agent-windows-round3",
+   "note": "Screenshots read by me: the window is readable, grouped (hosted, local, own CLI login, data services), one accent, 'In use' shown; Claude Code CLI page: 'Found 2.1.314 (Claude Code) signed in'. A person's look at it (OWN-16) is still outstanding."
   },
   "settings-api-provider-test-button": {
-   "status": "partly",
+   "status": "working",
    "rows": "A2-settings-connections",
-   "note": "The window and Test worked; the panel dropdown did not follow the saved connection (fixed since, not rerun); the bad-key error is raw JSON."
+   "run": "2026-11-08-agent-windows-round3",
+   "note": "A bad OpenRouter key: Test says 'Not working: HTTP error (401): Authentication failed -- check your API key' with the key length and ending, in plain words, no traceback dialog. The no-key case was not read."
   },
   "cli-providers-opt-in-settings": {
    "status": "partly",
@@ -437,15 +448,16 @@
    "note": "The window and Test worked; the panel dropdown did not follow the saved connection (fixed since, not rerun); the bad-key error is raw JSON."
   },
   "environment-detection": {
-   "status": "partly",
+   "status": "working",
    "rows": "W13-environment",
-   "run": "2026-11-05-agent-windows-round2",
-   "note": "The Help line now reads Qt 6.11.1 (the value QGIS's About window gave in round 1). The agent's own console qVersion() gave 6.11.0, which the same function in the same process should not disagree with: unexplained. The About window, the log line and the Settings copy were not compared and no snap or screenshot was saved for this row, so it is not confirmed either way."
+   "run": "2026-11-08-agent-windows-round3",
+   "note": "Help line: 'QGIS 4.2.3-Belem do Para, Qt 6.11.1 (PyQt built with 6.11.0), Windows 11 (AMD64), Python 3.12.14'; QGIS's About window on the same screen: QGIS 4.2.3, Qt 6.11.1, Python 3.12.14. They agree, and the build note explains round 2's console reading of 6.11.0. The Settings copy and the log line were not read."
   },
   "chat-export-after-reopen": {
-   "status": "partly",
+   "status": "working",
    "rows": "B5-chat-formatting",
-   "note": "The export held 32 of 40 messages, but it held every request the plugin received: transcript_dropped 0, and the evidence folders t16 to t31 (no gaps, t1 to t82 in the whole run) are 16 requests = 32 messages, 2 from B4 and 14 from B5 (the table and 13 short ones, not the 20 the row asks for). Seen working on what was sent; the 20-exchange case and the reopened chat were not seen at full size; rerun with an exact count."
+   "run": "2026-11-08-agent-windows-round3",
+   "note": "20 requests delivered (t16 to t35); the exported memory_export.json holds chat_history of 40 messages (20 user, 20 assistant) and chat_history_info transcript_dropped 0."
   },
   "undo-add-field": {
    "status": "working",
@@ -464,6 +476,18 @@
    "rows": "A1-layout-script",
    "run": "2026-11-05-agent-windows-round2",
    "note": "On the same pages the legend lists layers and the map frame shows data. The fix path itself (filter-by-map turned off when the map shows nothing) was not exercised: layout_check.json says legend_filtered_by_map true and map_shows_the_layers true."
+  },
+  "situation-dashboard-popup-labels": {
+   "status": "working",
+   "rows": "C1-load-and-scripts",
+   "run": "2026-11-08-agent-windows-round3",
+   "note": "generate_situation_dashboard with bbox [-20,-35,60,40] and title 'Aden test' returned success and wrote the HTML file (steps t3); round 2 failed on the same request with 'list object has no attribute get'."
+  },
+  "plain-requests-not-sent-to-a-wrong-task": {
+   "status": "working",
+   "rows": "B6-mesh-to-raster",
+   "run": "2026-11-08-agent-windows-round3",
+   "note": "'Turn the mesh results of the flood model into a raster map' went to native:meshrasterize with no flood-hazard plan and no clarification turn. The first calls failed on the model's own pixel size (see DEF-30); a second request made flood_depth_raster."
   }
  }
 }

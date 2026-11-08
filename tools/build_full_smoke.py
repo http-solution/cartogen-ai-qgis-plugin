@@ -13,6 +13,7 @@ Output: <out-dir or dist>/cartogen_ai_full_smoke_<version>.zip. Contents (all un
   3_SHEET.md              the rows, by session, each with Starts from / Do / Expect / Save / Needs / Inputs
   3_ROWS.json             the same rows as data (5_check_evidence.py reads it)
   3_test_files/           EVERY input a row names (checked at build time: a missing file stops the build)
+  EVIDENCE_TABLE.md       per row: needs, input files, evidence to save, pass condition
   4_RESULTS.csv           one line per row to fill in
   5_check_evidence.py     reads the returned folder and prints a verdict per row
   6_tools/                collect_evidence.py (QGIS console), mcp_probe.py, check_workflow_file.py, summarize_usage_log.py
@@ -45,6 +46,35 @@ def load():
     return json.loads(FULL_ROWS.read_text(encoding="utf-8"))
 
 
+# Where the package keeps its scripts. Row texts (the v2 rows were written for another bundle layout) name them by the repository's paths; a tester in an unzipped
+# package has 6_tools\\ and 5_check_evidence.py instead. Round 3 audit, 2026-11-07: W6, W7, F1, W8 and W10 said `python mcp_probe.py` and `python check_workflow_file.py`
+# (not at the package root), W6 said `python tools/check_evidence.py` (no tools folder), and W3, W4, W6, W7, W8 and W10 said to save into results\\outputs\\W6 and so on, a
+# folder that does not exist (the folders are named by the full row id); round 2 ended with both W8 and W8-export, W10 and W10-import-bad.
+_SCRIPT_REWRITES = (
+    (re.compile(r"python3? tools[\\/]check_evidence\.py"), "python 5_check_evidence.py results"),
+    (re.compile(r"python3? (?:tools[\\/])?(mcp_probe|check_workflow_file|summarize_usage_log|verify_inputs)\.py"), r"python 6_tools/\1.py"),
+)
+
+
+def localize_text(text, row_id):
+    """`text` with the commands and results folders written for this package's own layout (see _SCRIPT_REWRITES). Pure."""
+    for pattern, replacement in _SCRIPT_REWRITES:
+        text = pattern.sub(replacement, text)
+    short = row_id.split("-")[0]
+    if short != row_id:
+        text = re.sub(r"(results[\\/]+(?:outputs|evidence)[\\/]+)" + re.escape(short) + r"(?![A-Za-z0-9_\-])", lambda m: m.group(1) + row_id, text)
+    return text.replace("<row id>", row_id)
+
+
+def localize_row(row):
+    """A copy of `row` with every text field passed through localize_text. Pure."""
+    out = dict(row)
+    for key, value in row.items():
+        if isinstance(value, str):
+            out[key] = localize_text(value, row["id"])
+    return out
+
+
 def all_rows(doc=None):
     """The combined rows in running order: session A to F; inside a session the new rows first, then the v2 rows. Each has session and covers. Pure."""
     doc = doc or load()
@@ -57,7 +87,7 @@ def all_rows(doc=None):
         for field, added in (doc.get("v2_overrides", {}).get(row["id"]) or {}).items():           # text APPENDED to a v2 row's field; the v2 rows file stays as it was
             merged[field] = str(merged.get(field, "")) + added
         combined.append((extra["session"], 1, index, merged))
-    return [row for _s, _k, _i, row in sorted(combined, key=lambda item: item[:3])]
+    return [localize_row(row) for _s, _k, _i, row in sorted(combined, key=lambda item: item[:3])]
 
 
 def ledger_not_verified():
@@ -146,6 +176,27 @@ def subset_coverage_page(rows, features):
     return "\n".join(out) + "\n"
 
 
+def evidence_table(rows, v):
+    """EVIDENCE_TABLE.md: for every row, in running order, what it needs, which input files it uses and exactly what evidence to save, on one page that can be read
+    without opening 3_SHEET.md. Asked for by the owner on 2026-11-07 ('mention on each row what evidence is needed'). Pure."""
+    out = [f"# Cartogen AI {v} - what each row needs and what evidence to save\n",
+           "Read EVIDENCE_HOWTO.txt once (3 minutes) and FAILURE_PROTOCOL.md before the first row. The rows are in running order; 3_SHEET.md has the full steps.\n",
+           ("**For EVERY row, whatever the result:** run `snap('<row id>')` in the QGIS Python console right after the reply (never in the chat), write Pass / Partial / Fail / Skip "
+            "and one line of notes in 4_RESULTS.csv, and take the screenshots the row names. **If a row fails or looks wrong:** screenshot first, then `snap`, then the rest of "
+            "FAILURE_PROTOCOL.md, before you retry anything.\n")]
+    for row in rows:
+        files = row.get("files") or []
+        inputs = v2.fill(row["inputs"], v) if row.get("inputs") else ""
+        given = "; ".join(x for x in ((", ".join(files)) if files else "", inputs) if x) or "none: no file from 3_test_files is named for this row (what you need is in 'Starts from' and in 3_SHEET.md)"
+        out += [f"## {row['id']}: {v2.fill(row['title'], v)}", "",
+                f"- **You need:** {row['needs']}",
+                f"- **Starts from:** {v2.fill(row['starts_from'], v)}",
+                f"- **Input files (in 3_test_files):** {given}",
+                f"- **Evidence to save:** {v2.fill(row['evidence'], v)}",
+                f"- **Pass when:** {v2.fill(row.get('pass_if') or row['expect'], v)}", ""]
+    return "\n".join(out)
+
+
 def sheet(rows, doc, v):
     out = [f"# Cartogen AI {v} - full live smoke test\n",
            "Run the sessions in order (A to F). Each row starts from the state it names; none depends on another. Needs = what you must have for that row.\n"]
@@ -169,9 +220,11 @@ def sheet(rows, doc, v):
 
 def readme(v, count, label=None):
     if label:
-        head = (f"Cartogen AI {v} - live smoke test, ROUND 2 ({count} rows)\n"
+        # The round is named from the label ("round3" -> "ROUND 3"): this text said ROUND 2 for every subset until round 3 was built (2026-11-07).
+        name = re.sub(r"ROUND(\d+)", r"ROUND \1", str(label).upper())
+        head = (f"Cartogen AI {v} - live smoke test, {name} ({count} rows)\n"
                 "=======================================================================\n\n"
-                f"WHAT THIS IS: only the rows to rerun after the fixes of 2026-11-04 ({count} rows, not the full {len(all_rows())}). Each row exists because a feature seen working live "
+                f"WHAT THIS IS: only the rows to run on THIS build ({count} rows, not the full {len(all_rows())}). Each row exists because a feature seen working live "
                 "has since changed code, or a fix has never been seen working, or a case was never tested. 3_ROWS.json and COVERAGE.md say which. Row B4 (the most expensive) "
                 "goes last and only if the provider has quota. Skip a row you cannot run and say why.\n\n")
     else:
@@ -183,6 +236,7 @@ def readme(v, count, label=None):
             "2_layout_check/      the model-free layout script (row A1)\n"
             "3_SHEET.md           THE ROWS: read and run these, in order A to F\n"
             "3_test_files/        every input file a row names; open smoke_start.qgz from this folder (its data files sit beside it)\n"
+            "EVIDENCE_TABLE.md    per row: what you need, the input files, exactly what evidence to save, and when it passes (one page; 3_SHEET.md has the full steps)\n"
             "4_RESULTS.csv        fill in the result of every row (Pass / Partial / Fail / Skip) and one line of notes\n"
             "EVIDENCE_HOWTO.txt   how to collect evidence: READ FIRST\n"
             "FAILURE_PROTOCOL.md  what to capture the moment a row fails (screenshot with clock, logs, input, steps) and the block to paste in the notes\n"
@@ -317,6 +371,7 @@ def main(argv):
         for tool in TOOLS_FOLDER:
             z.write(REPO / "tools" / tool, f"{top}/6_tools/{tool}")
         z.writestr(f"{top}/3_SHEET.md", text)
+        z.writestr(f"{top}/EVIDENCE_TABLE.md", evidence_table(rows, v))
         z.writestr(f"{top}/3_ROWS.json", json.dumps(combined, indent=1, ensure_ascii=False))
         z.writestr(f"{top}/4_RESULTS.csv", results)
         z.writestr(f"{top}/COVERAGE.md", subset_coverage_page(rows, features) if subset else coverage_page(rows, doc, ledger_ids, features))

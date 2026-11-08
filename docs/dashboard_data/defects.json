@@ -35,9 +35,9 @@
   "id": "P5",
   "defect": "Help showed the wrong Qt version",
   "found_by": "Live run 2026-11-04, row W13",
-  "status": "Not confirmed (round 2)",
+  "status": "Seen fixed live (round 3)",
   "pr": "569",
-  "next": "Help says Qt 6.11.1; the agent's console said 6.11.0; About not compared. Rerun W13 with the About screenshot"
+  "next": "Help line agrees with the About window and names the PyQt build"
  },
  {
   "id": "P6",
@@ -45,7 +45,7 @@
   "found_by": "Live run 2026-11-04, rows A2/A3",
   "status": "Not confirmed (round 2)",
   "pr": "569",
-  "next": "A2 was Partial: 'Use this connection' on the other providers was not run"
+  "next": "Round 3: the Connections window works; 'dropdown follows a saved connection' was not evidenced (A2 Partial)"
  },
  {
   "id": "D1",
@@ -107,24 +107,88 @@
   "id": "P7",
   "defect": "Exported A1 legend is cut at the bottom of its frame (A4 shows classes 0-10 of 14, A3 shows 0-3) while the L1 check says it fits",
   "found_by": "Round 2 live run 2026-11-05, row A1; PDFs read by me",
-  "status": "Merged (#575), CI only",
+  "status": "Seen fixed live (round 3)",
   "pr": "",
-  "next": "Measured with the legend renderer and split into up to 4 columns. Rerun row A1 and look at the pages (DEF-27)"
+  "next": "Legends measured and split into columns; read on the A4 and A3 pages (DEF-27)"
  },
  {
   "id": "P8",
   "defect": "A table output got 'geometry: 1 of 1 invalid or empty' = FAIL and the model was told to call the result wrong",
   "found_by": "Round 2 live run, row E4, evidence t60",
-  "status": "Merged (#575), CI only",
+  "status": "Seen fixed live (round 3)",
   "pr": "",
-  "next": "Table outputs get no geometry check. Rerun row E4 step 7 (DEF-28)"
+  "next": "Table output gets only the feature-count check (DEF-28)"
  },
  {
   "id": "P9",
   "defect": "generate_situation_dashboard failed with 'list' object has no attribute 'get'",
   "found_by": "Round 2 live run, row C1, evidence t12",
-  "status": "Merged (#575), CI only",
+  "status": "Seen fixed live (round 3)",
   "pr": "",
-  "next": "popup_labels list handled both sides. Rerun row C1 step 6 (DEF-29)"
+  "next": "The situation dashboard wrote its HTML file (DEF-29)"
+ },
+ {
+  "id": "P10",
+  "defect": "native:meshrasterize ran 'successfully with no new layer output' when the model's 5-degree pixel size made an empty raster; later calls failed with 'writeBlock() called on read-only provider'",
+  "found_by": "Round 3 live run, row B6, evidence t1",
+  "status": "Open",
+  "pr": "",
+  "next": "Say plainly when an algorithm that declares an output layer made none, and hint at pixel size against the extent (DEF-30)"
+ },
+ {
+  "id": "P11",
+  "defect": "Gemini bad-key Test shows a raw JSON dump",
+  "found_by": "Round 3 tester CSV, row A2",
+  "status": "Open",
+  "pr": "",
+  "next": "Plain-words mapping (DEF-31)"
+ },
+ {
+  "id": "P12",
+  "defect": "Unticking the plugin mid-request logs CRITICAL provider and CLI errors",
+  "found_by": "Round 3 tester CSV, row V1",
+  "status": "Open",
+  "pr": "",
+  "next": "Log unload cancel quietly (DEF-32)"
+ },
+ {
+  "id": "P13",
+  "defect": "Model asks for a tool the plugin does not offer (execute_pyqgis_script, import_humanitarian_table); the task stops",
+  "found_by": "Round 3 tester CSV, row B1, B2",
+  "status": "Open",
+  "pr": "",
+  "next": "Keep the loop going with the tools that exist (DEF-33)"
+ },
+ {
+  "id": "P14",
+  "defect": "native heatmap runs unguarded with a degree radius or on polygons",
+  "found_by": "Round 3 tester CSV, row D2, E5",
+  "status": "Open",
+  "pr": "",
+  "next": "Extend the processing guards to the native algorithm (DEF-34)"
+ },
+ {
+  "id": "P15",
+  "defect": "JIAF write preview card hides the statement and blockers",
+  "found_by": "Round 3 tester CSV, row D3",
+  "status": "Open",
+  "pr": "",
+  "next": "Show them on the card (DEF-35)"
+ },
+ {
+  "id": "P16",
+  "defect": "Layout items added without a position overlap",
+  "found_by": "Round 3 tester CSV, row E3",
+  "status": "Open",
+  "pr": "",
+  "next": "Non-overlap placement with a test (DEF-37)"
+ },
+ {
+  "id": "P17",
+  "defect": "Test input smoke_data.gpkg changed by the V9 undo test",
+  "found_by": "Round 3 tester CSV, row V9, E4",
+  "status": "Open",
+  "pr": "",
+  "next": "Rows must edit a copy (DEF-36); no plugin change"
  }
 ]

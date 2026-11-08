@@ -92,8 +92,9 @@ class TestRows(unittest.TestCase):
             original = next(r for r in full.v2.rows() if r["id"] == row_id)
             merged = next(r for r in self.rows if r["id"] == row_id)
             for field, added in fields.items():
-                self.assertTrue(merged[field].endswith(added), (row_id, field))
-                self.assertTrue(merged[field].startswith(str(original.get(field, ""))), (row_id, field))
+                # compared after localising: the commands and <row id> placeholders are written for the package's own layout (round 3 audit, 2026-11-07)
+                self.assertTrue(merged[field].endswith(full.localize_text(added, row_id)), (row_id, field))
+                self.assertTrue(merged[field].startswith(full.localize_text(str(original.get(field, "")), row_id)), (row_id, field))
 
     def test_the_sheet_prints_every_session_and_every_row(self):
         text = full.sheet(self.rows, self.doc, "1.0")
