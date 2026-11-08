@@ -69,6 +69,7 @@ One list to follow up and plan from. It replaces the session task list (101 entr
 | DEF-27 | Exported A1 pages (round 2, 2026-11-05): the legend is cut at the bottom of its frame (A4 landscape shows classes 0-10 of 14, A3 portrait shows 0-3) while check L1-A4/L1-A3 says it fits (content 88.0 mm = frame 88.0 mm). | A cut legend on a map product, and a layout check that passes on it. | Claude |  | M | P2 | In progress | live run round 2 (agent), 2026-11-05 |
 | DEF-28 | A table output (native:basicstatisticsforfields) got the result check 'geometry: 1 of 1 geometries (100%) are invalid or empty' = FAIL, and a note telling the model to call a correct result wrong (round 2 row E4, evidence t60). | A false failure that makes the assistant discredit a correct answer. | Claude |  | S | P2 | In progress | live run round 2 (agent), 2026-11-05 |
 | DEF-29 | generate_situation_dashboard returned "generate_html_dashboard failed: 'list' object has no attribute 'get'" for bbox -20,-35,60,40 with one GDACS layer (round 2 row C1, evidence t12); the model then wrote a dashboard with generate_html_dashboard directly. | A composite tool that fails where its own parts work. | Claude |  | M | P2 | In progress | live run round 2 (agent), 2026-11-05 |
+| DEF-30 | Round 3 (2026-11-08, row B6, evidence t1): native:meshrasterize was called with PIXEL_SIZE 5 in EPSG:4326 for a tiny mesh; the plugin answered "ran successfully with no new layer output", and the next two calls failed with "Could not write raster block: writeBlock() called on read-only provider". The second request (pixel size 0.001) made the raster. The success message hides that no layer was made, and nothing warns that the cell size is far larger than the data. | A silent no-result 'success' lets the assistant tell the user a raster exists when it does not. | Claude |  | S | P2 | In progress | live run round 3 (agent), 2026-11-08 |
 | BUD-1 | Decide how the per-turn token budget (max_turn_tokens, default 450,000) counts cached tokens. Today input plus output tokens are counted in full; in the owner's 2026-11-01 run 55 percent of the input (241,830 of 439,564 tokens) was served from cache, which providers bill at a fraction. Options: keep, count cached tokens at 10 percent, or show both numbers and budget on billed tokens. | The budget stopped a run that, counted by cost, was less than half used. | You |  | S | P2 | In progress | owner log 2026-11-01 |
 | TR-1 | Task register tool order has no data-fetch tool for 261 of 302 'Map ...' tasks (checked 2026-11-01); the chat then says 'Prefer these tools, in order: add_layer_from_path, ...', which steers the model away from fetching. Only 6.02 (hospitals and clinics) was fixed, to start with fetch_osm_features like 1.02 and 1.05. Derive the fetch tool from the task's keywords (facilities, roads, buildings, boundaries, population, hazards) with a check script, as tools/derive_task_io.py does for file types. | The suggested tool order is wrong for most map tasks. | Claude |  | M | P2 | In progress | owner transcript 2026-11-01 |
 
@@ -178,13 +179,13 @@ Source: the owner's analysis document of nine flagship QGIS AI plugins, checked 
 
 | Status | Rows |
 |---|---|
-| In progress | 46 |
+| In progress | 47 |
 | Blocked | 19 |
 | Closed | 14 |
 | Decision needed | 11 |
 | Waiting on you | 11 |
 | Closed (record) | 1 |
-| **Total** | **102** |
+| **Total** | **103** |
 
 ## How to keep it current
 
@@ -353,3 +354,11 @@ Newest last. One line per status change; written by `tools/master_list.py set`.
 - 2026-11-07: OWN-2 Waiting on you -> Closed. Retired 2026-11-07 on the owner's decision: an old version is not tested once the code has changed. The same features are checked on the current build by the round-2 package (GitHub issue 576). D6 (change-layer legend) is not in the current package; DEF-2 stays Blocked until the legend is seen again on a current build.
 - 2026-11-07: HT-1 In progress -> Closed. Goal reached: the 1.18.4 results were triaged, fixed and 1.18.5 was published (tag cartogen-ai-v1.18.5). The owner runs of the old Sections N and P are retired (see OWN-1); the current check is round 2 on build 58d69b4.
 - 2026-11-07: OWN-17 Not started -> Waiting on you. Package defined in PLAN-062 (docs/ROUND3_ROWS.json, 39 rows); it is built from main after PR 578 merges so BUILD.txt names a main commit. Supersedes the rerun checklist of issue 576 (its rows A1, A2, B3, B5, C1, D1, E4, W13 are in it). Nothing in the package has been run.
+- 2026-11-08: DEF-30 Not started -> In progress. Cause seen in the evidence, fix not built: run_allowlisted_processing_algorithm returns 'ran successfully with no new layer output' whenever no layer is harvested, even for an algorithm that declares an output layer (processing_allowlist_tools.py, the no-layers branch). Plan: say plainly that no layer was made for such an algorithm, and add a hint when an output cell size is larger than the input's extent. Needs a pure helper and offline tests; a live check on B6.
+- 2026-11-08: DEF-25 In progress -> In progress. Round 3 (agent run, pages read by me): the A1 pages show a populated legend and a framed map. Seen fixed live twice (rounds 2 and 3). Recommendation: close on your say.
+- 2026-11-08: DEF-26 In progress -> In progress. Round 3: 20 requests delivered and the export (memory_export.json) holds 40 messages, transcript_dropped 0. Seen fixed live. Recommendation: close on your say.
+- 2026-11-08: DEF-27 In progress -> In progress. Round 3 (agent run, pages read by me): layout_check.json L1-A4 and L1-A3 report measured true and fits true; A4 shows 4 layers of 14 classes in 4 columns, A3 shows zones_6 in 4 columns, every entry whole, titles say 3 and 6 layers were left out. Seen fixed live. Recommendation: close on your say.
+- 2026-11-08: DEF-28 In progress -> In progress. Round 3: native:basicstatisticsforfields gave a table whose checks were only feature_count pass (1 passed, 0 warnings, 0 failed); no geometry failure. Seen fixed live. Recommendation: close on your say.
+- 2026-11-08: DEF-29 In progress -> In progress. Round 3: generate_situation_dashboard with the same bbox succeeded and wrote its HTML file. Seen fixed live. Recommendation: close on your say.
+- 2026-11-08: DEF-9 In progress -> In progress. Round 3 (2026-11-08): 37 of 41 log files in results/logs are empty again, so the collector's log capture still delivers nothing on QGIS 4.2.3. tools_called.txt and plugin_evidence work in every snap folder. Still open: why the signal delivers nothing.
+- 2026-11-08: OWN-17 Waiting on you -> Waiting on you. Results came back 2026-11-08 (results_round3.zip, 2413 entries) WITHOUT 4_RESULTS.csv; the tester's own checker output (F3) says 39 rows and 0 left blank, so the file exists. 35 of 39 rows have evidence; V1, F1, W6 and W7 have none. Please send 4_RESULTS.csv and say whether those four were skipped. Read so far: PLAN-063.
