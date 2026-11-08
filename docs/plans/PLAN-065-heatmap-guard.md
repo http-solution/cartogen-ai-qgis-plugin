@@ -19,3 +19,4 @@ Revert the commit; the heatmap algorithm is unguarded again.
 
 ## Status log
 - 2026-11-08: built and tested offline with stand-in layers (CI only, not seen live). The refusal arrives as "'native:heatmapkerneldensityestimation' failed: <message>" through the existing wrapper. Not covered: other native density algorithms with a radius in degrees (none seen failing).
+- 2026-11-08: first CI run failed in `tests/test_processing_geometry_family_live.py::test_every_algorithm_runs_on_at_least_one_geometry_type`: the probe calls every algorithm with its default numbers, the heatmap's default RADIUS is 100 on EPSG:4326 test layers, and the new guard refused it as 100 degrees (polygons and lines were refused as designed). The guard was right and the probe's call wrong, so `tests/_geometry_probe.py` now asks for RADIUS 0.5 for the heatmap. Live result of the rerun is recorded below once CI finishes.
