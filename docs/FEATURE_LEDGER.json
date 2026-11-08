@@ -1540,6 +1540,7 @@
       "tests/test_cli_bridge_runner.py::TestRunCli::test_timeout_kills_the_process",
       "tests/test_cli_bridge_adapters.py::TestClaudeArgv::test_exact_command_line_switches_every_tool_off",
       "tests/test_cli_bridge_adapters.py::TestParseReply::test_unknown_tool_is_an_error_not_a_guess",
+      "tests/test_cli_bridge_adapters.py::TestUnofferedToolGetsOneRetry::test_retry_names_the_available_tools_and_succeeds",
       "tests/test_cli_bridge_adapters.py::TestCodexArgv::test_exact_command_line",
       "tests/test_cli_bridge_adapters.py::TestParseCodexEvents::test_acting_on_its_own_is_rejected",
       "tests/test_connections_window.py::TestGeminiCliIsGone::test_the_gemini_cli_client_and_parser_are_gone_but_the_api_client_stays"

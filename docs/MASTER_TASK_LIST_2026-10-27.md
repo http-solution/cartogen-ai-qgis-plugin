@@ -72,7 +72,7 @@ One list to follow up and plan from. It replaces the session task list (101 entr
 | DEF-30 | Round 3 (2026-11-08, row B6, evidence t1): native:meshrasterize was called with PIXEL_SIZE 5 in EPSG:4326 for a tiny mesh; the plugin answered "ran successfully with no new layer output", and the next two calls failed with "Could not write raster block: writeBlock() called on read-only provider". The second request (pixel size 0.001) made the raster. The success message hides that no layer was made, and nothing warns that the cell size is far larger than the data. | A silent no-result 'success' lets the assistant tell the user a raster exists when it does not. | Claude |  | S | P2 | In progress | live run round 3 (agent), 2026-11-08 |
 | DEF-31 | Gemini bad-key Test (Settings > Connections, row A2) shows a raw JSON dump ('Gemini models list failed (400): {error: {code 400 ...}}') instead of plain words as OpenRouter does. | Wording only; a user cannot tell what to do. | Claude |  | S | P3 | Not started | live run round 3 (tester CSV), 2026-11-08 |
 | DEF-32 | Unticking the plugin during an in-flight request (row V1) writes CRITICAL model_call provider_error and cli_bridge_error (CliBridgeError) lines to the CartogenAI log. | Noise at CRITICAL level for a deliberate unload; may hide real errors. | Claude |  | S | P3 | Not started | live run round 3 (tester CSV), 2026-11-08 |
-| DEF-33 | The model asked for tools the plugin does not offer: execute_pyqgis_script (row B1 prompt 5, a chart) and import_humanitarian_table (row B2 prompt 8); the chat shows '[API error] The model asked for a tool that is not available' and the task stops. | The request fails with an unfriendly message instead of continuing with a tool that exists. | Claude |  | M | P2 | Not started | live run round 3 (tester CSV), 2026-11-08 |
+| DEF-33 | The model asked for tools the plugin does not offer: execute_pyqgis_script (row B1 prompt 5, a chart) and import_humanitarian_table (row B2 prompt 8); the chat shows '[API error] The model asked for a tool that is not available' and the task stops. | The request fails with an unfriendly message instead of continuing with a tool that exists. | Claude |  | M | P2 | In progress | live run round 3 (tester CSV), 2026-11-08 |
 | DEF-34 | Unguarded native heatmap: native:heatmapkerneldensityestimation runs through run_allowlisted_processing_algorithm with a 1-degree radius (row D2) and on a polygon layer (row E5), after hotspot_analysis correctly refused. The guard covers only qgis: algorithms. | The wrong-geometry and degree-unit guards can be bypassed by the model choosing the native algorithm. | Claude |  | M | P2 | Not started | live run round 3 (tester CSV), 2026-11-08 |
 | DEF-35 | JIAF write preview card (row D3) shows the write description and code but not the statement and validation blockers, which are only in the tool payload. | A user approving the write cannot see the blockers. | Claude |  | S | P3 | Not started | live run round 3 (tester CSV), 2026-11-08 |
 | DEF-36 | Hand-test side effect (row E4/V9): the source 3_test_files/smoke_data.gpkg got a notes column in smoke_points from the V9 undo test, so later rows ran on changed input. | Test input changed by an earlier row; results of later rows are not comparable. | Claude |  | S | P3 | Not started | live run round 3 (tester CSV), 2026-11-08 |
@@ -186,12 +186,12 @@ Source: the owner's analysis document of nine flagship QGIS AI plugins, checked 
 
 | Status | Rows |
 |---|---|
-| In progress | 47 |
+| In progress | 48 |
 | Blocked | 19 |
 | Closed | 14 |
 | Decision needed | 11 |
 | Waiting on you | 11 |
-| Not started | 7 |
+| Not started | 6 |
 | Closed (record) | 1 |
 | **Total** | **110** |
 
@@ -371,3 +371,4 @@ Newest last. One line per status change; written by `tools/master_list.py set`.
 - 2026-11-08: DEF-9 In progress -> In progress. Round 3 (2026-11-08): 37 of 41 log files in results/logs are empty again, so the collector's log capture still delivers nothing on QGIS 4.2.3. tools_called.txt and plugin_evidence work in every snap folder. Still open: why the signal delivers nothing.
 - 2026-11-08: OWN-17 Waiting on you -> Waiting on you. Results came back 2026-11-08 (results_round3.zip, 2413 entries) WITHOUT 4_RESULTS.csv; the tester's own checker output (F3) says 39 rows and 0 left blank, so the file exists. 35 of 39 rows have evidence; V1, F1, W6 and W7 have none. Please send 4_RESULTS.csv and say whether those four were skipped. Read so far: PLAN-063.
 - 2026-11-08: DEF-31 Not started -> Not started. Added from the round-3 tester CSV: DEF-31 to DEF-37 (A2 wording, V1 unload noise, tool-not-available, unguarded native heatmap, JIAF card, V9 data side effect, E3 placement)
+- 2026-11-08: DEF-33 Not started -> In progress. PLAN-064: CLI bridge retries once, naming the offered tools; CI only, live recheck B1 prompt 5 and B2 prompt 8
