@@ -373,3 +373,4 @@ Newest last. One line per status change; written by `tools/master_list.py set`.
 - 2026-11-08: DEF-31 Not started -> Not started. Added from the round-3 tester CSV: DEF-31 to DEF-37 (A2 wording, V1 unload noise, tool-not-available, unguarded native heatmap, JIAF card, V9 data side effect, E3 placement)
 - 2026-11-08: DEF-33 Not started -> In progress. PLAN-064: CLI bridge retries once, naming the offered tools; CI only, live recheck B1 prompt 5 and B2 prompt 8
 - 2026-11-08: DEF-34 Not started -> In progress. PLAN-065: heatmap_violation in the shared pre-run gate; CI only, live recheck D2 step 4 and E5 step 3
+- 2026-11-08: DEF-30 In progress -> In progress. PLAN-066: no_layer_result says no layer was made and names the cell size; CI only, live recheck B6 with a large pixel size
