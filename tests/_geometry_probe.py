@@ -46,6 +46,10 @@ def params_for(algorithm, layer_name, distinct=False):
             if p.name() == "NUMBER":
                 default = 1
             params[p.name()] = default if isinstance(default, (int, float)) and default > 0 else 1
+            # DEF-34 (PLAN-065): the heatmap's default radius is 100 map units, which the guard now refuses on these EPSG:4326 test layers
+            # (100 degrees); half a degree is a plausible radius for them, so the probe asks for that.
+            if p.name() == "RADIUS" and algorithm.id().endswith("heatmapkerneldensityestimation"):
+                params[p.name()] = 0.5
             # CI run 38876512875: the fuzzify tools refuse equal low and high bounds ("choose varying values"); the probe's fault, not theirs
             if p.name().upper().endswith("HIGHBOUND"):
                 params[p.name()] = 20

@@ -20,6 +20,7 @@ preference, not a replacement.
 import contextlib
 import re
 from .registry import register_tool
+from ._layer_checks import degrees_value_problem
 from ... import _background_processing as _bg
 from ._processing_allowlist import (ALLOWED_ALGORITHM_IDS, FILE_VECTOR_ALGORITHM_IDS, GRASS_ALGORITHM_IDS, MUTATES_INPUT_ALGORITHM_IDS,
                                     RASTER_OUTPUT_ALGORITHM_IDS, parameter_violation)
@@ -247,10 +248,39 @@ def _raster_list_violation(alg_id, resolved_params, layer_list_keys):
     return None
 
 
+_HEATMAP_IDS = ("native:heatmapkerneldensityestimation", "qgis:heatmapkerneldensityestimation")
+
+
+def heatmap_violation(alg_id, resolved_params):
+    """A message when a kernel-density heatmap was asked for on a layer that is not points, or with a radius or cell size that is implausible in
+    degrees, else None. Pure given the layer and numbers.
+
+    Round-3 live smoke (rows D2 and E5, DEF-34): hotspot_analysis refused a 1-degree radius with the conversion, so the model ran this
+    algorithm through the allowlist instead and got a heatmap with RADIUS 1 in degrees; and the same algorithm ran on a polygon layer
+    (smoke_zones) and made a raster. The dedicated tool's guards were bypassed because `_geometry_limits` checks only qgis: ids, which is
+    right for the algorithms it was tested on and says nothing about this one, so the heatmap gets its own check."""
+    if alg_id not in _HEATMAP_IDS:
+        return None
+    layer = resolved_params.get("INPUT")
+    if not hasattr(layer, "geometryType") or not hasattr(layer, "name"):
+        return None                                # a name or path is Processing's to judge
+    kind = layer.geometryType()
+    kind = getattr(kind, "value", kind)
+    if kind != 0:                                  # 0 is points; 1 lines, 2 polygons
+        return (f"'{alg_id}' needs a point layer, but '{layer.name()}' is not a point layer. Nothing was run. Use centroids of the features as "
+                "points (the centroids algorithm), or another analysis for lines and polygons.")
+    for key, label in (("RADIUS", "the radius"), ("PIXEL_SIZE", "the cell size")):
+        if key in resolved_params:
+            problem = degrees_value_problem(layer, resolved_params[key], label)
+            if problem:
+                return problem + " Nothing was run."
+    return None
+
+
 def _check_raster_lists(alg_id, resolved_params, layer_list_keys, kinds=None):
     """Raises ValueError (reported as "'<alg>' failed: ...") when a layer list or a single layer is of the wrong kind; the algorithm is not run."""
     problem = (_raster_list_violation(alg_id, resolved_params, layer_list_keys) or layer_kind_violation(alg_id, resolved_params, kinds)
-               or geometry_violation(alg_id, resolved_params, _geometry_limits(alg_id)))
+               or geometry_violation(alg_id, resolved_params, _geometry_limits(alg_id)) or heatmap_violation(alg_id, resolved_params))
     if problem:
         raise ValueError(problem)
 
