@@ -503,7 +503,7 @@
   },
   {
     "id": "processing-run-guards-rc48",
-    "feature": "The generic Processing tool refuses a layer of the wrong geometry type before running for the Python-implemented qgis: algorithms (polygons where lines are needed); GRASS and native ids are unchanged, puts r.sunmask.datetime's point of interest inside the elevation layer, and warns when a raster result holds a single value",
+    "feature": "The generic Processing tool refuses a layer of the wrong geometry type before running for the Python-implemented qgis: algorithms (polygons where lines are needed); GRASS and native ids are unchanged, puts r.sunmask.datetime's point of interest inside the elevation layer, and warns when a raster result holds a single value; the native kernel-density heatmap is refused on a non-point layer and for a radius or cell size of a degree or more on a latitude/longitude layer (DEF-34)",
     "issues": [
       379
     ],
@@ -514,6 +514,8 @@
     ],
     "guards": [
       "tests/test_geometry_limits_live.py::TestGeometryViolation::test_a_polygon_layer_where_lines_are_needed_is_refused_with_the_name_and_the_remedy",
+      "tests/test_heatmap_guard.py::TestHeatmapViolation::test_polygon_layer_is_refused_and_nothing_runs",
+      "tests/test_heatmap_guard.py::TestHeatmapViolation::test_one_degree_radius_on_a_geographic_layer_is_refused_with_the_conversion",
       "tests/test_geometry_limits_live.py::TestGeometryLimitsLive::test_linestopolygons_on_a_polygon_layer_is_refused_before_it_runs",
       "tests/test_geometry_limits_live.py::TestGeometryLimitsLive::test_linestopolygons_on_a_closed_line_layer_still_runs",
       "tests/test_sunmask_point_live.py::TestCentrePointOfInterest::test_a_point_outside_the_layer_is_replaced_by_its_centre_with_a_note",
