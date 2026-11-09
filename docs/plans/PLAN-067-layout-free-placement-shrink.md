@@ -19,3 +19,4 @@ Revert the commit; items go to (10, 10) when no spot of the asked size exists.
 
 ## Status log
 - 2026-11-08: built; offline tests pass, the live crowded-page test is new and runs only in CI (first execution). The cause (no spot of the asked size on the E3 layout) is inferred from the layout's structure and the code path, not seen: the tester's layout was not available here.
+- 2026-11-09: first CI run failed only in the new live test, in its setup: `layout.items()` returns plain Qt graphics items too and `removeLayoutItem` raised a TypeError on a `QGraphicsRectItem` (CI run 42561173584). The placement code was not reached. The test now clears the layout through `layoutItems()`. Every other check, including the existing three-charts placement test, passed on that run.
