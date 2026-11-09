@@ -9,7 +9,7 @@ LOOK when rendered or exported has not been checked."""
 import contextlib
 import math
 
-from .gap_options import check_box, check_chart, check_profile_line, free_box, line_ends
+from .gap_options import check_box, check_chart, check_profile_line, fit_free_box, line_ends
 from .registry import register_tool
 
 try:
@@ -51,10 +51,11 @@ def _line_ends_of_layer(name):
 
 
 def _auto_box(layout, x_mm, y_mm, width_mm, height_mm):
-    """(x_mm, y_mm, note): the caller's position, or when it gave none a free spot on the first page (see gap_options.free_box). note says when
-    the page had no free spot and the default was used."""
+    """(x_mm, y_mm, width_mm, height_mm, note): the caller's position, or when it gave none a free spot on the first page, shrunk when the asked
+    size does not fit (see gap_options.fit_free_box). note says when the item was made smaller, or when the page had no free spot at all and the
+    default was used."""
     if x_mm is not None or y_mm is not None:
-        return (10 if x_mm is None else x_mm), (10 if y_mm is None else y_mm), None
+        return (10 if x_mm is None else x_mm), (10 if y_mm is None else y_mm), width_mm, height_mm, None
     try:
         size = layout.pageCollection().page(0).pageSize()
         page_w, page_h = size.width(), size.height()
@@ -65,12 +66,17 @@ def _auto_box(layout, x_mm, y_mm, width_mm, height_mm):
             where = layout.convertToLayoutUnits(existing.positionWithUnits())
             size = layout.convertToLayoutUnits(existing.sizeWithUnits())
             taken.append((where.x(), where.y(), size.width(), size.height()))
-        spot = free_box(taken, page_w, page_h, float(width_mm), float(height_mm))
+        spot = fit_free_box(taken, page_w, page_h, float(width_mm), float(height_mm))
     except Exception:
         spot = None
     if spot is None:
-        return 10, 10, "No free spot of that size was found on the page, so the item was placed at 10, 10 and may overlap another."
-    return spot[0], spot[1], None
+        none_free = ("No free spot was found on the page even for a small item, so it was placed at 10, 10 and OVERLAPS other items. Tell the user, "
+                     "and move or resize it, or remove something from the layout.")
+        return 10, 10, width_mm, height_mm, none_free
+    x, y, w, h, shrunk = spot
+    note = (f"The page had no free spot of {width_mm:g} x {height_mm:g} mm, so the item was made {w:.0f} x {h:.0f} mm to fit beside the others."
+            if shrunk else None)
+    return x, y, w, h, note
 
 
 def _nice_ceiling(value):
@@ -202,7 +208,7 @@ def add_layout_chart(layout_name, layer_name, x_field, y_field, chart_type="bar"
     layout = _layout(layout_name)
     if layout is None:
         return {"error": f"Layout '{layout_name}' not found. See list_layouts."}
-    box["x_mm"], box["y_mm"], placement_note = _auto_box(layout, x_mm, y_mm, box["width_mm"], box["height_mm"])
+    box["x_mm"], box["y_mm"], box["width_mm"], box["height_mm"], placement_note = _auto_box(layout, x_mm, y_mm, box["width_mm"], box["height_mm"])
     found = QgsProject.instance().mapLayersByName(layer_name)
     layer = found[0] if found and isinstance(found[0], QgsVectorLayer) else None
     if layer is None:
@@ -287,7 +293,7 @@ def add_layout_elevation_profile(layout_name, layer_names, start_x=None, start_y
     layout = _layout(layout_name)
     if layout is None:
         return {"error": f"Layout '{layout_name}' not found. See list_layouts."}
-    box["x_mm"], box["y_mm"], placement_note = _auto_box(layout, x_mm, y_mm, box["width_mm"], box["height_mm"])
+    box["x_mm"], box["y_mm"], box["width_mm"], box["height_mm"], placement_note = _auto_box(layout, x_mm, y_mm, box["width_mm"], box["height_mm"])
     layers, missing = [], []
     for name in layer_names:
         found = QgsProject.instance().mapLayersByName(str(name))

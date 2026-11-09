@@ -51,6 +51,27 @@ def free_box(taken, page_width_mm, page_height_mm, width_mm, height_mm, margin_m
     return None
 
 
+SHRINK_FACTORS = (1.0, 0.85, 0.7, 0.55, 0.45)
+MIN_FREE_WIDTH_MM, MIN_FREE_HEIGHT_MM = 50.0, 35.0
+
+
+def fit_free_box(taken, page_width_mm, page_height_mm, width_mm, height_mm, **kwargs):
+    """(x_mm, y_mm, width_mm, height_mm, shrunk) for the first free spot, trying the asked size and then smaller boxes of the same shape (never
+    below MIN_FREE_WIDTH_MM x MIN_FREE_HEIGHT_MM), or None when even the smallest does not fit. Pure.
+
+    Round-3 smoke row E3 (DEF-37): on a layout made by create_print_layout a 120 x 80 chart and a 180 mm profile had no free spot, so the
+    caller fell back to (10, 10) and both sat on the header band and the map. A smaller chart in the free strip is better than a full-size one
+    on top of the map; the caller reports the shrink so the model can say so."""
+    for factor in SHRINK_FACTORS:
+        w, h = width_mm * factor, height_mm * factor
+        if factor < 1.0 and (w < MIN_FREE_WIDTH_MM or h < MIN_FREE_HEIGHT_MM):
+            break
+        spot = free_box(taken, page_width_mm, page_height_mm, w, h, **kwargs)
+        if spot is not None:
+            return spot[0], spot[1], w, h, factor < 1.0
+    return None
+
+
 def check_chart(layout_name, chart_type, x_field, y_field, item_id=None):
     """Options for a chart layout item: type (bar, line, pie) and the two plain field names. A field name, not an expression."""
     kind = str(chart_type or "bar").strip().lower()

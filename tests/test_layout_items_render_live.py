@@ -10,7 +10,7 @@ import unittest
 
 try:
     from qgis.core import QgsFeature, QgsGeometry, QgsLayoutExporter, QgsPrintLayout, QgsProject, QgsRasterLayer, QgsVectorLayer
-    from qgis.PyQt.QtCore import QBuffer, QByteArray, QIODevice, QSize
+    from qgis.PyQt.QtCore import QBuffer, QByteArray, QIODevice, QRectF, QSize
     from qgis.PyQt.QtGui import QColor
     LIVE = True
 except ImportError:
@@ -91,6 +91,36 @@ class TestLayoutItemsRender(unittest.TestCase):
         for i, a in enumerate(names):
             for b in names[i + 1:]:
                 self.assertFalse(rects[a].intersects(rects[b]), f"{a} {rects[a]} overlaps {b} {rects[b]}")
+
+    def test_a_crowded_page_gets_smaller_items_not_overlapping_ones(self):
+        """DEF-37 (round-3 smoke row E3): a header band and a map filling most of the page left no spot for a 120 x 80 chart or a 180 mm profile, so
+        both went to (10, 10) on top of them. Now they shrink into what is free, and the result says so."""
+        from qgis.core import QgsLayoutItemLabel, QgsLayoutItemMap
+        from cartogen_ai.core.agent.tools.elevation_tools import set_layer_elevation
+        from cartogen_ai.core.agent.tools.layout_chart_profile_tools import add_layout_chart, add_layout_elevation_profile
+        page = self.layout.pageCollection().page(0).pageSize()
+        for existing in list(self.layout.items()):
+            if type(existing).__name__ != "QgsLayoutItemPage":
+                self.layout.removeLayoutItem(existing)
+        header = QgsLayoutItemLabel(self.layout)
+        header.setId("header_band")
+        self.layout.addLayoutItem(header)
+        header.attemptSetSceneRect(QRectF(0, 0, page.width(), 25))
+        frame = QgsLayoutItemMap(self.layout)
+        frame.setId("main_map")
+        self.layout.addLayoutItem(frame)
+        frame.attemptSetSceneRect(QRectF(10, 30, page.width() - 20, page.height() - 90))
+        chart = add_layout_chart("render", "towns", "name", "pop", chart_type="bar", item_id="crowded_chart")
+        self.assertTrue(chart.get("success"), chart)
+        self.assertTrue(set_layer_elevation("dem", enabled=True, mode="surface", band=1).get("success"))
+        profile = add_layout_elevation_profile("render", ["dem"], 0.2, 0.2, 3.8, 3.8, item_id="crowded_profile", width_mm=180, height_mm=80)
+        self.assertTrue(profile.get("success"), profile)
+        print(f"LAYOUTRENDER crowded chart {chart.get('placement_note')} | profile {profile.get('placement_note')}")
+        rects = {k: self.layout.itemById(k).sceneBoundingRect() for k in ("header_band", "main_map", "crowded_chart", "crowded_profile")}
+        for new in ("crowded_chart", "crowded_profile"):
+            for old in ("header_band", "main_map"):
+                self.assertFalse(rects[new].intersects(rects[old]), f"{new} {rects[new]} overlaps {old} {rects[old]} (notes: {chart.get('placement_note')} / {profile.get('placement_note')})")
+        self.assertFalse(rects["crowded_chart"].intersects(rects["crowded_profile"]))
 
     def test_the_rendered_items_are_not_empty(self):
         ids = self._build()
