@@ -127,6 +127,19 @@ MIN_INK_PIXELS = 100      # the rendered test of tests/test_layout_items_render_
 RENDER_PX_PER_MM = 4
 
 
+MIN_COLOUR_SPREAD = 20      # max(R,G,B) - min(R,G,B) of a pixel that counts as data ink; axes, grid lines and text are neutral (spread 0 to a few)
+
+
+def is_data_ink(red, green, blue):
+    """True for a pixel that is part of the drawn data, False for white and for the neutral greys and black of axes, grid lines and text. Pure.
+
+    DEF-38 (CI run 42558613090): QGIS gives each layer a random profile-line colour, and that run's was a muted green (121, 146, 108), channel spread
+    38, HSV saturation 66. The test's old threshold (spread 40) read the drawn curve as no ink at all, and this tool's old one (saturation 60) would
+    have called a pale line chart (172, 196, 157; saturation 51) empty and warned the user falsely. Neutral pixels have almost no spread, so a low
+    threshold on the spread still separates data from axes whatever colour the layer drew in."""
+    return max(red, green, blue) - min(red, green, blue) >= MIN_COLOUR_SPREAD
+
+
 def ink_verdict(coloured_pixels, minimum=MIN_INK_PIXELS):
     """The part of the tool result that says whether the item drew anything. Pure. Axes and grid lines are grey, so only coloured pixels count
     (a plot with axes and no data has none): rc48 A12 and A6 showed empty grids and a profile without its curve, with nothing in the reply saying so."""
@@ -149,8 +162,12 @@ def _render_check(layout, item):
         if image.isNull():
             return None
         step = 2
-        coloured = sum(1 for x in range(0, image.width(), step) for y in range(0, image.height(), step)
-                       if image.pixelColor(x, y).hsvSaturation() > 60) * step * step
+        coloured = 0
+        for x in range(0, image.width(), step):
+            for y in range(0, image.height(), step):
+                pixel = image.pixelColor(x, y)
+                if is_data_ink(pixel.red(), pixel.green(), pixel.blue()):
+                    coloured += step * step
         return ink_verdict(coloured)
     except Exception:
         return None
