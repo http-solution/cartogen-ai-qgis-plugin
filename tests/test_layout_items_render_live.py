@@ -99,10 +99,8 @@ class TestLayoutItemsRender(unittest.TestCase):
         from cartogen_ai.core.agent.tools.elevation_tools import set_layer_elevation
         from cartogen_ai.core.agent.tools.layout_chart_profile_tools import add_layout_chart, add_layout_elevation_profile
         page = self.layout.pageCollection().page(0).pageSize()
-        # layoutItems() holds only layout items; items() also returns plain Qt graphics items (CI run 42561173584: TypeError on a QGraphicsRectItem)
-        for existing in list(self.layout.layoutItems()):
-            if type(existing).__name__ != "QgsLayoutItemPage":
-                self.layout.removeLayoutItem(existing)
+        # setUp's layout comes from initializeDefaults(): a page and nothing else, so there is nothing to clear. (Clearing through items() raised a
+        # TypeError on a plain Qt item in CI run 42561173584, and QgsPrintLayout has no layoutItems() in 4.2.2, run 42561940478.)
         header = QgsLayoutItemLabel(self.layout)
         header.setId("header_band")
         self.layout.addLayoutItem(header)
