@@ -190,5 +190,13 @@
   "status": "Fixed in the row text, recheck on the next package run",
   "pr": "584",
   "next": "Rows must edit a copy (DEF-36); no plugin change"
+ },
+ {
+  "id": "P18",
+  "defect": "A live render test and the tool's own render check read a pale layer colour as 'drew no data' (a muted green profile curve measured as empty once in CI)",
+  "found_by": "CI run 42558613090, main at 59e3b76",
+  "status": "Fixed (CI only), live recheck due",
+  "pr": "",
+  "next": "One colour rule for the tool and the test (DEF-38, PLAN-069); the PR number is added when it merges"
  }
 ]

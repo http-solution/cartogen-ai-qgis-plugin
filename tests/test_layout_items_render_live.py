@@ -18,6 +18,8 @@ except ImportError:
 
 PX_PER_MM = 5
 
+from cartogen_ai.core.agent.tools.layout_chart_profile_tools import is_data_ink  # noqa: E402  (pure; same rule as the tool's own render check)
+
 
 def _keep(name, image):
     """Save the picture for the CI artifact (master list DEF-1); never lets a save problem fail a test."""
@@ -39,7 +41,7 @@ def colour_stats(image, rect_mm):
             total += 1
             if c.alpha() and (c.red(), c.green(), c.blue()) != (255, 255, 255):
                 not_white += 1
-                if max(c.red(), c.green(), c.blue()) - min(c.red(), c.green(), c.blue()) >= 40:
+                if is_data_ink(c.red(), c.green(), c.blue()):      # DEF-38: one rule for the tool and this test; a fixed spread of 40 missed a muted random colour
                     coloured += 1
     return (coloured / total if total else 0.0), (not_white / total if total else 0.0), total
 
@@ -163,7 +165,7 @@ class TestLayoutItemsRender(unittest.TestCase):
         for n in range(5):
             image = QgsLayoutExporter(self.layout).renderRegionToImage(rect, QSize(int(rect.width() * PX_PER_MM), int(rect.height() * PX_PER_MM)))
             _keep(f"profile_render_{n + 1}", image)
-            counts.append(sum(1 for x in range(0, image.width(), 2) for y in range(0, image.height(), 2) if QColor(image.pixel(x, y)).hsvSaturation() > 60) * 4)
+            counts.append(sum(1 for x in range(0, image.width(), 2) for y in range(0, image.height(), 2) if is_data_ink(QColor(image.pixel(x, y)).red(), QColor(image.pixel(x, y)).green(), QColor(image.pixel(x, y)).blue())) * 4)
         print(f"LAYOUTRENDER profile five renders: {counts}")
         self.assertTrue(all(c >= 100 for c in counts), counts)
         self.assertLessEqual(max(counts) - min(counts), max(counts) / 3, counts)
