@@ -464,7 +464,7 @@
   },
   {
     "id": "layout-items-free-placement",
-    "feature": "A layout chart or elevation profile added without a position is placed on a free spot of the page, not on top of the items already there",
+    "feature": "A layout chart or elevation profile added without a position is placed on a free spot of the page, not on top of the items already there, and is made smaller when the page has no free spot of the asked size (DEF-37)",
     "issues": [
       379
     ],
@@ -476,6 +476,8 @@
     ],
     "guards": [
       "tests/test_layout_free_box.py::TestFreeBox::test_three_charts_never_overlap",
+      "tests/test_layout_free_box.py::TestFitFreeBox::test_it_shrinks_into_the_free_strip_instead_of_overlapping",
+      "tests/test_layout_items_render_live.py::TestLayoutItemsRender::test_a_crowded_page_gets_smaller_items_not_overlapping_ones",
       "tests/test_layout_free_box.py::TestFreeBox::test_the_second_chart_goes_beside_the_first_when_it_fits",
       "tests/test_layout_free_box.py::TestFreeBox::test_when_the_row_is_full_it_starts_the_next_row",
       "tests/test_layout_items_render_live.py::TestLayoutItemsRender::test_items_added_without_a_position_do_not_overlap"

@@ -76,7 +76,7 @@ One list to follow up and plan from. It replaces the session task list (101 entr
 | DEF-34 | Unguarded native heatmap: native:heatmapkerneldensityestimation runs through run_allowlisted_processing_algorithm with a 1-degree radius (row D2) and on a polygon layer (row E5), after hotspot_analysis correctly refused. The guard covers only qgis: algorithms. | The wrong-geometry and degree-unit guards can be bypassed by the model choosing the native algorithm. | Claude |  | M | P2 | In progress | live run round 3 (tester CSV), 2026-11-08 |
 | DEF-35 | JIAF write preview card (row D3) shows the write description and code but not the statement and validation blockers, which are only in the tool payload. | A user approving the write cannot see the blockers. | Claude |  | S | P3 | Not started | live run round 3 (tester CSV), 2026-11-08 |
 | DEF-36 | Hand-test side effect (row E4/V9): the source 3_test_files/smoke_data.gpkg got a notes column in smoke_points from the V9 undo test, so later rows ran on changed input. | Test input changed by an earlier row; results of later rows are not comparable. | Claude |  | S | P3 | Not started | live run round 3 (tester CSV), 2026-11-08 |
-| DEF-37 | Layout items added without a position overlap (row E3): a bar chart over the header band and the map top, and an elevation profile over the map. Frame after Zoom Full shows the whole DEM extent, not the vector layers. | Free placement gives an unusable page unless the user fixes it by hand. | Claude |  | M | P2 | Not started | live run round 3 (tester CSV), 2026-11-08 |
+| DEF-37 | Layout items added without a position overlap (row E3): a bar chart over the header band and the map top, and an elevation profile over the map. Frame after Zoom Full shows the whole DEM extent, not the vector layers. | Free placement gives an unusable page unless the user fixes it by hand. | Claude |  | M | P2 | In progress | live run round 3 (tester CSV), 2026-11-08 |
 | BUD-1 | Decide how the per-turn token budget (max_turn_tokens, default 450,000) counts cached tokens. Today input plus output tokens are counted in full; in the owner's 2026-11-01 run 55 percent of the input (241,830 of 439,564 tokens) was served from cache, which providers bill at a fraction. Options: keep, count cached tokens at 10 percent, or show both numbers and budget on billed tokens. | The budget stopped a run that, counted by cost, was less than half used. | You |  | S | P2 | In progress | owner log 2026-11-01 |
 | TR-1 | Task register tool order has no data-fetch tool for 261 of 302 'Map ...' tasks (checked 2026-11-01); the chat then says 'Prefer these tools, in order: add_layer_from_path, ...', which steers the model away from fetching. Only 6.02 (hospitals and clinics) was fixed, to start with fetch_osm_features like 1.02 and 1.05. Derive the fetch tool from the task's keywords (facilities, roads, buildings, boundaries, population, hazards) with a check script, as tools/derive_task_io.py does for file types. | The suggested tool order is wrong for most map tasks. | Claude |  | M | P2 | In progress | owner transcript 2026-11-01 |
 
@@ -186,12 +186,12 @@ Source: the owner's analysis document of nine flagship QGIS AI plugins, checked 
 
 | Status | Rows |
 |---|---|
-| In progress | 42 |
+| In progress | 43 |
 | Closed | 21 |
 | Blocked | 19 |
 | Decision needed | 11 |
 | Waiting on you | 11 |
-| Not started | 5 |
+| Not started | 4 |
 | Closed (record) | 1 |
 | **Total** | **110** |
 
@@ -381,3 +381,4 @@ Newest last. One line per status change; written by `tools/master_list.py set`.
 - 2026-11-08: DEF-27 In progress -> Closed. Closed on the owner's say 2026-11-08: A4 and A3 legends measured true and fit true, every entry whole (layout_check.json, tester A1 Pass). Reopen if a legend is cut again.
 - 2026-11-08: DEF-28 In progress -> Closed. Closed on the owner's say 2026-11-08: a table output carries only the feature_count check, no false geometry failure (round 3, agent evidence).
 - 2026-11-08: DEF-29 In progress -> Closed. Closed on the owner's say 2026-11-08: generate_situation_dashboard with the round-2 bbox wrote its HTML (C1 step 6, tester and agent).
+- 2026-11-09: DEF-37 Not started -> In progress. PLAN-067: fit_free_box shrinks the item into the free space; CI only, live recheck row E3 step 1. The Zoom Full frame finding is not addressed (needs the tester's layout screenshot)
