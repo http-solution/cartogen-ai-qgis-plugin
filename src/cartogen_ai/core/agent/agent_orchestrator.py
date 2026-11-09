@@ -37,7 +37,7 @@ from ...infrastructure.providers.cartogen import FALLBACK_MODELS as CARTOGEN_FAL
 from ..model_selector import AUTO_SENTINEL, classify_complexity, is_cheap_tier, pick_model_for_complexity
 from .tool_dispatcher import ToolDispatcher
 from .usage_tracker import UsageTracker
-from . import call_metrics, loop_guard, result_gate, source_record, workflow_file
+from . import call_metrics, loop_guard, result_gate, source_record, superseded, workflow_file
 from .history_manager import HistoryManager
 from .memory import SpatialMemoryManager
 from .task_manager import AgentTaskManager
@@ -1704,13 +1704,22 @@ class CartogenAi:
             known = [lyr.name() for lyr in all_layers]
             sources = derive_sources(name, args, [lyr.name() for lyr in read_layers])
             source_ids = source_layer_ids(sources, read_layers)
+            superseded_now = []
             for created in created_layer_names(res, sources, known):
-                for layer in project.mapLayersByName(created)[:1]:
-                    extra = getattr(self, "_workflow_context", None)       # set only while a workflow file runs (PLAN-048)
-                    if extra:
-                        tag_layer_lineage(layer, name, args, sources, source_ids, extra=extra)
-                    else:
-                        tag_layer_lineage(layer, name, args, sources, source_ids)
+                # The layer THIS call made, not the first of the same name (PLAN-072): with duplicate names the first could be an older result.
+                layer = superseded.pick_new_layer(project.mapLayersByName(created), layers_before)
+                if layer is None:
+                    continue
+                extra = getattr(self, "_workflow_context", None)       # set only while a workflow file runs (PLAN-048)
+                if extra:
+                    tag_layer_lineage(layer, name, args, sources, source_ids, extra=extra)
+                else:
+                    tag_layer_lineage(layer, name, args, sources, source_ids)
+                if superseded.enabled():
+                    superseded_now += superseded.mark_older(project, layer, name, layers_before)
+            if superseded_now and isinstance(res, dict):
+                res["superseded_layers"] = superseded_now
+                res["superseded_note"] = superseded.note(superseded_now)
         except Exception as e:
             log_event("swallowed_exception", tag="Agent", tool="lineage_tagging",
                       error_class=type(e).__name__, error=True)

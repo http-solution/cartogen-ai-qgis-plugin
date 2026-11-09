@@ -153,7 +153,7 @@ One list to follow up and plan from. It replaces the session task list (101 entr
 | HU-2 | JIAF: re-check flag formulas and the Annex 4 reader when OWN-9 material arrives; closing the blockers stays your decision. | Two open validation blockers. | Claude | OWN-9 | M | P3 | Blocked | JIAF2 |
 | HU-3 | travel_time_matrix about 8 minutes on a whole country; optimize_delivery_route builds the graph per stop pair; assumed speeds by road class (only 0.9 percent of Jordan's roads carry a speed). | Performance and realism limits. | Claude | - | L | P3 | In progress | BUG-2026-09-25-3, W-39 |
 | HU-4 | Raster-unit check (people per cell versus density) in population exposure; points into the admin CRS in damage counting; score-write labels. | Result-correctness items in the same class as RM-A. | Claude | RM-A | M | P2 | Blocked | W-40 |
-| HU-5 | Smaller carry-overs: task-runner callbacks at unload (#167 tail), find_region naming the wrong country, output layers piling up in long sessions. | Known, minor. | Claude | - | M | P3 | Decision needed | W-41 to W-43 |
+| HU-5 | Smaller carry-overs: task-runner callbacks at unload (#167 tail), find_region naming the wrong country, output layers piling up in long sessions. | Known, minor. | Claude | - | M | P3 | In progress | W-41 to W-43 |
 
 ## H. Architecture decisions (deferred, yours)
 
@@ -187,11 +187,11 @@ Source: the owner's analysis document of nine flagship QGIS AI plugins, checked 
 
 | Status | Rows |
 |---|---|
-| In progress | 49 |
+| In progress | 50 |
 | Closed | 29 |
 | Blocked | 15 |
 | Waiting on you | 10 |
-| Decision needed | 6 |
+| Decision needed | 5 |
 | Closed (record) | 1 |
 | Not started | 1 |
 | **Total** | **111** |
@@ -416,3 +416,4 @@ Newest last. One line per status change; written by `tools/master_list.py set`.
 - 2026-11-09: AR-1 Decision needed -> Blocked. 2026-11-09: listed as 'Decision needed' but its own row says it waits on RM-A ('only after RM-A shows what a gate buys'), and RM-A is still open (its hand test and the CRS/stale checks need a real run). Nothing to decide until then; recommendation in docs/DECISION_ANALYSIS_2026-11-09.md.
 - 2026-11-09: AR-3 Decision needed -> Closed. 2026-11-09 owner decision ("close AR-3"): closed as no measurable bias. Measured 2026-11-05 (PLAN-060): of 792 task titles 613 find their own task, 165 find none (the fragment guard, by design), 13 lose to an identical keyword set, 1 to a task with fewer strong keywords, none to one with more; pinned by tests/test_task_matcher_length_fairness.py. The 165 that find no task by design is a separate question, not part of this row.
 - 2026-11-09: HY-4 Decision needed -> Waiting on you. 2026-11-09 owner approved ("go with HY-4") the plan in docs/DECISION_ANALYSIS_2026-11-09.md: delete the 40 merged branches and the 4 closed-PR branches (GitHub keeps their commits), and tag-then-delete the other 11 (tags archive/<name>). NOT EXECUTED: the cloud session's git proxy answers HTTP 403 to every push except the session's own branch (tag push and branch delete both tried, once each; nothing changed, all 55 branches still exist). tools/prune_branches.py (new, tested) re-verifies each branch against the live remote and does it in one command: run 'python tools/prune_branches.py' for the dry run (live check on 2026-11-09: 44 delete, 11 tag-then-delete, 0 skipped) and then with --execute from a clone with push rights. Send the output and I will record the result.
+- 2026-11-09: HU-5 Decision needed -> In progress. 2026-11-09 owner chose 'mark superseded' for part 3 (output layers piling up). Built as PLAN-072: an earlier result of the SAME tool with the same name is kept and renamed '<name> (superseded)', the new one holds the name; never a user's layer, another tool's output or loaded data; setting cartogen_ai/mark_superseded; CI only, not seen in a real chat. Not covered: the two-phase fetch tools; the service-area tools keep their own replace-by-name. Part 1 (task-runner callbacks at unload) needs its live look (OI-224): fold into the 1.18.6 recheck. Part 2 (find_region) is resolved; the row text is stale.
