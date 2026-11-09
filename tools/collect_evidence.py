@@ -42,8 +42,51 @@ def _err(text):
     print("collect_evidence:", text)
 
 
+def _level_number(level):
+    """The message level as a number, whatever object QGIS hands over. QGIS 4 (PyQt6) passes an Enum member, and int() of a plain Enum raises TypeError:
+    DEF-9, the collector's slot died on that before it recorded anything, so every log file of round 3 was empty on QGIS 4.2.3. -1 when unreadable."""
+    for candidate in (getattr(level, "value", level), level):
+        try:
+            return int(candidate)
+        except (TypeError, ValueError):
+            continue
+    return -1
+
+
 def _on_message(message, tag, level):
-    _STATE["lines"].append((datetime.datetime.now().strftime("%H:%M:%S"), tag, int(level), message))
+    """Never raises: a slot that raises is dropped silently by Qt and the line is lost. A line identical to the one just recorded, within a fifth of a
+    second, is the same message arriving through a second connection (setup connects every signal form), so it is dropped."""
+    try:
+        now = datetime.datetime.now()
+        line = (str(tag), _level_number(level), str(message))
+        previous = _STATE.get("previous")
+        if previous and previous[0] == line and (now - previous[1]).total_seconds() < 0.2:
+            return
+        _STATE["previous"] = (line, now)
+        _STATE["lines"].append((now.strftime("%H:%M:%S"), *line))
+    except Exception:
+        _STATE["lines"].append((datetime.datetime.now().strftime("%H:%M:%S"), "collector", -1, "a log line could not be recorded"))
+
+
+def _plugin_lines(since):
+    """The plugin's own log lines since `since` (epoch seconds) as 'HH:MM:SS [tag] LEVEL text' strings, read from the logger's in-memory buffer; [] when the
+    plugin cannot be imported here. DEF-9: this is the path that works on QGIS 4, where the messageReceived signal delivered no text in a live run."""
+    for name in ("cartogen_ai.core.logger", "core.logger"):
+        try:
+            module = __import__(name, fromlist=["recent_lines"])
+            return [f"{datetime.datetime.fromtimestamp(t).strftime('%H:%M:%S')} [{tag}] {level} {message}"
+                    for t, level, tag, message in module.recent_lines(since=since)]
+        except Exception as e:
+            _STATE.setdefault("plugin_log_errors", []).append(f"{name}: {type(e).__name__}: {str(e)[:80]}")
+    return []
+
+
+def _log_file_text(lines, connected_forms):
+    """The text of a log file: the lines, or one sentence saying none were captured, so an empty result is never silent (DEF-9: 37 of 41 files were just empty)."""
+    if lines:
+        return "".join(line if line.endswith("\n") else line + "\n" for line in lines)
+    return (f"(no log line was captured since setup(). {connected_forms} signal form(s) were connected and the plugin's own buffer was empty or could not be read. "
+            "Copy the Log Messages tab CartogenAI by hand into results\\logs and say so in the notes.)\n")
 
 
 def begin(bundle):
@@ -73,11 +116,20 @@ def setup(out_dir):
     if not _STATE["connected"]:
         from qgis.core import Qgis
         signal = QgsApplication.messageLog().messageReceived
-        try:
-            signal[str, str, Qgis.MessageLevel].connect(_on_message)  # the overload that carries the text; a bare .connect may bind the bool one
-        except Exception:
-            signal.connect(_on_message)
-        _STATE["connected"] = True
+        # DEF-9: on QGIS 4.2.2 a live test saw nothing arrive through the form used here before (explicit enum, then a bare connect on failure). Which form
+        # delivers on a given QGIS is not certain, so every form that can be connected is, and _on_message drops the duplicates that follow.
+        forms = (lambda: signal[str, str, Qgis.MessageLevel], lambda: signal, lambda: signal[str, str, int], lambda: signal["QString", "QString", "Qgis::MessageLevel"])
+        connected = 0
+        for pick in forms:
+            try:
+                pick().connect(_on_message)
+                connected += 1
+            except Exception as e:                  # this form does not exist in this PyQt build; another may
+                _STATE.setdefault("form_errors", []).append(f"{type(e).__name__}: {str(e)[:80]}")
+        _STATE["connected"] = connected > 0
+        _STATE["forms_connected"] = connected
+        if not connected:
+            _err("could not connect to QgsApplication.messageLog().messageReceived in any form: no log text will be recorded")
     _STATE["last"] = datetime.datetime.now().timestamp()
     print(f"collect_evidence: ready, writing to {out_dir}. Log capture starts now; call snap('<row>') after each row.")
 
@@ -181,10 +233,14 @@ def snap(row, note=""):
     os.makedirs(out, exist_ok=True)
     try:
         lines = _STATE["lines"]
+        signal_lines = [f"{t} [{tag}] L{lvl} {msg}\n" for t, tag, lvl, msg in lines]
+        plugin_lines = _plugin_lines(_STATE["last"])
+        forms = _STATE.get("forms_connected", 0)
         with open(os.path.join(out, "log_all.txt"), "w", encoding="utf-8") as fh:
-            fh.writelines(f"{t} [{tag}] L{lvl} {msg}\n" for t, tag, lvl, msg in lines)
+            fh.write(_log_file_text(signal_lines, forms))
+        own_signal = [f"{t} [{tag}] L{lvl} {msg}\n" for t, tag, lvl, msg in lines if "cartogen" in tag.lower() or tag in ("Agent", "Tools")]
         with open(os.path.join(out, "log_cartogenai.txt"), "w", encoding="utf-8") as fh:
-            fh.writelines(f"{t} [{tag}] L{lvl} {msg}\n" for t, tag, lvl, msg in lines if "cartogen" in tag.lower() or tag in ("Agent", "Tools"))
+            fh.write(_log_file_text(plugin_lines or own_signal, forms))
         shutil.copyfile(os.path.join(out, "log_cartogenai.txt"), os.path.join(_STATE["out"], "logs", f"{row}.log"))
     except Exception:
         _err(f"{row}: log: {traceback.format_exc(limit=2)}")

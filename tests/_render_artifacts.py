@@ -22,3 +22,16 @@ def save_png(name, image):
     folder.mkdir(parents=True, exist_ok=True)
     path = folder / f"{safe}.png"
     return str(path) if image.save(str(path), "PNG") else None
+
+
+def save_text(name, text):
+    """The path a small text note was saved to in the artifact folder, or None when no folder is set. A live test uses it for facts the CI log would hide (prints of passing tests
+    are not shown). The name is reduced like save_png's."""
+    folder = artifact_dir()
+    if folder is None:
+        return None
+    safe = re.sub(r"[^A-Za-z0-9_.-]+", "_", str(name)).strip("._") or "note"
+    folder.mkdir(parents=True, exist_ok=True)
+    path = folder / f"{safe}.txt"
+    path.write_text(str(text), encoding="utf-8")
+    return str(path)

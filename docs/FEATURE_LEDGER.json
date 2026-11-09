@@ -667,7 +667,8 @@
     ],
     "guards": [
           "tests/test_layout_extent_pick.py::TestPickLayoutExtent::test_zoom_full_with_a_small_network_frames_the_network_with_a_margin",
-          "tests/test_layout_extent_pick.py::TestPickLayoutExtent::test_a_canvas_zoomed_in_by_the_user_is_followed"
+          "tests/test_layout_extent_pick.py::TestPickLayoutExtent::test_a_canvas_zoomed_in_by_the_user_is_followed",
+      "tests/test_layout_extent_pick.py::TestTheSmokeDataExtents::test_with_only_the_points_and_the_dem_visible_the_frame_follows_the_points"
     ],
     "hand_verified": "not hand-tested; the canvas integration is not exercised in CI (no canvas), only the pure rule"
   },
@@ -970,7 +971,10 @@
     "issues": [],
     "since": "1.18.0 (unreleased change)",
     "sources": ["tools/build_hand_test_v2.py", "tools/check_evidence.py", "docs/HAND_TEST_V2_ROWS.json"],
-    "guards": ["tests/test_hand_test_v2.py::TestSheetIsGeneratedAndNotStale::test_the_version_comes_from_metadata_not_from_the_rows", "tests/test_hand_test_v2.py::TestSheetIsGeneratedAndNotStale::test_every_row_states_where_it_starts_and_none_depends_on_another", "tests/test_hand_test_v2.py::TestSheetIsGeneratedAndNotStale::test_the_readme_carries_the_update_steps_the_update_row_points_to", "tests/test_hand_test_v2.py::TestEvidenceChecker::test_a_forbidden_tool_fails_the_row_and_the_tools_are_listed"],
+    "guards": ["tests/test_hand_test_v2.py::TestSheetIsGeneratedAndNotStale::test_the_version_comes_from_metadata_not_from_the_rows",
+      "tests/test_collect_evidence_log.py::TestOnMessage::test_a_plain_enum_level_is_recorded_with_its_value",
+      "tests/test_logger_recent_lines.py::TestCollectorReadsThePluginLines::test_the_collector_returns_the_plugin_lines_since_setup",
+      "tests/test_collect_evidence_log_live.py::TestCollectorSeesTheLogInRealQgis::test_a_plugin_log_line_reaches_the_collector_and_the_log_file_is_never_silent", "tests/test_hand_test_v2.py::TestSheetIsGeneratedAndNotStale::test_every_row_states_where_it_starts_and_none_depends_on_another", "tests/test_hand_test_v2.py::TestSheetIsGeneratedAndNotStale::test_the_readme_carries_the_update_steps_the_update_row_points_to", "tests/test_hand_test_v2.py::TestEvidenceChecker::test_a_forbidden_tool_fails_the_row_and_the_tools_are_listed"],
     "hand_verified": "not verified: offline tests only; no v2 bundle has been run by the owner yet",
     "hand_row": "run a v2 bundle and then tools/check_evidence.py on the returned folder"
   },

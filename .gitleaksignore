@@ -1,2 +1,4 @@
 # Fake Google-key-shaped string in a test fixture (replaced by a run-time built value in the next commit); not a real key.
 be7d2d86a5a2a94058a2b53cd190590d949bdede:tests/test_providers.py:gcp-api-key:487
+# Fake OpenRouter-shaped key in a redaction test (rebuilt at run time in the next commit); invented text, not a real key.
+f334dc19eb2dc4623ad9fb72957528d263661ff3:tests/test_logger_recent_lines.py:generic-api-key:29
