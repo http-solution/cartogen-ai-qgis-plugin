@@ -3,7 +3,7 @@
   "id": "P1",
   "defect": "Exported layout pages from the A1 script showed an empty Legend and a blank map frame",
   "found_by": "Live run 2026-11-04 (agent); I saw it in a rendered PDF",
-  "status": "Seen fixed live (round 2)",
+  "status": "Closed, seen fixed live",
   "pr": "573",
   "next": "Pages no longer empty. A person still looks at them; the clipped legend is P7"
  },
@@ -11,7 +11,7 @@
   "id": "P2",
   "defect": "Undo card for a filled column offers a destructive remove, then refuses only on Apply",
   "found_by": "Live run 2026-11-04, row V9",
-  "status": "Fixed, seen live (round 2)",
+  "status": "Closed, seen fixed live",
   "pr": "573",
   "next": "Evidence t19: refused at once, no card. Row V9 text updated"
  },
@@ -19,7 +19,7 @@
   "id": "P3",
   "defect": "'Animate the layer over time' did not call export_temporal_animation_frames (issue 362)",
   "found_by": "Live run 2026-11-04, row V4 (project was unsaved, no evidence folder)",
-  "status": "Fixed, seen live (round 2)",
+  "status": "Closed, seen fixed live",
   "pr": "573",
   "next": "Tool called with the layer only, 4 frames. Reply also gave ffmpeg steps; not-temporal-first case not seen"
  },
@@ -27,7 +27,7 @@
   "id": "P4",
   "defect": "Chat export after reopening held 32 of 40 messages (row B5)",
   "found_by": "Live run 2026-11-04, row B5",
-  "status": "Not a plugin loss on the evidence",
+  "status": "Closed, not a plugin loss (export 40 of 40 in round 3)",
   "pr": "",
   "next": "Every request the plugin received was in it (16 requests); 14 B5 requests were sent, not 20. Rerun B5 with an exact count"
  },
@@ -107,7 +107,7 @@
   "id": "P7",
   "defect": "Exported A1 legend is cut at the bottom of its frame (A4 shows classes 0-10 of 14, A3 shows 0-3) while the L1 check says it fits",
   "found_by": "Round 2 live run 2026-11-05, row A1; PDFs read by me",
-  "status": "Seen fixed live (round 3)",
+  "status": "Closed, seen fixed live",
   "pr": "",
   "next": "Legends measured and split into columns; read on the A4 and A3 pages (DEF-27)"
  },
@@ -115,7 +115,7 @@
   "id": "P8",
   "defect": "A table output got 'geometry: 1 of 1 invalid or empty' = FAIL and the model was told to call the result wrong",
   "found_by": "Round 2 live run, row E4, evidence t60",
-  "status": "Seen fixed live (round 3)",
+  "status": "Closed, seen fixed live",
   "pr": "",
   "next": "Table output gets only the feature-count check (DEF-28)"
  },
@@ -123,7 +123,7 @@
   "id": "P9",
   "defect": "generate_situation_dashboard failed with 'list' object has no attribute 'get'",
   "found_by": "Round 2 live run, row C1, evidence t12",
-  "status": "Seen fixed live (round 3)",
+  "status": "Closed, seen fixed live",
   "pr": "",
   "next": "The situation dashboard wrote its HTML file (DEF-29)"
  },
@@ -131,8 +131,8 @@
   "id": "P10",
   "defect": "native:meshrasterize ran 'successfully with no new layer output' when the model's 5-degree pixel size made an empty raster; later calls failed with 'writeBlock() called on read-only provider'",
   "found_by": "Round 3 live run, row B6, evidence t1",
-  "status": "Open",
-  "pr": "",
+  "status": "Fixed (CI only), live recheck due",
+  "pr": "581",
   "next": "Say plainly when an algorithm that declares an output layer made none, and hint at pixel size against the extent (DEF-30)"
  },
  {
@@ -155,16 +155,16 @@
   "id": "P13",
   "defect": "Model asks for a tool the plugin does not offer (execute_pyqgis_script, import_humanitarian_table); the task stops",
   "found_by": "Round 3 tester CSV, row B1, B2",
-  "status": "Open",
-  "pr": "",
+  "status": "Fixed (CI only), live recheck due",
+  "pr": "579",
   "next": "Keep the loop going with the tools that exist (DEF-33)"
  },
  {
   "id": "P14",
   "defect": "native heatmap runs unguarded with a degree radius or on polygons",
   "found_by": "Round 3 tester CSV, row D2, E5",
-  "status": "Open",
-  "pr": "",
+  "status": "Fixed (CI only), live recheck due",
+  "pr": "580",
   "next": "Extend the processing guards to the native algorithm (DEF-34)"
  },
  {
