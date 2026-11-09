@@ -5,6 +5,7 @@ Routes diagnostic, warning, and error messages to QgsMessageLog when running ins
 falling back gracefully to standard Python logging / sys.stderr in headless or test environments.
 """
 
+import collections
 import contextlib
 import re
 import sys
@@ -57,6 +58,23 @@ except ImportError:
 TAG = "CartogenAI"
 
 
+# The most recent log lines, redacted exactly like what goes to QGIS. DEF-9: the hand-test evidence collector tried to read the plugin's lines through QGIS's
+# messageReceived signal and recorded nothing on QGIS 4 (a live run delivered no line through any form that carries the text), so the plugin keeps its own
+# short memory and the collector asks for it. Metadata-only by the logging rules above; it never leaves the process and holds at most 2000 lines.
+_RECENT: collections.deque = collections.deque(maxlen=2000)
+
+
+def _remember(level: str, tag: str, message: str) -> None:
+    """Never raises: remembering a line must not stop it being logged."""
+    with contextlib.suppress(Exception):
+        _RECENT.append((time.time(), level, str(tag), message))
+
+
+def recent_lines(since=None):
+    """[(epoch seconds, 'INFO'|'WARNING'|'CRITICAL', tag, message)] for the remembered lines, oldest first; only those at or after `since` when given."""
+    return [line for line in list(_RECENT) if since is None or line[0] >= since]
+
+
 def log_destination(tag, message):
     """(Log Messages tab, text) for a message logged under `tag`. QGIS opens one Log Messages tab per tag, and the plugin logs under about
     twenty-seven (Tools, Agent, Providers, CredentialManager, ... and one spelled CartogenAi), so the tab the hand-test README says to save,
@@ -69,6 +87,7 @@ def log_destination(tag, message):
 def log_info(message: str, tag: str = TAG) -> None:
     """Logs an informational message to QgsMessageLog."""
     message = _redact(message)
+    _remember("INFO", tag, message)
     if QGIS_LOG_AVAILABLE:
         with contextlib.suppress(Exception):
             _tab, _text = log_destination(tag, message)
@@ -80,6 +99,7 @@ def log_info(message: str, tag: str = TAG) -> None:
 def log_warning(message: str, tag: str = TAG) -> None:
     """Logs a warning message to QgsMessageLog."""
     message = _redact(message)
+    _remember("WARNING", tag, message)
     if QGIS_LOG_AVAILABLE:
         with contextlib.suppress(Exception):
             _tab, _text = log_destination(tag, message)
@@ -91,6 +111,7 @@ def log_warning(message: str, tag: str = TAG) -> None:
 def log_error(message: str, tag: str = TAG) -> None:
     """Logs an error message to QgsMessageLog."""
     message = _redact(message)
+    _remember("CRITICAL", tag, message)
     if QGIS_LOG_AVAILABLE:
         with contextlib.suppress(Exception):
             _tab, _text = log_destination(tag, message)

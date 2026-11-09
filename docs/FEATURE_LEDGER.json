@@ -973,7 +973,8 @@
     "sources": ["tools/build_hand_test_v2.py", "tools/check_evidence.py", "docs/HAND_TEST_V2_ROWS.json"],
     "guards": ["tests/test_hand_test_v2.py::TestSheetIsGeneratedAndNotStale::test_the_version_comes_from_metadata_not_from_the_rows",
       "tests/test_collect_evidence_log.py::TestOnMessage::test_a_plain_enum_level_is_recorded_with_its_value",
-      "tests/test_collect_evidence_log_live.py::TestCollectorReceivesRealLogMessages::test_the_collector_records_a_real_log_message_with_tag_level_and_text", "tests/test_hand_test_v2.py::TestSheetIsGeneratedAndNotStale::test_every_row_states_where_it_starts_and_none_depends_on_another", "tests/test_hand_test_v2.py::TestSheetIsGeneratedAndNotStale::test_the_readme_carries_the_update_steps_the_update_row_points_to", "tests/test_hand_test_v2.py::TestEvidenceChecker::test_a_forbidden_tool_fails_the_row_and_the_tools_are_listed"],
+      "tests/test_logger_recent_lines.py::TestCollectorReadsThePluginLines::test_the_collector_returns_the_plugin_lines_since_setup",
+      "tests/test_collect_evidence_log_live.py::TestCollectorSeesTheLogInRealQgis::test_a_plugin_log_line_reaches_the_collector_and_the_log_file_is_never_silent", "tests/test_hand_test_v2.py::TestSheetIsGeneratedAndNotStale::test_every_row_states_where_it_starts_and_none_depends_on_another", "tests/test_hand_test_v2.py::TestSheetIsGeneratedAndNotStale::test_the_readme_carries_the_update_steps_the_update_row_points_to", "tests/test_hand_test_v2.py::TestEvidenceChecker::test_a_forbidden_tool_fails_the_row_and_the_tools_are_listed"],
     "hand_verified": "not verified: offline tests only; no v2 bundle has been run by the owner yet",
     "hand_row": "run a v2 bundle and then tools/check_evidence.py on the returned folder"
   },

@@ -68,6 +68,27 @@ def _on_message(message, tag, level):
         _STATE["lines"].append((datetime.datetime.now().strftime("%H:%M:%S"), "collector", -1, "a log line could not be recorded"))
 
 
+def _plugin_lines(since):
+    """The plugin's own log lines since `since` (epoch seconds) as 'HH:MM:SS [tag] LEVEL text' strings, read from the logger's in-memory buffer; [] when the
+    plugin cannot be imported here. DEF-9: this is the path that works on QGIS 4, where the messageReceived signal delivered no text in a live run."""
+    for name in ("cartogen_ai.core.logger", "core.logger"):
+        try:
+            module = __import__(name, fromlist=["recent_lines"])
+            return [f"{datetime.datetime.fromtimestamp(t).strftime('%H:%M:%S')} [{tag}] {level} {message}"
+                    for t, level, tag, message in module.recent_lines(since=since)]
+        except Exception as e:
+            _STATE.setdefault("plugin_log_errors", []).append(f"{name}: {type(e).__name__}: {str(e)[:80]}")
+    return []
+
+
+def _log_file_text(lines, connected_forms):
+    """The text of a log file: the lines, or one sentence saying none were captured, so an empty result is never silent (DEF-9: 37 of 41 files were just empty)."""
+    if lines:
+        return "".join(line if line.endswith("\n") else line + "\n" for line in lines)
+    return (f"(no log line was captured since setup(). {connected_forms} signal form(s) were connected and the plugin's own buffer was empty or could not be read. "
+            "Copy the Log Messages tab CartogenAI by hand into results\\logs and say so in the notes.)\n")
+
+
 def begin(bundle):
     """The one line a tester pastes: begin(r"<bundle folder>"). Evidence goes to <bundle>\\results, where the bundle already has one folder per row."""
     return setup(os.path.join(bundle, "results"))
@@ -106,6 +127,7 @@ def setup(out_dir):
             except Exception as e:                  # this form does not exist in this PyQt build; another may
                 _STATE.setdefault("form_errors", []).append(f"{type(e).__name__}: {str(e)[:80]}")
         _STATE["connected"] = connected > 0
+        _STATE["forms_connected"] = connected
         if not connected:
             _err("could not connect to QgsApplication.messageLog().messageReceived in any form: no log text will be recorded")
     _STATE["last"] = datetime.datetime.now().timestamp()
@@ -211,10 +233,14 @@ def snap(row, note=""):
     os.makedirs(out, exist_ok=True)
     try:
         lines = _STATE["lines"]
+        signal_lines = [f"{t} [{tag}] L{lvl} {msg}\n" for t, tag, lvl, msg in lines]
+        plugin_lines = _plugin_lines(_STATE["last"])
+        forms = _STATE.get("forms_connected", 0)
         with open(os.path.join(out, "log_all.txt"), "w", encoding="utf-8") as fh:
-            fh.writelines(f"{t} [{tag}] L{lvl} {msg}\n" for t, tag, lvl, msg in lines)
+            fh.write(_log_file_text(signal_lines, forms))
+        own_signal = [f"{t} [{tag}] L{lvl} {msg}\n" for t, tag, lvl, msg in lines if "cartogen" in tag.lower() or tag in ("Agent", "Tools")]
         with open(os.path.join(out, "log_cartogenai.txt"), "w", encoding="utf-8") as fh:
-            fh.writelines(f"{t} [{tag}] L{lvl} {msg}\n" for t, tag, lvl, msg in lines if "cartogen" in tag.lower() or tag in ("Agent", "Tools"))
+            fh.write(_log_file_text(plugin_lines or own_signal, forms))
         shutil.copyfile(os.path.join(out, "log_cartogenai.txt"), os.path.join(_STATE["out"], "logs", f"{row}.log"))
     except Exception:
         _err(f"{row}: log: {traceback.format_exc(limit=2)}")
