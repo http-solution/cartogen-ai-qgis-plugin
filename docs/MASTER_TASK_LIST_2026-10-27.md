@@ -34,8 +34,8 @@ One list to follow up and plan from. It replaces the session task list (101 entr
 | OWN-3 | For the rows that failed without a found cause, send the per-prompt Log Messages text: unrequested layers (A5 country layer, A7 Incident layer), C5 inverted labels, D3, D4, S5. | Last two runs' logs held only the verdict line; the causes of these rows are unknown. | You | OWN-1 | S | P1 | Closed | 1.18.3 hand run |
 | OWN-4 | Run the 1.18.1-bundle rows V3 to V8 so issues #362 (V4, V5, V6) and #380 (V3, V7, V8) can be closed or fixed. | The only two open GitHub issues; waiting since 2026-10-23. | You | - | S | P1 | Closed | PLAN-021, PLAN-022 N0 |
 | OWN-5 | Confirm or change the roadmap order A to G in the roadmap audit (this unlocks plans and issues for RM-A to RM-D). | Nothing in the roadmap can start without it. | You | - | XS | P1 | Closed | ROADMAP_AUDIT_2026-10-27.md |
-| OWN-6 | Answer the PLAN-022 N6 questions: temporary-layer note for incident, hazard and event layers; undo for rename_field and delete_field; add a clean-profile install row; stable versus pre-release channel; architecture items. | Small product choices that block HY work and wording of releases. | You | - | S | P2 | Decision needed | PLAN-022 N6 |
-| OWN-7 | Confirm or change the PLAN-023 defaults (questions Q1 to Q15: persona model 'lens, never a gate', one primary plus one secondary persona, Power BI hand-off files only, assumed speeds only on request, and so on). | Needed before the profile programme starts. | You | - | S | P2 | Decision needed | PLAN-023 (branch claude/pending-work-master-list) |
+| OWN-6 | Answer the PLAN-022 N6 questions: temporary-layer note for incident, hazard and event layers; undo for rename_field and delete_field; add a clean-profile install row; stable versus pre-release channel; architecture items. | Small product choices that block HY work and wording of releases. | You | - | S | P2 | Closed | PLAN-022 N6 |
+| OWN-7 | Confirm or change the PLAN-023 defaults (questions Q1 to Q15: persona model 'lens, never a gate', one primary plus one secondary persona, Power BI hand-off files only, assumed speeds only on request, and so on). | Needed before the profile programme starts. | You | - | S | P2 | Closed | PLAN-023 (branch claude/pending-work-master-list) |
 | OWN-8 | Decide what happens to branch claude/pending-work-master-list (the earlier master list W-1 to W-58 and PLAN-023): merge for the record, or discard because this list replaces it. | It has never been merged; two lists must not drift apart. | You | - | XS | P2 | Closed | docs/PENDING_WORK_AND_PROFILE_ANALYSIS_2026-10-26.md |
 | OWN-9 | Close the JIAF validation blockers: a Flags dashboard export or country records, the flag-6 historical table, the flag-3 zero case, the thresholds sheet, one real filled Annex 4 file. | The two JIAF blockers are printed in every JIAF result. | You | - | M | P2 | Waiting on you | session task 69, JIAF2 docs |
 | OWN-10 | Provide credentials and terms for the deferred integrations: ACLED key, ReliefWeb app name, Kobo/ODK, GloFAS/CHIRPS, Logistics Cluster, LandScan. | Cannot be built without keys and licence terms. | You | - | M | P3 | Waiting on you | session task 67, gap analysis H10 |
@@ -85,9 +85,9 @@ One list to follow up and plan from. It replaces the session task list (101 entr
 | ID | Task | Why | Who | Depends on | Size | Pri | Status | Source |
 |---|---|---|---|---|---|---|---|---|
 | DEF-1 | Elevation-profile print item renders empty intermittently in CI (#379 observation). It failed twice on one commit and passed on a third run with no change. Add a CI step that saves the PNG when the render is empty, then debug on QGIS 4.2. | Makes release CI fail at random; cause not found (a QGIS 3.34 reproduction in the sandbox was not comparable). | Claude | - | M | P1 | In progress | PLAN-026, PR 453 CI history |
-| DEF-2 | Change-layer legend (D6): confirm blue-to-red with a transparent no-change area; fix if the screenshot shows otherwise. | Open since the 1.18.3 run. | Claude | OWN-2 | S | P2 | Blocked | 1.18.3 hand run D6 |
-| DEF-3 | Unrequested layers: an 'Incident' layer after GDACS (A7), a country layer after building footprints (A5). No tool in the code adds them; trace the plan that does. | Surprises the user; cause unknown. | Claude | OWN-3 | S | P2 | Blocked | 1.18.2 and 1.18.3 hand runs |
-| DEF-4 | C5 labels reported inverted: find which layer and labels. | Reported without detail. | Claude | OWN-3 | S | P2 | Blocked | 1.18.2 hand run |
+| DEF-2 | Change-layer legend (D6): confirm blue-to-red with a transparent no-change area; fix if the screenshot shows otherwise. | Open since the 1.18.3 run. | Claude | OWN-2 | S | P2 | Closed | 1.18.3 hand run D6 |
+| DEF-3 | Unrequested layers: an 'Incident' layer after GDACS (A7), a country layer after building footprints (A5). No tool in the code adds them; trace the plan that does. | Surprises the user; cause unknown. | Claude | OWN-3 | S | P2 | Closed | 1.18.2 and 1.18.3 hand runs |
+| DEF-4 | C5 labels reported inverted: find which layer and labels. | Reported without detail. | Claude | OWN-3 | S | P2 | Closed | 1.18.2 hand run |
 | DEF-5 | Zonal-statistics columns (chg_mean, chg2_mean...) stay on the admin layer after the damage tool runs; remove them or run on a copy. | Side effect on the user's layer; a file-based layer keeps them. | Claude | - | S | P2 | In progress | PLAN-026 class C |
 | DEF-6 | Nationwide 5 km task grid is refused above 5,000 cells: add a 'suggest a cell size' path. | Clear message today; a design choice. | Claude | OWN-6 | S | P3 | In progress | 1.18.2 hand run B1 |
 | DEF-7 | OSM Overpass road download answered HTTP 502 after 4 retries: consider a mirror fallback and a clearer message. | Server side; the fixtures covered it in the test. | Claude | - | S | P3 | In progress | 1.18.2 hand run C1 |
@@ -187,10 +187,10 @@ Source: the owner's analysis document of nine flagship QGIS AI plugins, checked 
 | Status | Rows |
 |---|---|
 | In progress | 47 |
-| Closed | 21 |
-| Blocked | 19 |
-| Decision needed | 11 |
+| Closed | 26 |
+| Blocked | 16 |
 | Waiting on you | 11 |
+| Decision needed | 9 |
 | Closed (record) | 1 |
 | **Total** | **110** |
 
@@ -385,3 +385,10 @@ Newest last. One line per status change; written by `tools/master_list.py set`.
 - 2026-11-09: DEF-32 Not started -> In progress. PLAN-068: a request ended by Stop or unload is a stop, logged at INFO (outcome cancelled); CI only, live recheck V1
 - 2026-11-09: DEF-35 Not started -> In progress. PLAN-068: the JIAF write card text now names the statement, open items and empty severity; CI only, live recheck D3
 - 2026-11-09: DEF-36 Not started -> In progress. PLAN-068: V9, E4 and E5 say to work on a copy; README says to rerun verify_inputs at the end. Close after a package run leaves smoke_data.gpkg unchanged
+- 2026-11-09: DEF-2 Blocked -> Closed. Closed on the owner's say 2026-11-09 as not reproduced: no evidence from a current build (the old-version ask was retired 2026-11-07). Reopen if the change-layer legend is seen wrong again.
+- 2026-11-09: DEF-3 Blocked -> Closed. Closed on the owner's say 2026-11-09 as not reproduced from code: no tool adds the layers. Note for a reopen: round 3 row D1 saw the MODEL call find_incident_reports unasked after a GDACS request, which made a second layer; that is a model choice, not code.
+- 2026-11-09: DEF-4 Blocked -> Closed. Closed on the owner's say 2026-11-09 as not reproduced: no evidence from a current build. Reopen if inverted labels are seen again.
+- 2026-11-09: OWN-6 Decision needed -> Closed. Defaults of PLAN-022 N6 accepted by the owner 2026-11-09 (the question list was not re-read by me; the written defaults stand).
+- 2026-11-09: OWN-7 Decision needed -> Closed. Defaults of PLAN-023 Q1 to Q15 accepted by the owner 2026-11-09 (the question list was not re-read by me; the written defaults stand).
+- 2026-11-09: HY-4 Decision needed -> Decision needed. 2026-11-09: the owner approved a DRY RUN. Done: 55 remote branches exist (not 190: GitHub deleted the rest when their PRs merged). 40 are merged and at their PR head (safe to delete), 15 need a decision (unmerged work or later commits), 2 keep. Nothing deleted. List: docs/BRANCH_PRUNE_DRYRUN_2026-11-09.md; deleting needs the owner's approval of that list.
+- 2026-11-09: OWN-16 Waiting on you -> Waiting on you. 2026-11-09: still needs a person on Windows. The round-3 tester already read the window (7 pages, readable; Claude Code and Codex found and signed in; screenshots A2-connections.png and A2-cli-heading.png) but did not follow the guided setup page by page. Checklist for you: window readable, Codex page, path paste; the browser sign-in can wait.

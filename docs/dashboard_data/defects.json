@@ -139,16 +139,16 @@
   "id": "P11",
   "defect": "Gemini bad-key Test shows a raw JSON dump",
   "found_by": "Round 3 tester CSV, row A2",
-  "status": "Open",
-  "pr": "",
+  "status": "Fixed (CI only), live recheck due",
+  "pr": "584",
   "next": "Plain-words mapping (DEF-31)"
  },
  {
   "id": "P12",
   "defect": "Unticking the plugin mid-request logs CRITICAL provider and CLI errors",
   "found_by": "Round 3 tester CSV, row V1",
-  "status": "Open",
-  "pr": "",
+  "status": "Fixed (CI only), live recheck due",
+  "pr": "584",
   "next": "Log unload cancel quietly (DEF-32)"
  },
  {
@@ -171,24 +171,24 @@
   "id": "P15",
   "defect": "JIAF write preview card hides the statement and blockers",
   "found_by": "Round 3 tester CSV, row D3",
-  "status": "Open",
-  "pr": "",
+  "status": "Fixed (CI only), live recheck due",
+  "pr": "584",
   "next": "Show them on the card (DEF-35)"
  },
  {
   "id": "P16",
   "defect": "Layout items added without a position overlap",
   "found_by": "Round 3 tester CSV, row E3",
-  "status": "Open",
-  "pr": "",
+  "status": "Partly fixed (CI only): overlap shrinks to fit; Zoom Full frame finding still open",
+  "pr": "583",
   "next": "Non-overlap placement with a test (DEF-37)"
  },
  {
   "id": "P17",
   "defect": "Test input smoke_data.gpkg changed by the V9 undo test",
   "found_by": "Round 3 tester CSV, row V9, E4",
-  "status": "Open",
-  "pr": "",
+  "status": "Fixed in the row text, recheck on the next package run",
+  "pr": "584",
   "next": "Rows must edit a copy (DEF-36); no plugin change"
  }
 ]
