@@ -54,9 +54,16 @@ def _level_number(level):
 
 
 def _on_message(message, tag, level):
-    """Never raises: a slot that raises is dropped silently by Qt and the line is lost."""
+    """Never raises: a slot that raises is dropped silently by Qt and the line is lost. A line identical to the one just recorded, within a fifth of a
+    second, is the same message arriving through a second connection (setup connects every signal form), so it is dropped."""
     try:
-        _STATE["lines"].append((datetime.datetime.now().strftime("%H:%M:%S"), str(tag), _level_number(level), str(message)))
+        now = datetime.datetime.now()
+        line = (str(tag), _level_number(level), str(message))
+        previous = _STATE.get("previous")
+        if previous and previous[0] == line and (now - previous[1]).total_seconds() < 0.2:
+            return
+        _STATE["previous"] = (line, now)
+        _STATE["lines"].append((now.strftime("%H:%M:%S"), *line))
     except Exception:
         _STATE["lines"].append((datetime.datetime.now().strftime("%H:%M:%S"), "collector", -1, "a log line could not be recorded"))
 
@@ -88,11 +95,19 @@ def setup(out_dir):
     if not _STATE["connected"]:
         from qgis.core import Qgis
         signal = QgsApplication.messageLog().messageReceived
-        try:
-            signal[str, str, Qgis.MessageLevel].connect(_on_message)  # the overload that carries the text; a bare .connect may bind the bool one
-        except Exception:
-            signal.connect(_on_message)
-        _STATE["connected"] = True
+        # DEF-9: on QGIS 4.2.2 a live test saw nothing arrive through the form used here before (explicit enum, then a bare connect on failure). Which form
+        # delivers on a given QGIS is not certain, so every form that can be connected is, and _on_message drops the duplicates that follow.
+        forms = (lambda: signal[str, str, Qgis.MessageLevel], lambda: signal, lambda: signal[str, str, int], lambda: signal["QString", "QString", "Qgis::MessageLevel"])
+        connected = 0
+        for pick in forms:
+            try:
+                pick().connect(_on_message)
+                connected += 1
+            except Exception as e:                  # this form does not exist in this PyQt build; another may
+                _STATE.setdefault("form_errors", []).append(f"{type(e).__name__}: {str(e)[:80]}")
+        _STATE["connected"] = connected > 0
+        if not connected:
+            _err("could not connect to QgsApplication.messageLog().messageReceived in any form: no log text will be recorded")
     _STATE["last"] = datetime.datetime.now().timestamp()
     print(f"collect_evidence: ready, writing to {out_dir}. Log capture starts now; call snap('<row>') after each row.")
 
