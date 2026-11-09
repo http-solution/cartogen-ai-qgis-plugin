@@ -2,8 +2,8 @@
 42639289496, QGIS 4.2.2) saw no line reach the collector's messageReceived connection, and a second showed that a probe passing on the bool form proves nothing
 (the CI log hides prints of passing tests). So:
 
-* the assertion is on the path that does not depend on the signal: a line logged through the plugin's own logger comes back from the collector's `_plugin_lines`;
-* which signal forms deliver is written to collector_signal_forms.txt in the artifact folder the live job uploads (live-render-pngs), for a person to read; it asserts nothing."""
+the assertion is on the path that does not depend on the signal: a line logged through the plugin's own logger comes back from the collector's `_plugin_lines`.
+A third probe that connected every messageReceived signal form and wrote collector_signal_forms.txt segfaulted QGIS 4.2.2 in CI (run 42643147052, exit 139), so it was removed."""
 import sys
 import tempfile
 import time
@@ -41,38 +41,6 @@ class TestCollectorSeesTheLogInRealQgis(unittest.TestCase):
         self.assertTrue(any("[Agent] WARNING collector probe warning" in line for line in lines), lines)
         text = ce._log_file_text(lines, ce._STATE.get("forms_connected", 0))
         self.assertIn("collector probe line", text)
-
-    def test_write_down_which_signal_forms_deliver(self):
-        """Informational: nothing here fails the build. The table is in the CI artifact, collector_signal_forms.txt."""
-        from qgis.core import Qgis, QgsApplication, QgsMessageLog
-        from tests._render_artifacts import save_text
-        signal = QgsApplication.messageLog().messageReceived
-        seen = {}
-
-        def make(name):
-            def handler(*args):
-                seen.setdefault(name, []).append(tuple(str(a) for a in args))
-            return handler
-
-        forms = {
-            "explicit_enum": lambda: signal[str, str, Qgis.MessageLevel],
-            "default": lambda: signal,
-            "explicit_int": lambda: signal[str, str, int],
-            "signature_text": lambda: signal["QString", "QString", "Qgis::MessageLevel"],
-            "explicit_bool": lambda: signal[bool],
-        }
-        report = [f"signal object: {signal!r}"]
-        connected = {}
-        for name, pick in forms.items():
-            try:
-                pick().connect(make(name))
-                connected[name] = "connected"
-            except Exception as e:                      # which forms refuse to connect is part of the answer
-                connected[name] = f"connect raised {type(e).__name__}: {str(e)[:100]}"
-        QgsMessageLog.logMessage("signal probe line", "CartogenAI", Qgis.MessageLevel.Info)
-        QgsMessageLog.logMessage("signal probe warning", "Agent", Qgis.MessageLevel.Warning, True)
-        report.extend(f"{name}: {connected[name]}; received {len(seen.get(name, []))}: {seen.get(name, [])[:2]}" for name in forms)
-        save_text("collector_signal_forms", "\n".join(report))
 
 
 if __name__ == "__main__":
