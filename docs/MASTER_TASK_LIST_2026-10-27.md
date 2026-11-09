@@ -125,7 +125,7 @@ One list to follow up and plan from. It replaces the session task list (101 entr
 | HY-1 | Set the 14 stale plan statuses from their own logs; fold PLAN-020 into PLAN-021; close PLAN-024 to PLAN-026 when their hand rows pass; mark PLAN-019 done. | Status words no longer match the logs. | Claude | - | S | P2 | In progress | PLAN-022 N1 |
 | HY-2 | Sweep IMPLEMENTATION_TRACKER.md (2,746 lines; duplicate sections 1.19 to 1.24; stale list at the top) and BUG_TRACKER.md. | The trackers are the planning source and are out of date. | Claude | - | M | P2 | In progress | PLAN-022 N3 |
 | HY-3 | CI and release hygiene: pin the Windows runner, check upload-artifact against the Node notice, add an optional status_note input to release.yml (releases cannot be edited from this session type), generate the README test count. | A release cannot say 'not hand-tested' without a manual edit. | Claude | - | S | P2 | In progress | PLAN-022 N4 |
-| HY-4 | Prune the 190-odd remote branches (merged and abandoned claude/* branches); keep the open ones. | 193 remote branches; it hides what is live. | Both | OWN-8 | S | P3 | Decision needed | repository state |
+| HY-4 | Prune the 190-odd remote branches (merged and abandoned claude/* branches); keep the open ones. | 193 remote branches; it hides what is live. | Both | OWN-8 | S | P3 | Waiting on you | repository state |
 | HY-5 | Clean the session task list: drop the 84 completed entries, keep this list's open rows. | The list is a history, not a plan. | Claude | - | XS | P3 | Closed | this document |
 
 ## F. Capability programme (PLAN-023: releases R1 to R12, one release per package)
@@ -161,7 +161,7 @@ One list to follow up and plan from. It replaces the session task list (101 entr
 |---|---|---|---|---|---|---|---|---|
 | AR-1 | Agent pipeline redesign (intent, inspector, planner) and a deterministic plan, validate, execute model. | Large change; only after RM-A shows what a gate buys. | You | RM-A | XL | P3 | Blocked | tracker 1.5, 1.6 |
 | AR-2 | Standard project folder architecture with immutable raw data. | Product opinion. | You | - | M | P3 | Closed | tracker 1.7 |
-| AR-3 | task_matcher keyword normalisation favours short task definitions (partly mitigated in 1.18.1 and 1.18.4). | Routing fairness. | Claude | - | M | P3 | Decision needed | tracker 1.8 |
+| AR-3 | task_matcher keyword normalisation favours short task definitions (partly mitigated in 1.18.1 and 1.18.4). | Routing fairness. | Claude | - | M | P3 | Closed | tracker 1.8 |
 | AR-4 | Chunked k-means for very large rasters; further GUI-thread offloading. | Guard shipped, chunking not. | Claude | - | M | P3 | In progress | A14, A15 |
 | AR-5 | Recorded as scoped and not recommended: vector memory stores, constrained decoding libraries, RestrictedPython, Presidio egress scan, semantic router. | Keep the record so they are not rediscovered. | You | - | - | - | Closed (record) | W-49 |
 | AR-6 | Whole-code-base structure audit and staged reorganisation (PLAN-040): import cycle of 30 tool modules, 20 copies of one helper, unenforced layering, unused exception hierarchy. Stages 0 to 6 proposed; moving tool files into subpackages is not recommended. | You asked to reorganise everything; the audit says where the real problems are and what each fix costs. | You | - | M | P2 | Waiting on you | owner request 2026-10-28, PLAN-040 |
@@ -188,10 +188,10 @@ Source: the owner's analysis document of nine flagship QGIS AI plugins, checked 
 | Status | Rows |
 |---|---|
 | In progress | 49 |
-| Closed | 28 |
+| Closed | 29 |
 | Blocked | 15 |
-| Waiting on you | 9 |
-| Decision needed | 8 |
+| Waiting on you | 10 |
+| Decision needed | 6 |
 | Closed (record) | 1 |
 | Not started | 1 |
 | **Total** | **111** |
@@ -414,3 +414,5 @@ Newest last. One line per status change; written by `tools/master_list.py set`.
 - 2026-11-09: HT-5 Blocked -> Waiting on you. 2026-11-09: its only dependency, OWN-1, was retired 2026-11-07 (Closed), so it is no longer blocked. It is a hand re-check (the 5 'partly' ledger entries, wave E1, DXF and Excel export, 20 later routing additions): the owner or a tester runs it; best folded into the live recheck package for 1.18.6 rather than run as a separate pass.
 - 2026-11-09: PR-R1 Blocked -> Decision needed. 2026-11-09: its only dependency, OWN-7, is Closed (defaults accepted 2026-11-09), so it is no longer blocked and is first in line (PLAN-023: R1 must come first). What remains is a sequencing call, not a blocker: start it before or after the live recheck of 1.18.6. Recommendation: after (see the 2026-11-09 analysis in the records PR).
 - 2026-11-09: AR-1 Decision needed -> Blocked. 2026-11-09: listed as 'Decision needed' but its own row says it waits on RM-A ('only after RM-A shows what a gate buys'), and RM-A is still open (its hand test and the CRS/stale checks need a real run). Nothing to decide until then; recommendation in docs/DECISION_ANALYSIS_2026-11-09.md.
+- 2026-11-09: AR-3 Decision needed -> Closed. 2026-11-09 owner decision ("close AR-3"): closed as no measurable bias. Measured 2026-11-05 (PLAN-060): of 792 task titles 613 find their own task, 165 find none (the fragment guard, by design), 13 lose to an identical keyword set, 1 to a task with fewer strong keywords, none to one with more; pinned by tests/test_task_matcher_length_fairness.py. The 165 that find no task by design is a separate question, not part of this row.
+- 2026-11-09: HY-4 Decision needed -> Waiting on you. 2026-11-09 owner approved ("go with HY-4") the plan in docs/DECISION_ANALYSIS_2026-11-09.md: delete the 40 merged branches and the 4 closed-PR branches (GitHub keeps their commits), and tag-then-delete the other 11 (tags archive/<name>). NOT EXECUTED: the cloud session's git proxy answers HTTP 403 to every push except the session's own branch (tag push and branch delete both tried, once each; nothing changed, all 55 branches still exist). tools/prune_branches.py (new, tested) re-verifies each branch against the live remote and does it in one command: run 'python tools/prune_branches.py' for the dry run (live check on 2026-11-09: 44 delete, 11 tag-then-delete, 0 skipped) and then with --execute from a clone with push rights. Send the output and I will record the result.

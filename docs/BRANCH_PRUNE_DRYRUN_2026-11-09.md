@@ -78,3 +78,8 @@ My recommendation for section 2: keep every branch with a stated plan (`claude/p
 
 ## How the deletion would run, once you approve a list
 One `git push origin --delete <branch>` per branch, only for branches you approved, then re-list the remote and record the result here. A deleted branch's commits stay reachable through its merged pull request on GitHub.
+
+## Execution status (added 2026-11-09, later)
+The owner approved the plan ("go with HY-4"): delete the 40 merged branches (section 1) and the 4 section-2 branches whose closed pull request keeps the same commit; tag then delete the other 11 (`archive/<name>`). **Not executed.** The cloud session that wrote this has a git proxy that answers HTTP 403 to every push except its own branch: pushing an annotated tag and deleting one branch were each tried once and each was refused, nothing changed, and all 55 branches still exist. No retry or workaround was attempted.
+
+`tools/prune_branches.py` does the whole plan from a clone with push rights: it re-checks every branch against the live remote, tags where the commits exist only on the branch and confirms the tag is on the remote before deleting, and stops at the first refusal. Its dry run against the live remote on 2026-11-09 reported 44 deletes, 11 tag-then-deletes and 0 skips, matching this document. Run `python tools/prune_branches.py` to see the plan and `python tools/prune_branches.py --execute` to apply it. Record the result here afterwards.
