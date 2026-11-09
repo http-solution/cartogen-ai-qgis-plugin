@@ -579,8 +579,13 @@ class _CliClient(BaseAiProvider):
                     text, usage, model = self._invoke(exe, system_text, prompt, workdir)
                     message = parse_reply(text, names)
             except CliBridgeError as e:
-                log_event("cli_bridge_error", provider=self.log_name, error_class="CliBridgeError",
-                          duration_ms=int((time.monotonic() - started) * 1000))
+                duration = int((time.monotonic() - started) * 1000)
+                if self.cancel_event.is_set():
+                    # DEF-32 (round-3 smoke row V1): Stop or an unload ended the call, so the line no longer says "error" (it was INFO already; the
+                    # CRITICAL line the tester saw was the orchestrator's model_call, fixed there).
+                    log_event("cli_bridge_cancelled", provider=self.log_name, status="cancelled", duration_ms=duration)
+                else:
+                    log_event("cli_bridge_error", provider=self.log_name, error_class="CliBridgeError", duration_ms=duration)
                 return {"error": str(e)}
         log_event("cli_bridge_call", provider=self.log_name, status="ok", duration_ms=int((time.monotonic() - started) * 1000))
         return {"message": message, "model": model or self.model or self.default_model_name,

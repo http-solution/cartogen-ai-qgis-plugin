@@ -412,7 +412,7 @@ class CartogenAi:
                 turn_id, call_index, model or getattr(client, "model", None), type(client).__name__, tools, messages, started)
             call_metrics.finish_record(record, usage, call_metrics.monotonic() - started, tool_calls, outcome)
             self._get_call_log().add(record)
-            log_event("model_call", tag="Agent", error=(outcome != "ok"),
+            log_event("model_call", tag="Agent", error=(outcome not in ("ok", "cancelled")),
                       **{k: record[k] for k in ("call_index", "model", "latency_ms", "input_tokens", "cached_tokens", "output_tokens",
                                                  "tool_count", "tool_calls", "outcome", "est_system_tokens", "est_tools_tokens",
                                                  "est_history_tokens", "est_user_tokens") if record.get(k) is not None},
@@ -2123,8 +2123,12 @@ class CartogenAi:
                 self._record_model_call(turn_id, iteration_index, active_tools, messages, call_started, None, "bad_response")
                 return "[API error] Unexpected response from model client."
             if "error" in result:
-                self._record_model_call(turn_id, iteration_index, active_tools, messages, call_started, None, "provider_error", error=result.get("error"))
-                return f"[API error] {result['error']}"
+                # DEF-32 (round-3 smoke row V1): a request that ended because Stop was pressed or the plugin was unticked is a stop, not a provider
+                # failure: it was logged as CRITICAL provider_error and shown as "[API error] The CLI request was cancelled."
+                stopped = self._stopped_reply(user_message, should_stop)
+                self._record_model_call(turn_id, iteration_index, active_tools, messages, call_started, None,
+                                        "cancelled" if stopped else "provider_error", error=result.get("error"))
+                return stopped or f"[API error] {result['error']}"
             self._accumulate_usage(result.get("usage"))
             _reply = result.get("message") if isinstance(result.get("message"), dict) else {}
             self._record_model_call(turn_id, iteration_index, active_tools, messages, call_started, result.get("usage"), "ok",

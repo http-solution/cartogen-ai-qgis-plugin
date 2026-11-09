@@ -258,6 +258,7 @@ def readme(v, count, label=None):
             "  F  MCP server, workflow files, close-out: a terminal with Python 3.10+, optionally an MCP client\n"
             "  A row you cannot run (no key, no internet, no CLI): write Skip and why. Never leave it blank.\n"
             "AT THE END\n"
+            "  python 6_tools/verify_inputs.py 3_test_files   again: a CHANGED line means a row edited an input file (the rows V9, E4 and E5 say to work on a copy); write which file in the notes.\n"
             "  python 5_check_evidence.py results      (row F3) and send back: the results folder, 4_RESULTS.csv, the cartogen_evidence folder.\n\n"
             + v2.fill(v2.UPDATE_STEPS, v))
 
