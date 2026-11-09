@@ -22,7 +22,7 @@ _SHELLS = frozenset({"bash", "zsh", "fish", "sh", "dash", "ksh"})
 _START, _END = "__CARTOGEN_PATH_START__", "__CARTOGEN_PATH_END__"
 _lock = threading.Lock()
 _cache: dict[str, Any] = {"dirs": None, "resolved": {}, "where": {}}  # dirs None = not looked yet
-PROGRAM_NAMES = ("claude", "codex")  # the programs the OS is asked about by name (Windows `where.exe`)
+PROGRAM_NAMES = ("claude", "codex", "agy")  # the programs the OS is asked about by name (Windows `where.exe`)
 
 
 def _split(path_text):

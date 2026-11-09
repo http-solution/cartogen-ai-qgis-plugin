@@ -46,7 +46,7 @@ class TestCliProviderSettings(unittest.TestCase):
         self.assertEqual(normalize_provider("claude_cli"), DEFAULT_PROVIDER)
         dialog = self._dialog()
         self.assertFalse(dialog.experimental_cli_checkbox.isChecked())
-        for p in ("claude_cli", "codex_cli"):
+        for p in ("claude_cli", "codex_cli", "agy_cli"):
             self.assertIn(p, dialog._key_edits)
         self.assertEqual(dialog._active_provider, DEFAULT_PROVIDER)
 
@@ -91,7 +91,7 @@ class TestCliProviderSettings(unittest.TestCase):
 
     def test_each_cli_page_shows_a_status_and_the_check_and_signin_buttons(self):
         dialog = self._dialog()
-        for p in ("claude_cli", "codex_cli"):
+        for p in ("claude_cli", "codex_cli", "agy_cli"):
             self.assertIn(p, dialog._cli_status_labels)
             self.assertEqual(len(dialog._cli_buttons[p]), 2)
         dialog._key_edits["codex_cli"].setText("/no/such/codex-xyz")
@@ -133,7 +133,7 @@ class TestCliProviderSettings(unittest.TestCase):
 
     def test_the_agent_builds_the_matching_client_from_the_saved_settings(self):
         import cartogen_ai.core.agent.agent_orchestrator as agent_mod
-        from cartogen_ai.infrastructure.providers.cli_bridge import ClaudeCliClient, CodexCliClient
+        from cartogen_ai.infrastructure.providers.cli_bridge import AgyCliClient, ClaudeCliClient, CodexCliClient
         from cartogen_ai.infrastructure.settings_keys import (
             SETTINGS_CODEX_CLI_MODEL, SETTINGS_EXPERIMENTAL_CLI, SETTINGS_PROVIDER, cli_path_setting_key,
         )
@@ -141,13 +141,43 @@ class TestCliProviderSettings(unittest.TestCase):
         settings.setValue(SETTINGS_EXPERIMENTAL_CLI, True)
         settings.setValue(cli_path_setting_key("codex_cli"), "/opt/tools/codex")
         settings.setValue(SETTINGS_CODEX_CLI_MODEL, "gpt-x")
-        for provider, cls in (("claude_cli", ClaudeCliClient), ("codex_cli", CodexCliClient)):
+        for provider, cls in (("claude_cli", ClaudeCliClient), ("codex_cli", CodexCliClient), ("agy_cli", AgyCliClient)):
             settings.setValue(SETTINGS_PROVIDER, provider)
             agent = agent_mod.CartogenAi()
             self.assertIsInstance(agent.client, cls, provider)
         settings.setValue(SETTINGS_PROVIDER, "codex_cli")
         agent = agent_mod.CartogenAi()
         self.assertEqual((agent.client.executable, agent.client.model), ("/opt/tools/codex", "gpt-x"))
+
+    def test_every_cli_page_offers_model_names_to_pick_and_still_accepts_a_typed_one(self):
+        """PLAN-071 (owner, 2026-11-09, Codex page): the model box held only 'auto', so there was nothing to select."""
+        dialog = self._dialog()
+        items = {p: [dialog._model_combos[p].itemText(i) for i in range(dialog._model_combos[p].count())] for p in ("claude_cli", "codex_cli", "agy_cli")}
+        for p, names in items.items():
+            self.assertGreater(len(names), 1, f"{p} has nothing to pick: {names}")
+            self.assertTrue(dialog._model_combos[p].isEditable(), p)
+        self.assertIn("gpt-6.1-sol", items["codex_cli"])
+        self.assertIn("sonnet", items["claude_cli"])
+        self.assertIn("gemini-3.8-flash-medium", items["agy_cli"])
+
+    def test_the_antigravity_list_fills_the_box_and_keeps_a_name_typed_by_hand(self):
+        dialog = self._dialog()
+        combo = dialog._model_combos["agy_cli"]
+        combo.setCurrentText("my-own-model")
+        dialog._fetching.add("agy_cli")
+        dialog._on_models_fetched("agy_cli", {"success": True, "models": ["gemini-3.8-flash-medium", "gemini-3.1-pro-high"]})
+        names = [combo.itemText(i) for i in range(combo.count())]
+        self.assertEqual(names[1:], ["gemini-3.8-flash-medium", "gemini-3.1-pro-high"])
+        self.assertEqual(combo.currentText(), "my-own-model")
+        self.assertNotIn("agy_cli", dialog._verified_providers, "a model list says nothing about the sign-in")
+
+    def test_an_unreadable_antigravity_list_leaves_the_seeded_names_alone(self):
+        dialog = self._dialog()
+        combo = dialog._model_combos["agy_cli"]
+        before = [combo.itemText(i) for i in range(combo.count())]
+        dialog._fetching.add("agy_cli")
+        dialog._on_models_fetched("agy_cli", {"error": "no model list"})
+        self.assertEqual([combo.itemText(i) for i in range(combo.count())], before)
 
     def test_a_saved_gemini_cli_provider_from_an_earlier_build_falls_back_to_the_default(self):
         import cartogen_ai.core.agent.agent_orchestrator as agent_mod

@@ -53,7 +53,7 @@ what's new/available stays easy to find without having to go looking for it.
    automatically, based on the request's wording and length. (Ollama always uses
    whatever model you pick; local models aren't a cost concern the auto-router needs
    to optimize for.)
-   When the window opens it also looks for the Claude Code, Codex and Gemini programs on your
+   When the window opens it also looks for the Claude Code, Codex and Antigravity (agy) programs on your
    computer and shows, under **Found on this computer**, which are installed and whether you
    are signed in. This asks no model anything. A signed-in one gets a **Use** button (after you
    tick the box under "Your own CLI login"); nothing is switched for you, because a CLI sends
@@ -63,7 +63,7 @@ what's new/available stays easy to find without having to go looking for it.
    the list shows whether it has a key or program set (●), has been checked this session (✓),
    or is empty (○).
 
-**Using your Claude Code or Codex login instead of an API key** (experimental). Pick the CLI in the
+**Using your Claude Code, Codex or Antigravity login instead of an API key** (experimental). Pick the CLI in the
 list; its page has one main button that is always the next step:
 
 - **Copy install command** — the program was not found. Paste the command in a terminal, then press
@@ -75,10 +75,17 @@ list; its page has one main button that is always the next step:
 - **Use this connection** — tested and ready.
 
 The first time, you are asked to agree: the conversation, including any layer or attribute data a tool
-surfaces, goes to the vendor's service (Anthropic for Claude Code, OpenAI for Codex), so treat it as a
+surfaces, goes to the vendor's service (Anthropic for Claude Code, OpenAI for Codex, Google for Antigravity), so treat it as a
 cloud provider. Cartogen AI never sees or stores your login. The Gemini CLI is no longer offered:
-Google stopped serving personal Google accounts through it on 18 June 2026; use the Gemini API key
-connection instead.
+Google stopped serving personal Google accounts through it on 18 June 2026; the Antigravity CLI is
+Google's replacement, or use the Gemini API key connection.
+
+**Choosing the model on a CLI page.** The **Model (optional)** box is a drop-down you can also type in.
+Claude Code lists its three aliases (sonnet, opus, haiku), Codex lists two names from OpenAI's model page,
+and Antigravity fills the list from its own `agy models` command once the program is found. Newer names
+may exist that are not listed: type them in. Leave it on Auto to use the program's own default.
+The Antigravity connection is new and has not been run against a real `agy` yet (the same "experimental"
+label as the other two applies); if it fails, the message says which step.
 
 <p align="center"><img src="images/settings-dialog.png" alt="Settings dialog — provider connection, API key, NASA FIRMS key, and privacy toggles" width="380"></p>
 

@@ -5,7 +5,8 @@ for one JSON reply; `parse_reply` turns it back into the OpenAI-shaped assistant
 orchestrator, previews, confirmations and egress gate are untouched. The CLI's own file, shell, web and MCP tools are switched off.
 
 Gemini CLI was removed on 2026-10-30 (owner decision, PLAN-041): Google stopped serving personal Google accounts through it on 2026-06-18.
-Claude Code and Codex remain.
+Claude Code and Codex remain, and the Antigravity CLI (`agy`, Google's replacement) was added on 2026-11-09 (PLAN-071), built from Google's
+published pages and never run against a real agy.
 
 Status: SHIPPED AS A MODULE ONLY, not yet selectable in Settings or the orchestrator. UNVERIFIED against a real logged-in CLI: the flags
 below come from Claude Code's CLI reference (code.claude.com/docs/en/cli-reference, read 2026-10-28) and the shape of its `--output-format
@@ -42,6 +43,7 @@ SCRUBBED_ENV = (
 # A model name is the one user-supplied value that reaches argv; keep it to what real model ids and aliases use.
 _MODEL_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:\-\[\]]{0,80}$")
 # Windows runs .cmd/.bat shims through cmd.exe even without shell=True, where these characters are interpreted.
+_SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9._:\-]{0,80}$")
 _CMD_UNSAFE = re.compile(r'["%&|<>^!\r\n]')
 
 
@@ -73,6 +75,7 @@ def _extra_bin_dirs(existing_only=True):
                  # Codex's own Windows installer, not npm (user report 2026-10-30: `Get-Command codex` gave this folder and Cartogen
                  # said "Codex CLI not found" because it was in none of the folders above).
                  os.path.join(local, "Programs", "OpenAI", "Codex", "bin"),
+                 os.path.join(local, "agy", "bin"),  # Antigravity's own Windows installer (Google's quick-start page, 2026-11-09)
                  os.path.join(local, "Microsoft", "WinGet", "Links"),  # where winget puts the shims of the CLIs it installs
                  os.path.join(os.environ.get("PROGRAMFILES", r"C:\Program Files"), "nodejs")]
         nvm = os.environ.get("NVM_SYMLINK")
@@ -690,6 +693,109 @@ class CodexCliClient(_CliClient):
             return parse_codex_events(out)
         except CliBridgeError as e:
             # A non-zero exit with unusable stdout is almost always a rejected flag or a login problem, which Codex says on stderr.
+            if code != 0:
+                raise CliBridgeError(str(e) + _stderr_tail(err)) from e
+            raise
+
+
+# ---------------------------------------------------------------------------------------------------------------------------------
+# Antigravity CLI adapter (`agy`, PLAN-071)
+# ---------------------------------------------------------------------------------------------------------------------------------
+
+def agy_argv(executable, model=None, skip=()):
+    """The command line for one Antigravity call. The prompt is not here: it goes on standard input as one stream-json line, so a long prompt
+    cannot hit the command-line length limit (Windows). `--sandbox` is the documented terminal-sandbox switch; `--dangerously-skip-permissions`
+    is deliberately never passed, so a tool that needs approval is soft-denied by agy itself. `skip` is accepted for symmetry; every agy flag
+    is required (cli_flags.AGY_FLAGS), so naming one raises CliBridgeError."""
+    if model and not _MODEL_RE.match(model):
+        raise CliBridgeError("The model name contains characters that are not allowed.")
+    try:
+        argv = [executable, *cli_flags.build(cli_flags.AGY_FLAGS, skip)]
+    except ValueError as e:
+        raise CliBridgeError(str(e)) from e
+    if model:
+        argv += ["--model", model]
+    return argv
+
+
+def agy_input(text):
+    """The one stream-json line agy reads as the user's turn (Google's headless page: `{"event":"user","message":{"content":"<text>"}}`)."""
+    return json.dumps({"event": "user", "message": {"content": text}}) + "\n"
+
+
+def parse_agy_stream(stdout):
+    """Reads `agy --output-format stream-json` output (one JSON object per line, each with an `event`). Returns (text, usage_or_None, model_or_None).
+
+    The answer is `result.response` of the last `result` event. Raises when the run did not end SUCCESS (the CLI's own `error` text is
+    included), has no result, or used a tool of its own (a `step_update` whose `step_type` is `tool`: agy acted outside the plugin's
+    confirmation and egress gates, the same rule the Codex adapter applies). Shapes are from Google's headless page, not from a real run."""
+    events = []
+    for raw in (stdout or "").splitlines():
+        stripped = raw.strip()
+        if stripped.startswith("{"):
+            with contextlib.suppress(ValueError):
+                obj = json.loads(stripped)
+                if isinstance(obj, dict):
+                    events.append(obj)
+    if not events:
+        raise CliBridgeError("The Antigravity CLI did not return JSON events. Is it a current version (see antigravity.google/docs/cli)?")
+    model = None
+    result = None
+    for ev in events:
+        kind = ev.get("event")
+        if kind == "init" and isinstance(ev.get("init"), dict):
+            model = str(ev["init"].get("model") or "") or None
+        elif kind == "step_update" and isinstance(ev.get("step_update"), dict):
+            step = ev["step_update"]
+            if step.get("step_type") == "tool" or step.get("tool_name"):
+                raise CliBridgeError(f"The Antigravity CLI tried to act on its own (a {step.get('tool_name') or 'tool'} step) instead of answering; "
+                                     "that is not allowed here.")
+        elif kind == "result" and isinstance(ev.get("result"), dict):
+            result = ev["result"]
+    if result is None:
+        raise CliBridgeError("The Antigravity CLI returned no result.")
+    status = str(result.get("status") or "")
+    if status != "SUCCESS":
+        detail = str(result.get("error") or "").strip()
+        raise CliBridgeError(f"The Antigravity CLI ended with status {status or 'unknown'}" + (f": {detail[:300]}" if detail else "."))
+    text = result.get("response")
+    if not isinstance(text, str) or not text.strip():
+        raise CliBridgeError("The Antigravity CLI returned no answer.")
+    usage = None
+    if isinstance(result.get("usage"), dict):
+        u = result["usage"]
+        usage = {"input_tokens": int(u.get("input_tokens") or 0), "output_tokens": int(u.get("output_tokens") or 0) + int(u.get("thinking_tokens") or 0)}
+    return text, usage, model
+
+
+def parse_agy_models(text):
+    """The model slugs `agy models` prints (documented: one per line, the slug then padding then a display name), in order, each once.
+    A line that does not start like a slug (a heading, a blank, an error) is skipped. Pure; never raises."""
+    slugs = []
+    for line in str(text or "").splitlines():
+        first = line.strip().split(None, 1)[0] if line.strip() else ""
+        # Lower-case with a hyphen or digit: keeps "Available models:" and an error line out without knowing a header's exact wording.
+        if first and _SLUG_RE.match(first) and re.search(r"[-0-9]", first) and first not in slugs:
+            slugs.append(first)
+    return slugs
+
+
+class AgyCliClient(_CliClient):
+    """Antigravity (`agy`, stream-json mode) used as a model on the user's own Google login. UNVERIFIED against a real agy; see PLAN-071."""
+    label = "Antigravity CLI"
+    log_name = "agy_cli"
+    default_exe = "agy"
+    default_model_name = "agy-cli"
+    flag_table = cli_flags.AGY_FLAGS
+
+    def _invoke(self, exe, system_text, prompt, workdir):
+        stdin_text = agy_input(system_text + "\n\n" + prompt)
+        code, out, err = self._run_with_flag_fallback(exe, lambda skip: agy_argv(exe, self.model, skip), stdin_text, workdir)
+        if code != 0 and not out.strip():
+            raise CliBridgeError(f"The Antigravity CLI exited with status {code}. Is it signed in (run `agy` once in a terminal)?" + _stderr_tail(err))
+        try:
+            return parse_agy_stream(out)
+        except CliBridgeError as e:
             if code != 0:
                 raise CliBridgeError(str(e) + _stderr_tail(err)) from e
             raise

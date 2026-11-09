@@ -37,7 +37,7 @@ class TestOptIn(unittest.TestCase):
 
     def test_path_setting_key_is_per_provider_and_namespaced(self):
         keys = {sk.cli_path_setting_key(p) for p in sk.CLI_PROVIDERS}
-        self.assertEqual(len(keys), 2)
+        self.assertEqual(len(keys), len(sk.CLI_PROVIDERS))
         self.assertTrue(all(k.startswith("cartogen_ai/") for k in keys))
 
 

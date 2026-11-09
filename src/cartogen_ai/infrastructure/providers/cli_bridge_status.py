@@ -21,12 +21,15 @@ _SPECS = {
     # group, is used for the sign-in; it was not run from the sandbox.
     "claude_cli": (cb.ClaudeCliClient, ["auth", "login"], "Install Claude Code, then run `claude auth login` in a terminal and sign in."),
     "codex_cli": (cb.CodexCliClient, ["login"], "Install the Codex CLI, then run `codex login`."),
+    # agy has no sign-in subcommand: running it with no arguments opens its own interface, which checks the OS keyring and starts a browser
+    # sign-in when there is no token (Google's quick-start, read 2026-11-09). Not run from the sandbox.
+    "agy_cli": (cb.AgyCliClient, [], "Install the Antigravity CLI (agy), then run `agy` once in a terminal and sign in."),
 }
-DEFAULT_PROGRAM = {"claude_cli": "claude", "codex_cli": "codex"}
+DEFAULT_PROGRAM = {"claude_cli": "claude", "codex_cli": "codex", "agy_cli": "agy"}
 _PLAIN_PATH = re.compile(r"^[A-Za-z0-9_./\\:+-]+$")  # no spaces, quotes or shell characters: safe to hand to a terminal launcher
 CHECK_PROMPT = "Reply with the single word: ok"
-LABELS = {"claude_cli": "Claude Code CLI", "codex_cli": "Codex CLI"}
-VENDORS = {"claude_cli": "Anthropic", "codex_cli": "OpenAI"}
+LABELS = {"claude_cli": "Claude Code CLI", "codex_cli": "Codex CLI", "agy_cli": "Antigravity CLI"}
+VENDORS = {"claude_cli": "Anthropic", "codex_cli": "OpenAI", "agy_cli": "Google"}
 
 # How to install each CLI, from the vendors' own pages as found by search on 2026-10-30 (Claude Code: its install script and npm package;
 # Codex: the openai/codex README's PowerShell installer, the npm package and the Homebrew cask). Shown to the user to copy and run
@@ -38,6 +41,10 @@ _INSTALL = {
     "codex_cli": {"windows": ["irm https://chatgpt.com/codex/install.ps1 | iex", "npm install -g @openai/codex"],
                   "mac": ["brew install --cask codex", "npm install -g @openai/codex"],
                   "linux": ["npm install -g @openai/codex"]},
+    # Google's quick-start page (antigravity.google/docs/getting-started, read 2026-11-09).
+    "agy_cli": {"windows": ["irm https://antigravity.google/cli/install.ps1 | iex"],
+                "mac": ["curl -fsSL https://antigravity.google/cli/install.sh | bash"],
+                "linux": ["curl -fsSL https://antigravity.google/cli/install.sh | bash"]},
 }
 
 
@@ -128,6 +135,18 @@ def signin_status(provider, path, timeout=15):
     except cb.CliBridgeError as e:
         return {"state": "unknown", "note": str(e)[:120]}
     return {"state": "unknown", "note": ""}
+
+
+def list_models(provider, path, timeout=30):
+    """The model slugs a CLI offers, for the page's drop-down, or [] when it has no list command or the call fails. Only Antigravity has one
+    (`agy models`, documented by Google: no model call, no tokens). Never raises."""
+    if provider != "agy_cli" or not path:
+        return []
+    try:
+        code, out, _err = cb.run_cli([path, "models"], "", timeout=timeout, max_output_bytes=64 * 1024, cwd=os.path.dirname(path) or None)
+    except cb.CliBridgeError:
+        return []
+    return cb.parse_agy_models(out) if code == 0 else []
 
 
 def detect_all(configured=None):
