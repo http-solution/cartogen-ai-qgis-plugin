@@ -42,8 +42,23 @@ def _err(text):
     print("collect_evidence:", text)
 
 
+def _level_number(level):
+    """The message level as a number, whatever object QGIS hands over. QGIS 4 (PyQt6) passes an Enum member, and int() of a plain Enum raises TypeError:
+    DEF-9, the collector's slot died on that before it recorded anything, so every log file of round 3 was empty on QGIS 4.2.3. -1 when unreadable."""
+    for candidate in (getattr(level, "value", level), level):
+        try:
+            return int(candidate)
+        except (TypeError, ValueError):
+            continue
+    return -1
+
+
 def _on_message(message, tag, level):
-    _STATE["lines"].append((datetime.datetime.now().strftime("%H:%M:%S"), tag, int(level), message))
+    """Never raises: a slot that raises is dropped silently by Qt and the line is lost."""
+    try:
+        _STATE["lines"].append((datetime.datetime.now().strftime("%H:%M:%S"), str(tag), _level_number(level), str(message)))
+    except Exception:
+        _STATE["lines"].append((datetime.datetime.now().strftime("%H:%M:%S"), "collector", -1, "a log line could not be recorded"))
 
 
 def begin(bundle):

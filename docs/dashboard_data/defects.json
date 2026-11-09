@@ -198,5 +198,13 @@
   "status": "Fixed (CI only), live recheck due",
   "pr": "",
   "next": "One colour rule for the tool and the test (DEF-38, PLAN-069); the PR number is added when it merges"
+ },
+ {
+  "id": "P19",
+  "defect": "The evidence collector recorded no log lines on QGIS 4 (37 of 41 log files empty in round 3)",
+  "found_by": "Round 3 live run, every row",
+  "status": "Probable cause fixed (CI only), confirm on the next package run",
+  "pr": "",
+  "next": "int(level) on a PyQt6 enum raised inside the slot; fixed in tools/collect_evidence.py (DEF-9, PLAN-070)"
  }
 ]
