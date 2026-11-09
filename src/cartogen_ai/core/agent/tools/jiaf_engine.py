@@ -485,6 +485,21 @@ def _row_for_csv(r):
     return out
 
 
+def preview_card_text(description, statement, blockers, empty_severity_units, units):
+    """The text the confirmation card shows for a JIAF write: the description, the standing statement, which validation items are still open and,
+    when it applies, that jf_pre_sev will be empty. Pure.
+
+    Round-3 smoke row D3 (DEF-35): the statement, blockers and severity note were in the tool payload (since 1.18.4) but the card shows only the
+    rationale and the code, so a person approving the write saw none of them. The payload keeps the full blocker texts; the card gets a short form."""
+    lines = [description, f"Standing statement: {statement}"]
+    items = [b.get("id") for b in (blockers or {}).get("blockers", []) if isinstance(b, dict) and b.get("id")]
+    if items:
+        lines.append("Validation items still open (not closed by this tool): " + ", ".join(items) + ". These are preliminary figures, not the final PiN or severity.")
+    if empty_severity_units:
+        lines.append(f"jf_pre_sev will be EMPTY for {empty_severity_units} of {units} areas: their severity depends on sectors the file does not report.")
+    return "\n".join(lines)
+
+
 @register_tool(
     "compute_jiaf_preliminary",
     "Compute the PRELIMINARY JIAF 2 figures from sector inputs (support for the JIAF 2 process; NOT the JIAF method, not endorsed by OCHA or the IASC; "
@@ -632,7 +647,9 @@ def compute_jiaf_preliminary(file_path, input_format="auto", sheet_name=None, pr
                                "previous_sheet_name": previous_sheet_name, "layer_name": layer_name, "layer_key_field": layer_key_field,
                                "write_fields": True, "confirmed": True}, **overrides),
             "code_snippet": f"# Add/update fields {names} on '{layer_name}' for {report['matched']} matched areas",
-            "rationale": f"Data Mutation Preview: write PRELIMINARY JIAF figures to {names} of layer '{layer_name}' ({report['matched']} of {report['layer_features']} areas match).",
+            "rationale": preview_card_text(
+                f"Data Mutation Preview: write PRELIMINARY JIAF figures to {names} of layer '{layer_name}' ({report['matched']} of {report['layer_features']} areas match).",
+                result["statement"], result["validation_blockers"], result["coverage"]["units_with_incomplete_severity"], result["units"]),
             "message": f"Confirmation required before adding fields to '{layer_name}'.", "join": report,
             # 1.18.4 smoke E2: the confirmation card carried none of this, so the reply that asked for the confirmation named neither the standing
             # statement nor the two open validation blockers, nor that jf_pre_sev would be empty. Every JIAF result carries them, the preview too.

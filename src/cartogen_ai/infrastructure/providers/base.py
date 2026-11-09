@@ -355,7 +355,10 @@ def format_http_error(prefix, e, key_note=""):
     useful for debugging (quota errors, malformed-request details) and isn't credential-
     bearing."""
     status = e.response.status_code if e.response is not None else None
-    if status in (401, 403):
+    # DEF-31 (round-3 smoke row A2): Gemini answers an invalid key with HTTP 400 and the reason API_KEY_INVALID, not 401/403, so the Test button
+    # printed the raw JSON. That one reason code makes a 400 an authentication failure; any other 400 keeps the provider's own text.
+    invalid_key_400 = status == 400 and "API_KEY_INVALID" in _auth_reason_codes(e.response)
+    if status in (401, 403) or invalid_key_400:
         reasons = _auth_reason_codes(e.response)
         reason_note = f" Provider reason: {', '.join(reasons)}." if reasons else _unrecognised_reply_note(e.response)
         return (

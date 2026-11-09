@@ -13,7 +13,8 @@
    "session": "A",
    "covers": [
     "plugin-eviction-scoped-real-modules",
-    "log-one-tab"
+    "log-one-tab",
+    "cancelled-request-is-a-stop-not-an-error"
    ]
   },
   "W13-environment": {
@@ -161,9 +162,9 @@
   "every-tool-callable-in-qgis": "a CI-only proof by design: the live job calls every tool; no person can add to it",
   "result-checks-pure": "a pure module that changes no behaviour a user can see; its hook (result-gate-hook) is covered by row W1-gate-on",
   "update-task-without-an-id-is-explained": "no prompt reliably makes a model send a null id; covered by tests/test_task_manager.py",
-    "live-results-gate": "the measure itself (a record and a repository check), not behaviour a person can run in QGIS",
-    "unsupervised-classification-in-background": "needs a raster of tens of millions of cells and a person watching a real QGIS window stay responsive; the package has no such raster",
-    "delivery-matrix-from-trees": "the gain only shows on a real road network of tens of thousands of roads, which the package does not ship; equality with the native calls is the CI live test"
+  "live-results-gate": "the measure itself (a record and a repository check), not behaviour a person can run in QGIS",
+  "unsupervised-classification-in-background": "needs a raster of tens of millions of cells and a person watching a real QGIS window stay responsive; the package has no such raster",
+  "delivery-matrix-from-trees": "the gain only shows on a real road network of tens of thousands of roads, which the package does not ship; equality with the native calls is the CI live test"
  },
  "rows": [
   {
@@ -723,7 +724,7 @@
     "file-output-wave-e1"
    ],
    "needs": "person and a real model",
-   "starts_from": "a copy of 3_test_files\\smoke_start.qgz opened from the folder 3_test_files (all its data files sit beside it) plus 3_test_files\\smoke_mesh.2dm added as a mesh layer and smoke_data.gpkg|smoke_points added a second time through Layer > Add Layer > Add Vector Layer and that second layer RENAMED to exactly smoke_points (the dialog names it 'smoke_data - smoke_points'; tidy matches a duplicate only when name and data are the same); saved project; a fresh chat (see EVIDENCE_HOWTO.txt, 'Fresh chat'), 'Save an evidence folder for each request' ticked in Settings",
+   "starts_from": "a copy of 3_test_files\\smoke_start.qgz opened from the folder 3_test_files (all its data files sit beside it) plus 3_test_files\\smoke_mesh.2dm added as a mesh layer and smoke_data.gpkg|smoke_points added a second time through Layer > Add Layer > Add Vector Layer and that second layer RENAMED to exactly smoke_points (the dialog names it 'smoke_data - smoke_points'; tidy matches a duplicate only when name and data are the same); saved project; a fresh chat (see EVIDENCE_HOWTO.txt, 'Fresh chat'), 'Save an evidence folder for each request' ticked in Settings WORK ON A COPY OF THE DATA (DEF-36): this row writes to a data file (a new field or a changed value). Copy the whole 3_test_files folder to results\\work\\3_test_files_copy\\ first and open the project from that copy; running it in 3_test_files itself leaves a changed input for every later row (round 3: the undo test left a 'notes' column in smoke_data.gpkg).",
    "do": "Send in order, confirming overwrite/confirm cards: (1) export smoke_points and smoke_zones to DXF  (2) export smoke_points and smoke_admin to one Excel file  (3) export smoke_points to CSV  (4) print the map as a PDF  (5) tidy the project layers (look at the preview first, then apply)  (6) add three points (latitude, longitude, EPSG:4326) 15.35,44.2 15.36,44.21 15.37,44.22 as a layer called pts_test, save the project and reopen it  (7) run the Processing statistics report for smoke_admin (basic statistics for a field) through the generic Processing tool.",
    "expect": "(1) a DXF inside the project export folder with the overwrite card and a sensitivity warning if relevant. (2) one .xlsx with one sheet per layer. (3) a CSV, not an Excel file. (4) the PDF opens and shows the map (a real PDF, not empty). (5) nothing is hidden, restyled or saved before the confirm card; the mesh layer is skipped, not an error; the duplicate smoke_points (same name, same data) is found and the extra copy is hidden after you confirm, never deleted; same-name layers it did not match are listed. (6) pts_test is still there after reopening, or the reply said it was temporary. (7) numbers come back; the report file is temporary; no raw output argument is accepted.",
    "evidence": "snap('E4'); every exported file -> results\\outputs\\E4-exports\\ (dxf, xlsx, csv, pdf).",
@@ -752,7 +753,7 @@
     "processing-run-guards-rc48"
    ],
    "needs": "person and a real model",
-   "starts_from": "a copy of 3_test_files\\smoke_start.qgz opened from the folder 3_test_files (all its data files sit beside it); a fresh chat (see EVIDENCE_HOWTO.txt, 'Fresh chat'), 'Save an evidence folder for each request' ticked in Settings",
+   "starts_from": "a copy of 3_test_files\\smoke_start.qgz opened from the folder 3_test_files (all its data files sit beside it); a fresh chat (see EVIDENCE_HOWTO.txt, 'Fresh chat'), 'Save an evidence folder for each request' ticked in Settings WORK ON A COPY OF THE DATA (DEF-36): this row writes to a data file (a new field or a changed value). Copy the whole 3_test_files folder to results\\work\\3_test_files_copy\\ first and open the project from that copy; running it in 3_test_files itself leaves a changed input for every later row (round 3: the undo test left a 'notes' column in smoke_data.gpkg).",
    "do": "Rename smoke_dem to yem_ppp_2020 in a copy of the project (a population-named raster) and keep a second raster called dem loaded beside it. Send: (1) apply a raster stretch to yem_ppp_2020  (2) apply a graduated style to smoke_admin on population after clearing the population of one district (set it to NULL in the attribute table first)  (3) run the kernel density heatmap algorithm (it needs a POINT layer) on the polygon layer smoke_zones.",
    "expect": "(1) yem_ppp_2020 draws a coloured ramp that renders in colour; the plain dem beside it is not touched. (2) the feature with no value is grey and appears as 'No data' in the legend. (3) refused before running, with a message that the layer has the wrong geometry type (polygons where points are needed). The guard covers the Python-implemented qgis: algorithms only; native: ones (such as native:polygonize, which the first agent run used) are unchanged and DO run on polygons, so a run of a native algorithm proves nothing. If the assistant says the heatmap is not available, write Skip for step 3 and name the algorithm it offered.",
    "evidence": "snap('E5'); screenshots E5-ramp.png and E5-nodata-legend.png -> results\\screens\\.",
@@ -833,7 +834,8 @@
   },
   "V9-undo-field": {
    "do": " Confirm every undo card with Apply, including the one in the last step: it offers to remove the filled column, and the check that refuses it runs when you press Apply, not when the card is shown. Copy the card's wording into the notes. (The first agent run pressed Cancel there, so the refusal was never seen.)",
-   "expect": " Since PR 573 the refusal comes at once with NO card (round 2, 2026-11-05: undo_last_operation returned 'The field notes now holds values, so removing it would lose data. Nothing was changed' straight away): that is the expected result. A card that offers to remove the filled column is a Fail; a card followed by a refusal only at Apply is the old behaviour (the fix is missing)."
+   "expect": " Since PR 573 the refusal comes at once with NO card (round 2, 2026-11-05: undo_last_operation returned 'The field notes now holds values, so removing it would lose data. Nothing was changed' straight away): that is the expected result. A card that offers to remove the filled column is a Fail; a card followed by a refusal only at Apply is the old behaviour (the fix is missing).",
+   "starts_from": " WORK ON A COPY OF THE DATA (DEF-36): this row writes to a data file (a new field or a changed value). Copy the whole 3_test_files folder to results\\work\\3_test_files_copy\\ first and open the project from that copy; running it in 3_test_files itself leaves a changed input for every later row (round 3: the undo test left a 'notes' column in smoke_data.gpkg)."
   },
   "W1-gate-on": {
    "expect": " The proof is the record: layer_properties.json must show cartogen/checks on smoke_admin after W1a and no new run after W1b. How the reply words it is a model choice: a reply that does not state the count is a Partial for the reply, not a failure of the gate."

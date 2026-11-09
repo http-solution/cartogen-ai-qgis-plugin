@@ -404,3 +404,13 @@ class TestEvidenceChecksOnMultiPromptRows(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestRowsThatWriteDataWorkOnACopy(unittest.TestCase):
+    """DEF-36 (round 3): the undo test (V9) left a 'notes' column in the shared smoke_data.gpkg, changing the input of later rows. The rows that write
+    to a data file say to work on a copy of the whole test-files folder."""
+
+    def test_the_rows_that_edit_data_say_to_work_on_a_copy(self):
+        rows = {row["id"]: row for row in full.all_rows(full.load())}
+        for row_id in ("V9-undo-field", "E4-exports", "E5-raster-styling"):
+            self.assertIn("WORK ON A COPY OF THE DATA", rows[row_id]["starts_from"], row_id)
