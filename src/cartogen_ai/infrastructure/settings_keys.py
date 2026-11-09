@@ -16,14 +16,15 @@ ENABLED_PROVIDERS = ("openrouter", "gemini", "ollama", "cartogen")
 DEFAULT_PROVIDER = "openrouter"
 
 
-# CLI bridge providers (PLAN-038): a locally installed Claude Code / Codex CLI used as the model on the
+# CLI bridge providers (PLAN-038): a locally installed Claude Code / Codex / Antigravity CLI used as the model on the
 # user's own login. EXPERIMENTAL and UNVERIFIED against a real signed-in CLI, so they are deliberately NOT in
 # ENABLED_PROVIDERS: they appear (Settings, and in normalize_provider below) only when the user switches on
 # SETTINGS_EXPERIMENTAL_CLI, which is off by default.
-CLI_PROVIDERS = ("claude_cli", "codex_cli")
+CLI_PROVIDERS = ("claude_cli", "codex_cli", "agy_cli")
 SETTINGS_EXPERIMENTAL_CLI = "cartogen_ai/experimental_cli_providers"
 SETTINGS_CLAUDE_CLI_MODEL = "cartogen_ai/claude_cli_model"
 SETTINGS_CODEX_CLI_MODEL = "cartogen_ai/codex_cli_model"
+SETTINGS_AGY_CLI_MODEL = "cartogen_ai/agy_cli_model"
 
 
 def cli_path_setting_key(provider):

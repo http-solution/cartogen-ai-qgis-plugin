@@ -15,6 +15,7 @@ from ...infrastructure.settings_keys import (
     ENABLED_PROVIDERS,
     SETTINGS_CLAUDE_CLI_MODEL,
     SETTINGS_CODEX_CLI_MODEL,
+    SETTINGS_AGY_CLI_MODEL,
     SETTINGS_OPENROUTER_MODEL,
     SETTINGS_GEMINI_MODEL,
     SETTINGS_OLLAMA_MODEL,
@@ -150,8 +151,21 @@ _CLI_PROVIDERS = [
         "value": "codex_cli", "provider_label": "Codex CLI (experimental)", "pill_label": "Codex CLI",
         "key_label": "codex program:", "model_label": "Model (optional):",
         "model_setting_key": SETTINGS_CODEX_CLI_MODEL, "default_model": AUTO_SENTINEL,
+        # The two names OpenAI's models page gives verbatim for `codex -m` (PLAN-071, read 2026-11-09). Others exist and the box is editable;
+        # the Codex CLI has no documented command that lists models, so this stays a seed rather than a fetched list.
+        "extra_seed_models": ["gpt-6.1-sol", "gpt-6.1-terra"],
         "key_default": "codex", "group": "cli", "list_fn": None, "key_storage": "setting", "page_note": _CLI_NOTE,
         "key_tooltip": "Name or full path of the codex program. Sign in once with `codex login`. Auto = the CLI's own default model.",
+    },
+    {
+        "value": "agy_cli", "provider_label": "Antigravity CLI (experimental)", "pill_label": "Antigravity CLI",
+        "key_label": "agy program:", "model_label": "Model (optional):",
+        "model_setting_key": SETTINGS_AGY_CLI_MODEL, "default_model": AUTO_SENTINEL,
+        # The slug Google's headless page uses in its own example; the real list is filled from `agy models` once the program is found.
+        "extra_seed_models": ["gemini-3.8-flash-medium"],
+        "key_default": "agy", "group": "cli", "list_fn": None, "key_storage": "setting", "page_note": _CLI_NOTE,
+        "key_tooltip": "Name or full path of the agy program (Google's Antigravity CLI). Sign in once by running `agy` in a terminal. "
+                        "Auto = the CLI's own default model.",
     },
 ]
 

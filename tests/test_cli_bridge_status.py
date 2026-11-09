@@ -63,7 +63,7 @@ class TestSigninStatus(unittest.TestCase):
         self.assertEqual(self._status("claude_cli", 1, "", "error: unknown command 'auth'")[0]["state"], "unknown")
 
     def test_gemini_cli_is_gone_from_the_detected_set(self):
-        self.assertEqual(list(st.DEFAULT_PROGRAM), ["claude_cli", "codex_cli"])
+        self.assertEqual(list(st.DEFAULT_PROGRAM), ["claude_cli", "codex_cli", "agy_cli"])
         self.assertEqual(st.signin_status("gemini_cli", "/bin/x")["state"], "unknown", "an unknown provider is never a guess")
 
     def test_a_program_that_fails_to_run_is_unknown_not_raised(self):
@@ -80,7 +80,7 @@ class TestDetectAll(unittest.TestCase):
         with patch.object(st, "detect", side_effect=fake_detect), \
              patch.object(st, "signin_status", return_value={"state": "yes", "note": "Logged in using ChatGPT"}):
             result = st.detect_all({})
-        self.assertEqual([e["provider"] for e in result], ["claude_cli", "codex_cli"])
+        self.assertEqual([e["provider"] for e in result], ["claude_cli", "codex_cli", "agy_cli"])
         by = {e["provider"]: e for e in result}
         self.assertEqual(by["claude_cli"]["state"], "missing")
         self.assertEqual(by["codex_cli"]["state"], "yes")

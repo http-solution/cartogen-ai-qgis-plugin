@@ -616,7 +616,22 @@ QPushButton#settingsCancelButton {{
                     edit.setText(entry["path"])
                 if provider not in self._cli_checking:
                     self._cli_status_labels[provider].setText(self._cli_quick_status(provider, edit.text()))
+                self._fetch_cli_models(provider, entry["path"])
         self._refresh_rows()
+
+    def _fetch_cli_models(self, provider, path):
+        """Fills a CLI page's model drop-down from the program's own list when it has one (Antigravity: `agy models`, no model call). Runs on a
+        worker thread; the result comes back through modelsFetchedSignal. A CLI with no list command is left with its seeded names."""
+        if provider != "agy_cli" or provider in self._fetching or provider not in self._model_combos:
+            return
+        self._fetching.add(provider)
+
+        def worker():
+            models = _cli_status.list_models(provider, path)
+            with contextlib.suppress(RuntimeError):      # the window closed while the program ran
+                self.modelsFetchedSignal.emit(provider, {"success": True, "models": models} if models else {"error": "no model list"})
+
+        threading.Thread(target=worker, daemon=True).start()
 
 
     def _browse_program(self, provider):
@@ -890,6 +905,8 @@ QPushButton#settingsCancelButton {{
                 combo.addItem(model_id)
             restore_idx = combo.findText(previous)
             combo.setCurrentIndex(restore_idx if restore_idx >= 0 else 0)
+            if restore_idx < 0 and entry.get("key_storage") == "setting" and previous and previous != AUTO_LABEL:
+                combo.setCurrentText(previous)      # a model name typed by hand stays; a CLI's list is never a complete one
             combo.blockSignals(False)
             self.fetch_status_label.setText(
                 f"Loaded {len(models)} {entry['provider_label']} model(s)."
@@ -898,8 +915,11 @@ QPushButton#settingsCancelButton {{
             # about a key -- the provider accepted it and returned real data. That's what
             # "Verified" in the Keys summary means; see _verified_providers's comment in
             # __init__ for why nothing else in this dialog is allowed to claim that word.
-            self._verified_providers.add(provider_value)
+            if entry.get("key_storage") != "setting":      # a program's model list proves nothing about its sign-in
+                self._verified_providers.add(provider_value)
             self._refresh_rows()
+        elif entry.get("key_storage") == "setting":
+            pass                                           # a CLI whose list could not be read keeps its seeded names; nothing to report
         else:
             self.fetch_status_label.setText(
                 f"{entry['provider_label']} fetch failed: {result.get('error', 'unknown error')}"

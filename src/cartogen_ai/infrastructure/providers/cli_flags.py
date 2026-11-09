@@ -44,6 +44,15 @@ CODEX_FLAGS: tuple[Flag, ...] = (
     ("--ignore-rules", ("--ignore-rules",), True, ""),
 )
 
+# Antigravity (`agy`, PLAN-071). Prompt on standard input as stream-json lines and the answer as stream-json events, both documented on Google's headless page;
+# `--sandbox` is the documented terminal-sandbox switch. All required: none changes only what is kept on disk, so nothing here is droppable
+# (and no owner decision on the droppable list is needed). `--model` goes through ALWAYS_REQUIRED like the others.
+AGY_FLAGS: tuple[Flag, ...] = (
+    ("--input-format", ("--input-format", "stream-json"), True, ""),
+    ("--output-format", ("--output-format", "stream-json"), True, ""),
+    ("--sandbox", ("--sandbox",), True, ""),
+)
+
 _REJECTION = re.compile(
     r"(?:unknown|unrecognized|unrecognised|unexpected|invalid|unsupported)\s+(?:option|flag|argument|arg|parameter)s?\b[:\s]*['\"`\u2018\u2019]?(-{1,2}[A-Za-z][\w-]*)",
     re.IGNORECASE)

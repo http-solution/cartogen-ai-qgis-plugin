@@ -122,8 +122,8 @@ class TestGeminiCliIsGone(unittest.TestCase):
     def test_no_gemini_cli_in_the_provider_tables_or_the_settings_keys(self):
         from cartogen_ai.core.ui import connections_catalog as c
         from cartogen_ai.infrastructure import settings_keys as sk
-        self.assertEqual([e["value"] for e in c._CLI_PROVIDERS], ["claude_cli", "codex_cli"])
-        self.assertEqual(sk.CLI_PROVIDERS, ("claude_cli", "codex_cli"))
+        self.assertEqual([e["value"] for e in c._CLI_PROVIDERS], ["claude_cli", "codex_cli", "agy_cli"])
+        self.assertEqual(sk.CLI_PROVIDERS, ("claude_cli", "codex_cli", "agy_cli"))
         self.assertFalse(hasattr(sk, "SETTINGS_GEMINI_CLI_MODEL"))
         self.assertIn("gemini", [e["value"] for e in c.PROVIDERS], "the Gemini API key connection stays")
 

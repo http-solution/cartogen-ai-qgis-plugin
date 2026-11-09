@@ -223,13 +223,14 @@
    "id": "A3-cli-bridge",
    "issue": "S",
    "session": "A",
-   "title": "A signed-in Claude Code or Codex CLI answers one message; the status line works; an old CLI that rejects a flag is handled",
+   "title": "A signed-in Claude Code, Codex or Antigravity CLI answers one message; the status line works; an old CLI that rejects a flag is handled",
    "covers": [
     "cli-bridge-runner-and-claude-adapter",
+    "agy-cli-provider-and-cli-model-choices",
     "cli-program-found-on-every-os",
     "cli-flag-fallback"
    ],
-   "needs": "QGIS plus Claude Code or Codex installed and signed in (skip the row if you have neither: write Skip)",
+   "needs": "QGIS plus Claude Code, Codex or Antigravity (agy) installed and signed in (skip the row if you have none: write Skip). For agy also look at the Model (optional) drop-down: it should list models after the program is found, and a name typed by hand should stay.",
    "starts_from": "A CLI installed where your own terminal finds it (open a terminal, type claude --version or codex --version to confirm). Connections window open on that CLI's page.",
    "do": "1. Do NOT use Browse yet: the page should already show the program as found. 2. Press Check connection and read the status line. 3. Pick the CLI as the connection (Use this connection), then send in the chat: how many layers are in the project? 4. If you have a second, older version of the CLI, point Browse... at it and repeat 2 and 3. 5. Send the status line text (and the CLI version from the terminal) in the notes.",
    "expect": "The program is found without Browse on this OS; Check connection shows a status line with the CLI version; the chat gets an answer; an older CLI that does not know a flag gives a plain sentence that names the flag and the version, never a crash.",
