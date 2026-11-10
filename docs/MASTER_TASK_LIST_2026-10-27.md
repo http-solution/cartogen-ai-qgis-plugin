@@ -134,15 +134,15 @@ One list to follow up and plan from. It replaces the session task list (101 entr
 |---|---|---|---|---|---|---|---|---|
 | PR-R1 | 1.19.0 Profiles: persona pack loader and picker with honest readiness, router re-rank, 52 seed tasks, catalogue generator, style profiles skeleton, data-source catalogue. | Scoped with acceptance and known-answer tests in PLAN-023; none started. | Claude | OWN-7 | L | P3 | Decision needed | PLAN-023 |
 | PR-R2 | 1.20.0 Spatial statistics: Moran's I, Getis-Ord Gi*, Kulldorff scan with Monte Carlo, rates, relative risk, SMR and smoothing, small-number flag. | Scoped with acceptance and known-answer tests in PLAN-023; none started. | Claude | OWN-14 | L | P3 | Blocked | PLAN-023 |
-| PR-R3 | 1.21.0 Indices, time series, STAC: SAVI/EVI/NDMI/NBR, STAC load, multi-date statistics and anomaly, from-to change matrix, management zones, WorldCover, CHIRPS. | Scoped with acceptance and known-answer tests in PLAN-023; none started. | Claude | - | L | P3 | Decision needed | PLAN-023 |
+| PR-R3 | 1.21.0 Indices, time series, STAC: SAVI/EVI/NDMI/NBR, STAC load, multi-date statistics and anomaly, from-to change matrix, management zones, WorldCover, CHIRPS. | Scoped with acceptance and known-answer tests in PLAN-023; none started. | Claude | - | L | P3 | In progress | PLAN-023 |
 | PR-R4 | 1.22.0 Terrain, flood, engineering: cut and fill, HAND, bathtub flood footprint, viewshed, engineering sheet, mobility cost surface. | Scoped with acceptance and known-answer tests in PLAN-023; none started. | Claude | OWN-14 | L | P3 | Blocked | PLAN-023 |
 | PR-R5 | 1.23.0 Network and movement: VRP with capacity and time windows, OD desire lines, GTFS accessibility, utility trace with valve isolation, walking and cycling profiles. | Scoped with acceptance and known-answer tests in PLAN-023; none started. | Claude | OWN-14 | L | P3 | Blocked | PLAN-023 |
 | PR-R6 | 1.24.0 Site selection and urban: Huff model, centre of gravity, trade areas, scenario allocation, parcel split. | Scoped with acceptance and known-answer tests in PLAN-023; none started. | Claude | OWN-14 | M | P3 | Blocked | PLAN-023 |
 | PR-R7 | 1.25.0 Connectors and Power BI: CKAN, ArcGIS Hub, Socrata, DEM/hydrography/soils, ERA5, WDPA, GTFS, DHIS2, Kobo/ODK, ACLED; Power BI hand-off files. | Scoped with acceptance and known-answer tests in PLAN-023; none started. | Claude | OWN-10, OWN-7 | L | P3 | Blocked | PLAN-023 |
 | PR-R8 | 1.26.0 Standards and publication: ISO 19115 sidecar and validation, OGC API or QGIS Server project generator, topology rule checks, publication figure layout. | Scoped with acceptance and known-answer tests in PLAN-023; none started. | Claude | PR-R1, PR-R7 | M | P3 | Blocked | PLAN-023 |
-| PR-R9 | 1.27.0 Geometry editing: vertex edit, add part and ring, reshape, offset, chamfer, trim/extend, copy and paste between layers, identify by coordinate. | Scoped with acceptance and known-answer tests in PLAN-023; none started. | Claude | - | M | P3 | Decision needed | PLAN-023 |
-| PR-R10 | 1.28.0 Attributes, project, raster rows: virtual fields, conditional formatting, forms, actions, extra renderers, pyramids, raster attribute tables, datum transformations. | Scoped with acceptance and known-answer tests in PLAN-023; none started. | Claude | - | L | P3 | Decision needed | PLAN-023 |
-| PR-R11 | 1.29.0 Processing models and waves: Processing models and batch, in-place modification, the remaining file-writing algorithm waves, expression screening, argument-list checks against 4.2.3. | Scoped with acceptance and known-answer tests in PLAN-023; none started. | Claude | - | L | P3 | Decision needed | PLAN-023 |
+| PR-R9 | 1.27.0 Geometry editing: vertex edit, add part and ring, reshape, offset, chamfer, trim/extend, copy and paste between layers, identify by coordinate. | Scoped with acceptance and known-answer tests in PLAN-023; none started. | Claude | - | M | P3 | In progress | PLAN-023 |
+| PR-R10 | 1.28.0 Attributes, project, raster rows: virtual fields, conditional formatting, forms, actions, extra renderers, pyramids, raster attribute tables, datum transformations. | Scoped with acceptance and known-answer tests in PLAN-023; none started. | Claude | - | L | P3 | In progress | PLAN-023 |
+| PR-R11 | 1.29.0 Processing models and waves: Processing models and batch, in-place modification, the remaining file-writing algorithm waves, expression screening, argument-list checks against 4.2.3. | Scoped with acceptance and known-answer tests in PLAN-023; none started. | Claude | - | L | P3 | In progress | PLAN-023 |
 | PR-R12 | 1.30.0 Close-out: verification debt, JIAF re-check, reply-quality eval rows, remaining architecture records. | Scoped with acceptance and known-answer tests in PLAN-023; none started. | Claude | OWN-9, OWN-11 | M | P3 | Blocked | PLAN-023 |
 
 ## G. Humanitarian and analysis carry-overs
@@ -187,12 +187,12 @@ Source: the owner's analysis document of nine flagship QGIS AI plugins, checked 
 
 | Status | Rows |
 |---|---|
-| In progress | 50 |
+| In progress | 54 |
 | Closed | 29 |
 | Blocked | 15 |
 | Waiting on you | 10 |
-| Decision needed | 5 |
 | Closed (record) | 1 |
+| Decision needed | 1 |
 | Not started | 1 |
 | **Total** | **111** |
 
@@ -417,3 +417,7 @@ Newest last. One line per status change; written by `tools/master_list.py set`.
 - 2026-11-09: AR-3 Decision needed -> Closed. 2026-11-09 owner decision ("close AR-3"): closed as no measurable bias. Measured 2026-11-05 (PLAN-060): of 792 task titles 613 find their own task, 165 find none (the fragment guard, by design), 13 lose to an identical keyword set, 1 to a task with fewer strong keywords, none to one with more; pinned by tests/test_task_matcher_length_fairness.py. The 165 that find no task by design is a separate question, not part of this row.
 - 2026-11-09: HY-4 Decision needed -> Waiting on you. 2026-11-09 owner approved ("go with HY-4") the plan in docs/DECISION_ANALYSIS_2026-11-09.md: delete the 40 merged branches and the 4 closed-PR branches (GitHub keeps their commits), and tag-then-delete the other 11 (tags archive/<name>). NOT EXECUTED: the cloud session's git proxy answers HTTP 403 to every push except the session's own branch (tag push and branch delete both tried, once each; nothing changed, all 55 branches still exist). tools/prune_branches.py (new, tested) re-verifies each branch against the live remote and does it in one command: run 'python tools/prune_branches.py' for the dry run (live check on 2026-11-09: 44 delete, 11 tag-then-delete, 0 skipped) and then with --execute from a clone with push rights. Send the output and I will record the result.
 - 2026-11-09: HU-5 Decision needed -> In progress. 2026-11-09 owner chose 'mark superseded' for part 3 (output layers piling up). Built as PLAN-072: an earlier result of the SAME tool with the same name is kept and renamed '<name> (superseded)', the new one holds the name; never a user's layer, another tool's output or loaded data; setting cartogen_ai/mark_superseded; CI only, not seen in a real chat. Not covered: the two-phase fetch tools; the service-area tools keep their own replace-by-name. Part 1 (task-runner callbacks at unload) needs its live look (OI-224): fold into the 1.18.6 recheck. Part 2 (find_region) is resolved; the row text is stale.
+- 2026-11-10: PR-R3 Decision needed -> In progress. 2026-11-10 owner go ('PR-R3, R9, R10 and R11 now'). Built package by package, one PR each, no version bump or release cut. R3-1 (spectral indices) built, CI only. R3-2 to R3-6 not started. See the 2026-11-10 line in PLAN-023.
+- 2026-11-10: PR-R9 Decision needed -> In progress. 2026-11-10 owner go ('PR-R3, R9, R10 and R11 now'). Not started yet: R3 goes first, then R11, R10, R9 unless the owner says otherwise. No version bump or release cut; see the 2026-11-10 line in PLAN-023.
+- 2026-11-10: PR-R10 Decision needed -> In progress. 2026-11-10 owner go ('PR-R3, R9, R10 and R11 now'). Not started yet: R3 goes first, then R11, R10, R9 unless the owner says otherwise. No version bump or release cut; see the 2026-11-10 line in PLAN-023.
+- 2026-11-10: PR-R11 Decision needed -> In progress. 2026-11-10 owner go ('PR-R3, R9, R10 and R11 now'). Not started yet: R3 goes first, then R11, R10, R9 unless the owner says otherwise. No version bump or release cut; see the 2026-11-10 line in PLAN-023.

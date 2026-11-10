@@ -20,6 +20,7 @@ from . import symbology_extra_tools
 from . import web_research_tools
 from . import watershed_tools
 from . import raster_calculator_tool
+from . import spectral_index_tool
 from . import symbology_tools
 from . import layout_item_tools
 from . import map_view_tools
@@ -139,6 +140,7 @@ __all__ = [
     "sampling_tools",
     "schema_contract_tools",
     "sensitivity_tools",
+    "spectral_index_tool",
     "styling_tools",
     "survey_tools",
     "symbology_extra_tools",
