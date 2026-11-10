@@ -1,6 +1,6 @@
 # Tool Reference
 
-Auto-generated from the live tool registry (300 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
+Auto-generated from the live tool registry (301 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
 
 Flags: **network-only** tools bypass the main-thread QGIS dispatcher entirely (pure HTTP, safe from any background thread); **two-phase** tools split a network fetch (background thread) from the QGIS-touching part (main thread); **task-management** tools are excluded from auto-advance in the Task Manager.
 
@@ -2999,6 +2999,22 @@ Raster calculator (map algebra): computes a new raster from one or more raster l
 |---|---|---|---|
 | `expression` | string | yes | Raster expression, layers written as "layer name@band". |
 | `new_layer_name` | string | no | Name for the result layer (default 'raster_calc'). |
+
+## raster_change_tool
+
+### `calculate_change_matrix`
+
+From-to change matrix between two CLASS rasters (for example land cover in two years): how many cells, hectares and percent moved from each class to each other class, plus per-class persistence, loss, gain and net change. 'What changed between these two land-cover rasters', 'how much forest was lost to cropland'. Give raster_a (before) and raster_b (after), and optionally `classes` naming the values ({"10": "Tree cover", "40": "Cropland"}). Class values must be whole numbers (a continuous raster must be reclassified first; at most 50 classes). Cells that are NoData in either raster are left out. Hectares come from the CRS: exact for a projected raster, approximate (sphere, row by row) for a geographic one. Adds two table layers (the transitions and a per-class summary) and a bar chart of the net change per class. The rasters must share one pixel grid (or pass align_to_first, which resamples with nearest neighbour).
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `raster_a` | string | yes | The earlier class raster (layer name, or 'layer name@band'). |
+| `raster_b` | string | yes | The later class raster. |
+| `classes` | object | no | Optional names: {value: name}, for example {"1": "Forest"}. |
+| `output_name` | string | no | Name of the transitions table (default change_matrix); the summary is <name>_summary. |
+| `chart` | boolean | no | Also make the bar chart (default true). |
+| `align_to_first` | boolean | no | If the rasters are not on one grid, warp raster_b onto raster_a's grid with nearest-neighbour resampling. |
+| `resampling` | string | no | With align_to_first: 'nearest' (default, right for classes), 'bilinear' or 'cubic' (they blend classes; not advised). |
 
 ## raster_series_tool
 

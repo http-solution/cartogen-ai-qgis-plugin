@@ -22,6 +22,7 @@ from . import watershed_tools
 from . import raster_calculator_tool
 from . import spectral_index_tool
 from . import raster_series_tool
+from . import raster_change_tool
 from . import symbology_tools
 from . import layout_item_tools
 from . import map_view_tools
@@ -134,6 +135,7 @@ __all__ = [
     "provenance_tools",
     "qa_checklist_tools",
     "raster_calculator_tool",
+    "raster_change_tool",
     "raster_series_tool",
     "raster_tools",
     "register_tool",
