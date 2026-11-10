@@ -27,6 +27,7 @@ from . import management_zones_tool
 from . import copy_features_tool
 from . import field_rules_tools
 from . import identify_tool
+from . import layer_display_tools
 from . import line_edit_tools
 from . import parts_edit_tool
 from . import vertex_edit_tool
@@ -126,6 +127,7 @@ __all__ = [
     "jiaf_inputs",
     "jiaf_patterns",
     "jiaf_review",
+    "layer_display_tools",
     "layout_chart_profile_tools",
     "layout_extra_tools",
     "layout_item_tools",

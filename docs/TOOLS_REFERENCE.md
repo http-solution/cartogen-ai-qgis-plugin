@@ -1,6 +1,6 @@
 # Tool Reference
 
-Auto-generated from the live tool registry (314 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
+Auto-generated from the live tool registry (317 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
 
 Flags: **network-only** tools bypass the main-thread QGIS dispatcher entirely (pure HTTP, safe from any background thread); **two-phase** tools split a network fetch (background thread) from the QGIS-touching part (main thread); **task-management** tools are excluded from auto-advance in the Task Manager.
 
@@ -2515,6 +2515,39 @@ Record the multi-partner group's JIAF 2 decisions for flagged units (support for
 | `pin_decisions` | array[object] | no |  |
 | `severity_decisions` | array[object] | no |  |
 | `replace` | boolean | no | Replace all stored decisions instead of merging. |
+
+## layer_display_tools
+
+### `add_feature_action`
+
+Add an action to a layer's feature action menu that OPENS A WEB ADDRESS built from the feature's values (action_type open_url, url starting with http:// or https://, with [% expression %] fields, for example https://en.wikipedia.org/wiki/[% "name" %]). Actions that run a command, Python code or a program are REFUSED by policy: they run on the user's computer on every click. Stored with the project.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes | The vector layer. |
+| `name` | string | yes | The label shown in the action menu. |
+| `action_type` | string | yes | open_url (the only type that is added; command types are refused). |
+| `url` | string | no | http(s) address, may contain [% expression %] fields. |
+
+### `set_conditional_formatting`
+
+Colour the cells of a layer's attribute table by rules: each rule is a QGIS expression condition (@value is the cell's value, or use any field) and a background_color and/or text_color, for one field, or for whole rows when `field` is left out. For example {"condition": "@value > 1000", "background_color": "#ffcccc"}. The rules replace the ones already set for that field (or the row rules); an empty list is not accepted, use clear true to remove them. Stored with the project, not in the data file. Display only: no data changes.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes | The vector layer. |
+| `field` | string | no | The field to colour; leave out to colour whole rows. |
+| `rules` | array[object] | no | [{condition, background_color, text_color, name}], 1 to 20 rules, the first that matches wins. |
+| `clear` | boolean | no | true: remove the rules of that field (or the row rules) instead of setting any. |
+
+### `set_map_tip`
+
+Set the map tip of a layer: the HTML bubble shown when the pointer rests on a feature, written with [% expression %] fields, for example '<b>[% "name" %]</b><br>Population [% "pop" %]'. Only plain HTML and expression fields are allowed: script, frame, object, embed, form, link, meta and base tags, event handlers and javascript: addresses are refused. An empty template removes the tip. Stored with the project. Map tips only show while View > Show Map Tips is on, which this tool does not change.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes | The vector layer. |
+| `template` | string | yes | HTML with [% expression %] fields; empty text removes the map tip. |
 
 ## layout_chart_profile_tools
 
