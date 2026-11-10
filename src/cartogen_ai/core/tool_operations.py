@@ -399,6 +399,10 @@ TOOL_OPERATION_TYPES = {
     # -- vector_tools.py --
     "get_layers": READ,
     "get_layer_extent": READ,
+    "set_project_transform_context": MODIFY,   # R10-5: lists datum operations; setting one changes how every layer is reprojected, behind a preview
+    "define_custom_crs": MODIFY,        # R10-5: validates a custom CRS, optionally makes it the project CRS (not added to the shared CRS database)
+    "set_project_measurement": MODIFY,  # R10-5: project ellipsoid, distance and area units
+    "set_canvas_decoration": MODIFY,    # R10-5: canvas decorations stored as project properties (hand-verified only)
     "get_raster_value": READ,           # R10-4: the value of a raster at a coordinate, nothing changed
     "raster_attribute_table": READ,     # R10-4: reads a raster's attribute table (at most 200 rows)
     "build_pyramids": CREATE,           # R10-4: writes a sidecar .ovr file next to the raster; replacing an existing one asks first, the raster itself is never rewritten

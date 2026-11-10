@@ -434,3 +434,4 @@ Newest last. One line per status change; written by `tools/master_list.py set`.
 - 2026-11-10: PR-R10 In progress -> In progress. R10-1 merged; R10-2 display tools built (PR open); R10-3..R10-6 not started
 - 2026-11-10: PR-R10 In progress -> In progress. R10-1, R10-2 merged; R10-3 set_renderer built (PR open); R10-4..R10-6 not started
 - 2026-11-10: PR-R10 In progress -> In progress. R10-1..R10-3 merged; R10-4 raster inspection built (PR open); R10-5, R10-6 not started
+- 2026-11-10: PR-R10 In progress -> In progress. R10-1..R10-4 merged; R10-5 project settings built (PR open); R10-6 not started

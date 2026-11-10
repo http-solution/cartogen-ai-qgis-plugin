@@ -691,6 +691,30 @@
    "layers": {}
   },
   {
+   "id": "C11-project-coordinates-and-decorations",
+   "issue": "S",
+   "session": "C",
+   "title": "Datum transformation list, custom CRS, ellipsoid and units, canvas decorations",
+   "covers": [
+    "project-settings-tools"
+   ],
+   "needs": "person and a real model",
+   "starts_from": "A new empty project; a fresh chat, 'Save an evidence folder for each request' ticked; load smoke_admin and SAVE the project into results\\outputs\\C11-project-coordinates-and-decorations\\ first (these settings live in the project)",
+   "do": "Send in order: (1) list the datum transformations between EPSG:4326 and EPSG:32636  (2) list them between EPSG:4267 and EPSG:4326, pick the most accurate one that is available and Apply  (3) check this custom CRS: +proj=tmerc +lat_0=0 +lon_0=35 +k=0.9996 +x_0=500000 +y_0=0 +datum=WGS84 +units=m +no_defs  (4) set the project ellipsoid to WGS84 and measure in kilometres and hectares  (5) put the title 'Smoke test' at the top centre of the canvas, a north arrow top right and a scale bar bottom left, then save the project, close it and open it again.",
+   "expect": "(1) a list with names, accuracies and which is in use. (2) a preview before it is applied; afterwards Project > Properties > Transformations shows the choice. (3) the reply says it is valid, projected, in metres, and that it was NOT added to your CRS database (check Settings > Custom Projections: it is not there). (4) Project > Properties > General shows the ellipsoid and the units. (5) after reopening, the title, the north arrow and the scale bar are drawn where asked; if one is not, write which (the decoration keys are unverified).",
+   "evidence": "snap('C11'). Screenshots of Project Properties > Transformations and of the canvas with the decorations -> results\\screens\\C11-transform.png, results\\screens\\C11-decorations.png.",
+   "files": [
+    "smoke_data.gpkg"
+   ],
+   "pass_if": "(1)-(4) as Expect; (5) is the real test of the decoration keys: say Pass, Fail or which decoration failed.",
+   "cost": "five short requests",
+   "layers": {
+    "smoke_data.gpkg": [
+     "smoke_admin"
+    ]
+   }
+  },
+  {
    "id": "D1-fetch-live",
    "issue": "S",
    "session": "D",
