@@ -429,3 +429,4 @@ Newest last. One line per status change; written by `tools/master_list.py set`.
 - 2026-11-10: PR-R9 In progress -> In progress. R9-1, R9-2 merged; R9-3 line tools built (PR open); R9-4..R9-6 not started
 - 2026-11-10: PR-R9 In progress -> In progress. R9-1, R9-2, R9-3 merged; R9-4 copy_features_between_layers built (PR open); R9-5, R9-6 not started
 - 2026-11-10: PR-R9 In progress -> In progress. R9-1..R9-4 merged; R9-5 identify_at_point built (PR open); R9-6 not started
+- 2026-11-10: PR-R9 In progress -> In progress. R9-1..R9-6 built (R9-6 PR open: coverage baseline raised, router rows added); R9-H1..H3 and hand rows C2..C6 owed on real data; 'tasks' wording of R9-6 undefined, asked the owner

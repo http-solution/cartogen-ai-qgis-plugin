@@ -123,6 +123,14 @@ GOLDEN = {
     "look at the map": {"inspect_canvas_visually"},
     "find the information from the internet and provide the source": {"web_research"},
     "check the internet for major incidents from the news in Jordan this week and put them on the map": {"find_incident_reports"},
+    # PLAN-023 R9-6: the geometry-editing and identify tools are offered for the plain request (measured offline on 2026-11-10).
+    "delete the third vertex of feature 4 in smoke_zones": {"edit_vertices"},
+    "add a hole to the polygon": {"edit_parts_and_rings"},
+    "reshape the polygon with this line": {"reshape_geometry"},
+    "reverse the direction of the line": {"reverse_line"},
+    "offset the roads by 20 m": {"offset_curve"},
+    "copy the selected features into the other layer": {"copy_features_between_layers"},
+    "what is at this location": {"identify_at_point"},
 }
 
 

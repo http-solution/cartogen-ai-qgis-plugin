@@ -111,6 +111,20 @@ VOCAB = {
  "add an openstreetmap basemap": "GAP",
  "georeference this scanned map": ["georeference_image"],
  "measure the distance between two points": "GAP",
+ # --- Geometry and feature editing (PLAN-023 R9, 2026-11-10)
+ "delete the third vertex of feature 4": ["edit_vertices"],
+ "move a vertex of the polygon": ["edit_vertices"],
+ "add a hole to the polygon": ["edit_parts_and_rings"],
+ "fill the hole in the district": ["edit_parts_and_rings"],
+ "delete a part of the multipolygon": ["edit_parts_and_rings"],
+ "reshape the polygon with this line": ["reshape_geometry"],
+ "reverse the direction of the line": ["reverse_line"],
+ "make a parallel copy of the river": ["offset_curve"],
+ "trim and extend the lines to close the gaps": ["trim_extend_lines"],
+ "copy the selected features into the other layer": ["copy_features_between_layers"],
+ "what is at this coordinate": ["identify_at_point"],
+ "what is at this location": ["identify_at_point"],
+ "what is the raster value at 35.9 E 31.9 N": ["identify_at_point"],
 }
 
 
