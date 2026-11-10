@@ -164,6 +164,7 @@ TOOL_OPERATION_TYPES = {
     "calculate_spectral_index": CREATE, # R3-1: new Float32 raster from band layers; no input layer changes
     "raster_time_series_stats": CREATE, # R3-3: new Float32 raster (mean, trend per year or anomaly) from rasters; no input layer changes
     "calculate_change_matrix": CREATE,  # R3-4: two new table layers (transitions, per-class summary) and a chart from two class rasters; no input layer changes
+    "create_zoning_map": CREATE,  # R3-5: new polygon layer of zones from rasters; no input layer changes
     "delineate_watershed": CREATE,      # S1: adds basin / flow-path / outlet layers; reads a DEM, changes no existing layer
     "web_research": READ,               # network only; touches no project state
     "find_processing_algorithm": READ,

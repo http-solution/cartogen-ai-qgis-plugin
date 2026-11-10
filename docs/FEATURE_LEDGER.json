@@ -1674,6 +1674,25 @@
     "hand_row": "D2-damage-and-risk step 10 (the refusal on non-class rasters); R3-H3 with real land-cover rasters is owed"
   },
   {
+    "id": "management-zones-tool",
+    "feature": "create_zoning_map divides the valid cells of 1 to 5 index rasters into 2 to 8 zones by seeded k-means on the standardised bands (zone 1 is the lowest mean of the first raster), optionally smooths with a 3 x 3 majority pass, merges every 4-connected patch below min_zone_area_ha (default 1 percent of the area, areas from the CRS) into the neighbouring zone with the nearest mean, and writes one polygon feature per zone with the mean of each raster in its legend label; it says the zones are not a yield forecast or an input-rate recommendation; known answers: two flat patches of 0.2 and 0.8 give two zones with exact means, a stray cell below the minimum area merges into its surrounding zone",
+    "issues": [],
+    "since": "1.18.6",
+    "sources": [
+      "src/cartogen_ai/core/agent/tools/raster_zones.py",
+      "src/cartogen_ai/core/agent/tools/management_zones_tool.py"
+    ],
+    "guards": [
+      "tests/test_raster_zones.py::TestKnownAnswers::test_two_flat_patches_give_two_zones_with_exact_means",
+      "tests/test_raster_zones.py::TestKnownAnswers::test_a_stray_cell_below_the_minimum_area_is_merged_into_the_neighbouring_zone",
+      "tests/test_raster_zones.py::TestConnectedComponents::test_it_agrees_with_a_flood_fill_on_random_grids",
+      "tests/test_management_zones_tool.py::TestRegistration::test_the_description_says_there_is_no_yield_or_rate_recommendation",
+      "tests/test_management_zones_tool_live.py::TestManagementZonesLive::test_two_flat_patches_make_two_zones_with_exact_means_and_areas"
+    ],
+    "hand_verified": "not verified: CI only; known answers and a flood-fill cross-check offline (numpy), small GeoTIFFs in the live job, never a real field or index raster; the zone map is not styled yet (R3-6)",
+    "hand_row": "D2-damage-and-risk step 11 (a continuous raster as stand-in); R3-H4 with a real field is owed"
+  },
+  {
     "id": "add-layer-from-path-forwards-sublayer",
     "feature": "asking add_layer_from_path for one named layer of a multi-layer file (GeoPackage, FileGDB, KML, GPX, SpatiaLite) reaches the tool through the orchestrator, so that layer opens instead of the first one",
     "issues": [],

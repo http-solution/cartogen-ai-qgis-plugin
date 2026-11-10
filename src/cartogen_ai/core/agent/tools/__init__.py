@@ -23,6 +23,7 @@ from . import raster_calculator_tool
 from . import spectral_index_tool
 from . import raster_series_tool
 from . import raster_change_tool
+from . import management_zones_tool
 from . import symbology_tools
 from . import layout_item_tools
 from . import map_view_tools
@@ -121,6 +122,7 @@ __all__ = [
     "layout_item_tools",
     "layout_tools",
     "logistics_tools",
+    "management_zones_tool",
     "map_tools",
     "map_view_tools",
     "mcda_tools",
