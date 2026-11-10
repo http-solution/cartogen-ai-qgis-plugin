@@ -30,6 +30,7 @@ from . import identify_tool
 from . import layer_display_tools
 from . import line_edit_tools
 from . import parts_edit_tool
+from . import project_settings_tools
 from . import raster_inspect_tools
 from . import renderer_tool
 from . import vertex_edit_tool
@@ -147,6 +148,7 @@ __all__ = [
     "pcode_validation_tools",
     "processing_allowlist_tools",
     "project_ops_tools",
+    "project_settings_tools",
     "project_tidy_tools",
     "project_tools",
     "provenance_tools",

@@ -1,6 +1,6 @@
 # Tool Reference
 
-Auto-generated from the live tool registry (321 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
+Auto-generated from the live tool registry (325 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
 
 Flags: **network-only** tools bypass the main-thread QGIS dispatcher entirely (pure HTTP, safe from any background thread); **two-phase** tools split a network fetch (background thread) from the QGIS-touching part (main thread); **task-management** tools are excluded from auto-advance in the Task Manager.
 
@@ -3122,6 +3122,49 @@ Zoom the map canvas to the previous or the next extent in its history (like the 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
 | `direction` | string | yes | previous or next |
+
+## project_settings_tools
+
+### `define_custom_crs`
+
+Check a custom coordinate system given as a PROJ string (+proj=tmerc +lat_0=0 ...) or a WKT, and optionally make it the project CRS. QGIS validates it first; an invalid definition is refused. It is used for THIS project only: it is not added to the shared custom-CRS database of the user's QGIS. The reply gives its units and whether it is geographic.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `name` | string | yes | A label for the reply (a custom CRS has no stored name here). |
+| `definition` | string | yes | A PROJ string starting +proj= or a WKT starting PROJCRS[ / GEOGCRS[. |
+| `use_as_project_crs` | boolean | no | Also make it the project's CRS (default false). |
+
+### `set_canvas_decoration`
+
+Switch a map-canvas decoration on or off and place it: kind title, copyright, scale_bar, north_arrow or grid; placement bottom_left, top_left, top_right, bottom_right, top_center or bottom_center; text for the title and the copyright. These are saved as project properties which QGIS reads when the project is opened, so save the project and reopen it (or use the View > Decorations menu) to see the change. Hand-verified only: the canvas is not available to automatic tests. No layer data changes.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `kind` | string | yes | title, copyright, scale_bar, north_arrow or grid. |
+| `enabled` | boolean | no | true to show it, false to hide it. |
+| `placement` | string | no | Where it sits on the canvas. |
+| `text` | string | no | The words for the title or the copyright (those two kinds only). |
+
+### `set_project_measurement`
+
+Set the project's ellipsoid (for example WGS84, EPSG:7030, or NONE for flat planimetric measurement), distance units and area units: what the measuring tools and the layout use. distance_units: meters, kilometers, feet, yards, miles, nautical miles or degrees. area_units: square meters, square kilometers, hectares, acres, square feet, square yards, square miles or square degrees. The values are read back. Stored with the project; no layer data changes.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `ellipsoid` | string | no | An ellipsoid name or code (WGS84, EPSG:7030, ...) or NONE. |
+| `distance_units` | string | no | meters, kilometers, feet, yards, miles, nautical miles or degrees. |
+| `area_units` | string | no | square meters, square kilometers, hectares, acres, square feet, square yards, square miles or square degrees. |
+
+### `set_project_transform_context`
+
+Choose the datum transformation the PROJECT uses between two coordinate systems, or list the choices. Without operation_id it only LISTS the coordinate operations PROJ offers between source_crs and dest_crs (name, accuracy in metres, whether its grid files are installed, and which one the project uses now); the choice can move points by metres, for example between EPSG:4326 and a local datum. With operation_id (an id from that listing) a preview is shown for confirmation first, then the project uses it for every layer. Only an operation QGIS lists for that pair is accepted. Stored with the project.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `source_crs` | string | yes | The source CRS, for example EPSG:4326. |
+| `dest_crs` | string | yes | The destination CRS, for example EPSG:32636. |
+| `operation_id` | string | no | An id from the listing (an authority code like EPSG:1150, or the operation's PROJ text); leave out to list. |
 
 ## project_tidy_tools
 
