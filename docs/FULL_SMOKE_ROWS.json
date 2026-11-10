@@ -491,6 +491,30 @@
    }
   },
   {
+   "id": "C3-parts-and-rings",
+   "issue": "S",
+   "session": "C",
+   "title": "Parts and holes: cut a hole, fill it, delete a hole, refusals",
+   "covers": [
+    "parts-edit-tool"
+   ],
+   "needs": "person and a real model",
+   "starts_from": "A new empty project; a fresh chat, 'Save an evidence folder for each request' ticked; load smoke_admin from smoke_data.gpkg, COPY it with 'Export > Save Features As' to a scratch GeoPackage and work only on the copy (never edit the test data itself)",
+   "do": "On the copy, send in order: (1) cut a small square hole inside feature 1 (give the corner coordinates in the layer's CRS)  (2) answer Apply on the preview  (3) fill the hole at its centre  (4) answer Apply  (5) cut a hole that lies outside the polygon and Apply  (6) undo the last manual edit after step 2 if the layer is in edit mode.",
+   "expect": "(1) a preview card says a hole will be cut and the area now; nothing changed yet. (2) the area drops by the hole's area. (3) the preview names the hole it found. (4) the area is back to the first value. (5) a refusal that says nothing was changed. (6) the hole is gone again.",
+   "evidence": "snap('C3'). Screenshot of the polygon with the hole -> results\\screens\\C3-hole.png.",
+   "files": [
+    "smoke_data.gpkg"
+   ],
+   "pass_if": "all as Expect.",
+   "cost": "five short requests",
+   "layers": {
+    "smoke_data.gpkg": [
+     "smoke_admin"
+    ]
+   }
+  },
+  {
    "id": "D1-fetch-live",
    "issue": "S",
    "session": "D",

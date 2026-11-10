@@ -24,6 +24,7 @@ from . import spectral_index_tool
 from . import raster_series_tool
 from . import raster_change_tool
 from . import management_zones_tool
+from . import parts_edit_tool
 from . import vertex_edit_tool
 from . import symbology_tools
 from . import layout_item_tools
@@ -130,6 +131,7 @@ __all__ = [
     "monitoring_tools",
     "multimodal_remote_sensing",
     "new_layer_tools",
+    "parts_edit_tool",
     "pcode_validation_tools",
     "processing_allowlist_tools",
     "project_ops_tools",
