@@ -15,13 +15,13 @@ FIXTURES = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fixtures")
 
 class TestGoldenSuiteSizePins(unittest.TestCase):
     def test_basic_requests_table(self):
-        self.assertGreaterEqual(len(GOLDEN), 34)
+        self.assertGreaterEqual(len(GOLDEN), 115)
 
     def test_long_requests_table(self):
         self.assertGreaterEqual(len(GOLDEN_LONG), 16)
 
     def test_qgis_vocabulary_table(self):
-        self.assertGreaterEqual(len(VOCAB), 91)
+        self.assertGreaterEqual(len(VOCAB), 104)
 
     def test_processing_allowlist_rows(self):
         self.assertGreaterEqual(len(ROWS), 42)

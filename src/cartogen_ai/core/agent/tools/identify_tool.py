@@ -91,7 +91,7 @@ def _raster_values(layer, point):
         "radius": {"type": "number", "description": "Search radius in the CRS's units (default 0: only what is exactly under the point). Vector layers only."},
         "max_features": {"type": "integer", "description": "Fewest features wanted, 1 to 50 (default 50). 50 is the most that is ever returned."}},
      "required": ["x", "y"]},
-    keywords=["what is at this point", "what is here", "identify at", "identify the point", "features at a coordinate", "value at a coordinate", "raster value at", "what is under",
+    keywords=["what is at this point", "what is at this location", "what is at that location", "what is at this spot", "what is here", "identify at", "identify the point", "features at a coordinate", "value at a coordinate", "raster value at", "what is under",
               "query a location", "what is at these coordinates"],
 )
 def identify_at_point(x, y, crs=None, layers=None, radius=0, max_features=io.MAX_FEATURES):
