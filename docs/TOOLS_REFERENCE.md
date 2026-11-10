@@ -1,6 +1,6 @@
 # Tool Reference
 
-Auto-generated from the live tool registry (299 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
+Auto-generated from the live tool registry (300 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
 
 Flags: **network-only** tools bypass the main-thread QGIS dispatcher entirely (pure HTTP, safe from any background thread); **two-phase** tools split a network fetch (background thread) from the QGIS-touching part (main thread); **task-management** tools are excluded from auto-advance in the Task Manager.
 
@@ -2999,6 +2999,24 @@ Raster calculator (map algebra): computes a new raster from one or more raster l
 |---|---|---|---|
 | `expression` | string | yes | Raster expression, layers written as "layer name@band". |
 | `new_layer_name` | string | no | Name for the result layer (default 'raster_calc'). |
+
+## raster_series_tool
+
+### `raster_time_series_stats`
+
+Per-pixel statistics over a time series of rasters already in the project: 'mean' (average of the valid values), 'trend' (straight-line slope in value units per YEAR, for example NDVI change per year; needs `times`, one per raster, and at least 3 rasters) or 'anomaly' (z-score of one raster against the mean and standard deviation of the baseline rasters: how unusual is this month compared with the other years). `rasters` is an ordered list of layer names (or 'layer name@band'). For a trend give `times` as years, dates ('2021-06-15') or numbers of years. For an anomaly the `target` raster (default: the last) is compared with the `baseline` rasters (default: all the others, at least 3). Cells with too few valid observations are NoData. The rasters must share one pixel grid (or pass align_to_first). It reports the slope, not its statistical significance. Adds a new raster layer.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `rasters` | array[string] | yes | Raster layer names in time order (max 60). |
+| `statistic` | string | no | mean, trend or anomaly (default mean). |
+| `times` | array[['string', 'number']] | no | Trend only: the time of each raster, in the same order: a year, a date such as 2021-06-15, or a number of years. |
+| `target` | string | no | Anomaly only: the raster to score (default: the last one in `rasters`). |
+| `baseline` | array[string] | no | Anomaly only: the baseline rasters (default: all the others). |
+| `min_observations` | integer | no | Fewest valid values a cell needs (defaults: 1 for mean, 3 for trend and for the baseline). |
+| `output_name` | string | no | Name of the new layer (default ts_mean, ts_trend or ts_anomaly). |
+| `align_to_first` | boolean | no | If the rasters are not on one pixel grid, warp the others onto the first raster's grid (its CRS, extent and cell size) instead of refusing. The result says which raster was the reference and the resampling used. Default false: refuse. |
+| `resampling` | string | no | With align_to_first: 'bilinear' (default, for continuous values such as reflectance), 'nearest' (for classes or counts) or 'cubic'. |
 
 ## representation_tools
 

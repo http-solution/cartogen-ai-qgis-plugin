@@ -29,7 +29,7 @@ NODATA = -9999.0
 _ROLE_HELP = "; ".join(f"{name}: {', '.join(roles)}" for name, (roles, _f, _m) in ri.INDICES.items())
 
 
-def _write_float_raster(values, ok, info, nodata=NODATA):
+def write_float_raster(values, ok, info, nodata=NODATA):
     """Writes `values` (2-D float32) as a Float32 GeoTIFF in a temp file with the template's georeferencing; cells where `ok` is false get `nodata`.
     Returns the path. Needs GDAL."""
     import numpy as np
@@ -110,7 +110,7 @@ def calculate_spectral_index(index, bands, output_name=None, soil_factor=ri.SOIL
             if band_valid.any():
                 band_max = max(band_max, float(arrays[role][band_valid].max()))
         values, ok = ri.compute_index(name, arrays, valid, ell)
-        path = _write_float_raster(values, ok, info)
+        path = write_float_raster(values, ok, info)
     except ValueError as e:
         return {"error": f"{name}: {e}"}
     except Exception as e:
