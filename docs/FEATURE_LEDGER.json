@@ -1808,6 +1808,26 @@
     "hand_row": "C7-field-rules"
   },
   {
+    "id": "layer-display-tools",
+    "feature": "set_conditional_formatting (attribute-table cell colours by QGIS expression rules, for a field or for whole rows, replaced or cleared, every expression screened and every colour checked), set_map_tip (the HTML hover bubble with [% expression %] fields: script, frame, object, embed, form, link, meta and base tags, event handlers and javascript:, vbscript: and data: addresses are refused, expressions screened, an empty template removes it) and add_feature_action (POLICY: actions that run a command, Python code or a program are refused with the reason, only an open_url action with an http or https address built from the feature's values is added); all three are project properties that change no data, read back in the reply; known answers: a template with a script tag is refused, a python action is refused naming the policy, a rule @value > 100 with #ffcccc reads back as set",
+    "issues": [],
+    "since": "1.18.6",
+    "sources": [
+      "src/cartogen_ai/core/agent/tools/display_rules.py",
+      "src/cartogen_ai/core/agent/tools/layer_display_tools.py"
+    ],
+    "guards": [
+      "tests/test_display_rules.py::TestMapTip::test_what_runs_code_is_refused",
+      "tests/test_display_rules.py::TestAction::test_a_command_action_is_refused_with_the_policy",
+      "tests/test_layer_display_tools.py::TestRegistration::test_the_layer_action_description_states_the_no_command_policy",
+      "tests/test_layer_display_tools_live.py::TestLayerDisplayLive::test_a_command_action_is_refused_and_an_open_url_action_is_added",
+      "tests/test_layer_display_tools_live.py::TestLayerDisplayLive::test_a_map_tip_is_read_back_and_unsafe_ones_are_refused",
+      "tests/test_layer_display_tools_live.py::TestLayerDisplayLive::test_conditional_formatting_for_a_field_is_read_back_and_can_be_cleared"
+    ],
+    "hand_verified": "not verified: CI only; the request checks and the no-command policy are pure and tested offline, the QGIS calls (QgsConditionalStyle, setMapTipTemplate, QgsAction) run only in the live job and are read back, never seen drawn in the attribute table or shown on hover; the map tip shows only while View > Show Map Tips is on",
+    "hand_row": "C8-table-and-map-display"
+  },
+  {
     "id": "add-layer-from-path-forwards-sublayer",
     "feature": "asking add_layer_from_path for one named layer of a multi-layer file (GeoPackage, FileGDB, KML, GPX, SpatiaLite) reaches the tool through the orchestrator, so that layer opens instead of the first one",
     "issues": [],

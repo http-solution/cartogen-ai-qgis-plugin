@@ -399,6 +399,9 @@ TOOL_OPERATION_TYPES = {
     # -- vector_tools.py --
     "get_layers": READ,
     "get_layer_extent": READ,
+    "set_conditional_formatting": MODIFY,   # R10-2: attribute-table cell colours by expression, a project property, no data changes
+    "set_map_tip": MODIFY,              # R10-2: the HTML hover bubble of a layer (expression fields only), a project property
+    "add_feature_action": MODIFY,         # R10-2: only an open_url action; command, Python and program actions are refused by policy
     "add_virtual_field": MODIFY,        # R10-1: adds a computed field stored in the project, nothing written to the data
     "remove_virtual_field": MODIFY,     # R10-1: removes a virtual field only, a real column is refused
     "set_field_constraint": MODIFY,     # R10-1: sets or removes the rules QGIS enforces on a field (project property), existing features reported not changed
