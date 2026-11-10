@@ -539,6 +539,34 @@
    }
   },
   {
+   "id": "C5-copy-features",
+   "issue": "S",
+   "session": "C",
+   "title": "Copy features between layers with a field mapping",
+   "covers": [
+    "copy-features-tool"
+   ],
+   "needs": "person and a real model",
+   "starts_from": "A new empty project; a fresh chat, 'Save an evidence folder for each request' ticked; load smoke_admin from smoke_data.gpkg, then make an EMPTY copy of it as a scratch GeoPackage layer called admin_copy (Layer > Create Layer > New GeoPackage Layer with the same geometry type and CRS, fields name and pop if you like); never copy into the test data itself",
+   "do": "Select three features of smoke_admin on the map. Send in order: (1) copy the selected features of smoke_admin into admin_copy  (2) answer Apply on the preview  (3) copy smoke_admin into smoke_roads  (4) undo the last manual edit if admin_copy is in edit mode.",
+   "expect": "(1) a preview names 3 features, lists the fields copied, the fields left empty and the fields not copied; nothing is written yet. (2) admin_copy now has 3 features with the same names. (3) a refusal that says the layers have different geometry types. (4) the 3 features are gone again.",
+   "evidence": "snap('C5'). Screenshot of the preview card -> results\\screens\\C5-preview.png.",
+   "files": [
+    "smoke_data.gpkg",
+    "smoke_network.gpkg"
+   ],
+   "pass_if": "all as Expect.",
+   "cost": "four short requests",
+   "layers": {
+    "smoke_data.gpkg": [
+     "smoke_admin"
+    ],
+    "smoke_network.gpkg": [
+     "smoke_roads"
+    ]
+   }
+  },
+  {
    "id": "D1-fetch-live",
    "issue": "S",
    "session": "D",

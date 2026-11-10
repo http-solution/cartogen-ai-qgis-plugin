@@ -1,6 +1,6 @@
 # Tool Reference
 
-Auto-generated from the live tool registry (308 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
+Auto-generated from the live tool registry (309 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
 
 Flags: **network-only** tools bypass the main-thread QGIS dispatcher entirely (pure HTTP, safe from any background thread); **two-phase** tools split a network fetch (background thread) from the QGIS-touching part (main thread); **task-management** tools are excluded from auto-advance in the Task Manager.
 
@@ -1774,6 +1774,20 @@ Tags a layer with its epistemic-status/confidence level -- OBSERVED (directly re
 | `layer_name` | string | yes |  |
 | `level` | string | yes | OBSERVED, DERIVED, MODELED, INFERRED, or UNKNOWN. |
 | `reason` | string | no | Optional short reason, e.g. 'buffer output, no field verification' or 'population estimate, WorldPop 2025 raster'. |
+
+## copy_features_tool
+
+### `copy_features_between_layers`
+
+Copy features from one vector layer into another existing layer of the SAME geometry type (point, line or polygon; a mismatch is refused): the selected features (default when some are selected), those matching filter_expression, or all of them. field_mapping is {target field: source field}; fields with the same name are matched automatically, the rest stay empty, and a value that does not fit the target field's type stops the copy with nothing changed. A different CRS is transformed to the target's. Changes the target layer: a preview with the mapping is shown for confirmation first, the edit is one undoable step (undo_manual_edit), and the source layer is never changed.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `source_layer` | string | yes | The vector layer to copy from. |
+| `target_layer` | string | yes | The existing vector layer to copy into (same geometry type). |
+| `only_selected` | boolean | no | Copy only the selected features (default: yes when the source has a selection, else all). |
+| `filter_expression` | string | no | A QGIS expression: copy the features it is true for (instead of the selection). |
+| `field_mapping` | object | no | {target field: source field}; unnamed target fields match a source field of the same name. |
 
 ## corridor_tools
 
