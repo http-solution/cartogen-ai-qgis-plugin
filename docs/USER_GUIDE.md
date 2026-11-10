@@ -296,6 +296,16 @@ defaults checked, except one you've already tagged `RESTRICTED`/`SENSITIVE` via
 sample of rows for whatever's checked, never a whole table. This is opt-out, not
 opt-in — if you never open it, nothing changes from today's behavior.
 
+## When you run the same analysis again
+
+If a tool you run again produces a layer with the same name as its own earlier result (for example a second
+buffer called "Buffered"), the earlier one is kept and renamed **"Buffered (superseded)"** (numbered if there are
+several), and the new result takes the name. Nothing is deleted or moved, the earlier layer keeps its history and
+protection settings, and the reply says what was renamed, so later requests by name reach the newest result.
+A layer you made, another tool's output, and data you loaded yourself are never renamed. To switch this off, set
+the QGIS setting `cartogen_ai/mark_superseded` to `false`. It applies to the tools run on the main path; the
+network fetch tools are not covered yet.
+
 ## Destructive actions
 
 Removing a layer or running a field calculator mutation always goes through a
