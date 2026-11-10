@@ -98,7 +98,7 @@ def set_conditional_formatting(layer_name, rules=None, field=None, clear=False):
         "layer_name": {"type": "string", "description": "The vector layer."},
         "template": {"type": "string", "description": "HTML with [% expression %] fields; empty text removes the map tip."}},
      "required": ["layer_name", "template"]},
-    keywords=["map tip", "map tips", "hover text", "tooltip on the map", "show a popup when hovering", "what shows when I hover over a feature", "hover over a feature"],
+    keywords=["map tip", "map tips", "hover text", "tooltip on the map", "show a popup when hovering", "what shows when i hover over a feature", "hover over a feature"],
 )
 def set_map_tip(layer_name, template):
     if not QGIS_AVAILABLE:
@@ -131,7 +131,7 @@ def set_map_tip(layer_name, template):
         "action_type": {"type": "string", "description": "open_url (the only type that is added; command types are refused)."},
         "url": {"type": "string", "description": "http(s) address, may contain [% expression %] fields."}},
      "required": ["layer_name", "name", "action_type"]},
-    keywords=["layer action", "add an action to the layer", "feature action", "run a command on click", "action on click", "open a url for the feature", "run a script when I click", "open a web page for the feature"],
+    keywords=["layer action", "add an action to the layer", "feature action", "run a command on click", "action on click", "open a url for the feature", "run a script when i click", "open a web page for the feature"],
 )
 def add_feature_action(layer_name, name, action_type, url=None):
     if not QGIS_AVAILABLE:
