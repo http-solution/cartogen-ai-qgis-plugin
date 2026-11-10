@@ -1,6 +1,6 @@
 # Tool Reference
 
-Auto-generated from the live tool registry (318 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
+Auto-generated from the live tool registry (321 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
 
 Flags: **network-only** tools bypass the main-thread QGIS dispatcher entirely (pure HTTP, safe from any background thread); **two-phase** tools split a network fetch (background thread) from the QGIS-touching part (main thread); **task-management** tools are excluded from auto-advance in the Task Manager.
 
@@ -3201,6 +3201,39 @@ From-to change matrix between two CLASS rasters (for example land cover in two y
 | `chart` | boolean | no | Also make the bar chart (default true). |
 | `align_to_first` | boolean | no | If the rasters are not on one grid, warp raster_b onto raster_a's grid with nearest-neighbour resampling. |
 | `resampling` | string | no | With align_to_first: 'nearest' (default, right for classes), 'bilinear' or 'cubic' (they blend classes; not advised). |
+
+## raster_inspect_tools
+
+### `build_pyramids`
+
+Build pyramids (overviews) for a raster layer so a big raster draws fast when zoomed out: smaller copies are written to a sidecar .ovr file NEXT TO the raster, which itself is never rewritten. levels is a list such as [2, 4, 8] (default: halving while the smaller side stays at least 256 cells; a raster under 512 cells needs none); method is average (default, for continuous data), nearest, gauss, cubic or mode (for classified rasters). If an .ovr file already exists a preview asks before it is replaced. The number of levels is read back.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes | The raster layer (a local file). |
+| `levels` | array[integer] | no | Overview factors, increasing, each 2 or more (default: chosen from the raster's size). |
+| `method` | string | no | Resampling: average (default), nearest, gauss, cubic or mode. |
+
+### `get_raster_value`
+
+Read the value of a raster layer at a coordinate: every band (or only `band`) and the column and row of the cell it falls in. x and y are in `crs` (default: the project CRS). A point outside the raster is reported, and a NoData cell comes back as null. Read-only. To look at vector layers and rasters together at a point use identify_at_point.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes | The raster layer. |
+| `x` | number | yes | X (longitude or easting) in `crs`. |
+| `y` | number | yes | Y (latitude or northing) in `crs`. |
+| `band` | integer | no | One band number, 1-based (default: all bands). |
+| `crs` | string | no | The CRS of x and y, for example EPSG:4326 (default: the project CRS). |
+
+### `raster_attribute_table`
+
+Read the attribute table of a classified raster (value, class name, colour, pixel count and so on), the table QGIS shows under Layer Properties > Attribute Table. Many rasters have none and the reply says so. At most 200 rows are returned and the reply says when there are more. Read-only.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes | The raster layer (a file). |
+| `band` | integer | no | The band, 1-based (default 1). |
 
 ## raster_series_tool
 

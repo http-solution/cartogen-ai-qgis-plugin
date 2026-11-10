@@ -673,6 +673,24 @@
    }
   },
   {
+   "id": "C10-raster-inspection",
+   "issue": "S",
+   "session": "C",
+   "title": "Raster cell value, attribute table and pyramids",
+   "covers": [
+    "raster-inspect-tools"
+   ],
+   "needs": "person and a real model",
+   "starts_from": "A new empty project; a fresh chat, 'Save an evidence folder for each request' ticked; COPY a raster of a few thousand cells per side (for example the DEM from 3_test_files, or any larger GeoTIFF) and a classified raster (a land-cover GeoTIFF) into results\\outputs\\C10-raster-inspection\\ and load the copies, so the test data itself is never written beside",
+   "do": "Send in order: (1) what is the value of the DEM at <a coordinate you read from the status bar over a cell>  (2) show the attribute table of the land-cover raster  (3) build pyramids for the DEM  (4) build pyramids for the DEM again and answer the preview  (5) zoom the map out over the whole DEM and pan around.",
+   "expect": "(1) the value equals what the Identify tool shows for that cell, with its column and row. (2) the class table (value, name, count) or a plain 'no attribute table' if the file has none. (3) the reply names the levels and a .ovr file beside the raster; the .tif itself has the same size and date as before. (4) a preview that says an existing .ovr is replaced; after Apply the level count is read back. (5) the raster draws noticeably faster zoomed out than before step 3 (your observation).",
+   "evidence": "snap('C10'). A directory listing of the folder showing the .tif and the .tif.ovr -> results\\screens\\C10-files.png.",
+   "files": [],
+   "pass_if": "all as Expect.",
+   "cost": "five short requests",
+   "layers": {}
+  },
+  {
    "id": "D1-fetch-live",
    "issue": "S",
    "session": "D",

@@ -399,6 +399,9 @@ TOOL_OPERATION_TYPES = {
     # -- vector_tools.py --
     "get_layers": READ,
     "get_layer_extent": READ,
+    "get_raster_value": READ,           # R10-4: the value of a raster at a coordinate, nothing changed
+    "raster_attribute_table": READ,     # R10-4: reads a raster's attribute table (at most 200 rows)
+    "build_pyramids": CREATE,           # R10-4: writes a sidecar .ovr file next to the raster; replacing an existing one asks first, the raster itself is never rewritten
     "set_renderer": MODIFY,             # R10-3: changes how a layer is drawn (the previous style is saved in the layer style manager), data untouched
     "set_conditional_formatting": MODIFY,   # R10-2: attribute-table cell colours by expression, a project property, no data changes
     "set_map_tip": MODIFY,              # R10-2: the HTML hover bubble of a layer (expression fields only), a project property
