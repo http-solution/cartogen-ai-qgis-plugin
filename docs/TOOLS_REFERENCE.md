@@ -1,6 +1,6 @@
 # Tool Reference
 
-Auto-generated from the live tool registry (304 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
+Auto-generated from the live tool registry (308 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
 
 Flags: **network-only** tools bypass the main-thread QGIS dispatcher entirely (pure HTTP, safe from any background thread); **two-phase** tools split a network fetch (background thread) from the QGIS-touching part (main thread); **task-management** tools are excluded from auto-advance in the Task Manager.
 
@@ -2629,6 +2629,49 @@ Change a print layout's page: size (A0 to A5, Letter, Legal, Tabloid), orientati
 | `size` | string | no |  |
 | `orientation` | string | no |  |
 | `pages` | integer | no |  |
+
+## line_edit_tools
+
+### `offset_curve`
+
+Make a parallel copy of every line of a line layer at `distance` (layer units; positive to the left of the line's direction, negative to the right) as a NEW layer; the input is not changed. join is round (default), miter or bevel. Attributes are copied. Lines that cannot be offset by that distance (for example a tight bend inwards) are counted in the reply.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes | A line layer. |
+| `distance` | number | yes | Offset distance in the layer's units; negative = the other side. |
+| `join` | string | no | Corner style (default round). |
+| `segments` | integer | no | Segments per quarter circle for round joins, 1 to 64 (default 8). |
+| `miter_limit` | number | no | Miter limit, 1 or more (default 2). |
+| `output_name` | string | no | Name of the new layer (default <layer>_offset). |
+
+### `reshape_geometry`
+
+Reshape one feature of a line or polygon layer with a line drawn across it: line_wkt (a LINESTRING in the layer's CRS) cuts a new edge where it enters and leaves the feature, as QGIS's Reshape tool does. A line that does not cross the feature changes nothing and the reply says so. Changes geometry: a preview is shown for confirmation first, the edit is one undoable step (undo_manual_edit), and a result that would make a valid geometry invalid is refused.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes | A line or polygon layer. |
+| `feature_id` | integer | yes | The feature's id (the QGIS feature id). |
+| `line_wkt` | string | yes | The reshaping line as WKT in the layer's CRS, for example LINESTRING(-1 5, 5 7, 11 5). |
+
+### `reverse_line`
+
+Reverse the direction of the lines of a line layer (the first vertex becomes the last): all features, or only feature_ids. Use it when a one-way street, a river or a pipeline points the wrong way. Changes geometry: a preview with the number of features is shown for confirmation first, and the edit is one undoable step (undo_manual_edit).
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes | A line layer. |
+| `feature_ids` | array[integer] | no | Only these features (default: all). |
+
+### `trim_extend_lines`
+
+Close small gaps and overshoots between lines of a line layer: the two ends of every line move onto the nearest point of ANOTHER line when that point is within `tolerance` (layer units): a line that stops short is extended to it, a line that overshoots is trimmed back to where they cross. Only line ends move; no vertex is added or removed. Changes geometry: a preview with the number of ends that would move is shown for confirmation first, and the edit is one undoable step (undo_manual_edit).
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes | A line layer. |
+| `tolerance` | number | yes | The largest move of one end, in the layer's units (degrees on a geographic layer). |
 
 ## management_zones_tool
 

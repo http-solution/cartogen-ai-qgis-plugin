@@ -515,6 +515,30 @@
    }
   },
   {
+   "id": "C4-line-editing",
+   "issue": "S",
+   "session": "C",
+   "title": "Lines: reverse, offset, trim and extend, reshape",
+   "covers": [
+    "line-edit-tools"
+   ],
+   "needs": "person and a real model",
+   "starts_from": "A new empty project; a fresh chat, 'Save an evidence folder for each request' ticked; load smoke_roads from smoke_network.gpkg, then COPY it with 'Export > Save Features As' to a scratch GeoPackage and work only on the copy (never edit the test data itself)",
+   "do": "On the copy, send in order: (1) make a parallel copy of the roads 20 m to the left  (2) reverse the direction of feature 1 and Apply  (3) trim and extend the roads with a tolerance of 5 m and read the preview  (4) Apply it  (5) undo the last manual edit if the layer is in edit mode.",
+   "expect": "(1) a new layer smoke_roads_offset appears beside the roads, the same shape 20 m to the left of each line's direction; the roads are unchanged. (2) a preview names one feature; after Apply its first and last vertex are swapped. (3) a preview that gives the number of ends that would move (zero is an acceptable honest answer: then it says nothing needed changing). (4) the ends move onto neighbouring roads. (5) the last step is undone.",
+   "evidence": "snap('C4'). Screenshot of the roads with the offset layer -> results\\screens\\C4-offset.png.",
+   "files": [
+    "smoke_network.gpkg"
+   ],
+   "pass_if": "all as Expect.",
+   "cost": "five short requests",
+   "layers": {
+    "smoke_network.gpkg": [
+     "smoke_roads"
+    ]
+   }
+  },
+  {
    "id": "D1-fetch-live",
    "issue": "S",
    "session": "D",
