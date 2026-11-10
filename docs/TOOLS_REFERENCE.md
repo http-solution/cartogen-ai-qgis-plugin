@@ -1,6 +1,6 @@
 # Tool Reference
 
-Auto-generated from the live tool registry (302 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
+Auto-generated from the live tool registry (303 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
 
 Flags: **network-only** tools bypass the main-thread QGIS dispatcher entirely (pure HTTP, safe from any background thread); **two-phase** tools split a network fetch (background thread) from the QGIS-touching part (main thread); **task-management** tools are excluded from auto-advance in the Task Manager.
 
@@ -3430,6 +3430,24 @@ Evaluate an anticipatory-action trigger rule against forecast values already in 
 | `min_probability` | number | no | With probability_field: minimum probability for a row to count, in the same unit as the field (0-1, or 0-100 when probability_scale is 'percent', e.g. 70 for 70%). |
 | `probability_scale` | string | no | 'fraction' (default): probability_field and min_probability are 0-1. 'percent': both are 0-100. |
 | `min_exceedances` | integer | no | Exceeding forecast rows needed to activate a unit. Default 1. |
+
+## vertex_edit_tool
+
+### `edit_vertices`
+
+Add, move or delete one vertex of one feature of a line or polygon layer: action 'delete' removes a vertex, 'move' moves it to x, y, 'add' puts a new vertex on the segment nearest x, y (the shape does not change). Choose the feature by feature_id and the vertex by index (0-based; a polygon ring is closed, so a square has 5 vertices and the first and last are the same corner) or by the position nearest it (near_x, near_y, optionally within tolerance). Coordinates are in the layer's CRS. Changes geometry: a preview is shown for confirmation first, the edit is one undoable step (undo_manual_edit), and a change that would make a valid geometry invalid is refused.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes | A line or polygon layer. |
+| `feature_id` | integer | yes | The feature's id (the QGIS feature id). |
+| `action` | string | yes | add, move or delete. |
+| `index` | integer | no | The vertex to move or delete, 0-based over the whole geometry. |
+| `near_x` | number | no | Instead of index: pick the vertex nearest this x (layer CRS). |
+| `near_y` | number | no | Instead of index: pick the vertex nearest this y (layer CRS). |
+| `tolerance` | number | no | With near_x/near_y: refuse if the nearest vertex is farther than this (layer units). |
+| `x` | number | no | move: the new x; add: the x of the point near which the vertex is added. |
+| `y` | number | no | move: the new y; add: the y of the point near which the vertex is added. |
 
 ## watershed_tools
 
