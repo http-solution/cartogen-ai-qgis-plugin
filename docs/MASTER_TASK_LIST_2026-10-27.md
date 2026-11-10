@@ -425,3 +425,4 @@ Newest last. One line per status change; written by `tools/master_list.py set`.
 - 2026-11-10: PR-R3 In progress -> In progress. 2026-11-10 owner go. Merged: R3-1 spectral indices (PR 593) and R3-3 time-series statistics (PR 594), live tests passed. R3-4 (change matrix) built, CI only. R3-2 STAC load, R3-5 management zones, R3-6 looks and layouts not started. See the 2026-11-10 lines in PLAN-023.
 - 2026-11-10: PR-R3 In progress -> In progress. 2026-11-10 owner go. Merged: R3-1 spectral indices (PR 593), R3-3 time series (PR 594), R3-4 change matrix (PR 595), live tests passed. R3-5 (management zones) built, CI only. R3-2 STAC load and R3-6 looks and layouts not started. See the 2026-11-10 lines in PLAN-023.
 - 2026-11-10: PR-R9 In progress -> In progress. R9-1 edit_vertices built (PR open); R9-2..R9-6 not started
+- 2026-11-10: PR-R9 In progress -> In progress. R9-1 merged (PR 597); R9-2 edit_parts_and_rings built (PR open); R9-3..R9-6 not started

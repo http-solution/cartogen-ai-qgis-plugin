@@ -1711,6 +1711,24 @@
     "hand_row": "C2-vertex-editing (on a copy of the data)"
   },
   {
+    "id": "parts-edit-tool",
+    "feature": "edit_parts_and_rings adds a part, cuts a hole, fills a hole, deletes a hole or deletes a part of one feature of a line or polygon layer (the shape given as WKT in the layer's CRS); it shows a PREVIEW_REQUIRED card first (fill_ring pins the hole it found), applies through QGIS's own QgsGeometry inside one undoable edit command, never takes over a layer already in edit mode, refuses a result that would make a valid geometry invalid, a single-part layer for add_part, the last part for delete_part and point layers; known answers: a hole of side 4 in a 10 x 10 square takes the area from 100 to 84 and filling it restores 100",
+    "issues": [],
+    "since": "1.18.6",
+    "sources": [
+      "src/cartogen_ai/core/agent/tools/parts_ops.py",
+      "src/cartogen_ai/core/agent/tools/parts_edit_tool.py"
+    ],
+    "guards": [
+      "tests/test_parts_ops.py::TestKnownAnswers::test_a_hole_of_side_4_takes_the_square_from_100_to_84_and_filling_it_restores_100",
+      "tests/test_parts_edit_tool.py::TestRegistration::test_it_changes_geometry_so_it_is_a_modify_tool_with_a_preview_note",
+      "tests/test_parts_edit_tool_live.py::TestEditPartsAndRingsLive::test_a_hole_takes_the_area_to_84_and_filling_it_restores_100",
+      "tests/test_parts_edit_tool_live.py::TestEditPartsAndRingsLive::test_one_undo_restores_the_square_when_the_layer_is_in_edit_mode"
+    ],
+    "hand_verified": "not verified: CI only; the pure WKT reader and request check run offline, the QGIS calls (addRing, deleteRing, addPartGeometry, deletePart) run only in the live job on small memory layers, never on a real data set",
+    "hand_row": "C3-parts-and-rings (on a copy of the data)"
+  },
+  {
     "id": "add-layer-from-path-forwards-sublayer",
     "feature": "asking add_layer_from_path for one named layer of a multi-layer file (GeoPackage, FileGDB, KML, GPX, SpatiaLite) reaches the tool through the orchestrator, so that layer opens instead of the first one",
     "issues": [],

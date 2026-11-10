@@ -1,6 +1,6 @@
 # Tool Reference
 
-Auto-generated from the live tool registry (303 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
+Auto-generated from the live tool registry (304 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
 
 Flags: **network-only** tools bypass the main-thread QGIS dispatcher entirely (pure HTTP, safe from any background thread); **two-phase** tools split a network fetch (background thread) from the QGIS-touching part (main thread); **task-management** tools are excluded from auto-advance in the Task Manager.
 
@@ -2799,6 +2799,23 @@ Add a vector tile layer: an https XYZ service URL containing {z}/{x}/{y}, or a l
 | `layer_name` | string | no |  |
 | `min_zoom` | integer | no |  |
 | `max_zoom` | integer | no |  |
+
+## parts_edit_tool
+
+### `edit_parts_and_rings`
+
+Add or delete a part, or cut, fill or delete a hole (ring), in one feature of a line or polygon layer. action 'add_ring' cuts a hole given as geometry_wkt (a POLYGON inside the feature); 'fill_ring' fills the hole that contains the point x, y; 'delete_ring' deletes hole number ring_index (1, 2, ...; part_index chooses the part, default 0); 'add_part' adds geometry_wkt (a POLYGON, or a LINESTRING on a line layer) as a new part and needs a multi-part layer; 'delete_part' removes part number part_index (not the last part). Coordinates are in the layer's CRS. Changes geometry: a preview is shown for confirmation first, the edit is one undoable step (undo_manual_edit), and a change that would make a valid geometry invalid is refused.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes | A line or polygon layer. |
+| `feature_id` | integer | yes | The feature's id (the QGIS feature id). |
+| `action` | string | yes | add_part, add_ring, fill_ring, delete_part or delete_ring. |
+| `geometry_wkt` | string | no | add_part / add_ring: the shape as WKT in the layer's CRS, for example POLYGON((3 3,3 7,7 7,7 3,3 3)). |
+| `part_index` | integer | no | delete_part: the part; delete_ring / fill_ring: the part holding the hole (default 0 / any). |
+| `ring_index` | integer | no | delete_ring: the hole number, 1 or more (0 is the outer boundary). |
+| `x` | number | no | fill_ring: x of a point inside the hole (layer CRS). |
+| `y` | number | no | fill_ring: y of a point inside the hole (layer CRS). |
 
 ## pcode_validation_tools
 
