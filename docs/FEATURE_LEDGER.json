@@ -1749,6 +1749,26 @@
     "hand_row": "C4-line-editing (on a copy of the data)"
   },
   {
+    "id": "copy-features-tool",
+    "feature": "copy_features_between_layers copies the selected, filtered or all features of one vector layer into another existing layer of the same geometry type (a mismatch is refused), with the field mapping {target field: source field} resolved and every value converted to the target's field types before anything is written (a value that does not fit stops the copy with nothing changed), same-name fields matched automatically, the rest left empty, the CRS transformed, single and multi-part forms converted; it shows a PREVIEW_REQUIRED card with the mapping first, applies in one undoable edit command and never changes the source; known answer: 3 selected features arrive with name copied to title and the unmatched field empty",
+    "issues": [],
+    "since": "1.18.6",
+    "sources": [
+      "src/cartogen_ai/core/agent/tools/copy_ops.py",
+      "src/cartogen_ai/core/agent/tools/copy_features_tool.py"
+    ],
+    "guards": [
+      "tests/test_copy_ops.py::TestMapping::test_explicit_and_same_name_pairs_and_the_field_left_empty",
+      "tests/test_copy_ops.py::TestMapping::test_a_field_that_does_not_exist_is_an_error_not_a_skip",
+      "tests/test_copy_features_tool.py::TestRegistration::test_it_changes_the_target_so_it_is_a_modify_tool_with_a_preview_and_a_same_type_rule",
+      "tests/test_copy_features_tool_live.py::TestCopyFeaturesLive::test_three_selected_features_arrive_with_the_mapped_fields_after_a_preview",
+      "tests/test_copy_features_tool_live.py::TestCopyFeaturesLive::test_a_geometry_type_mismatch_is_refused",
+      "tests/test_copy_features_tool_live.py::TestCopyFeaturesLive::test_a_value_that_does_not_fit_stops_the_copy_with_nothing_written"
+    ],
+    "hand_verified": "not verified: CI only; the field mapping and value conversion are pure and tested offline, the QGIS calls (selectedFeatures, addFeatures, the CRS transform, the single/multi conversion) run only in the live job on small memory layers, never on real GeoPackage or Shapefile targets",
+    "hand_row": "C5-copy-features (into a COPY of the target)"
+  },
+  {
     "id": "add-layer-from-path-forwards-sublayer",
     "feature": "asking add_layer_from_path for one named layer of a multi-layer file (GeoPackage, FileGDB, KML, GPX, SpatiaLite) reaches the tool through the orchestrator, so that layer opens instead of the first one",
     "issues": [],

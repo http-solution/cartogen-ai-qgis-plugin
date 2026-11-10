@@ -24,6 +24,7 @@ from . import spectral_index_tool
 from . import raster_series_tool
 from . import raster_change_tool
 from . import management_zones_tool
+from . import copy_features_tool
 from . import line_edit_tools
 from . import parts_edit_tool
 from . import vertex_edit_tool
@@ -94,6 +95,7 @@ __all__ = [
     "barrier_tools",
     "cartographic_advisory_tools",
     "confidence_tools",
+    "copy_features_tool",
     "corridor_tools",
     "critical_link_tools",
     "data_export_tools",
