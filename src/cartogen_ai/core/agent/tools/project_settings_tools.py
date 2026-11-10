@@ -152,6 +152,10 @@ def set_project_measurement(ellipsoid=None, distance_units=None, area_units=None
         if key.upper() != "NONE" and not QgsEllipsoidUtils.ellipsoidParameters(key).valid:
             return {"error": f"'{key}' is not an ellipsoid QGIS knows. Try WGS84 or an EPSG code such as EPSG:7030, or NONE."}
         project.setEllipsoid("NONE" if key.upper() == "NONE" else key)
+        if key.upper() != "NONE" and project.ellipsoid().upper() == "NONE":         # seen in CI: a project with no coordinate system read back NONE after WGS84 was set
+            project.setEllipsoid(before["ellipsoid"])
+            return {"error": f"QGIS did not keep the ellipsoid '{key}' (it reads back as NONE) and nothing was changed. A likely reason is that the project has no coordinate system yet: "
+                             "set the project CRS first (set_project_crs) and try again."}
     if "distance" in members:
         project.setDistanceUnits(members["distance"])
     if "area" in members:

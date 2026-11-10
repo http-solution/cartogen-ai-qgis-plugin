@@ -60,6 +60,7 @@ class TestProjectSettingsLive(unittest.TestCase):
 
     def test_ellipsoid_and_units_read_back(self):
         from cartogen_ai.core.agent.tools.project_settings_tools import set_project_measurement
+        QgsProject.instance().setCrs(QgsCoordinateReferenceSystem("EPSG:32636"))          # an ellipsoid needs a project coordinate system (see the next test)
         out = set_project_measurement(ellipsoid="WGS84", distance_units="kilometers", area_units="hectares")
         self.assertTrue(out.get("success"), out)
         self.assertEqual(out["now"]["distance_units"], "Kilometers")
@@ -70,6 +71,17 @@ class TestProjectSettingsLive(unittest.TestCase):
         self.assertIn("not an ellipsoid", set_project_measurement(ellipsoid="NOTANELLIPSOID")["error"])
         self.assertIn("error", set_project_measurement(distance_units="furlongs"))
         self.assertIn("error", set_project_measurement())
+
+    def test_an_ellipsoid_that_qgis_does_not_keep_is_reported_and_changes_nothing(self):
+        """In CI a project with no coordinate system read the ellipsoid back as NONE after WGS84 was set. Whatever the reason, the tool must say so and leave the units alone."""
+        from cartogen_ai.core.agent.tools.project_settings_tools import set_project_measurement
+        before = QgsProject.instance().distanceUnits().name
+        out = set_project_measurement(ellipsoid="WGS84", distance_units="miles")
+        if "error" in out:
+            self.assertIn("did not keep", out["error"])
+            self.assertEqual(QgsProject.instance().distanceUnits().name, before)
+        else:
+            self.assertNotEqual(out["now"]["ellipsoid"].upper(), "NONE")                 # QGIS kept it after all: then the report must show it
 
     def test_a_decoration_setting_reads_back_from_the_project(self):
         from cartogen_ai.core.agent.tools.project_settings_tools import set_canvas_decoration
