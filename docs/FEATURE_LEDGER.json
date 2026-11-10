@@ -1693,6 +1693,24 @@
     "hand_row": "D2-damage-and-risk step 11 (a continuous raster as stand-in); R3-H4 with a real field is owed"
   },
   {
+    "id": "vertex-edit-tool",
+    "feature": "edit_vertices adds, moves or deletes one vertex of one feature of a line or polygon layer by index or by the position nearest it; it shows a PREVIEW_REQUIRED card first, applies through QGIS's own QgsGeometry inside one undoable edit command, never takes over a layer already in edit mode, refuses a change that would turn a valid geometry invalid, refuses a point layer, and reports vertex counts and area or length before and after; known answers: deleting corner 2 of a 10 x 10 square gives area 50, adding a vertex on an edge keeps area 100, moving corner 2 to (20, 10) gives area 150",
+    "issues": [],
+    "since": "1.18.6",
+    "sources": [
+      "src/cartogen_ai/core/agent/tools/vertex_ops.py",
+      "src/cartogen_ai/core/agent/tools/vertex_edit_tool.py"
+    ],
+    "guards": [
+      "tests/test_vertex_ops.py",
+      "tests/test_vertex_edit_tool.py::TestRegistration::test_it_changes_geometry_so_it_is_a_modify_tool_with_a_preview_note",
+      "tests/test_vertex_edit_tool_live.py::TestEditVerticesLive::test_delete_vertex_makes_a_triangle",
+      "tests/test_vertex_edit_tool_live.py::TestEditVerticesLive::test_one_undo_restores_the_square_when_the_layer_is_in_edit_mode"
+    ],
+    "hand_verified": "not verified: CI only; the pure vertex maths is checked offline, the QGIS calls (insertVertex, moveVertex, deleteVertex, closestSegmentWithContext) run only in the live job on small memory layers, never on a real data set",
+    "hand_row": "C2-vertex-editing (on a copy of the data)"
+  },
+  {
     "id": "add-layer-from-path-forwards-sublayer",
     "feature": "asking add_layer_from_path for one named layer of a multi-layer file (GeoPackage, FileGDB, KML, GPX, SpatiaLite) reaches the tool through the orchestrator, so that layer opens instead of the first one",
     "issues": [],

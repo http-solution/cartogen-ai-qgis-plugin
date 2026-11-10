@@ -24,6 +24,7 @@ from . import spectral_index_tool
 from . import raster_series_tool
 from . import raster_change_tool
 from . import management_zones_tool
+from . import vertex_edit_tool
 from . import symbology_tools
 from . import layout_item_tools
 from . import map_view_tools
@@ -160,6 +161,7 @@ __all__ = [
     "transaction_tools",
     "trigger_tools",
     "vector_tools",
+    "vertex_edit_tool",
     "watershed_tools",
     "web_research_tools",
     "workflow_file_tools",

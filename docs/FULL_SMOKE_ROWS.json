@@ -467,6 +467,30 @@
    }
   },
   {
+   "id": "C2-vertex-editing",
+   "issue": "S",
+   "session": "C",
+   "title": "Vertex editing: preview, delete, add, move, undo, refusal",
+   "covers": [
+    "vertex-edit-tool"
+   ],
+   "needs": "person and a real model",
+   "starts_from": "A new empty project; a fresh chat, 'Save an evidence folder for each request' ticked; load smoke_roads from smoke_network.gpkg, then COPY it with 'Export > Save Features As' to a scratch GeoPackage and work only on the copy (never edit the test data itself)",
+   "do": "On the copy, send in order: (1) delete vertex 1 of feature 1 of the copy  (2) answer Apply on the preview  (3) undo the last manual edit  (4) add a vertex near the middle of feature 1 and Apply  (5) move vertex 0 of feature 1 to a point 100 m away and Apply  (6) ask to delete a vertex of a point layer if you have one loaded.",
+   "expect": "(1) a preview card names the feature and action and changes nothing yet. (2) the vertex is gone, the reply gives vertices before and after and the length before and after. (3) with the layer in edit mode the line returns to its first shape; otherwise the reply says what undo does. (4) one more vertex, the length unchanged. (5) the line end moves. (6) a refusal that says a point layer has one vertex.",
+   "evidence": "snap('C2'). Screenshot of the preview card -> results\\screens\\C2-preview.png.",
+   "files": [
+    "smoke_network.gpkg"
+   ],
+   "pass_if": "all six as Expect.",
+   "cost": "six short requests",
+   "layers": {
+    "smoke_network.gpkg": [
+     "smoke_roads"
+    ]
+   }
+  },
+  {
    "id": "D1-fetch-live",
    "issue": "S",
    "session": "D",
