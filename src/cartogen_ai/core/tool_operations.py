@@ -162,6 +162,7 @@ TOOL_OPERATION_TYPES = {
     "add_web_layer": CREATE,
     "raster_calculator": CREATE,        # M7: new raster file from QGIS's own calculator grammar; no input layer changes
     "calculate_spectral_index": CREATE, # R3-1: new Float32 raster from band layers; no input layer changes
+    "raster_time_series_stats": CREATE, # R3-3: new Float32 raster (mean, trend per year or anomaly) from rasters; no input layer changes
     "delineate_watershed": CREATE,      # S1: adds basin / flow-path / outlet layers; reads a DEM, changes no existing layer
     "web_research": READ,               # network only; touches no project state
     "find_processing_algorithm": READ,

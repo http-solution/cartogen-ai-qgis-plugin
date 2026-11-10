@@ -1636,6 +1636,25 @@
     "hand_row": "D2-damage-and-risk step 8 (stand-in bands); R3-H1 with a real scene is owed"
   },
   {
+    "id": "raster-time-series-stats",
+    "feature": "raster_time_series_stats gives the per-pixel mean, the least-squares trend in value units per YEAR (times as years, dates or numbers; at least 3 rasters and 3 valid values per cell) and the z-score anomaly of one raster against a baseline of at least 3 (sample standard deviation), streaming the rasters into running sums, with NoData (never 0) where there are too few valid values or the baseline has no spread; known answers: 1,2,3,4 at t 0..3 give slope exactly 1.0, a baseline 8,10,12 and a value 14 give z = 2.0",
+    "issues": [],
+    "since": "1.18.6",
+    "sources": [
+      "src/cartogen_ai/core/agent/tools/raster_series.py",
+      "src/cartogen_ai/core/agent/tools/raster_series_tool.py"
+    ],
+    "guards": [
+      "tests/test_raster_series.py::TestKnownAnswers::test_trend_of_1_2_3_4_at_t_0_1_2_3_is_exactly_one",
+      "tests/test_raster_series.py::TestKnownAnswers::test_anomaly_baseline_mean_10_sd_2_and_value_14_gives_z_2",
+      "tests/test_raster_series.py::TestNoData::test_trend_needs_the_minimum_number_of_valid_observations",
+      "tests/test_raster_series_tool.py::TestRegistration::test_the_description_says_the_trend_is_per_year_and_has_no_significance",
+      "tests/test_raster_series_tool_live.py::TestRasterSeriesLive::test_trend_of_1_2_3_4_over_four_years_is_exactly_one_per_year"
+    ],
+    "hand_verified": "not verified: CI only; known answers checked offline (numpy) and the tool run on small GeoTIFFs in the live job, never on a real image time series; trend and anomaly are not in any hand row",
+    "hand_row": "D2-damage-and-risk step 9 (mean only, stand-in rasters)"
+  },
+  {
     "id": "add-layer-from-path-forwards-sublayer",
     "feature": "asking add_layer_from_path for one named layer of a multi-layer file (GeoPackage, FileGDB, KML, GPX, SpatiaLite) reaches the tool through the orchestrator, so that layer opens instead of the first one",
     "issues": [],
