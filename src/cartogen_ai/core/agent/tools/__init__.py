@@ -30,6 +30,7 @@ from . import identify_tool
 from . import layer_display_tools
 from . import line_edit_tools
 from . import parts_edit_tool
+from . import raster_inspect_tools
 from . import renderer_tool
 from . import vertex_edit_tool
 from . import symbology_tools
@@ -152,6 +153,7 @@ __all__ = [
     "qa_checklist_tools",
     "raster_calculator_tool",
     "raster_change_tool",
+    "raster_inspect_tools",
     "raster_series_tool",
     "raster_tools",
     "register_tool",

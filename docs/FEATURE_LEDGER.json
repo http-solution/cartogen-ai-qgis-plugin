@@ -1847,6 +1847,26 @@
     "hand_row": "C9-renderers"
   },
   {
+    "id": "raster-inspect-tools",
+    "feature": "get_raster_value (the value of a raster at a coordinate in the given CRS, every band or one, with the column and row of the cell, a point outside reported, read with the same provider.sample reader as identify_at_point), raster_attribute_table (the class table of a raster file read through GDAL, columns with types and at most 200 rows with the total and a truncated flag, 'no attribute table' said plainly) and build_pyramids (overview levels written to a sidecar .ovr NEXT TO the raster with GDAL opening it read-only so the raster file is never rewritten; default levels halve while the smaller side stays at least 256 cells, a raster under 512 cells is refused as not needing any; an existing .ovr is replaced only after a PREVIEW_REQUIRED confirm; a raster with pyramids inside the file is left alone; the overview count is read back); known answers: 1024 x 1024 gives levels [2, 4], the point (500025, 4000015) in a 4 x 4 grid of 10 m cells from (500000, 4000040) is column 2 row 2 with value 10, the raster file is byte-identical after building pyramids",
+    "issues": [],
+    "since": "1.18.6",
+    "sources": [
+      "src/cartogen_ai/core/agent/tools/pyramid_ops.py",
+      "src/cartogen_ai/core/agent/tools/raster_inspect_tools.py"
+    ],
+    "guards": [
+      "tests/test_pyramid_ops.py::TestLevels::test_default_levels_halve_while_the_smaller_side_stays_at_least_256",
+      "tests/test_pyramid_ops.py::TestCell::test_the_known_cell",
+      "tests/test_raster_inspect_tools.py::TestRegistration::test_the_two_readers_are_read_tools_and_the_pyramid_builder_creates_a_sidecar_file",
+      "tests/test_raster_inspect_tools_live.py::TestRasterInspectLive::test_the_value_read_back_equals_the_known_cell_with_its_column_and_row",
+      "tests/test_raster_inspect_tools_live.py::TestRasterInspectLive::test_a_class_rasters_attribute_table_is_read",
+      "tests/test_raster_inspect_tools_live.py::TestRasterInspectLive::test_pyramids_are_built_beside_the_raster_and_the_raster_is_untouched"
+    ],
+    "hand_verified": "not verified: CI only; the level choice, cell lookup and table shaping are pure and tested offline, the GDAL calls (BuildOverviews, GetDefaultRAT) and QGIS's provider.sample run only in the live job on small generated GeoTIFFs, never on a large real raster; that a pyramid-backed raster actually draws faster is for the hand row",
+    "hand_row": "C10-raster-inspection"
+  },
+  {
     "id": "add-layer-from-path-forwards-sublayer",
     "feature": "asking add_layer_from_path for one named layer of a multi-layer file (GeoPackage, FileGDB, KML, GPX, SpatiaLite) reaches the tool through the orchestrator, so that layer opens instead of the first one",
     "issues": [],

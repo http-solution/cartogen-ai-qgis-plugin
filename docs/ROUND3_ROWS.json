@@ -25,6 +25,7 @@
   "C7-field-rules": "1 feature(s) never seen live (field-rules-tools). Added with R10-1 (PLAN-023, 2026-11-10); no earlier round could have run it.",
   "C8-table-and-map-display": "1 feature(s) never seen live (layer-display-tools). Added with R10-2 (PLAN-023, 2026-11-10); no earlier round could have run it.",
   "C9-renderers": "1 feature(s) never seen live (set-renderer-tool). Added with R10-3 (PLAN-023, 2026-11-10); no earlier round could have run it.",
+  "C10-raster-inspection": "1 feature(s) never seen live (raster-inspect-tools). Added with R10-4 (PLAN-023, 2026-11-10); no earlier round could have run it.",
   "V9-undo-field": "1 feature(s) seen on an older build whose code changed since (undo-add-field). Round 2 (2026-11-05, build 728dad3, agent): Partial.",
   "D1-fetch-live": "2 feature(s) never seen live (download-redirect-hop-status-via-qgis, gdacs-400-retry-and-plain-failure). 4 feature(s) seen on an older build whose code changed since (admin-boundary-borders-stay-visible, admin-layer-zoom-labels, empty-fetch-adds-no-layer, gdacs-country-filter-reaches-the-live-path). Round 2 (2026-11-05, build 728dad3, agent): Partial.",
   "D2-damage-and-risk": "4 feature(s) never seen live (damage-run-removes-its-working-columns, damage-score-reads-its-own-run, damage-severity-uses-absolute-change, lat-lon-distance-guard). 2 feature(s) seen on an older build whose code changed since (change-detection-accepts-raster-files, route-risk-buffer-in-metres). Not run in round 2.",
