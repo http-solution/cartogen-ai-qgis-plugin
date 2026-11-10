@@ -1,6 +1,6 @@
 # Tool Reference
 
-Auto-generated from the live tool registry (301 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
+Auto-generated from the live tool registry (302 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
 
 Flags: **network-only** tools bypass the main-thread QGIS dispatcher entirely (pure HTTP, safe from any background thread); **two-phase** tools split a network fetch (background thread) from the QGIS-touching part (main thread); **task-management** tools are excluded from auto-advance in the Task Manager.
 
@@ -2629,6 +2629,23 @@ Change a print layout's page: size (A0 to A5, Letter, Legal, Tabloid), orientati
 | `size` | string | no |  |
 | `orientation` | string | no |  |
 | `pages` | integer | no |  |
+
+## management_zones_tool
+
+### `create_zoning_map`
+
+Divide a field or area into 2 to 8 zones of similar values (3 to 5 is usual for management zones) from one or more index rasters already in the project, for example NDVI, NDRE or any single-band raster: seeded k-means on the standardised bands, an optional smoothing pass, and merging of patches smaller than min_zone_area_ha into the neighbouring zone with the nearest mean. `rasters` is a list of 1 to 5 layer names (or 'layer name@band'). Zone 1 is the lowest mean of the first raster. Adds a polygon layer with one feature per zone and the mean of each raster in its legend label. The zones describe differences in the index values only: this tool gives NO yield forecast and NO fertiliser or input-rate recommendation. The rasters must share one pixel grid (or pass align_to_first); the raster must be at most 4 million cells (clip first).
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `rasters` | array[string] | yes | 1 to 5 raster layers to cluster on (names or 'name@band'). |
+| `n_zones` | integer | no | Number of zones, 2 to 8 (default 3). |
+| `min_zone_area_ha` | number | no | Patches smaller than this are merged into a neighbouring zone (default: 1 percent of the valid area; 0 keeps every patch). |
+| `smooth` | boolean | no | Run one 3 x 3 majority pass first to remove isolated cells (default false). |
+| `seed` | integer | no | Random seed for the clustering (default 0); the same seed gives the same zones. |
+| `output_name` | string | no | Name of the polygon layer (default management_zones). |
+| `align_to_first` | boolean | no | If the rasters are not on one pixel grid, warp the others onto the first raster's grid (its CRS, extent and cell size) instead of refusing. The result says which raster was the reference and the resampling used. Default false: refuse. |
+| `resampling` | string | no | With align_to_first: 'bilinear' (default, for continuous values such as reflectance), 'nearest' (for classes or counts) or 'cubic'. |
 
 ## map_view_tools
 
