@@ -399,6 +399,10 @@ TOOL_OPERATION_TYPES = {
     # -- vector_tools.py --
     "get_layers": READ,
     "get_layer_extent": READ,
+    "add_virtual_field": MODIFY,        # R10-1: adds a computed field stored in the project, nothing written to the data
+    "remove_virtual_field": MODIFY,     # R10-1: removes a virtual field only, a real column is refused
+    "set_field_constraint": MODIFY,     # R10-1: sets or removes the rules QGIS enforces on a field (project property), existing features reported not changed
+    "set_default_value": MODIFY,        # R10-1: sets or removes a field's default expression (project property), existing features untouched
     "identify_at_point": READ,          # R9-5: attributes and raster cell values at a coordinate, nothing changed
     "get_attributes": READ,
     # setSubsetString persists a query filter on the layer.

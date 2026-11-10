@@ -1,6 +1,6 @@
 # Tool Reference
 
-Auto-generated from the live tool registry (310 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
+Auto-generated from the live tool registry (314 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
 
 Flags: **network-only** tools bypass the main-thread QGIS dispatcher entirely (pure HTTP, safe from any background thread); **two-phase** tools split a network fetch (background thread) from the QGIS-touching part (main thread); **task-management** tools are excluded from auto-advance in the Task Manager.
 
@@ -2208,6 +2208,53 @@ Look up whether a CLAIM, VIDEO, PHOTO or RUMOUR has recently been fact-checked, 
 | `days` | integer | no | Only checks published in the last N days (default 60). |
 | `max_results` | integer | no | Most matches to return, 1-50 (default 15). |
 | `sources` | array[string] | no | Optional subset of ['snopes', 'politifact', 'factcheck_org', 'full_fact', 'lead_stories', 'fatabyyano']; default all. |
+
+## field_rules_tools
+
+### `add_virtual_field`
+
+Add a virtual (calculated) field to a layer: its value is computed from a QGIS expression every time the layer is read, and nothing is written into the data file, so it can never be out of date. For example density = "population" / $area. field_type: string, integer, long, double, date or datetime. The expression must be valid and evaluate on the first feature. Stored with the project, not in the file. Remove it with remove_virtual_field.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes | The vector layer. |
+| `name` | string | yes | The new field's name (letters, digits, underscore, spaces). |
+| `field_type` | string | no | string, integer, long, double, date or datetime (default string). |
+| `expression` | string | yes | The QGIS expression that gives the value. |
+
+### `remove_virtual_field`
+
+Remove a virtual field made with add_virtual_field. Only virtual fields can be removed this way; a real column is never touched (use delete_field for that, which asks first).
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes |  |
+| `name` | string | yes | The virtual field's name. |
+
+### `set_default_value`
+
+Set or remove the default value of a field: a QGIS expression QGIS evaluates to fill the field of every NEW feature (for example now(), @user_account_name or a number). apply_on_update also re-evaluates it whenever the feature is edited. An empty expression removes the default. Existing features are not changed. Stored with the project, not in the data file.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes | The vector layer. |
+| `field` | string | yes | The field that gets the default. |
+| `expression` | string | yes | The QGIS expression; empty text removes the default. |
+| `apply_on_update` | boolean | no | Also re-evaluate when the feature is edited (default false). |
+
+### `set_field_constraint`
+
+Set or remove the rules QGIS enforces on a field: not_null, unique and/or an expression (with a description shown when it fails), hard (blocks the value) or soft (warns). A rule that is given is set (true / a text) or removed (false / an empty text); one that is left out is untouched. The reply reads the rules back and checks the existing features against them: how many break them is reported, nothing is changed. Stored with the project, not in the data file.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes | The vector layer. |
+| `field` | string | yes | The field the rules are on. |
+| `not_null` | boolean | no | true: the value may not be empty; false: remove that rule. |
+| `unique` | boolean | no | true: no two features may have the same value; false: remove that rule. |
+| `expression` | string | no | A QGIS expression that must be true, for example "population" >= 0; empty text removes it. |
+| `description` | string | no | The message shown when the expression fails. |
+| `strength` | string | no | hard (default) blocks the value, soft only warns. |
 
 ## hazard_monitoring_tools
 

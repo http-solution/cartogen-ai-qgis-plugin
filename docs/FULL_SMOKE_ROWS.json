@@ -596,6 +596,30 @@
    }
   },
   {
+   "id": "C7-field-rules",
+   "issue": "S",
+   "session": "C",
+   "title": "Virtual field, constraint and default value",
+   "covers": [
+    "field-rules-tools"
+   ],
+   "needs": "person and a real model",
+   "starts_from": "A new empty project; a fresh chat, 'Save an evidence folder for each request' ticked; load smoke_admin from smoke_data.gpkg and SAVE the project into results\\outputs\\C7-field-rules\\ first (these rules live in the project)",
+   "do": "Send in order: (1) add a virtual field called pop_x2 to smoke_admin that is the population times 2 (use a real numeric field of that layer)  (2) open the attribute table  (3) make the admin name field unique  (4) set a default value of 0 on a numeric field and add a new feature in the table  (5) remove the virtual field  (6) save the project, close it and open it again.",
+   "expect": "(1) the reply gives the value on the first feature. (2) pop_x2 is in the table with the right values; the GeoPackage file has no such column (check in the layer properties, Source Fields). (3) the reply says how many existing features break the rule (zero is fine if all names are different). (4) the new feature has 0 in that field. (5) pop_x2 is gone, nothing else changed. (6) the unique rule and the default are still there; they come back with the project.",
+   "evidence": "snap('C7'). Screenshot of the attribute table with the virtual field -> results\\screens\\C7-virtual.png.",
+   "files": [
+    "smoke_data.gpkg"
+   ],
+   "pass_if": "all as Expect.",
+   "cost": "five short requests",
+   "layers": {
+    "smoke_data.gpkg": [
+     "smoke_admin"
+    ]
+   }
+  },
+  {
    "id": "D1-fetch-live",
    "issue": "S",
    "session": "D",
