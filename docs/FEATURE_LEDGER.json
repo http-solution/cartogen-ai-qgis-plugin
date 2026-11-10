@@ -1617,6 +1617,25 @@
     "hand_row": "D2-damage-and-risk step 4"
   },
   {
+    "id": "spectral-index-tool",
+    "feature": "calculate_spectral_index computes NDVI, NDWI, MNDWI, NDRE, NDMI, NBR, SAVI (soil factor), EVI and BSI from band layers (or 'layer@band'), with the plan's hand-computed values as known answers, NoData (never 0) where an input is NoData or the formula divides by zero, a Float32 GeoTIFF with an explicit NoData value, and a note when EVI or SAVI is given digital numbers instead of reflectance",
+    "issues": [],
+    "since": "1.18.6",
+    "sources": [
+      "src/cartogen_ai/core/agent/tools/raster_indices.py",
+      "src/cartogen_ai/core/agent/tools/spectral_index_tool.py"
+    ],
+    "guards": [
+      "tests/test_raster_indices.py::TestKnownAnswers::test_savi",
+      "tests/test_raster_indices.py::TestKnownAnswers::test_evi",
+      "tests/test_raster_indices.py::TestNoData::test_a_zero_denominator_is_no_data_not_zero",
+      "tests/test_spectral_index_tool.py::TestRegistration::test_the_description_lists_every_index_with_its_band_roles",
+      "tests/test_spectral_index_tool_live.py::TestSpectralIndexLive::test_savi_matches_the_hand_computed_value_and_keeps_nodata"
+    ],
+    "hand_verified": "not verified: CI only; the formulas are hand-checked offline (numpy) and the tool is run on small GeoTIFFs in the live job, never on a real Sentinel-2 or Landsat scene",
+    "hand_row": "D2-damage-and-risk step 8 (stand-in bands); R3-H1 with a real scene is owed"
+  },
+  {
     "id": "add-layer-from-path-forwards-sublayer",
     "feature": "asking add_layer_from_path for one named layer of a multi-layer file (GeoPackage, FileGDB, KML, GPX, SpatiaLite) reaches the tool through the orchestrator, so that layer opens instead of the first one",
     "issues": [],

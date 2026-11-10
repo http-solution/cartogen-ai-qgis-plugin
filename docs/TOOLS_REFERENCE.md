@@ -1,6 +1,6 @@
 # Tool Reference
 
-Auto-generated from the live tool registry (298 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
+Auto-generated from the live tool registry (299 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
 
 Flags: **network-only** tools bypass the main-thread QGIS dispatcher entirely (pure HTTP, safe from any background thread); **two-phase** tools split a network fetch (background thread) from the QGIS-touching part (main thread); **task-management** tools are excluded from auto-advance in the Task Manager.
 
@@ -3095,6 +3095,21 @@ Tags a layer with a sensitivity/disclosure classification -- PUBLIC, INTERNAL, R
 | `layer_name` | string | yes |  |
 | `level` | string | yes | PUBLIC, INTERNAL, RESTRICTED, or SENSITIVE. |
 | `reason` | string | no | Optional short reason shown in the export warning, e.g. 'contains individual beneficiary GPS coordinates'. |
+
+## spectral_index_tool
+
+### `calculate_spectral_index`
+
+Calculate a spectral index raster from band layers: NDVI (vegetation greenness), NDWI and MNDWI (open water), NDRE (crop chlorophyll), NDMI (vegetation moisture), NBR (burn severity), SAVI (vegetation over bare soil, with a soil factor), EVI (dense canopy, reflectance 0 to 1) and BSI (bare soil). Give `index` and `bands`: a mapping from each band role to a raster layer name, or 'layer name@3' for band 3 of a multi-band layer. Roles per index -- NDVI: nir, red; NDWI: green, nir; MNDWI: green, swir1; NDRE: nir, rededge; NDMI: nir, swir1; NBR: nir, swir2; SAVI: nir, red; EVI: nir, red, blue; BSI: blue, red, nir, swir1. Nothing guesses which band is which: Sentinel-2 B8 is nir, B4 red, B3 green, B2 blue, B5 rededge, B11 swir1, B12 swir2; Landsat 8 band 5 is nir, 4 red, 3 green, 2 blue, 6 swir1, 7 swir2. The bands must share one pixel grid (or pass align_to_first). Cells where an input is NoData or the formula divides by zero are NoData, not 0. Adds a new single-band raster named after the index (or output_name); follow up with apply_raster_stretch for a readable ramp.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `index` | string | yes | Which index to compute. |
+| `bands` | object | yes | Band role -> raster layer name (or 'layer name@band'). Example for SAVI: {"nir": "B8", "red": "B4"}. |
+| `output_name` | string | no | Name of the new layer (default: the index name). |
+| `soil_factor` | number | no | SAVI only: the soil brightness factor L, default 0.5 (0 gives NDVI, 1 for very sparse vegetation). |
+| `align_to_first` | boolean | no | If the rasters are not on one pixel grid, warp the others onto the first raster's grid (its CRS, extent and cell size) instead of refusing. The result says which raster was the reference and the resampling used. Default false: refuse. |
+| `resampling` | string | no | With align_to_first: 'bilinear' (default, for continuous values such as reflectance), 'nearest' (for classes or counts) or 'cubic'. |
 
 ## survey_tools
 
