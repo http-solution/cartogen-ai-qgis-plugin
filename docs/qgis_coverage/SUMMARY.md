@@ -24,7 +24,7 @@ in desktop QGIS (rc46) or are CI-checked only; rows without algorithms are tools
 
 | Area | Action | Note | Evidence |
 |---|---|---|---|
-| B project and canvas | 3D map view |  |  |
+| B project and canvas | 3D map view | not built: the 3D module IS present in the live QGIS image (R10-6 probe, 2026-11-10: qgis._3d imports, Qgs3DMapSettings is constructible); a create_3d_view package is planned in R12 with its own plan |  |
 | C attributes | Auxiliary storage (stored label positions and styles) |  |  |
 | I processing framework | Run a Processing model (graphical modeler) / batch process / run a Processing script |  |  |
 | I processing framework | In-place layer modification (edit selected features with an algorithm) |  |  |
