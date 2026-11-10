@@ -1828,6 +1828,25 @@
     "hand_row": "C8-table-and-map-display"
   },
   {
+    "id": "set-renderer-tool",
+    "feature": "set_renderer changes how a vector layer is drawn without touching its data: merged_features and inverted_polygons wrap the layer's current look as their inner renderer (a wrapper is taken off, never nested), embedded uses the symbol stored in each feature, no_symbols draws nothing, 2_5d (polygons; roof_color, wall_color, shadow) gives a pseudo-3D look and single_symbol is the way back; each kind is refused on a geometry type it does not apply to, with the reason; before any change the current style is saved in the layer's style manager as 'before <kind>' (numbered when taken) and the reply names it and says how to restore it; the new renderer type is read back; known answers: inverted_polygons on a line layer is refused, merged_features on a polygon layer reads back as mergedFeatureRenderer with a singleSymbol inside, restoring 'before no_symbols' brings back singleSymbol",
+    "issues": [],
+    "since": "1.18.6",
+    "sources": [
+      "src/cartogen_ai/core/agent/tools/renderer_ops.py",
+      "src/cartogen_ai/core/agent/tools/renderer_tool.py"
+    ],
+    "guards": [
+      "tests/test_renderer_ops.py::TestCheck::test_the_wrong_geometry_is_refused_with_the_reason",
+      "tests/test_renderer_tool.py::TestRegistration::test_it_is_a_modify_tool_that_says_the_data_is_untouched_and_the_style_is_saved",
+      "tests/test_renderer_tool_live.py::TestSetRendererLive::test_every_kind_is_applied_and_its_type_read_back",
+      "tests/test_renderer_tool_live.py::TestSetRendererLive::test_the_previous_style_is_saved_and_can_be_restored",
+      "tests/test_renderer_tool_live.py::TestSetRendererLive::test_the_wrong_geometry_is_refused_and_changes_nothing"
+    ],
+    "hand_verified": "not verified: CI only; the request check is pure and tested offline, the QGIS renderer classes and the style manager run only in the live job and are read back by type, never seen drawn on a map; whether merged or inverted polygons look right on a real layer is for the hand row",
+    "hand_row": "C9-renderers"
+  },
+  {
     "id": "add-layer-from-path-forwards-sublayer",
     "feature": "asking add_layer_from_path for one named layer of a multi-layer file (GeoPackage, FileGDB, KML, GPX, SpatiaLite) reaches the tool through the orchestrator, so that layer opens instead of the first one",
     "issues": [],

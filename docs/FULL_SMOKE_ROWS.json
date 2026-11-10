@@ -644,6 +644,35 @@
    }
   },
   {
+   "id": "C9-renderers",
+   "issue": "S",
+   "session": "C",
+   "title": "Special renderers: merged, inverted, no symbols, 2.5D, and going back",
+   "covers": [
+    "set-renderer-tool"
+   ],
+   "needs": "person and a real model",
+   "starts_from": "A new empty project; a fresh chat, 'Save an evidence folder for each request' ticked; load smoke_admin and smoke_roads from the test data and style smoke_admin with a visible outline",
+   "do": "Send in order: (1) draw the district boundaries of smoke_admin merged so the shared edges disappear  (2) make smoke_zones an inverted polygon layer so everything outside the zones is shaded  (3) show smoke_admin in 2.5D with a red roof  (4) make smoke_roads draw no symbols and turn its labels on if you like  (5) put smoke_admin back to a single symbol  (6) right-click smoke_admin > Styles and look at the list.",
+   "expect": "(1) the internal borders vanish and the reply says the renderer type read back. (2) the area outside the zones is filled, the zones are clear. (3) the districts look raised with a red roof. (4) the roads are not drawn; the reply says the data is untouched. (5) one plain symbol. (6) the styles 'before merged_features' and the other 'before ...' entries are listed and choosing one restores that look. Asking for an inverted renderer on smoke_roads is refused because roads are lines.",
+   "evidence": "snap('C9'). Screenshots of the merged and the inverted maps -> results\\screens\\C9-merged.png, results\\screens\\C9-inverted.png.",
+   "files": [
+    "smoke_data.gpkg",
+    "smoke_network.gpkg"
+   ],
+   "pass_if": "all as Expect.",
+   "cost": "six short requests",
+   "layers": {
+    "smoke_data.gpkg": [
+     "smoke_admin",
+     "smoke_zones"
+    ],
+    "smoke_network.gpkg": [
+     "smoke_roads"
+    ]
+   }
+  },
+  {
    "id": "D1-fetch-live",
    "issue": "S",
    "session": "D",

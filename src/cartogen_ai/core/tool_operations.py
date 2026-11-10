@@ -399,6 +399,7 @@ TOOL_OPERATION_TYPES = {
     # -- vector_tools.py --
     "get_layers": READ,
     "get_layer_extent": READ,
+    "set_renderer": MODIFY,             # R10-3: changes how a layer is drawn (the previous style is saved in the layer style manager), data untouched
     "set_conditional_formatting": MODIFY,   # R10-2: attribute-table cell colours by expression, a project property, no data changes
     "set_map_tip": MODIFY,              # R10-2: the HTML hover bubble of a layer (expression fields only), a project property
     "add_feature_action": MODIFY,         # R10-2: only an open_url action; command, Python and program actions are refused by policy
