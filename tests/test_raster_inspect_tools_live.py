@@ -100,7 +100,9 @@ class TestRasterInspectLive(unittest.TestCase):
         self.assertEqual(hashlib.sha256(pathlib.Path(path).read_bytes()).hexdigest(), before)         # the raster file is byte-identical
         card = build_pyramids("big", levels=[2, 4, 8], method="nearest")
         self.assertEqual(card["status"], "PREVIEW_REQUIRED")
-        self.assertEqual(gdal.Open(path).GetRasterBand(1).GetOverviewCount(), 2)               # nothing replaced yet
+        opened = gdal.Open(path)                                           # keep the dataset alive: its band is invalid once the dataset is collected
+        self.assertEqual(opened.GetRasterBand(1).GetOverviewCount(), 2)    # nothing replaced yet
+        opened = None
         again = build_pyramids(confirmed=True, **{k: v for k, v in card["arguments"].items() if k != "confirmed"})
         self.assertEqual((again["levels"], again["overview_levels_now"]), ([2, 4, 8], 3))
         self.assertEqual(hashlib.sha256(pathlib.Path(path).read_bytes()).hexdigest(), before)
@@ -112,7 +114,7 @@ class TestRasterInspectLive(unittest.TestCase):
         self.assertIn("would not make it draw", build_pyramids("small")["error"])
         self._tif("big2", np.ones((1024, 1024), dtype=np.float32))
         self.assertIn("method", build_pyramids("big2", method="fancy")["error"])
-        self.assertIn("levels", build_pyramids("big2", levels=[1, 2])["error"])
+        self.assertIn("2 or more", build_pyramids("big2", levels=[1, 2])["error"])
 
 
 if __name__ == "__main__":
