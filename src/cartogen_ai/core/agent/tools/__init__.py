@@ -24,6 +24,7 @@ from . import spectral_index_tool
 from . import raster_series_tool
 from . import raster_change_tool
 from . import management_zones_tool
+from . import line_edit_tools
 from . import parts_edit_tool
 from . import vertex_edit_tool
 from . import symbology_tools
@@ -123,6 +124,7 @@ __all__ = [
     "layout_extra_tools",
     "layout_item_tools",
     "layout_tools",
+    "line_edit_tools",
     "logistics_tools",
     "management_zones_tool",
     "map_tools",
