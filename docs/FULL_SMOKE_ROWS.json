@@ -567,6 +567,35 @@
    }
   },
   {
+   "id": "C6-identify-at-point",
+   "issue": "S",
+   "session": "C",
+   "title": "What is at this coordinate: features, raster cells, radius, the 50 cap",
+   "covers": [
+    "identify-at-point-tool"
+   ],
+   "needs": "person and a real model",
+   "starts_from": "A new empty project; the data from 3_test_files loaded by the first message; a fresh chat, 'Save an evidence folder for each request' ticked. Load smoke_admin and smoke_zones from smoke_data.gpkg and smoke_points_4326 from smoke_network.gpkg. Click on the map with the Identify tool inside one admin area and note its attributes and the coordinate shown in the status bar",
+   "do": "Send in order: (1) what is at <the coordinate you noted, in the project CRS>?  (2) the same question at a point 1 km outside any admin area  (3) what is within 500 m of the coordinate of one smoke_points_4326 point (give its coordinate and say EPSG:4326)  (4) turn smoke_zones off in the layers panel and ask (1) again.",
+   "expect": "(1) the admin area's attributes match what the Identify tool showed (same fields, same values), and smoke_zones appears too if the point is inside a zone. (2) nothing found, and if a point or line layer is visible the reply suggests a radius. (3) the point is found; a radius of 500 on a degree CRS is refused with the degrees explanation unless you give a CRS in metres. (4) smoke_zones no longer appears in the reply.",
+   "evidence": "snap('C6'). Screenshot of the Identify tool result beside the reply -> results\\screens\\C6-identify.png.",
+   "files": [
+    "smoke_data.gpkg",
+    "smoke_network.gpkg"
+   ],
+   "pass_if": "all as Expect.",
+   "cost": "four short requests",
+   "layers": {
+    "smoke_data.gpkg": [
+     "smoke_admin",
+     "smoke_zones"
+    ],
+    "smoke_network.gpkg": [
+     "smoke_points_4326"
+    ]
+   }
+  },
+  {
    "id": "D1-fetch-live",
    "issue": "S",
    "session": "D",
