@@ -30,6 +30,7 @@ from . import identify_tool
 from . import layer_display_tools
 from . import line_edit_tools
 from . import parts_edit_tool
+from . import renderer_tool
 from . import vertex_edit_tool
 from . import symbology_tools
 from . import layout_item_tools
@@ -154,6 +155,7 @@ __all__ = [
     "raster_series_tool",
     "raster_tools",
     "register_tool",
+    "renderer_tool",
     "reporting_tools",
     "representation_tools",
     "sampling_tools",

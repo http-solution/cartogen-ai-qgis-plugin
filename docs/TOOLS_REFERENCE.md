@@ -1,6 +1,6 @@
 # Tool Reference
 
-Auto-generated from the live tool registry (317 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
+Auto-generated from the live tool registry (318 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
 
 Flags: **network-only** tools bypass the main-thread QGIS dispatcher entirely (pure HTTP, safe from any background thread); **two-phase** tools split a network fetch (background thread) from the QGIS-touching part (main thread); **task-management** tools are excluded from auto-advance in the Task Manager.
 
@@ -3219,6 +3219,18 @@ Per-pixel statistics over a time series of rasters already in the project: 'mean
 | `output_name` | string | no | Name of the new layer (default ts_mean, ts_trend or ts_anomaly). |
 | `align_to_first` | boolean | no | If the rasters are not on one pixel grid, warp the others onto the first raster's grid (its CRS, extent and cell size) instead of refusing. The result says which raster was the reference and the resampling used. Default false: refuse. |
 | `resampling` | string | no | With align_to_first: 'bilinear' (default, for continuous values such as reflectance), 'nearest' (for classes or counts) or 'cubic'. |
+
+## renderer_tool
+
+### `set_renderer`
+
+Change HOW a layer is drawn with a special renderer: merged_features (touching lines or polygons drawn as one shape, keeping the current look), inverted_polygons (paint everything OUTSIDE the polygons, keeping the current look), embedded (use the symbol stored in each feature, as in DXF or KML data), no_symbols (draw nothing, so only labels or the selection show), 2_5d (pseudo-3D polygons; options roof_color, wall_color, shadow) or single_symbol (back to one plain symbol). The data is never touched, and the previous style is saved in the layer's style manager as 'before <kind>' so it can be restored from the layer's Styles menu. The new renderer type is read back in the reply. Stored with the project.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes | The vector layer. |
+| `kind` | string | yes | merged_features, inverted_polygons, embedded, no_symbols, 2_5d or single_symbol. |
+| `options` | object | no | 2_5d only: roof_color, wall_color (a name or #rrggbb), shadow (true / false). |
 
 ## representation_tools
 
