@@ -1,6 +1,6 @@
 # Tool Reference
 
-Auto-generated from the live tool registry (309 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
+Auto-generated from the live tool registry (310 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
 
 Flags: **network-only** tools bypass the main-thread QGIS dispatcher entirely (pure HTTP, safe from any background thread); **two-phase** tools split a network fetch (background thread) from the QGIS-touching part (main thread); **task-management** tools are excluded from auto-advance in the Task Manager.
 
@@ -2270,6 +2270,21 @@ Style a layer's analysis-result field the way humanitarian maps expect, after ca
 | `look` | string | yes | severity: a 0-1 composite severity score (calculate_severity_index, calculate_damage_exposure_severity): five equal-interval classes, yellow to dark red, the same classes the tools report; people_in_need: a people / population count (calculate_population_in_need): quantile classes in purple; exposure: an exposed-population count: quantile classes in orange-brown; allocation: an allocation amount (calculate_allocation_envelope): quantile classes in green; presence_gap: the gap / covered / unmatched status from calculate_presence_gap; jiaf_severity: a JIAF 2 severity PHASE 1-5 (jf_pre_sev, jf_fin_sev): phase colours 1 none/minimal to 5 catastrophic; a unit with no phase is drawn grey as not assessed; jiaf_review_pin: JIAF 2 PiN review status (jf_pin_st): which units have no flag, were closed in bulk, were decided, or still wait for the group; jiaf_review_severity: JIAF 2 severity review status (jf_sev_st): preliminary accepted, decided, pending the group, or incomplete sector coverage; jiaf_count: a small JIAF 2 count per unit (jf_npinfl, jf_nsevfl, jf_nsec40, jf_nsev45): how many flags or sectors; zero its own class; ipc_phase: an IPC acute food insecurity phase 1-5 (ipc_phase from import_humanitarian_table): the IPC phase colours; an area with no phase is grey, not phase 1; inform_risk: an INFORM score on its 0-10 scale (inf_risk, inf_haz, inf_vuln, inf_coping): the five published classes very low to very high; damage_class: UNOSAT damage classes on a point layer (destroyed, severe, moderate, possible, none), matched on the file's own wording such as 'Severe Damage'; measure: any measured number (zonal mean, road speed, impedance cost): five quantile classes light to dark blue, low to high; rank: a rank field (calculate_mcda_ranking, <prefix>_rank): the top_k units dark, the next top_k mid, the rest pale |
 | `field` | string | yes | The result field to style. |
 | `top_k` | integer | no | For look='rank': how many top-ranked units to emphasise. Defaults to 10. |
+
+## identify_tool
+
+### `identify_at_point`
+
+Say what is at a coordinate, as the Identify tool does on the map but without a click: the attributes of the features of the vector layers under the point and the cell value of each band of the raster layers. x and y are in `crs` (default: the project CRS). By default the visible layers are checked; `layers` names others. Give a `radius` (in the units of that CRS: metres for a projected CRS, degrees for a geographic one) to find points and lines near the coordinate: without it only features exactly under the point match. At most 50 features are returned in total and the reply says when more matched. Read-only.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `x` | number | yes | X (longitude or easting) in `crs`. |
+| `y` | number | yes | Y (latitude or northing) in `crs`. |
+| `crs` | string | no | The CRS of x and y, for example EPSG:4326 (default: the project CRS). |
+| `layers` | array[string] | no | Layer names to look at (default: all visible layers). |
+| `radius` | number | no | Search radius in the CRS's units (default 0: only what is exactly under the point). Vector layers only. |
+| `max_features` | integer | no | Fewest features wanted, 1 to 50 (default 50). 50 is the most that is ever returned. |
 
 ## impedance_tools
 

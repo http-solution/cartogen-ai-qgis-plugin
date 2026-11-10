@@ -25,6 +25,7 @@ from . import raster_series_tool
 from . import raster_change_tool
 from . import management_zones_tool
 from . import copy_features_tool
+from . import identify_tool
 from . import line_edit_tools
 from . import parts_edit_tool
 from . import vertex_edit_tool
@@ -115,6 +116,7 @@ __all__ = [
     "hazard_monitoring_tools",
     "humanitarian_look_tools",
     "humanitarian_tools",
+    "identify_tool",
     "imagery_extraction",
     "impedance_tools",
     "incident_search_tools",

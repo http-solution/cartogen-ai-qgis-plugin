@@ -399,6 +399,7 @@ TOOL_OPERATION_TYPES = {
     # -- vector_tools.py --
     "get_layers": READ,
     "get_layer_extent": READ,
+    "identify_at_point": READ,          # R9-5: attributes and raster cell values at a coordinate, nothing changed
     "get_attributes": READ,
     # setSubsetString persists a query filter on the layer.
     "run_query": MODIFY,
