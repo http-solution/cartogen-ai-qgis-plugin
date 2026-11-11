@@ -3234,6 +3234,30 @@
     ],
     "hand_verified": "not verified: CI only (offline known answers and a live run on real QGIS layers, written without a local QGIS); never compared with GeoDa, PySAL or R on a real layer, and never run by a person",
     "hand_row": "C21-spatial-autocorrelation"
+  },
+  {
+    "id": "spatial-hotspots-gi-star",
+    "feature": "analyze_hotspots_gi_star finds statistically significant hot spots and cold spots of a numeric field with Getis-Ord Gi*: a z-score and a two-sided normal p-value per feature (each feature counts itself in its own neighbourhood, binary weights), an optional Benjamini-Hochberg false-discovery correction on by default, and a class Hot spot or Cold spot at 99, 95 or 90 percent (nothing weaker than alpha is reported), written to a NEW layer with src_id, value, gi_z, gi_p, gi_q, gi_class and neighbours; neighbours by queen, rook, k nearest or a distance band exactly as in calculate_spatial_autocorrelation; known answers: a uniform field has z = 0 everywhere, one cell of 10 among zeros on a 5 by 5 rook grid has z = 2.0 exactly at the cell and at its four neighbours and -0.36927 at a far corner, and BH on p-values 0.001, 0.008, 0.039, 0.041, 0.2 gives 0.005, 0.02, 0.05125, 0.05125, 0.2 so alpha 0.05 keeps exactly the first two; a feature with no neighbour is labelled and left out of the correction; a missing number, a bad alpha and the 5,000-feature cap are refused with the cause; the input layer is never changed; no sentence claims a cause. Deviation from the plan: no seed, because the p-value is analytic (normal), and the reply says it is less reliable for very skewed values. Not tested: agreement with ArcGIS, GeoDa or PySAL on a real layer (hand row C22)",
+    "issues": [],
+    "since": "1.18.6",
+    "sources": [
+      "src/cartogen_ai/core/agent/tools/_spatial_weights.py",
+      "src/cartogen_ai/core/agent/tools/_spatial_stats.py",
+      "src/cartogen_ai/core/agent/tools/hotspot_tool.py",
+      "src/cartogen_ai/core/tool_operations.py"
+    ],
+    "guards": [
+      "tests/test_spatial_hotspots.py::TestGiStar::test_a_uniform_field_has_z_zero_everywhere",
+      "tests/test_spatial_hotspots.py::TestGiStar::test_one_cell_of_10_among_zeros_on_a_5_by_5_rook_grid_with_self_gives_exactly_z_2_at_the_centre",
+      "tests/test_spatial_hotspots.py::TestGiStar::test_a_far_corner_is_slightly_negative_by_the_same_formula",
+      "tests/test_spatial_hotspots.py::TestBenjaminiHochberg::test_at_alpha_005_it_rejects_exactly_the_first_two",
+      "tests/test_spatial_hotspots.py::TestClasses::test_nothing_weaker_than_alpha_is_reported",
+      "tests/test_spatial_hotspots.py::TestHotspots::test_islands_are_labelled_and_left_out_of_the_correction",
+      "tests/test_hotspot_tool_live.py::TestHotspotTool::test_one_high_cell_has_z_two_at_the_cell_and_its_neighbours",
+      "tests/test_hotspot_tool_live.py::TestHotspotTool::test_a_block_of_highs_is_found_and_the_new_layer_has_the_documented_fields"
+    ],
+    "hand_verified": "not verified: CI only (offline known answers and a live run on real QGIS layers, written without a local QGIS); never compared with ArcGIS, GeoDa or PySAL on a real layer, and never run by a person",
+    "hand_row": "C22-hotspots-gi-star"
   }
 ]
 }
