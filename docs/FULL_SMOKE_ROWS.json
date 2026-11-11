@@ -149,7 +149,6 @@
  },
  "not_hand_testable": {
   "persona-pack": "data files and a checker with no screen of their own yet; the picker and readiness panel (R1-3) get hand rows R1-H1 to R1-H3",
-  "persona-rerank": "a change to which tools the router offers, covered by a replay of every routing request with every persona; what a person can watch is the answer a real model gives, which hand row R1-H2 checks once R1-5 gives personas their tasks",
   "pyqgis-call-arity-ratchet": "an offline check of the source code against a saved list of QGIS 4.2 argument counts; there is nothing to run in QGIS, and a test plants wrong calls to prove it fails",
   "processing-review-decisions": "a decision record (28 algorithms reviewed and declined with reasons); there is nothing to run, a test compares the table with the coverage matrix in CI",
   "tool-prompt-replay": "offline only by design: replays every prompt of the tool sheet against the router in CI",
