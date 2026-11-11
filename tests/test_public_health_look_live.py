@@ -50,7 +50,7 @@ class TestPublicHealthLook(unittest.TestCase):
         self.assertEqual(result["suppressed"], 3)
         self.assertEqual(result["shown"], 100)
         renderer = layer.renderer()
-        self.assertEqual(renderer.type(), "RuleBased")
+        self.assertEqual(renderer.type(), "RuleRenderer")      # QGIS names the rule-based renderer "RuleRenderer" (CI run 43091162738)
         rules = renderer.rootRule().children()
         self.assertEqual(len(rules), 6)
         plan = epi_look.rate_classes(range(1, 101))["classes"]

@@ -49,12 +49,20 @@ class TestReportKinds(unittest.TestCase):
 
     def test_the_bulletin_note_names_every_limit_the_plan_requires(self):
         note = ls.EPI_BULLETIN_NOTE
-        for phrase in ("crude", "not individuals", "fewer than 5 cases", "not a finding about cause", "reported by the date stated"):
+        for phrase in ("crude", "not individuals", "fewer than 5 cases", "not a finding about cause", "reported by the date stated", "not age or sex adjusted"):
             self.assertIn(phrase, note)
 
     def test_the_bulletin_guide_matches_the_look_it_describes(self):
-        for phrase in ("blue", "hatched", "black and white", "legend"):
+        for phrase in ("blue", "hatched", "black and white", "legend", "cluster"):
             self.assertIn(phrase, ls.EPI_BULLETIN_GUIDE)
+
+    def test_a_typical_bulletin_fits_the_label_box_with_its_reading_guide_kept(self):
+        # the live job found the first wording too long: the budget dropped the guide. The landscape body box (95 mm by 78 mm: 13 lines of 58 characters) holds 754 characters; a short summary, two figures and one source must fit whole.
+        text = ls.sitrep_body("Cases reported to 2026-11-08", [{"label": "South", "value": "30"}, {"label": "North", "value": "12"}], ["District health office line list"], ls.EPI_BULLETIN_GUIDE,
+                              today=TODAY, kind="epi_bulletin")
+        self.assertLessEqual(len(text), 754)
+        self.assertEqual(ls.sitrep_body("Cases reported to 2026-11-08", [{"label": "South", "value": "30"}, {"label": "North", "value": "12"}], ["District health office line list"], ls.EPI_BULLETIN_GUIDE,
+                                        today=TODAY, kind="epi_bulletin", max_chars=754), text)
 
     def test_the_notes_say_what_the_report_is_not(self):
         self.assertIn("not a yield forecast", ls.FIELD_REPORT_NOTE)
