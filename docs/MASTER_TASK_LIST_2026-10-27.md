@@ -458,3 +458,4 @@ Newest last. One line per status change; written by `tools/master_list.py set`.
 - 2026-11-11: PR-R3 In progress -> In progress. R3-1 to R3-6 built and merged (R3-6: PR 627, with the before/after map pair and drawing the agriculture index classes not built); R3-2 STAC load limited to Sentinel-2; waiting on hand rows C17 and C20
 - 2026-11-11: PR-R2 In progress -> In progress. R2-1 (weights, Moran's I, Local Moran) and R2-2 (Getis-Ord Gi*, false-discovery correction, new layer) built; R2-3 to R2-6 not started; real-data hand tests (C21, C22) wait on OWN-14
 - 2026-11-11: PR-R2 In progress -> In progress. R2-1 (Moran's I), R2-2 (Gi*) and R2-3 (Kulldorff scan) built; R2-4 to R2-6 not started; real-data hand tests (C21, C22, C23) wait on OWN-14
+- 2026-11-11: PR-R2 In progress -> In progress. R2-1 to R2-4 built (Moran, Gi*, Kulldorff scan, health rates); R2-5 and R2-6 not started; real-data hand tests (C21 to C24) wait on OWN-14

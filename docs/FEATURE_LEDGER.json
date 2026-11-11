@@ -3281,6 +3281,29 @@
     ],
     "hand_verified": "not verified: CI only (offline known answers and a live run on real QGIS layers, written without a local QGIS); never compared with SaTScan on a real layer, and never run by a person",
     "hand_row": "C23-cluster-scan"
+  },
+  {
+    "id": "health-rates",
+    "feature": "calculate_health_rates computes rates for areas from a whole-number case count and a population above zero: the crude rate per 100,000 (or per) with Byar's 95 percent interval, the relative risk (area rate over the overall rate), the indirectly standardised ratio SMR with its interval only from an expected-count field the caller supplies (it refuses method smr without one and says it never invents expected counts), and a global empirical-Bayes smoothed rate (Marshall 1991); method chooses the headline value; every area with cases below min_cases (default 5) or a population below min_population gets a small-number flag with its reason and an EMPTY value_shown so a map built on it never shows an unstable figure; written to a NEW layer (a plain table works too), the input is never changed; known answers: cases 10, 20, 30 with populations 1000, 2000, 3000 are 1,000 per 100,000 each with relative risk 1; 10 cases give an interval of 4.79 to 18.39 (exact 4.795 to 18.390); SMR 30 over 20 is 1.5; two areas with the same rate are unchanged by smoothing; a hand case with 10, 30, 50 cases in populations of 10,000 gives between-area variance 2.36667e-6, weight 0.8875 and a smoothed first rate of 122.5 per 100,000; a non-whole case count, a population of zero or less, no cases at all, a missing or zero expected count and a bad per, min_cases or method are refused with the cause; the reply says the figures are not age or sex adjusted and say nothing about individuals. Not tested: agreement with R (epitools, spdep EBest) or GeoDa on a real layer (hand row C24)",
+    "issues": [],
+    "since": "1.18.6",
+    "sources": [
+      "src/cartogen_ai/core/agent/tools/_health_rates.py",
+      "src/cartogen_ai/core/agent/tools/health_rates_tool.py",
+      "src/cartogen_ai/core/tool_operations.py"
+    ],
+    "guards": [
+      "tests/test_health_rates.py::TestCrudeAndRisk::test_three_areas_with_the_same_rate_each_have_1000_per_100000_and_relative_risk_1",
+      "tests/test_health_rates.py::TestIntervals::test_byar_is_close_to_the_exact_poisson_interval",
+      "tests/test_health_rates.py::TestSmr::test_method_smr_without_expected_counts_is_refused_and_says_they_are_never_invented",
+      "tests/test_health_rates.py::TestEmpiricalBayes::test_two_areas_with_the_same_rate_are_unchanged",
+      "tests/test_health_rates.py::TestEmpiricalBayes::test_a_hand_computed_case_with_real_spread",
+      "tests/test_health_rates.py::TestSmallNumbers::test_cases_below_five_are_flagged_and_five_is_not",
+      "tests/test_health_rates_tool_live.py::TestHealthRatesTool::test_equal_rates_give_1000_per_100000_and_relative_risk_one",
+      "tests/test_health_rates_tool_live.py::TestHealthRatesTool::test_an_area_with_four_cases_is_flagged_and_its_value_is_not_shown"
+    ],
+    "hand_verified": "not verified: CI only (offline known answers and a live run on real QGIS layers, written without a local QGIS); never compared with R or GeoDa on a real layer, and never run by a person",
+    "hand_row": "C24-health-rates"
   }
 ]
 }

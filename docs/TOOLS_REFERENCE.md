@@ -1,6 +1,6 @@
 # Tool Reference
 
-Auto-generated from the live tool registry (333 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
+Auto-generated from the live tool registry (334 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
 
 Flags: **network-only** tools bypass the main-thread QGIS dispatcher entirely (pure HTTP, safe from any background thread); **two-phase** tools split a network fetch (background thread) from the QGIS-touching part (main thread); **task-management** tools are excluded from auto-advance in the Task Manager.
 
@@ -2338,6 +2338,24 @@ Fetch live hazard data (NASA active fires, NASA EONET natural events, GDACS disa
 | `include_fires` | boolean | no | Include NASA FIRMS active fires. Defaults to true. |
 | `include_eonet` | boolean | no | Include NASA EONET natural events. Defaults to true. |
 | `include_disasters` | boolean | no | Include GDACS disaster alerts. Defaults to true. |
+
+## health_rates_tool
+
+### `calculate_health_rates`
+
+Compute disease or incident RATES for areas from a case count and a population: the crude rate per 100,000 (or per), its 95% interval, the RELATIVE RISK (area rate over the overall rate), the indirectly standardised ratio SMR (observed over expected, ONLY when you supply an expected-count field: this tool never invents expected counts, so age or sex adjustment must come from you), and a global empirical-Bayes SMOOTHED rate that steadies small areas. method chooses the headline `value` ('crude', 'smr' or 'eb'). Every area with cases below 5 (min_cases) or a population below min_population gets a small-number flag and an EMPTY `value_shown`, so a map made from value_shown never shows an unstable figure. Writes a NEW layer; the input is never changed. Needs a whole-number case field and a population field above zero on every area.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes |  |
+| `case_field` | string | yes | Whole-number case counts per area. |
+| `population_field` | string | yes | Population at risk per area (above zero). |
+| `method` | string | no | crude (default), smr (needs expected_field) or eb (smoothed). |
+| `expected_field` | string | no | Expected case counts you computed (for example by age and sex standardisation). Required for method='smr'. |
+| `per` | number | no | Rate denominator (default 100000). |
+| `min_population` | number | no | Flag areas with a smaller population (default: no population floor). |
+| `min_cases` | integer | no | Flag areas with fewer cases than this (default 5). |
+| `output_layer_name` | string | no | Name of the new layer (default '<layer>_rates'). |
 
 ## hotspot_tool
 
