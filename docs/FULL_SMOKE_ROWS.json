@@ -148,6 +148,7 @@
   }
  },
  "not_hand_testable": {
+  "processing-review-decisions": "a decision record (28 algorithms reviewed and declined with reasons); there is nothing to run, a test compares the table with the coverage matrix in CI",
   "tool-prompt-replay": "offline only by design: replays every prompt of the tool sheet against the router in CI",
   "tools-reference-sync": "offline only by design: docs/TOOLS_REFERENCE.md is regenerated and compared in CI",
   "tool-schema-no-removal": "offline only by design: a CI snapshot of the tool schema",

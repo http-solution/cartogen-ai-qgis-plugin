@@ -1,0 +1,29 @@
+id,kind,decision,reason
+native:fieldcalculator,expression,declined,"the dedicated field_calculator tool does this with the expression screen, an edit command and a preview"
+native:selectbyexpression,expression,declined,"the dedicated select_by_expression tool does this; the algorithm changes the user's own selection, which the generic tool is kept away from"
+native:aggregate,expression,declined,"its aggregates setting is a list of objects with expressions inside, which the generic tool's flat-parameter rule and its expression screen (strings only) cannot inspect"
+native:layertobookmarks,expression,declined,adds bookmarks to the project with no preview and no undo; no chat request needs it
+native:modelerrastercalc,expression,declined,modeler variant of the raster calculator; the dedicated raster_calculator tool exists
+native:modelervirtualrastercalc,expression,declined,modeler variant of the virtual raster calculator; the dedicated raster_calculator tool exists
+native:rastercalc,expression,declined,the dedicated raster_calculator tool exists and checks the expression; a second route only adds ambiguity
+native:virtualrastercalc,expression,declined,virtual variant of the raster calculator; the dedicated raster_calculator tool exists
+native:raiseexception,expression,declined,modeler helper that stops a model on purpose; no chat use
+native:raisemessage,expression,declined,modeler helper that writes a message to a model's log; no chat use
+native:raisewarning,expression,declined,modeler helper that writes a warning to a model's log; no chat use
+gdal:colorrelief,path,declined,needs a colour-table file at a path the model would have to choose; set_renderer and the raster styling tools colour a raster
+gdal:importvectorintopostgisdatabaseavailableconnections,path,declined,sends a layer to an external database: data leaves the project
+native:importintopostgis,path,declined,sends a layer to an external database: data leaves the project
+native:importintospatialiteregistered,path,declined,writes a layer into a database file; export_layer writes the common formats with an overwrite card
+native:atlaslayouttoimage,path,declined,the dedicated export_layout_atlas tool exists
+native:atlaslayouttomultiplepdf,path,declined,the dedicated export_layout_atlas tool exists; many files into a folder the model would choose
+native:categorizeusingstyle,path,declined,reads a style file from a path the model would choose and replaces the layer's renderer; the styling tools and set_renderer do it with a preview
+native:gltftovector,path,declined,"reads a 3D file at a path the model would choose; niche, no chat request"
+native:importphotos,path,declined,"useful (geotagged field photos to points) but reads a FOLDER at a path the model would choose; it needs a dedicated tool that accepts only a folder inside the saved project folder, with a test photo that carries GPS data; carried as a candidate"
+native:printlayoutmapextenttolayer,path,declined,"its inputs are a print layout and a layout item by name, which the generic tool cannot resolve"
+native:repairshapefile,path,declined,rewrites a shapefile on disk in place at a path the model would choose
+native:setlayermetadata,path,declined,reads a metadata file from a path the model would choose and changes the layer; the dedicated metadata tools exist
+native:setlayerstyle,path,declined,reads a style file from a path the model would choose; the styling tools exist
+native:shpencodinginfo,path,declined,reads a shapefile at a path typed by the model; layer information tools report encodings of loaded layers
+native:uploadgpsdata,path,declined,writes to a hardware device
+qgis:setstyleforrasterlayer,path,declined,reads a style file from a path the model would choose; the styling tools exist
+qgis:setstyleforvectorlayer,path,declined,reads a style file from a path the model would choose; the styling tools exist
