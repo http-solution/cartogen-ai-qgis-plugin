@@ -1,6 +1,6 @@
 # Tool Reference
 
-Auto-generated from the live tool registry (331 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
+Auto-generated from the live tool registry (332 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
 
 Flags: **network-only** tools bypass the main-thread QGIS dispatcher entirely (pure HTTP, safe from any background thread); **two-phase** tools split a network fetch (background thread) from the QGIS-touching part (main thread); **task-management** tools are excluded from auto-advance in the Task Manager.
 
@@ -2318,6 +2318,23 @@ Fetch live hazard data (NASA active fires, NASA EONET natural events, GDACS disa
 | `include_fires` | boolean | no | Include NASA FIRMS active fires. Defaults to true. |
 | `include_eonet` | boolean | no | Include NASA EONET natural events. Defaults to true. |
 | `include_disasters` | boolean | no | Include GDACS disaster alerts. Defaults to true. |
+
+## hotspot_tool
+
+### `analyze_hotspots_gi_star`
+
+Find statistically significant HOT SPOTS (clusters of high values) and COLD SPOTS (clusters of low values) of a numeric field with Getis-Ord Gi*: a z-score and p-value per feature, an optional false-discovery (Benjamini-Hochberg) correction, and a class 'Hot spot 99%' / 'Hot spot 95%' / 'Hot spot 90%' / 'Cold spot ...' / 'Not significant', written to a NEW layer (the input is never changed). This is a significance TEST on the field's values, not a density map: for a density surface of where points are concentrated use hotspot_analysis. weights: 'queen' or 'rook' (polygon layers), 'knn' (pass k) or 'distance' (a band in layer units, projected CRS only, pass distance); each feature counts itself as part of its own neighbourhood. Needs a number on every feature (it refuses and says how many are missing); at most 5,000 features. A hot spot means high values near high values, not a cause: do not describe it as an outbreak or a threat without other evidence.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes |  |
+| `field` | string | yes | A numeric field (a count, a rate, an index). |
+| `weights` | string | no | queen (default), rook, knn or distance. |
+| `k` | integer | no | For weights='knn': how many nearest neighbours each feature counts besides itself. |
+| `distance` | number | no | For weights='distance': the band in the layer's units (projected CRS). |
+| `fdr` | boolean | no | Apply the Benjamini-Hochberg false-discovery correction (default true). |
+| `alpha` | number | no | The weakest significance reported: 0.05 (default) reports 99% and 95% spots, 0.10 adds 90%, 0.01 reports only 99%. |
+| `output_layer_name` | string | no | Name of the new layer (default '<layer>_gi_star'). |
 
 ## humanitarian_look_tools
 

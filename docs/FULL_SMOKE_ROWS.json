@@ -965,6 +965,24 @@
    "layers": {}
   },
   {
+   "id": "C22-hotspots-gi-star",
+   "issue": "S",
+   "session": "C",
+   "title": "Gi* hot spots on a real layer, compared with a published tool",
+   "covers": [
+    "spatial-hotspots-gi-star"
+   ],
+   "needs": "QGIS only for steps 1 to 3 (Python console); a second tool (GeoDa, ArcGIS Hot Spot Analysis, or PySAL esda.G_Local) for step 4",
+   "starts_from": "QGIS open with a polygon layer that has a numeric field and shared boundaries (for example districts with a case count); the plugin enabled",
+   "do": "(1) Plugins > Python Console: from cartogen_ai.core.agent.tools.hotspot_tool import analyze_hotspots_gi_star as f; r = f('<layer>', '<field>', weights='queen', fdr=True); print(r)  (2) read the summary, the islands count and the notes; open the new '<layer>_gi_star' layer and look at gi_z, gi_q and gi_class  (3) run it again with fdr=False and with weights='knn', k=8  (4) in GeoDa (Local G*), ArcGIS or PySAL (esda.G_Local, star=True, binary weights) run Gi* on the same layer and field with the same neighbour rule.",
+   "expect": "(2) a summary such as 'N hot spot(s) and M cold spot(s) among K tested features (false-discovery corrected)'; never a cause; islands 0 for clean district boundaries. (2) the new layer has one feature per input feature and your original layer is unchanged. (3) with the correction off the number of spots is the same or larger. (4) the z-score of each feature agrees with the other tool to 3 decimals for the same neighbour rule (p-values may differ slightly if the other tool uses permutations).",
+   "evidence": "The printed result for each run -> results\\\\outputs\\\\C22-hotspots-gi-star\\\\result.txt; the z-scores from the other tool for three features and which tool and rule it used; a screenshot of the new layer table.",
+   "files": [],
+   "pass_if": "z matches the other tool to 3 decimals for the same rule, the input layer is unchanged, the spots look plausible on the map. A different z, a crash, or islands on a clean layer is a Fail: send both numbers and the layer's source.",
+   "cost": "about 15 minutes, free",
+   "layers": {}
+  },
+  {
    "id": "D1-fetch-live",
    "issue": "S",
    "session": "D",
