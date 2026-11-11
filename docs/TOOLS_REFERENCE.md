@@ -1132,14 +1132,16 @@ Geocode a SINGLE address/place name into lat/lon via Nominatim API; the result a
 | Parameter | Type | Required | Description |
 |---|---|---|---|
 | `location_name` | string | yes |  |
+| `source_layer` | string | no | The layer the place text came from, if it came from a layer; leave out when the user typed it. A protected layer is refused: geocoding sends the text to a public server. |
 
 ### `geocode_batch` _(network-only)_
 
-Geocode MULTIPLE address/place names into lat/lon in a single call. Use this instead of calling geocode_and_enrich in a loop whenever more than one location needs coordinates.
+Geocode MULTIPLE address/place names into lat/lon in a single call. Use this instead of calling geocode_and_enrich in a loop whenever more than one location needs coordinates. The text is sent to a public server (OpenStreetMap Nominatim), so it is REFUSED when it comes from a protected (RESTRICTED or SENSITIVE) layer: pass source_layer with the layer the names were read from.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
 | `location_names` | array[string] | yes |  |
+| `source_layer` | string | no | The layer the place text came from, if it came from a layer; leave out when the user typed it. A protected layer is refused. |
 
 ### `openai_grounded_search` _(two-phase)_
 

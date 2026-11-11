@@ -9,6 +9,7 @@ import builtins as _builtins_module
 import os
 from .registry import register_tool
 from ._cache_utils import TTLCache
+from . import _geocode_guard
 from ...net import build_request as _net_build_request
 from ...net import read_capped as _read_capped
 
@@ -554,31 +555,42 @@ def _geocode_one(location_name: str):
         return {"error": str(e)}
 
 
-@register_tool("geocode_and_enrich", "Geocode a SINGLE address/place name into lat/lon via Nominatim API; the result also carries the place's bounding box (bbox_south_west_north_east and bbox_west_south_east_north) for tools that take an area. For multiple locations in one request, use geocode_batch instead -- one call per place will run out of tool-call steps before finishing a long list.", {"type": "object", "properties": {"location_name": {"type": "string"}}, "required": ["location_name"]}, keywords=[
+@register_tool("geocode_and_enrich", "Geocode a SINGLE address/place name into lat/lon via Nominatim API; the result also carries the place's bounding box (bbox_south_west_north_east and bbox_west_south_east_north) for tools that take an area. For multiple locations in one request, use geocode_batch instead -- one call per place will run out of tool-call steps before finishing a long list.", {"type": "object", "properties": {"location_name": {"type": "string"}, "source_layer": {"type": "string", "description": "The layer the place text came from, if it came from a layer; leave out when the user typed it. A protected layer is refused: geocoding sends the text to a public server."}}, "required": ["location_name"]}, keywords=[
     "concept:health_facility",
     "geocode", "find the location of", "where is",
 ])
-def geocode_and_enrich(location_name: str):
+def geocode_and_enrich(location_name: str, source_layer: str = ""):
+    # tracker 1.26 (owner decision 2026-11-11): refuse text that comes from a protected layer, before anything leaves the machine
+    refused = _geocode_guard.check("geocode_and_enrich", [location_name], source_layer)
+    if refused:
+        return refused
     return _geocode_one(location_name)
 
 
 @register_tool(
     "geocode_batch",
     "Geocode MULTIPLE address/place names into lat/lon in a single call. Use this instead of "
-    "calling geocode_and_enrich in a loop whenever more than one location needs coordinates.",
-    {"type": "object", "properties": {"location_names": {"type": "array", "items": {"type": "string"}}}, "required": ["location_names"]},
+    "calling geocode_and_enrich in a loop whenever more than one location needs coordinates. The text is sent to a public server (OpenStreetMap Nominatim), so it is REFUSED when it comes "
+    "from a protected (RESTRICTED or SENSITIVE) layer: pass source_layer with the layer the names were read from.",
+    {"type": "object", "properties": {"location_names": {"type": "array", "items": {"type": "string"}},
+                                      "source_layer": {"type": "string", "description": "The layer the place text came from, if it came from a layer; leave out when the user typed it. A protected layer is refused."}},
+     "required": ["location_names"]},
     keywords=[
         "concept:health_facility",
         "geocode", "list of locations", "multiple locations",
     ],
 )
-def geocode_batch(location_names: list):
+def geocode_batch(location_names: list, source_layer: str = ""):
     import time
 
     if not location_names:
         return {"error": "location_names must be a non-empty list."}
     if len(location_names) > _GEOCODE_BATCH_MAX:
         return {"error": f"Too many locations in one batch (max {_GEOCODE_BATCH_MAX}); split into smaller batches."}
+    # tracker 1.26 (owner decision 2026-11-11): refuse text that comes from a protected layer, before anything leaves the machine
+    refused = _geocode_guard.check("geocode_batch", location_names, source_layer)
+    if refused:
+        return refused
 
     # Processing-cost audit 2026-10-12: up to 25 lookups with a 1 s pause between network calls (~25 s) ran on the GUI thread because this
     # tool was missing from NETWORK_ONLY_TOOLS (agent_orchestrator.py), so QGIS showed "Not Responding" for the whole batch. It touches no

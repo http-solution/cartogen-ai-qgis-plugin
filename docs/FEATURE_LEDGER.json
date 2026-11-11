@@ -3355,6 +3355,28 @@
     ],
     "hand_verified": "not verified: CI only (the real router over the real tool list; no real model has been asked these requests)",
     "hand_row": "C26-r2-routing"
+  },
+  {
+    "id": "geocoding-protected-refusal",
+    "feature": "geocode_batch and geocode_and_enrich refuse, before any lookup leaves the machine, place or address text that comes from a protected layer (owner decision 2026-11-11 on tracker item 1.26, option b, refuse): two independent checks, either one refuses. (1) The new optional source_layer argument names a layer that is protected, by its own RESTRICTED or SENSITIVE tag or inherited through lineage (an untagged layer counts only when the egress gate is in strict mode). (2) Any of the texts equals, after trimming, collapsing spaces and ignoring case, a value in a text field of a protected layer in the project, so the refusal does not depend on the caller saying where the text came from. It applies whatever the AI provider is (the text goes to the public server either way), never changes a tag or a layer, and fails closed: a protected layer that is too large (over 50,000 features) or unreadable is refused as could not be verified. The refusal names the layers and why, forbids retrying with different arguments, and says the places can be geocoded from a PUBLIC or INTERNAL copy or by the user's own decision to retag. Open layers, untagged layers (default setting) and unrelated text go ahead, retagging a layer PUBLIC lifts the refusal, and an unknown source_layer is an error, not a pass. Stated limits: a retyped or derived text (a street without its house number) does not match check 2, which catches copies of protected values rather than every derived text; the lookup itself and its usage policy are unchanged. Not tested: a real Nominatim lookup after a pass (the live test replaces the lookup with a counter); a person's trial on a real tagged layer (hand row C27)",
+    "issues": [],
+    "since": "1.18.6",
+    "sources": [
+      "src/cartogen_ai/core/agent/tools/_geocode_guard.py",
+      "src/cartogen_ai/core/agent/tools/system_tools.py",
+      "src/cartogen_ai/core/agent/data_sources.json"
+    ],
+    "guards": [
+      "tests/test_geocode_guard.py::TestComparison::test_a_text_that_is_a_value_of_a_protected_layer_is_found_and_counted",
+      "tests/test_geocode_guard.py::TestRefusal::test_the_refusal_names_the_layers_the_tool_and_the_way_forward_and_forbids_working_around_it",
+      "tests/test_geocode_guard.py::TestTheToolsCarryTheGuard::test_both_tools_take_a_source_layer_in_code_and_in_their_schema",
+      "tests/test_geocode_guard.py::TestTheToolsCarryTheGuard::test_the_guard_runs_before_any_network_call",
+      "tests/test_geocode_guard_live.py::TestGeocodeRefusal::test_text_that_matches_a_sensitive_layer_is_refused_before_any_lookup",
+      "tests/test_geocode_guard_live.py::TestGeocodeRefusal::test_naming_a_protected_layer_as_the_source_refuses_even_when_the_texts_do_not_match",
+      "tests/test_geocode_guard_live.py::TestGeocodeRefusal::test_a_protected_layer_elsewhere_in_the_project_does_not_block_unrelated_text"
+    ],
+    "hand_verified": "not verified: CI only (offline comparison rules and a live run on tagged QGIS layers with the lookup replaced by a counter, written without a local QGIS); never tried by a person on a real tagged layer",
+    "hand_row": "C27-geocode-protected"
   }
 ]
 }

@@ -336,6 +336,10 @@ The agent won't apply this automatically — it's a judgment call about the data
 ask which method you want when it looks relevant. Not every point layer needs it (facility
 locations, aggregate counts, and non-identifying incident logs don't).
 
+### Geocoding and protected layers
+
+`geocode_batch` and `geocode_and_enrich` send the place or address text to a public server (OpenStreetMap Nominatim). They therefore **refuse** text that comes from a layer tagged `RESTRICTED` or `SENSITIVE` (or derived from one), whatever AI provider you use, and say so before anything is sent. The check recognises the text by its values, so it does not depend on the agent saying where the text came from. To geocode those places anyway, use a copy you have tagged `PUBLIC` or `INTERNAL` (for example an aggregated or released copy), or change the layer's tag yourself in the Sensitivity dialog. A text you retyped or shortened is not recognised, so this is a safeguard against accidents, not a guarantee.
+
 ## Sharing a workflow as a file
 
 Ask *"export this workflow as a file"* after an analysis to save its steps as a `.cgworkflow.json` file (you see the whole file and confirm before it is written). A colleague opens it with **Plugins > Cartogen AI > Open workflow file...**, reads every step, picks their own layers for the roles and presses Run; the plugin then runs the steps itself through the usual checks. A file contains no data, no code and no file paths. See [WORKFLOW_FILES.md](WORKFLOW_FILES.md) for the details and the limits.
