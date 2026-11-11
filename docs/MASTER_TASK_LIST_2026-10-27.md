@@ -459,3 +459,4 @@ Newest last. One line per status change; written by `tools/master_list.py set`.
 - 2026-11-11: PR-R2 In progress -> In progress. R2-1 (weights, Moran's I, Local Moran) and R2-2 (Getis-Ord Gi*, false-discovery correction, new layer) built; R2-3 to R2-6 not started; real-data hand tests (C21, C22) wait on OWN-14
 - 2026-11-11: PR-R2 In progress -> In progress. R2-1 (Moran's I), R2-2 (Gi*) and R2-3 (Kulldorff scan) built; R2-4 to R2-6 not started; real-data hand tests (C21, C22, C23) wait on OWN-14
 - 2026-11-11: PR-R2 In progress -> In progress. R2-1 to R2-4 built (Moran, Gi*, Kulldorff scan, health rates); R2-5 and R2-6 not started; real-data hand tests (C21 to C24) wait on OWN-14
+- 2026-11-11: PR-R2 In progress -> In progress. R2-1 to R2-5 built (Moran, Gi*, Kulldorff scan, health rates, public-health look and epi_bulletin); R2-6 persona wiring not started; real-data hand tests (C21 to C25) wait on OWN-14

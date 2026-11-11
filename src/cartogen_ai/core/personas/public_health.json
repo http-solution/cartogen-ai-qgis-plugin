@@ -43,7 +43,8 @@
    "tools": [
     "calculate_spatial_autocorrelation",
     "analyze_hotspots_gi_star",
-    "detect_spatial_clusters"
+    "detect_spatial_clusters",
+    "apply_public_health_look"
    ]
   }
  ],
@@ -111,6 +112,11 @@
    "tool": "calculate_spatial_autocorrelation"
   },
   {
+   "capability": "public-health map look: blue rate ramp, hatched small numbers, cluster outline, hot and cold spots",
+   "state": "CI-checked",
+   "tool": "apply_public_health_look"
+  },
+  {
    "capability": "Getis-Ord Gi* hotspot test with false-discovery correction and a new result layer",
    "state": "CI-checked",
    "tool": "analyze_hotspots_gi_star"
@@ -126,9 +132,9 @@
    "tool": "calculate_health_rates"
   },
   {
-   "capability": "epidemic bulletin layout",
-   "state": "not built",
-   "since": "R2 (1.20.0)"
+   "capability": "epidemic bulletin layout (text box with its method and limits; the epidemic-curve chart is made separately)",
+   "state": "CI-checked",
+   "tool": "create_print_layout"
   },
   {
    "capability": "DHIS2 connector",

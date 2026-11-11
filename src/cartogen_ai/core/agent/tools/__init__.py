@@ -27,6 +27,7 @@ from . import spatial_stats_tool
 from . import hotspot_tool
 from . import cluster_scan_tool
 from . import health_rates_tool
+from . import public_health_look_tool
 from . import raster_series_tool
 from . import raster_change_tool
 from . import management_zones_tool
@@ -168,6 +169,7 @@ __all__ = [
     "project_tidy_tools",
     "project_tools",
     "provenance_tools",
+    "public_health_look_tool",
     "qa_checklist_tools",
     "raster_calculator_tool",
     "raster_change_tool",

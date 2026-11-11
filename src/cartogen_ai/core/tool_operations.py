@@ -169,6 +169,7 @@ TOOL_OPERATION_TYPES = {
     "analyze_hotspots_gi_star": CREATE,  # R2-2: a NEW layer with the Gi* z, p, corrected p and hot/cold class; the input layer is never changed
     "detect_spatial_clusters": CREATE,  # R2-3: a NEW layer of cluster circles; the input layer is never changed
     "calculate_health_rates": CREATE,  # R2-4: a NEW layer of rates, relative risk, SMR, smoothed rate and a small-number flag; the input layer is never changed
+    "apply_public_health_look": MODIFY,  # R2-5: only changes how a layer is drawn (rate, cluster, lisa, hotspot looks)
     "copy_features_between_layers": MODIFY,   # R9-4: adds features to an existing layer behind a preview with the field mapping, one undoable edit command
     "reshape_geometry": MODIFY,         # R9-3: changes one feature's geometry behind a preview, one undoable edit command
     "reverse_line": MODIFY,             # R9-3: reverses line direction in place behind a preview

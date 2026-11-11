@@ -1019,6 +1019,24 @@
    "layers": {}
   },
   {
+   "id": "C25-public-health-look",
+   "issue": "S",
+   "session": "C",
+   "title": "Rate map, cluster outline, hot spots and the epidemic bulletin, looked at on a real map",
+   "covers": [
+    "public-health-look"
+   ],
+   "needs": "QGIS only; the layers from rows C22 to C24 (or any area layer with a rate field)",
+   "starts_from": "QGIS open with the '<layer>_rates' layer from C24, the '<layer>_scan_clusters' layer from C23 and the '<layer>_gi_star' layer from C22; the plugin enabled",
+   "do": "(1) Plugins > Python Console: from cartogen_ai.core.agent.tools.public_health_look_tool import apply_public_health_look as f; print(f('<layer>_rates', 'rate'))  (2) look at the map: blue shades by rate, hatched grey areas where fewer than 5 cases; open Layer Styling and read the rule labels  (3) print(f('<layer>_scan_clusters', 'cluster')) and print(f('<layer>_gi_star', 'hotspot'))  (4) ask the chat: 'make an epidemic bulletin PDF of this map, summary: cases reported to <date>' (or call create_print_layout with template='epi_bulletin', body_text, key_figures_from, sources) and open the PDF.",
+   "expect": "(2) one hue from light to dark, a grey hatch on the small-number areas, every other area coloured, labels like '12.3 to 45.6' and 'Suppressed (n < 5)'; the legend you put on the layout reads 'Rate per 100,000; suppressed where n < 5'. (3) the cluster circle is a black outline with a white line inside it, no fill, nothing red; hot spots are orange, cold spots purple. (4) the PDF has the title, the map, a text box with SUMMARY, CASES AND RATES, HOW TO READ THIS MAP, SOURCES and METHOD AND LIMITS, the footer inside the page, no patient-level points, and the text fits without being cut off.",
+   "evidence": "A screenshot of the map and its layer styling panel; the exported PDF -> results\\\\outputs\\\\C25-public-health-look\\\\bulletin.pdf; which colours or text looked wrong, if any.",
+   "files": [],
+   "pass_if": "everything in Expect, the colours are readable (also in greyscale print), nothing is red, the hatch is visible, the bulletin text fits and the limits box is complete. A cut-off text box, a missing hatch, red anywhere or an unreadable legend is a Fail: say which.",
+   "cost": "about 20 minutes, free",
+   "layers": {}
+  },
+  {
    "id": "D1-fetch-live",
    "issue": "S",
    "session": "D",
