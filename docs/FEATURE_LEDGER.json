@@ -3258,6 +3258,29 @@
     ],
     "hand_verified": "not verified: CI only (offline known answers and a live run on real QGIS layers, written without a local QGIS); never compared with ArcGIS, GeoDa or PySAL on a real layer, and never run by a person",
     "hand_row": "C22-hotspots-gi-star"
+  },
+  {
+    "id": "spatial-cluster-scan",
+    "feature": "detect_spatial_clusters finds the most likely cluster of excess cases with Kulldorff's circular scan statistic (Poisson model): every area is its centroid with a whole-number case count and a population above zero; circles of every size around every area are scored by the log likelihood ratio of cases against the number expected from population; the best circle is reported with its centre, member areas, radius, cases, expected cases, relative risk and a Monte Carlo p-value (99 to 9999 re-draws of all cases in proportion to population, seeded), plus further non-overlapping circles that are also significant, written to a NEW layer (the input is never changed); a cluster never holds more than max_pop_fraction (at most 0.5) of the population, never splits areas at the same distance and respects max_radius; known answers: total 100 cases, 30 inside, 15 expected gives LLR 7.203 (30 ln 2 + 70 ln(70/85)) and relative risk 2.4286; on a 10 by 10 grid of 100 people each a 3 by 3 block with 15 cases among 5 elsewhere is found centred on the middle area with 9 areas, 135 cases against 53.1 expected, radius sqrt 2 and p <= 0.01 for several seeds, while a layer with no block gives p > 0.05; a geographic CRS, a missing or non-whole case count, a population of zero or less, no cases, more than 1,500 areas, too much work, no circle satisfying the limits and a model other than poisson are refused with the cause; needs numpy (ships with QGIS); no sentence claims a cause or speaks about individuals. Not tested: agreement with SaTScan on a real layer (hand row C23); the Bernoulli and space-time models are not built",
+    "issues": [],
+    "since": "1.18.6",
+    "sources": [
+      "src/cartogen_ai/core/agent/tools/_kulldorff.py",
+      "src/cartogen_ai/core/agent/tools/cluster_scan_tool.py",
+      "src/cartogen_ai/core/tool_operations.py"
+    ],
+    "guards": [
+      "tests/test_kulldorff_scan.py::TestLlr::test_the_plan_known_answer_c100_inside_30_expected_15_is_7_203",
+      "tests/test_kulldorff_scan.py::TestScan::test_a_planted_block_is_found_at_its_centre_with_a_tiny_p",
+      "tests/test_kulldorff_scan.py::TestScan::test_its_numbers_follow_from_the_formula",
+      "tests/test_kulldorff_scan.py::TestScan::test_no_planted_cluster_gives_a_large_p",
+      "tests/test_kulldorff_scan.py::TestScan::test_a_cluster_never_holds_more_than_max_pop_fraction",
+      "tests/test_kulldorff_scan.py::TestScan::test_a_circle_never_splits_areas_at_the_same_distance",
+      "tests/test_cluster_scan_tool_live.py::TestClusterScanTool::test_a_planted_block_is_found_with_the_hand_computed_numbers",
+      "tests/test_cluster_scan_tool_live.py::TestClusterScanTool::test_the_circle_layer_has_the_documented_fields_and_one_polygon_per_cluster"
+    ],
+    "hand_verified": "not verified: CI only (offline known answers and a live run on real QGIS layers, written without a local QGIS); never compared with SaTScan on a real layer, and never run by a person",
+    "hand_row": "C23-cluster-scan"
   }
 ]
 }

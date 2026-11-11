@@ -983,6 +983,24 @@
    "layers": {}
   },
   {
+   "id": "C23-cluster-scan",
+   "issue": "S",
+   "session": "C",
+   "title": "Kulldorff cluster scan on a real layer, compared with SaTScan",
+   "covers": [
+    "spatial-cluster-scan"
+   ],
+   "needs": "QGIS only for steps 1 to 3 (Python console); SaTScan (free, from satscan.org) or R with rsatscan/SpatialEpi for step 4",
+   "starts_from": "QGIS open in a projected CRS with an area layer that has a whole-number case field and a population field (for example districts with cases and population); the plugin enabled",
+   "do": "(1) Plugins > Python Console: from cartogen_ai.core.agent.tools.cluster_scan_tool import detect_spatial_clusters as f; r = f('<layer>', '<cases>', '<population>', monte_carlo=999); print(r)  (2) read the summary and the first cluster: centre, areas, cases, expected, relative risk, p; open the new '<layer>_scan_clusters' layer and look at the circles on the map  (3) run it again with max_pop_fraction=0.1 and with the same seed  (4) in SaTScan run a purely spatial Poisson scan on the same cases, population and centroid coordinates, maximum cluster size 50 percent of the population, 999 replications.",
+   "expect": "(2) a plain summary that never states a cause; the circle layer holds the circles and your layer is unchanged. (3) the same seed gives identical numbers; a smaller cap gives a cluster no larger than the cap. (4) SaTScan's most likely cluster holds the same areas (its coordinates and radius agree to rounding), the same cases and expected cases and the same log likelihood ratio to 3 decimals; the p-values agree within Monte Carlo noise (a few thousandths at 999 replications).",
+   "evidence": "The printed result -> results\\\\outputs\\\\C23-cluster-scan\\\\result.txt; SaTScan's output file (the cluster section) and its parameter file; a screenshot of the circles on the map.",
+   "files": [],
+   "pass_if": "the most likely cluster and its LLR match SaTScan for the same centroids, the input layer is unchanged, the circles look plausible on the map. A different cluster or LLR, a crash, or a circle that splits areas at equal distance is a Fail: send both outputs and the layer's source.",
+   "cost": "about 25 minutes, free",
+   "layers": {}
+  },
+  {
    "id": "D1-fetch-live",
    "issue": "S",
    "session": "D",

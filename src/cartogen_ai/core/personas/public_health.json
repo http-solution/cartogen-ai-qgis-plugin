@@ -35,7 +35,8 @@
    "title": "Is there a spatial pattern?",
    "tools": [
     "calculate_spatial_autocorrelation",
-    "analyze_hotspots_gi_star"
+    "analyze_hotspots_gi_star",
+    "detect_spatial_clusters"
    ]
   }
  ],
@@ -108,9 +109,9 @@
    "tool": "analyze_hotspots_gi_star"
   },
   {
-   "capability": "Kulldorff spatial scan with Monte Carlo",
-   "state": "not built",
-   "since": "R2 (1.20.0)"
+   "capability": "Kulldorff spatial scan with Monte Carlo (Poisson model, circles to a new layer)",
+   "state": "CI-checked",
+   "tool": "detect_spatial_clusters"
   },
   {
    "capability": "rates, relative risk, standardised ratios and smoothing",
