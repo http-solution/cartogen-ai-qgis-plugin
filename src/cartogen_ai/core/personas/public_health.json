@@ -1,0 +1,119 @@
+{
+ "id": "public_health",
+ "number": 8,
+ "label": "Public Health / Epidemiology",
+ "aliases": [
+  "epidemiology",
+  "health",
+  "disease"
+ ],
+ "summary": "Health services and disease patterns by area: catchments, access, rates and trends, always aggregated and protected.",
+ "guidance": "Prioritize privacy, aggregation, catchment areas, accessibility, exposure, service coverage, temporal trends, and safe handling of sensitive locations.",
+ "workflows": [
+  {
+   "id": "ph.access",
+   "title": "Health facility access",
+   "tools": [
+    "calculate_service_area",
+    "classify_facilities_by_access",
+    "population_access_gap",
+    "fetch_worldpop_population"
+   ]
+  },
+  {
+   "id": "ph.trend",
+   "title": "Trends and hotspots",
+   "tools": [
+    "geocode_batch",
+    "analyze_incident_trend",
+    "hotspot_analysis",
+    "generate_chart"
+   ]
+  }
+ ],
+ "tool_priority": [
+  "geocode_batch",
+  "analyze_incident_trend",
+  "calculate_presence_gap",
+  "hotspot_analysis",
+  "aggregate_survey_indicator",
+  "obfuscate_sensitive_points",
+  "generate_chart",
+  "population_access_gap",
+  "classify_facilities_by_access",
+  "calculate_population_in_need",
+  "fetch_worldpop_population",
+  "set_layer_sensitivity"
+ ],
+ "tool_aliases": {
+  "hotspot_analysis": [
+   "where are cases concentrated",
+   "outbreak density"
+  ],
+  "obfuscate_sensitive_points": [
+   "protect patient locations",
+   "blur the points"
+  ]
+ },
+ "task_ids": [],
+ "data_sources": [
+  "worldpop",
+  "hdx",
+  "geocoding"
+ ],
+ "style_profile": "public_health",
+ "layout_templates": [],
+ "readiness": [
+  {
+   "capability": "geocoding and incident trends",
+   "state": "CI-checked",
+   "tool": "analyze_incident_trend"
+  },
+  {
+   "capability": "density surface of cases",
+   "state": "CI-checked",
+   "tool": "hotspot_analysis"
+  },
+  {
+   "capability": "survey indicators with small-number suppression",
+   "state": "CI-checked",
+   "tool": "aggregate_survey_indicator"
+  },
+  {
+   "capability": "sensitive point obfuscation",
+   "state": "CI-checked",
+   "tool": "obfuscate_sensitive_points"
+  },
+  {
+   "capability": "Moran's I and Getis-Ord Gi* tests",
+   "state": "not built",
+   "since": "R2 (1.20.0)"
+  },
+  {
+   "capability": "Kulldorff spatial scan with Monte Carlo",
+   "state": "not built",
+   "since": "R2 (1.20.0)"
+  },
+  {
+   "capability": "rates, relative risk, standardised ratios and smoothing",
+   "state": "not built",
+   "since": "R2 (1.20.0)"
+  },
+  {
+   "capability": "epidemic bulletin layout",
+   "state": "not built",
+   "since": "R2 (1.20.0)"
+  },
+  {
+   "capability": "DHIS2 connector",
+   "state": "not built",
+   "since": "R7 (1.25.0)",
+   "reason": "needs the owner's credentials"
+  }
+ ],
+ "guardrails": [
+  "Never show patient-level points; aggregate or obfuscate.",
+  "Suppress or flag counts below five.",
+  "A density surface is not a statistical test of clustering; say which one was done."
+ ]
+}

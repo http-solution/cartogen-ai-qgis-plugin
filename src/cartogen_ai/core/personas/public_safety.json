@@ -1,0 +1,106 @@
+{
+ "id": "public_safety",
+ "number": 12,
+ "label": "Public Safety / Security",
+ "aliases": [
+  "security",
+  "policing",
+  "emergency services"
+ ],
+ "summary": "Incident patterns and response coverage with lawful, aggregated handling of sensitive locations.",
+ "guidance": "Prioritize lawful data handling, aggregation, incident trends, response coverage, route safety, uncertainty, and avoidance of sensitive-person identification.",
+ "workflows": [
+  {
+   "id": "saf.incidents",
+   "title": "Incident patterns",
+   "tools": [
+    "analyze_incident_trend",
+    "hotspot_analysis",
+    "apply_heatmap_style",
+    "obfuscate_sensitive_points"
+   ]
+  },
+  {
+   "id": "saf.response",
+   "title": "Response coverage and route safety",
+   "tools": [
+    "calculate_service_area",
+    "score_route_incident_risk",
+    "apply_network_barriers"
+   ]
+  }
+ ],
+ "tool_priority": [
+  "hotspot_analysis",
+  "apply_heatmap_style",
+  "score_route_incident_risk",
+  "apply_network_barriers",
+  "obfuscate_sensitive_points",
+  "analyze_incident_trend",
+  "add_incident_point",
+  "calculate_service_area",
+  "find_incident_reports",
+  "fetch_ucdp_conflict_events",
+  "set_layer_sensitivity",
+  "aggregate_data"
+ ],
+ "tool_aliases": {
+  "hotspot_analysis": [
+   "crime density",
+   "where do incidents cluster"
+  ],
+  "obfuscate_sensitive_points": [
+   "generalise locations",
+   "hide exact addresses"
+  ]
+ },
+ "task_ids": [],
+ "data_sources": [
+  "ucdp",
+  "osm"
+ ],
+ "style_profile": "public_safety",
+ "layout_templates": [],
+ "readiness": [
+  {
+   "capability": "incident density surface and trends",
+   "state": "CI-checked",
+   "tool": "hotspot_analysis"
+  },
+  {
+   "capability": "route incident risk and barriers",
+   "state": "CI-checked",
+   "tool": "score_route_incident_risk"
+  },
+  {
+   "capability": "sensitive location obfuscation",
+   "state": "CI-checked",
+   "tool": "obfuscate_sensitive_points"
+  },
+  {
+   "capability": "hotspot tests (Gi*, scan statistic)",
+   "state": "not built",
+   "since": "R2 (1.20.0)"
+  },
+  {
+   "capability": "viewshed",
+   "state": "not built",
+   "since": "R4 (1.22.0)"
+  },
+  {
+   "capability": "patrol brief layout",
+   "state": "not built",
+   "since": "after the profile packages"
+  },
+  {
+   "capability": "3D blast radius",
+   "state": "out of scope",
+   "reason": "the plugin has 2D buffers only"
+  }
+ ],
+ "guardrails": [
+  "Never identify a person; aggregate or generalise locations and say how.",
+  "A density surface shows where incidents were recorded, not where crime is.",
+  "State the bandwidth used in a density map."
+ ]
+}

@@ -1,0 +1,109 @@
+{
+ "id": "transport",
+ "number": 11,
+ "label": "Transport / Mobility",
+ "aliases": [
+  "mobility",
+  "transit",
+  "roads"
+ ],
+ "summary": "Movement and access: travel times and isochrones, accessibility to services, speeds and bottlenecks.",
+ "guidance": "Prioritize network topology, travel time, accessibility, demand locations, mode assumptions, bottlenecks, safety, and route alternatives.",
+ "workflows": [
+  {
+   "id": "tra.access",
+   "title": "Accessibility",
+   "tools": [
+    "calculate_service_area",
+    "classify_facilities_by_access",
+    "population_access_gap"
+   ]
+  },
+  {
+   "id": "tra.network",
+   "title": "Network speed and weak points",
+   "tools": [
+    "estimate_road_speeds",
+    "build_composite_impedance_field",
+    "analyze_critical_links"
+   ]
+  }
+ ],
+ "tool_priority": [
+  "calculate_service_area",
+  "travel_time_matrix",
+  "classify_facilities_by_access",
+  "population_access_gap",
+  "estimate_road_speeds",
+  "analyze_critical_links",
+  "build_composite_impedance_field",
+  "optimize_delivery_route",
+  "location_allocation",
+  "fetch_osm_features",
+  "apply_network_barriers",
+  "find_nearest_features"
+ ],
+ "tool_aliases": {
+  "calculate_service_area": [
+   "isochrone",
+   "how far can you get in 30 minutes"
+  ],
+  "estimate_road_speeds": [
+   "assume speeds by road type"
+  ]
+ },
+ "task_ids": [],
+ "data_sources": [
+  "osm"
+ ],
+ "style_profile": "transport",
+ "layout_templates": [
+  "access_map"
+ ],
+ "readiness": [
+  {
+   "capability": "multi-band isochrones",
+   "state": "CI-checked",
+   "tool": "calculate_service_area"
+  },
+  {
+   "capability": "travel time matrix",
+   "state": "CI-checked",
+   "tool": "travel_time_matrix"
+  },
+  {
+   "capability": "facility access classes and access gaps",
+   "state": "CI-checked",
+   "tool": "population_access_gap"
+  },
+  {
+   "capability": "road speed estimates",
+   "state": "CI-checked",
+   "tool": "estimate_road_speeds"
+  },
+  {
+   "capability": "GTFS ingest and transit accessibility",
+   "state": "not built",
+   "since": "R5 (1.23.0)"
+  },
+  {
+   "capability": "origin-destination desire lines and flow maps",
+   "state": "not built",
+   "since": "R5 (1.23.0)"
+  },
+  {
+   "capability": "walking and cycling speed profiles",
+   "state": "not built",
+   "since": "R5 (1.23.0)"
+  },
+  {
+   "capability": "mobile-phone telemetry",
+   "state": "out of scope",
+   "reason": "privacy: the plugin does not process personal movement data"
+  }
+ ],
+ "guardrails": [
+  "State the mode and the speeds behind every travel time.",
+  "Accessibility results depend on the road network completeness; say when it is OpenStreetMap."
+ ]
+}

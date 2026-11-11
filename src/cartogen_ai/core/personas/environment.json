@@ -1,0 +1,103 @@
+{
+ "id": "environment",
+ "number": 7,
+ "label": "Environment / Natural Resources",
+ "aliases": [
+  "natural resources",
+  "conservation",
+  "land cover"
+ ],
+ "summary": "Land cover, habitat and protected areas: change between dates, classification, suitability and evidence that can be reproduced.",
+ "guidance": "Prioritize habitat, land cover, protected areas, watersheds, pollution/exposure, change detection, conservation constraints, and reproducible evidence.",
+ "workflows": [
+  {
+   "id": "env.change",
+   "title": "Change between two dates",
+   "tools": [
+    "calculate_raster_change_detection",
+    "calculate_change_matrix",
+    "raster_time_series_stats"
+   ]
+  },
+  {
+   "id": "env.classify",
+   "title": "Classify land cover",
+   "tools": [
+    "supervised_classification",
+    "unsupervised_classification",
+    "zonal_statistics"
+   ]
+  }
+ ],
+ "tool_priority": [
+  "calculate_raster_change_detection",
+  "calculate_change_matrix",
+  "raster_time_series_stats",
+  "supervised_classification",
+  "unsupervised_classification",
+  "weighted_overlay_analysis",
+  "buffer_analysis",
+  "intersect_layers",
+  "zonal_statistics",
+  "extract_features_from_imagery",
+  "create_zoning_map",
+  "load_stac_assets"
+ ],
+ "tool_aliases": {
+  "calculate_change_matrix": [
+   "land cover change",
+   "gain and loss by class"
+  ],
+  "supervised_classification": [
+   "train a classifier",
+   "classify from training polygons"
+  ]
+ },
+ "task_ids": [],
+ "data_sources": [
+  "stac_search"
+ ],
+ "style_profile": "environment",
+ "layout_templates": [],
+ "readiness": [
+  {
+   "capability": "two-date change detection",
+   "state": "CI-checked",
+   "tool": "calculate_raster_change_detection"
+  },
+  {
+   "capability": "from-to change matrix",
+   "state": "CI-checked",
+   "tool": "calculate_change_matrix"
+  },
+  {
+   "capability": "time-series statistics and trend",
+   "state": "CI-checked",
+   "tool": "raster_time_series_stats"
+  },
+  {
+   "capability": "supervised and unsupervised classification",
+   "state": "CI-checked",
+   "tool": "supervised_classification"
+  },
+  {
+   "capability": "weighted-overlay suitability",
+   "state": "CI-checked",
+   "tool": "weighted_overlay_analysis"
+  },
+  {
+   "capability": "ESA WorldCover and protected-area layers (WDPA)",
+   "state": "not built",
+   "since": "R7 (1.25.0)"
+  },
+  {
+   "capability": "change report layout and land-cover palettes",
+   "state": "not built",
+   "since": "after the profile packages (R3-6)"
+  }
+ ],
+ "guardrails": [
+  "Habitat suitability is a documented weighted overlay with stated weights, not a species model.",
+  "Report class accuracy limits when a classification has no reference data."
+ ]
+}

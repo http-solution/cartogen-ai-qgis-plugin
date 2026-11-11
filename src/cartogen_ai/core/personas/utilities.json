@@ -1,0 +1,100 @@
+{
+ "id": "utilities",
+ "number": 10,
+ "label": "Utilities / Energy / Water",
+ "aliases": [
+  "energy",
+  "water",
+  "network assets"
+ ],
+ "summary": "Network assets and service: topology checks, nearest assets, service areas and outages.",
+ "guidance": "Prioritize network assets, service areas, outages, maintenance priority, dependencies, reliability, and field-verifiable asset records.",
+ "workflows": [
+  {
+   "id": "uti.network",
+   "title": "Check and understand a network",
+   "tools": [
+    "diagnose_topology",
+    "find_nearest_features",
+    "calculate_service_area",
+    "analyze_critical_links"
+   ]
+  }
+ ],
+ "tool_priority": [
+  "diagnose_topology",
+  "find_nearest_features",
+  "calculate_service_area",
+  "apply_network_barriers",
+  "analyze_critical_links",
+  "optimal_hub_siting",
+  "spatial_join",
+  "buffer_analysis",
+  "export_layers_to_dxf",
+  "add_layer_from_path",
+  "reproject_layer",
+  "field_statistics"
+ ],
+ "tool_aliases": {
+  "diagnose_topology": [
+   "find dangles",
+   "disconnected pipes"
+  ],
+  "export_layers_to_dxf": [
+   "export to cad",
+   "send to autocad"
+  ]
+ },
+ "task_ids": [],
+ "data_sources": [
+  "osm"
+ ],
+ "style_profile": "utilities",
+ "layout_templates": [],
+ "readiness": [
+  {
+   "capability": "topology checks",
+   "state": "CI-checked",
+   "tool": "diagnose_topology"
+  },
+  {
+   "capability": "nearest assets and service areas",
+   "state": "CI-checked",
+   "tool": "find_nearest_features"
+  },
+  {
+   "capability": "critical links in a network",
+   "state": "CI-checked",
+   "tool": "analyze_critical_links"
+  },
+  {
+   "capability": "DXF export for CAD",
+   "state": "CI-checked",
+   "tool": "export_layers_to_dxf"
+  },
+  {
+   "capability": "upstream and downstream trace with valve isolation",
+   "state": "not built",
+   "since": "R5 (1.23.0)"
+  },
+  {
+   "capability": "network topology enforcement (dangles, disconnected parts)",
+   "state": "not built",
+   "since": "R5 (1.23.0)"
+  },
+  {
+   "capability": "utility colour code look (APWA default)",
+   "state": "not built",
+   "since": "after the profile packages"
+  },
+  {
+   "capability": "SCADA and live meters",
+   "state": "out of scope",
+   "reason": "live telemetry is outside what the plugin connects to"
+  }
+ ],
+ "guardrails": [
+  "Asset positions are as accurate as the source data; say when a layer is a sketch.",
+  "A traced segment is a model result, not a field-verified isolation plan."
+ ]
+}

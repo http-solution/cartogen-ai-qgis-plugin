@@ -132,7 +132,7 @@ One list to follow up and plan from. It replaces the session task list (101 entr
 
 | ID | Task | Why | Who | Depends on | Size | Pri | Status | Source |
 |---|---|---|---|---|---|---|---|---|
-| PR-R1 | 1.19.0 Profiles: persona pack loader and picker with honest readiness, router re-rank, 52 seed tasks, catalogue generator, style profiles skeleton, data-source catalogue. | Scoped with acceptance and known-answer tests in PLAN-023; none started. | Claude | OWN-7 | L | P3 | Decision needed | PLAN-023 |
+| PR-R1 | 1.19.0 Profiles: persona pack loader and picker with honest readiness, router re-rank, 52 seed tasks, catalogue generator, style profiles skeleton, data-source catalogue. | Scoped with acceptance and known-answer tests in PLAN-023; none started. | Claude | OWN-7 | L | P3 | In progress | PLAN-023 |
 | PR-R2 | 1.20.0 Spatial statistics: Moran's I, Getis-Ord Gi*, Kulldorff scan with Monte Carlo, rates, relative risk, SMR and smoothing, small-number flag. | Scoped with acceptance and known-answer tests in PLAN-023; none started. | Claude | OWN-14 | L | P3 | Blocked | PLAN-023 |
 | PR-R3 | 1.21.0 Indices, time series, STAC: SAVI/EVI/NDMI/NBR, STAC load, multi-date statistics and anomaly, from-to change matrix, management zones, WorldCover, CHIRPS. | Scoped with acceptance and known-answer tests in PLAN-023; none started. | Claude | - | L | P3 | In progress | PLAN-023 |
 | PR-R4 | 1.22.0 Terrain, flood, engineering: cut and fill, HAND, bathtub flood footprint, viewshed, engineering sheet, mobility cost surface. | Scoped with acceptance and known-answer tests in PLAN-023; none started. | Claude | OWN-14 | L | P3 | Blocked | PLAN-023 |
@@ -187,12 +187,11 @@ Source: the owner's analysis document of nine flagship QGIS AI plugins, checked 
 
 | Status | Rows |
 |---|---|
-| In progress | 54 |
+| In progress | 55 |
 | Closed | 29 |
 | Blocked | 15 |
 | Waiting on you | 10 |
 | Closed (record) | 1 |
-| Decision needed | 1 |
 | Not started | 1 |
 | **Total** | **111** |
 
@@ -446,3 +445,4 @@ Newest last. One line per status change; written by `tools/master_list.py set`.
 - 2026-11-11: PR-R11 In progress -> In progress. R11-1..R11-5 merged or built (R11-5 close-out PR open: 28 algorithms reviewed, all declined with reasons); R11-6 not started
 - 2026-11-11: PR-R11 In progress -> In progress. R11-1..R11-6 all built (R11-6 call-arity check PR open); hand rows C12..C16 and R11-H1..H3 owed on real data; importphotos tool carried as a candidate
 - 2026-11-11: PR-R3 In progress -> In progress. Merged: R3-1 (PR 593), R3-3 (594), R3-4 (595); R3-5 and R3-2 (STAC load, Sentinel-2 only: Landsat and the DEM need AWS credentials) built, CI only (R3-2 PR open). R3-6 looks and layouts NOT built: needs R1-7 style profiles and R1 persona files, which are not started (assessed 2026-11-11, recommendation in PLAN-023).
+- 2026-11-11: PR-R1 Decision needed -> In progress. Owner go 2026-11-11. R1-1 persona schema, loader and 15 files built with R1-9's text check (PR open); R1-2..R1-8 not started

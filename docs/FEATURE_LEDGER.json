@@ -2048,6 +2048,26 @@
     "hand_row": "C17-stac-load"
   },
   {
+    "id": "persona-pack",
+    "feature": "the persona pack: 15 JSON files in src/cartogen_ai/core/personas/ (one per kind of user, numbered as the refinement persona list) that say for each persona its summary and guidance, up to 12 tools the router may rank higher (never removing any), workflows, data-source and style ids, and a readiness list where every capability is CI-checked (the tool exists and an automatic test covers it), not built (with the release of PLAN-023 that will deliver it), out of scope or declined (with the reason); a checker (personas.validate) that is proved able to fail on each kind of fault: missing field, more than 12 or repeated priority tools, an unregistered tool anywhere, an unknown task id, an invalid state, CI-checked or built without a tool, not built without a release, out of scope or declined without a reason, built without a live run that saw the feature working, empty guardrails; no file marks anything built yet (no live run has recorded it), and persona 15 carries the agreed sentence that it is not built as written and that classified data must never be used",
+    "issues": [],
+    "since": "1.18.6",
+    "sources": [
+      "src/cartogen_ai/core/personas/__init__.py",
+      "src/cartogen_ai/core/personas/general.json",
+      "src/cartogen_ai/core/personas/defense_intel.json"
+    ],
+    "guards": [
+      "tests/test_personas.py::TestSchema::test_the_fifteen_ids_equal_the_refinement_persona_list_in_order",
+      "tests/test_personas.py::TestSchema::test_every_persona_passes_the_checker_against_the_real_registry",
+      "tests/test_personas.py::TestSchema::test_no_file_claims_a_live_run_it_cannot_show",
+      "tests/test_personas.py::TestTheCheckerCatchesEachFault::test_each_fault_is_reported_with_the_persona_and_the_cause",
+      "tests/test_personas.py::TestPersonaFifteen::test_the_readiness_text_is_the_agreed_sentence"
+    ],
+    "hand_verified": "not applicable yet: data files and a checker with no screen of their own; the picker and readiness panel that show them to a person are R1-3, whose hand rows R1-H1 to R1-H3 will cover them",
+    "hand_row": "none"
+  },
+  {
     "id": "add-layer-from-path-forwards-sublayer",
     "feature": "asking add_layer_from_path for one named layer of a multi-layer file (GeoPackage, FileGDB, KML, GPX, SpatiaLite) reaches the tool through the orchestrator, so that layer opens instead of the first one",
     "issues": [],
