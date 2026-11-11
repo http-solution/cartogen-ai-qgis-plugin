@@ -2044,7 +2044,7 @@
       "tests/test_stac_load_tool_live.py::TestLoadStacAssetsLive::test_refusals_that_need_no_network",
       "tests/test_stac_load_tool_live.py::TestLoadStacAssetsLive::test_preview_then_confirmed_load_of_one_small_window"
     ],
-    "hand_verified": "not verified: CI only; the rules (addresses, sizes, limits, provenance) are pure and tested offline against one real item recorded from the service on 2026-11-11; the real download runs in the live job and SKIPS, not fails, when the CI runner cannot reach the catalogue or the image store; never run by a person, never on a real study area, and the Windows behaviour of GDAL range reads and the proxy settings of a user's network are unknown (GDAL's own HTTP stack does not use QGIS's proxy or authentication settings)",
+    "hand_verified": "not verified: CI only; the rules (addresses, sizes, limits, provenance) are pure and tested offline against one real item recorded from the service on 2026-11-11; the real download ran in the live job on 2026-11-11 (PR 617: two windows of 334 x 332 cells, about 170 KB each, from scene S2A_37MBU_20261110_0_L2A, read back as EPSG:32737 single-band GeoTIFFs; the test skips, not fails, when a runner cannot reach the services); never run by a person, never on a real study area, and the Windows behaviour of GDAL range reads and the proxy settings of a user's network are unknown (GDAL's own HTTP stack does not use QGIS's proxy or authentication settings)",
     "hand_row": "C17-stac-load"
   },
   {
