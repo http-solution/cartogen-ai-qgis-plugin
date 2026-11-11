@@ -20,6 +20,8 @@ TIMEOUT_SECONDS = 60
 # Raster-only algorithms whose own live test supplies a raster and the options the vector sweep below cannot guess: native:relief needs a DEM and either relief colours or
 # AUTO_COLORS (the first CI run of PLAN-023 R11-4 failed it here with 'Specify relief colors or activate Generate relief classes automatically'). It runs in tests/test_processing_e2c_live.py.
 OWN_LIVE_TEST = {"native:relief"}
+# PLAN-023 R11-5: the file-information reports open the layer's SOURCE FILE, which a memory test layer does not have; tests/test_processing_plots_info_live.py gives them file-backed layers.
+OWN_LIVE_TEST |= {"gdal:gdalinfo", "gdal:ogrinfo", "gdal:ogrinfojson"}
 
 
 def _run_one(alg_id):

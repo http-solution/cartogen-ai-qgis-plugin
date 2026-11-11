@@ -596,7 +596,28 @@ E2C_FAMILY = {
     "native:relief": "Relief (shaded relief raster)",
 }
 ALLOWED_ALGORITHM_IDS = frozenset(set(ALLOWED_ALGORITHM_IDS) | set(E2C_FAMILY))
-FAMILY_NAMES = {**GEOMETRY_FAMILY, **TABLE_FAMILY, **ANALYSIS_FAMILY, **EXPRESSION_FAMILY, **RASTER_FAMILY, **MIXED_FAMILY, **GRASS_FAMILY, **MESH_FAMILY, **REPORT_FAMILY, **FILE_VECTOR_FAMILY, **E2C_FAMILY}
+# PLAN-023 R11-5 (PLAN-006 E2b and E2a), from the CI probe of 2026-11-11 (tests/test_plot_info_probe_live.py, QGIS 4.2.2, plotly 5.20.0): the eight chart algorithms each wrote a complete HTML page
+# (about 8.6 MB, the plotting library is inside it), and three file-information algorithms wrote their text report. The chart is a temporary HTML file whose path is reported (nothing is opened
+# automatically); an information report also comes back as a bounded text excerpt (INFO_REPORT_ALGORITHM_IDS). Left out ON PURPOSE: gdal:dataset_identify ("GDAL 3.13 or later is needed to run this
+# algorithm" in the CI image) and native:generateelevationprofileimage (the probe gave it no line to profile; it is decided in its own step).
+PLOT_FAMILY = {
+    "qgis:barplot": "Bar plot",
+    "qgis:boxplot": "Box plot",
+    "qgis:meanandstandarddeviationplot": "Mean and standard deviation plot",
+    "qgis:polarplot": "Polar plot",
+    "qgis:rasterlayerhistogram": "Raster layer histogram",
+    "qgis:scatter3dplot": "Vector layer scatterplot 3D",
+    "qgis:vectorlayerhistogram": "Vector layer histogram",
+    "qgis:vectorlayerscatterplot": "Vector layer scatterplot",
+}
+INFO_FAMILY = {
+    "gdal:gdalinfo": "Raster information",
+    "gdal:ogrinfo": "Vector information",
+    "gdal:ogrinfojson": "Vector information (JSON)",
+}
+INFO_REPORT_ALGORITHM_IDS = frozenset(INFO_FAMILY)
+ALLOWED_ALGORITHM_IDS = frozenset(set(ALLOWED_ALGORITHM_IDS) | set(PLOT_FAMILY) | set(INFO_FAMILY))
+FAMILY_NAMES = {**PLOT_FAMILY, **INFO_FAMILY, **GEOMETRY_FAMILY, **TABLE_FAMILY, **ANALYSIS_FAMILY, **EXPRESSION_FAMILY, **RASTER_FAMILY, **MIXED_FAMILY, **GRASS_FAMILY, **MESH_FAMILY, **REPORT_FAMILY, **FILE_VECTOR_FAMILY, **E2C_FAMILY}
 
 # Algorithms whose OUTPUT is a RASTER FILE, not a vector sink. "memory:" is not a valid raster destination, and a raster
 # result comes back as a file path, not a layer: before 2026-10-01 these ran and the tool reported "no new layer output".

@@ -10,6 +10,18 @@ Each phrase is a bag of words, not prose: order does not matter. Keep them short
 """
 
 NOTES = {
+    # --- PLAN-023 R11-5 (2026-11-11): charts and file-information reports
+    "qgis:barplot": "bar chart bars of values per category plot graph of a field by name",
+    "qgis:boxplot": "box plot whisker quartiles median spread of values by category chart",
+    "qgis:meanandstandarddeviationplot": "mean and standard deviation chart error bars average spread by category",
+    "qgis:polarplot": "polar chart radar circular plot angle and radius values",
+    "qgis:rasterlayerhistogram": "histogram of raster values distribution of cell values chart of the dem",
+    "qgis:vectorlayerhistogram": "histogram of a field distribution of values chart frequency bins",
+    "qgis:vectorlayerscatterplot": "scatter plot of one field against another correlation chart xy points",
+    "qgis:scatter3dplot": "three dimensional scatter plot of three fields 3d chart",
+    "gdal:gdalinfo": "file information of a raster projection extent size cell size bands driver metadata what is in this file",
+    "gdal:ogrinfo": "file information of a vector layer file projection extent feature count fields driver what is in this file",
+    "gdal:ogrinfojson": "file information of a vector layer file as json fields extent projection driver feature count",
     # --- PLAN-023 R11-4 (2026-11-11): the two PLAN-006 E2c exports that make a plain layer
     "native:pointstopath": "connect points in order into a line track path route gps field points sequence order by field",
     "native:relief": "shaded relief hillshade colour terrain elevation map relief raster with colours",

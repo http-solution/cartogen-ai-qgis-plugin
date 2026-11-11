@@ -1967,6 +1967,29 @@
     "hand_row": "C15-points-to-path-and-relief"
   },
   {
+    "id": "file-output-wave-e2b-e2a-charts-and-info",
+    "feature": "the eight QGIS chart algorithms (bar, box, mean and deviation, polar, raster and vector histograms, scatter, 3D scatter) and the three file-information algorithms (raster, vector, vector as JSON) are approved Processing algorithms run by the generic tool: a chart is written as a complete HTML page to a temporary file the plugin chose (a caller-supplied path is ignored) and its path is reported, nothing is opened automatically; an information report is also returned as a text excerpt of at most 4,000 characters of the plugin's own temporary file with the <pre> wrapper removed and a truncated flag; gdal:dataset_identify is declined (needs GDAL 3.13, not in the CI image) and the elevation profile image is left open for its own decision; known answers: the raster information of the 40 by 40 test dem says 'Driver: GTiff' and 'Size is 40, 40', the vector information names GPKG, and every chart page contains plotly",
+    "issues": [],
+    "since": "1.18.6",
+    "sources": [
+      "src/cartogen_ai/core/agent/tools/_processing_allowlist.py",
+      "src/cartogen_ai/core/agent/tools/processing_allowlist_tools.py",
+      "docs/plans/PLAN-005-dispositions.csv"
+    ],
+    "guards": [
+      "tests/test_report_excerpt.py::TestExcerpt::test_the_pre_wrapper_and_entities_are_removed",
+      "tests/test_report_excerpt.py::TestExcerpt::test_a_long_report_is_cut_at_the_limit_and_says_so",
+      "tests/test_report_excerpt.py::TestFamilies::test_the_two_ids_the_probe_did_not_clear_are_not_approved",
+      "tests/test_task_matcher_named_tools.py::TestDashboardRequestKeepsItsTask::test_even_a_top_scoring_algorithm_does_not_take_a_dashboard_request_from_its_task",
+      "tests/test_processing_plots_info_live.py::TestPlotsAndInfoLive::test_every_chart_writes_a_complete_temporary_page",
+      "tests/test_processing_plots_info_live.py::TestPlotsAndInfoLive::test_a_chart_path_the_caller_supplies_is_ignored",
+      "tests/test_processing_plots_info_live.py::TestPlotsAndInfoLive::test_raster_information_names_the_driver_and_the_size",
+      "tests/test_processing_plots_info_live.py::TestPlotsAndInfoLive::test_vector_information_in_text_and_in_json"
+    ],
+    "hand_verified": "not verified: CI only; the excerpt and the family lists are tested offline, the real chart and information runs happen in the live job on small generated layers (the CI probe of 2026-11-11 showed each chart page is about 8.6 MB); never a chart of real data, never opened in a browser by a person, and information reports of memory layers do not work (they need a file-backed layer)",
+    "hand_row": "C16-charts-and-file-info"
+  },
+  {
     "id": "add-layer-from-path-forwards-sublayer",
     "feature": "asking add_layer_from_path for one named layer of a multi-layer file (GeoPackage, FileGDB, KML, GPX, SpatiaLite) reaches the tool through the orchestrator, so that layer opens instead of the first one",
     "issues": [],

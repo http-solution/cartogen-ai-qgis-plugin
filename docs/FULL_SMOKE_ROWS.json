@@ -817,6 +817,30 @@
    }
   },
   {
+   "id": "C16-charts-and-file-info",
+   "issue": "S",
+   "session": "C",
+   "title": "Charts and file information",
+   "covers": [
+    "file-output-wave-e2b-e2a-charts-and-info"
+   ],
+   "needs": "person and a real model",
+   "starts_from": "A new empty project; a fresh chat, 'Save an evidence folder for each request' ticked; load smoke_zones from smoke_data.gpkg and any elevation GeoTIFF as dem",
+   "do": "Send in order: (1) make a histogram of the dem values  (2) make a bar chart of smoke_zones by name  (3) tell me what projection and extent the dem file has  (4) what are the fields and feature count of the smoke_zones file.",
+   "expect": "(1) and (2) each give a path to a temporary page; opening it in a browser shows the chart, and the reply does not claim it opened by itself. (3) the reply quotes the projection, size and extent from the file report. (4) the reply names the real fields and the feature count.",
+   "evidence": "snap('C16'). Screenshot of each chart in the browser -> results\\screens\\C16-chart1.png and C16-chart2.png.",
+   "files": [
+    "smoke_data.gpkg"
+   ],
+   "pass_if": "all as Expect.",
+   "cost": "four short requests",
+   "layers": {
+    "smoke_data.gpkg": [
+     "smoke_zones"
+    ]
+   }
+  },
+  {
    "id": "D1-fetch-live",
    "issue": "S",
    "session": "D",
