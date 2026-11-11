@@ -53,9 +53,9 @@ def tools_named(persona):
     return named | {r["tool"] for r in persona["readiness"] if r.get("tool")}
 
 
-def validate(persona, tool_names=None, task_ids=None, working_features=None):
+def validate(persona, tool_names=None, task_ids=None, working_features=None, style_profile_ids=None):
     """Problems with one persona dict as a list of readable strings (empty = fine). `tool_names` is the set of registered tools, `task_ids` the task-register ids and `working_features` the
-    ledger features a live run saw working; a check that needs one is skipped when it is None. Pure."""
+    ledger features a live run saw working and `style_profile_ids` the keys of representation/style_profiles.PROFILES (R1-7); a check that needs one is skipped when it is None. Pure."""
     pid = persona.get("id", "?")
     problems = [f"{pid}: missing field '{key}'" for key in REQUIRED if key not in persona]
     if problems:
@@ -69,6 +69,8 @@ def validate(persona, tool_names=None, task_ids=None, working_features=None):
     named += [r["tool"] for r in persona["readiness"] if r.get("tool")]
     if tool_names is not None:
         problems += [f"{pid}: tool '{t}' is not a registered tool" for t in sorted(set(named)) if t not in tool_names]
+    if style_profile_ids is not None and persona["style_profile"] not in style_profile_ids:
+        problems.append(f"{pid}: style_profile '{persona['style_profile']}' is not in the style profile registry")
     if task_ids is not None:
         problems += [f"{pid}: task id '{t}' is not in the task register" for t in persona["task_ids"] if t not in task_ids]
     for w in persona["workflows"]:

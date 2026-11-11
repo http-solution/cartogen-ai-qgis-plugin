@@ -3104,6 +3104,27 @@
     ],
     "hand_verified": "not verified: CI only; an offline check of the registry against the register and the persona files",
     "hand_row": "none: an offline check of the tool list against the task register and persona files; there is nothing to run in QGIS"
+  },
+  {
+    "id": "style-profiles",
+    "feature": "the persona style registry: core/representation/style_profiles.py holds colour-blind-safe palettes (Okabe-Ito re-ordered, the utility colour code as our screen approximation, five ColorBrewer sequential and three diverging ramps) and, for each of the 14 style profile ids the persona files name, a choice per role (categorical, intensity, difference) of palette, class count, label units and the convention behind it, with a 'placeholder' status and a reason where a published palette is still to be chosen (urban land use, environment land cover); core/representation/colour_rules.py does the colour maths (CIEDE2000 reproduced against the four published Sharma test pairs, colour-vision simulation of deuteranopia, protanopia and tritanopia); tests enforce that every categorical palette's neighbours stay at CIEDE2000 >= 10 in normal vision and all three simulations, that no palette puts red beside green, that ramp steps stay at >= 5, that every persona's style_profile exists and every profile is used, and that each rule can fail on a synthetic palette; nothing reads the registry yet, so no map changes",
+    "issues": [],
+    "since": "1.18.6",
+    "sources": [
+      "src/cartogen_ai/core/representation/style_profiles.py",
+      "src/cartogen_ai/core/representation/colour_rules.py",
+      "src/cartogen_ai/core/personas/__init__.py"
+    ],
+    "guards": [
+      "tests/test_style_profiles.py::TestColourMathAgainstPublishedAnswers::test_ciede2000_reproduces_the_published_test_pairs",
+      "tests/test_style_profiles.py::TestEveryPalette::test_categorical_neighbours_stay_apart_in_normal_vision_and_all_three_simulations",
+      "tests/test_style_profiles.py::TestEveryPalette::test_no_palette_puts_red_beside_green",
+      "tests/test_style_profiles.py::TestTheRulesCanFail::test_red_beside_green_is_caught",
+      "tests/test_style_profiles.py::TestRegistry::test_every_persona_names_a_registered_style_profile",
+      "tests/test_style_profiles.py::TestRegistry::test_every_profile_has_every_role_with_a_matching_palette_kind"
+    ],
+    "hand_verified": "not verified: CI only; the colour maths is checked against published answers and the rules offline, but no person has looked at a palette on a real map and nothing draws from the registry yet",
+    "hand_row": "none: an offline registry of colour choices that nothing draws from yet; the picture check belongs to the package that first uses it (R3-6)"
   }
 ]
 }
