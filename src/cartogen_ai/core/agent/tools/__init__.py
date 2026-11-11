@@ -30,6 +30,7 @@ from . import identify_tool
 from . import layer_display_tools
 from . import line_edit_tools
 from . import parts_edit_tool
+from . import model_tool
 from . import project_settings_tools
 from . import raster_inspect_tools
 from . import renderer_tool
@@ -141,6 +142,7 @@ __all__ = [
     "map_tools",
     "map_view_tools",
     "mcda_tools",
+    "model_tool",
     "monitoring_tools",
     "multimodal_remote_sensing",
     "new_layer_tools",
