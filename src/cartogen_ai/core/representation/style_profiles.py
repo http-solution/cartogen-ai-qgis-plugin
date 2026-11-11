@@ -21,6 +21,15 @@ PALETTES = {
     "utility_colour_code": {"kind": "categorical", "source": "approximation of the APWA uniform colour code for screens (water, sewer, gas, electric, communications, reclaimed)",
                             "colours": ["#0066CC", "#2E8B57", "#F2D600", "#E00000", "#F28C00", "#7B3FA0"],
                             "labels": ["water", "sewer", "gas", "electric", "communications", "reclaimed water"]},
+    # R3-6. The official ESA WorldCover legend: colours fixed by the published product (2020 v100 and 2021 v200 use the same legend), so they are NOT altered to pass the colour-blind rule. Instead the weak pairs are
+    # recorded in `known_weak` (every pair under CIEDE2000 10 in normal vision or a simulated deficiency, not only neighbours) and a test keeps that record exact; the look always puts the class NAME in the legend, never colour alone.
+    "esa_worldcover": {"kind": "categorical", "source": "ESA WorldCover legend (official class colours)", "standard": True,
+                       "codes": [10, 20, 30, 40, 50, 60, 70, 80, 90, 95, 100],
+                       "labels": ["Tree cover", "Shrubland", "Grassland", "Cropland", "Built-up", "Bare / sparse vegetation", "Snow and ice", "Permanent water bodies", "Herbaceous wetland", "Mangroves", "Moss and lichen"],
+                       "colours": ["#006400", "#FFBB22", "#FFFF4C", "#F096FF", "#FA0000", "#B4B4B4", "#F0F0F0", "#0064C8", "#0096A0", "#00CF75", "#FAE6A0"],
+                       "known_weak": [["Tree cover", "Built-up", "protanopia"], ["Shrubland", "Mangroves", "protanopia"], ["Grassland", "Snow and ice", "tritanopia"], ["Mangroves", "Moss and lichen", "protanopia"]]},
+    # our own choice (not a published standard): orange for loss and purple for gain, so neither is red or green
+    "change_classes": {"kind": "categorical", "source": "Cartogen AI choice: loss, stable, gain without red or green", "codes": [-1, 0, 1], "labels": ["loss", "stable", "gain"], "colours": ["#E66101", "#CCCCCC", "#5E3C99"]},
     "Blues": {"kind": "sequential", "source": "ColorBrewer", "colours": ["#EFF3FF", "#BDD7E7", "#6BAED6", "#3182BD", "#08519C"]},
     "YlOrRd": {"kind": "sequential", "source": "ColorBrewer", "colours": ["#FFFFB2", "#FECC5C", "#FD8D3C", "#F03B20", "#BD0026"]},
     "Greens": {"kind": "sequential", "source": "ColorBrewer", "colours": ["#EDF8E9", "#BAE4B3", "#74C476", "#31A354", "#006D2C"]},

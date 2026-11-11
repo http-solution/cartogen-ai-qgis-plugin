@@ -72,7 +72,7 @@ class TestEveryPalette(unittest.TestCase):
     def test_every_palette_has_valid_hex_colours_and_a_known_kind(self):
         for name, palette in sp.PALETTES.items():
             self.assertIn(palette["kind"], ("categorical", "sequential", "diverging"), name)
-            self.assertGreaterEqual(len(palette["colours"]), 5 if palette["kind"] != "categorical" else 6, name)
+            self.assertGreaterEqual(len(palette["colours"]), 5 if palette["kind"] != "categorical" else (3 if "labels" in palette else 6), name)
             self.assertEqual(len(set(palette["colours"])), len(palette["colours"]), name)
             for colour in palette["colours"]:
                 cr.hex_to_rgb(colour)
@@ -83,8 +83,31 @@ class TestEveryPalette(unittest.TestCase):
 
     def test_categorical_neighbours_stay_apart_in_normal_vision_and_all_three_simulations(self):
         for name, palette in sp.PALETTES.items():
-            if palette["kind"] == "categorical":
+            if palette["kind"] == "categorical" and not palette.get("standard"):
                 self.assertEqual(cr.weak_neighbours(palette["colours"], MIN_CATEGORICAL), [], name)
+
+    def test_a_published_standard_palette_is_kept_as_published_and_its_weak_pairs_are_recorded_exactly(self):
+        # R3-6: the ESA WorldCover legend cannot be re-coloured, so every pair that falls under 10 (neighbours or not, normal vision or a simulation) is listed in the palette, and this test fails if the list and the maths disagree
+        standards = {n: p for n, p in sp.PALETTES.items() if p.get("standard")}
+        self.assertIn("esa_worldcover", standards)
+        for name, palette in standards.items():
+            labels, colours, found = palette["labels"], palette["colours"], set()
+            for i in range(len(colours)):
+                for j in range(i + 1, len(colours)):
+                    for kind in cr.CVD_MATRICES:
+                        if cr.colour_difference(colours[i], colours[j], kind) < MIN_CATEGORICAL:
+                            found.add((labels[i], labels[j], kind))
+                    if cr.colour_difference(colours[i], colours[j]) < MIN_CATEGORICAL:
+                        found.add((labels[i], labels[j], None))
+            self.assertEqual(found, {tuple(x) for x in palette["known_weak"]}, name)
+            self.assertEqual(cr.red_beside_green(colours), [], name)
+
+    def test_a_standard_palette_names_every_class_so_colour_is_never_the_only_carrier(self):
+        for name, palette in sp.PALETTES.items():
+            if palette.get("standard"):
+                self.assertEqual(len(palette["labels"]), len(palette["colours"]), name)
+                self.assertEqual(len(palette["codes"]), len(palette["colours"]), name)
+                self.assertEqual(len(set(palette["labels"])), len(palette["labels"]), name)
 
     def test_ramp_steps_stay_distinguishable(self):
         for name, palette in sp.PALETTES.items():

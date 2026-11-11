@@ -60,13 +60,16 @@
   "42.01",
   "42.02",
   "42.03",
-  "42.04"
+  "42.04",
+  "42.05"
  ],
  "data_sources": [
   "stac_search"
  ],
  "style_profile": "agriculture",
- "layout_templates": [],
+ "layout_templates": [
+  "field_report"
+ ],
  "readiness": [
   {
    "capability": "Sentinel-2 scene search and band download for an area",
@@ -94,9 +97,14 @@
    "tool": "create_zoning_map"
   },
   {
-   "capability": "field report layout and index class looks",
+   "capability": "field report layout (index readings with dates and units, a reading guide, and a note that they are not a yield or rate recommendation)",
+   "state": "CI-checked",
+   "tool": "create_print_layout"
+  },
+  {
+   "capability": "index class and management-zone looks drawn on a raster (the class ranges, units and 3 to 5 zone legend text exist and are tested; nothing paints them yet)",
    "state": "not built",
-   "since": "after the profile packages (R3-6)"
+   "since": "after R3-6 (needs a discrete colour shader)"
   },
   {
    "capability": "rainfall and climate grids (CHIRPS, ERA5)",

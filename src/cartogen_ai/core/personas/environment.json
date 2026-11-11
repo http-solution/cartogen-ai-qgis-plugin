@@ -27,6 +27,13 @@
     "unsupervised_classification",
     "zonal_statistics"
    ]
+  },
+  {
+   "id": "env.look",
+   "title": "Official colours for land cover and change",
+   "tools": [
+    "apply_land_cover_look"
+   ]
   }
  ],
  "tool_priority": [
@@ -57,13 +64,17 @@
   "43.01",
   "43.02",
   "43.03",
-  "43.04"
+  "43.04",
+  "43.05",
+  "43.06"
  ],
  "data_sources": [
   "stac_search"
  ],
  "style_profile": "environment",
- "layout_templates": [],
+ "layout_templates": [
+  "change_report"
+ ],
  "readiness": [
   {
    "capability": "two-date change detection",
@@ -96,9 +107,14 @@
    "since": "R7 (1.25.0)"
   },
   {
-   "capability": "change report layout and land-cover palettes",
-   "state": "not built",
-   "since": "after the profile packages (R3-6)"
+   "capability": "change report layout (change figures, a reading guide for loss, stable and gain, and a screening-not-survey note)",
+   "state": "CI-checked",
+   "tool": "create_print_layout"
+  },
+  {
+   "capability": "official ESA WorldCover class colours, loss/stable/gain colours and a protected-area hatch on a layer you already have",
+   "state": "CI-checked",
+   "tool": "apply_land_cover_look"
   }
  ],
  "guardrails": [

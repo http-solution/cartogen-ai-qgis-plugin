@@ -87,6 +87,20 @@ SITREP_MAX_FIGURES = 8
 SITREP_HANDLING = ("Figures are estimates from the sources listed, not verified counts. Results are shown at area level; do not publish "
                    "exact locations of people or sensitive sites from this map.")
 
+# R3-6: the two report templates reuse the sitrep text panel (the same fitting rules and the same figure check) with their own headings and their own standing note. A report kind is {template: (summary heading,
+# figures heading, guide text, note heading, standing note)}; 'sitrep' keeps the words it always had.
+FIELD_REPORT_NOTE = ("Index values describe what the satellite saw on the dates stated. They are not a yield forecast, a seed, fertiliser or chemical rate, or an agronomic recommendation: check them in the field.")
+CHANGE_REPORT_NOTE = ("Change classes come from two dates of imagery or two land-cover maps. This is a screening of where change may have happened, not a survey: map accuracy and cloud affect it, so check the places that matter on the ground.")
+FIELD_REPORT_GUIDE = "Colours show the index classes in the legend, by the value ranges and units given there. Zones, where shown, are labelled with their mean index value."
+CHANGE_REPORT_GUIDE = "Orange marks loss, grey marks stable and purple marks gain between the two dates; the legend names every class."
+REPORT_KINDS = {
+    "sitrep": ("SITUATION", "KEY FIGURES", None, "HANDLING", SITREP_HANDLING),
+    "field_report": ("FIELD", "INDEX READINGS", FIELD_REPORT_GUIDE, "NOTE", FIELD_REPORT_NOTE),
+    "change_report": ("CHANGE", "CHANGE FIGURES", CHANGE_REPORT_GUIDE, "NOTE", CHANGE_REPORT_NOTE),
+}
+REPORT_TEMPLATES = tuple(REPORT_KINDS)
+
+
 
 def normalise_key_figures(key_figures):
     """[(label, value, source-or-'')] from a list of {label, value, source?} dicts, in order, dropping anything without both a label and a
@@ -176,7 +190,7 @@ def _shorten(text, limit):
     return text[:limit - 1].rsplit(" ", 1)[0].rstrip(",;: ") + "\u2026"
 
 
-def sitrep_body(summary="", key_figures=None, sources=None, reading_guide="", today=None, max_chars=None, unverified_labels=()):
+def sitrep_body(summary="", key_figures=None, sources=None, reading_guide="", today=None, max_chars=None, unverified_labels=(), kind="sitrep"):
     """The text panel of the `sitrep` template: SITUATION, KEY FIGURES, HOW TO READ THIS MAP, SOURCES, HANDLING, in that order, leaving out
     any section that has no content. Pure. HANDLING and the preparation date are always present; nothing else is added on the caller's
     behalf.
@@ -184,22 +198,23 @@ def sitrep_body(summary="", key_figures=None, sources=None, reading_guide="", to
     With `max_chars` (the label box's budget) the text is made to fit by giving up, in this order: the reading guide, the tail of the
     situation summary, then the last key figures. The sources and the handling note are never cut, because plain truncation would
     remove exactly them (they come last)."""
+    summary_heading, figures_heading, _guide, note_heading, note = REPORT_KINDS.get(kind, REPORT_KINDS["sitrep"])
     summary = str(summary or "").strip()
     figures = list(normalise_key_figures(key_figures))
     guide = str(reading_guide or "").strip()
     src = [str(x).strip() for x in (sources or []) if str(x).strip()]
     flagged = set(unverified_labels or ())
-    handling = "HANDLING\n" + SITREP_HANDLING + " " + prepared_stamp(today) + "."
+    handling = note_heading + "\n" + note + " " + prepared_stamp(today) + "."
     sources_part = "SOURCES\n" + "; ".join(src) if src else ""
 
     def build(summary_text, figs, guide_text):
         parts = []
         if summary_text:
-            parts.append("SITUATION\n" + summary_text)
+            parts.append(summary_heading + "\n" + summary_text)
         if figs:
             lines = [f"- {label}: {value}" + (f" ({source})" if source else "") + (f" {UNVERIFIED_FIGURE_MARK}" if label in flagged else "")
                      for label, value, source in figs]
-            parts.append("KEY FIGURES\n" + "\n".join(lines))
+            parts.append(figures_heading + "\n" + "\n".join(lines))
         if guide_text:
             parts.append("HOW TO READ THIS MAP\n" + guide_text)
         if sources_part:
@@ -213,7 +228,7 @@ def sitrep_body(summary="", key_figures=None, sources=None, reading_guide="", to
     text = build(summary, figures, "")
     if len(text) <= max_chars:
         return text
-    fixed = len(build("", figures, "")) + len("SITUATION\n") + 2
+    fixed = len(build("", figures, "")) + len(summary_heading + "\n") + 2
     room = max_chars - fixed
     if summary and room > 0:
         shortened = _shorten(summary, room)

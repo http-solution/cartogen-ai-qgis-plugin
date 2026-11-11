@@ -12,7 +12,7 @@ class TestRegisterIntegrity(unittest.TestCase):
         self.data = reg.load()
 
     def test_register_loads_all_tasks(self):
-        self.assertEqual(len(self.data), 844)
+        self.assertEqual(len(self.data), 847)
 
     def test_ids_are_unique(self):
         ids = [e["id"] for e in self.data]
@@ -446,15 +446,16 @@ class TestPersonaField(unittest.TestCase):
             self.assertTrue(e.get("persona"), e["id"])
             self.assertLessEqual(set(e["persona"]), known, e["id"])
 
-    def test_sections_38_to_50_are_one_per_persona_with_four_tasks_each(self):
+    def test_sections_38_to_50_are_one_per_persona_with_four_tasks_each_plus_the_r3_6_additions(self):
         sections = {}
         for e in self.data:
             if _section(e) >= 38:
                 sections.setdefault(e["cat"], []).append(e)
         self.assertEqual(sorted(sections, key=int), [str(n) for n in range(38, 51)])
         owners = []
+        extra = {"42": 1, "43": 2}          # R3-6 added a field report (agriculture) and a land-cover colour task and a change report (environment) to the four each had
         for number, tasks in sections.items():
-            self.assertEqual(len(tasks), 4, number)
+            self.assertEqual(len(tasks), 4 + extra.get(number, 0), number)
             self.assertEqual(len({t["cname"] for t in tasks}), 1, number)
             self.assertEqual(len({tuple(t["persona"]) for t in tasks}), 1, number)
             self.assertEqual(len(tasks[0]["persona"]), 1, number)

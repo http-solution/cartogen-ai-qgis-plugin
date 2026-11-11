@@ -1,6 +1,6 @@
 # Tool Reference
 
-Auto-generated from the live tool registry (329 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
+Auto-generated from the live tool registry (330 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
 
 Flags: **network-only** tools bypass the main-thread QGIS dispatcher entirely (pure HTTP, safe from any background thread); **two-phase** tools split a network fetch (background thread) from the QGIS-touching part (main thread); **task-management** tools are excluded from auto-advance in the Task Manager.
 
@@ -551,10 +551,10 @@ Create a map print layout composition with title, legend, scalebar, north arrow,
 | `output_format` | string | no | Only when output_path is a FOLDER: 'pdf' (default), 'png' or 'jpg'. The file is then named <title>_<date>.<format>. |
 | `body_text` | string | no | Optional summary/sitrep text shown in a panel on the layout (e.g. priority findings, data sources). |
 | `zoom_to_layer` | string | no | Name of a layer to fit the map to its full extent before capturing it, e.g. the national boundary layer for a full-country sitrep map. Omit to use whatever extent the canvas currently shows. |
-| `template` | string | no | 'standard' (default), 'access_map' or 'sitrep'. 'access_map': for the result of a service-area / facility-access analysis. Fits the map to the reach layer when zoom_to_layer is omitted, lists the reach polygon, access points and cost-graded roads first in the legend, and (when body_text is empty) adds a short 'how to read this map' guide for the layers present. 'sitrep': a one-page situation report; body_text is the situation summary, key_figures and sources fill the KEY FIGURES and SOURCES sections, and a standing handling note (estimates, no exact locations of people or sensitive sites) and the preparation date are always added. |
+| `template` | string | no | 'standard' (default), 'access_map', 'sitrep', 'field_report' or 'change_report'. 'access_map': for the result of a service-area / facility-access analysis. Fits the map to the reach layer when zoom_to_layer is omitted, lists the reach polygon, access points and cost-graded roads first in the legend, and (when body_text is empty) adds a short 'how to read this map' guide for the layers present. 'sitrep': a one-page situation report; body_text is the situation summary, key_figures and sources fill the KEY FIGURES and SOURCES sections, and a standing handling note (estimates, no exact locations of people or sensitive sites) and the preparation date are always added. 'field_report' (one field: body_text is the field summary, key_figures the index readings with their dates and units) and 'change_report' (two dates: key_figures the change figures such as hectares lost, gained and stable) use the same panel with a reading guide and a standing note of their own: index values are not a yield or rate recommendation; change classes are a screening, not a survey. They keep the map where it is unless zoom_to_layer is given. |
 | `key_figures` | array[object] | no | For template='sitrep': up to 8 headline figures, each copied from a tool result (never estimated or remembered), e.g. {label: 'People within 1 hour of a clinic', value: '412,000 (estimate)', source: 'population_access_gap'}. |
 | `key_figures_from` | object | no | For template='sitrep': take the headline figures straight from a layer, e.g. {layer_name: 'admin_units', label_field: 'ADM2_EN', value_field: 'people_in_need', top_n: 3}. The numbers are read from the layer, so they cannot be mistyped; prefer this over typing figures. Any typed key_figures whose number is not found in a project layer (a value, or a total, minimum, maximum, mean or count of a numeric field) is marked 'not found in the project data' on the layout and listed in the reply. |
-| `sources` | array[string] | no | For template='sitrep': the data sources behind the figures, e.g. ['OCHA COD-AB 2024', 'WorldPop 2020']. |
+| `sources` | array[string] | no | For template 'sitrep', 'field_report' or 'change_report': the data sources behind the figures, e.g. ['OCHA COD-AB 2024', 'WorldPop 2020']. |
 | `include_inset_map` | boolean | no | Add a small locator/inset map (zoomed out ~6x from the main map, same center) showing the main map's location within its wider region. Defaults to true. |
 
 ### `export_layout_atlas`
@@ -2542,6 +2542,18 @@ Record the multi-partner group's JIAF 2 decisions for flagged units (support for
 | `pin_decisions` | array[object] | no |  |
 | `severity_decisions` | array[object] | no |  |
 | `replace` | boolean | no | Replace all stored decisions instead of merging. |
+
+## land_cover_look_tool
+
+### `apply_land_cover_look`
+
+Colour a land-cover or change layer the way the standard does. scheme 'esa_worldcover': the official ESA WorldCover class colours on a classified raster, or on a vector field (pass field) holding the class code (10, 20 ... 100) or the class name. scheme 'change_classes': loss, stable and gain (-1, 0, 1 or those words) in orange, grey and purple, never red and green. scheme 'protected_area_hatch': a diagonal hatch with an outline on a polygon layer, so what is underneath stays visible. The legend carries each class name and code. Values that are not a class are drawn grey and named in the reply; nothing is silently recoloured. This only changes how the layer is drawn.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes |  |
+| `scheme` | string | yes | esa_worldcover, change_classes or protected_area_hatch. |
+| `field` | string | no | For a VECTOR layer with esa_worldcover or change_classes: the field holding the class code or class name. Not used for a raster or for protected_area_hatch. |
 
 ## layer_display_tools
 

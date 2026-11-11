@@ -3048,7 +3048,7 @@
   },
   {
     "id": "persona-tasks",
-    "feature": "the task register carries the personas: every one of the 844 tasks lists the persona(s) it is for (the old 792 are humanitarian, section 36 is engineering), 13 new sections 38 to 50 hold 4 tasks each for the personas 2 to 14 (52 tasks, every tool they name is registered, none written for a capability the persona file calls not built), each persona file's task_ids lists its own tasks, and the task matcher adds 0.1 to a task that lists the person's primary persona (0.05 for the secondary) only when the task already matched the request; general and none add nothing; tools/add_persona_tasks.py regenerates all of it",
+    "feature": "the task register carries the personas: every one of the 847 tasks lists the persona(s) it is for (the old 792 are humanitarian, section 36 is engineering), 13 new sections 38 to 50 hold 4 tasks each for the personas 2 to 14 (52 tasks, plus 3 added by R3-6 for field reports, official land-cover colours and change reports; every tool they name is registered, none written for a capability the persona file calls not built), each persona file's task_ids lists its own tasks, and the task matcher adds 0.1 to a task that lists the person's primary persona (0.05 for the secondary) only when the task already matched the request; general and none add nothing; tools/add_persona_tasks.py regenerates all of it",
     "issues": [],
     "since": "1.18.6",
     "sources": [
@@ -3060,7 +3060,7 @@
     ],
     "guards": [
       "tests/test_task_register.py::TestPersonaField::test_every_task_lists_at_least_one_real_persona",
-      "tests/test_task_register.py::TestPersonaField::test_sections_38_to_50_are_one_per_persona_with_four_tasks_each",
+      "tests/test_task_register.py::TestPersonaField::test_sections_38_to_50_are_one_per_persona_with_four_tasks_each_plus_the_r3_6_additions",
       "tests/test_task_register.py::TestPersonaField::test_the_persona_files_list_exactly_the_tasks_that_name_them",
       "tests/test_task_register.py::TestPersonaBonus::test_the_primary_persona_adds_a_tenth_and_the_secondary_half_of_that",
       "tests/test_task_register.py::TestPersonaBonus::test_general_gives_no_bonus_and_a_task_that_did_not_match_gets_none",
@@ -3149,6 +3149,66 @@
     ],
     "hand_verified": "not verified: CI only; the catalogue is checked offline against the code, and the panel text runs in the live widget job, but no person has read the new 'Data it can read' list on screen",
     "hand_row": "R1-H1-persona-panel"
+  },
+  {
+    "id": "style-looks",
+    "feature": "the agriculture and environment looks: core/representation/style_looks.py (pure) holds the official ESA WorldCover legend (11 classes, names and colours equal to the published legend, weak colour-blind pairs recorded exactly instead of re-colouring a standard, class name and code always in the legend text), loss / stable / gain classes in orange, grey and purple (our own choice, no red or green), equal-interval index class breaks and labels for NDVI, NDRE and NDWI with the index and its units in the title (ranges only: no 'healthy', 'stressed', 'low' or 'high'), 3 to 5 management-zone legends in ascending mean order that never state a rate, a yield or a recommendation, and the protected-area hatch spec; tests check each against the published legend, hand-computed breaks and the rules, and show the checks can fail",
+    "issues": [],
+    "since": "1.18.6",
+    "sources": [
+      "src/cartogen_ai/core/representation/style_looks.py",
+      "src/cartogen_ai/core/representation/style_profiles.py"
+    ],
+    "guards": [
+      "tests/test_style_looks.py::TestWorldCover::test_the_eleven_classes_equal_the_published_legend",
+      "tests/test_style_looks.py::TestIndexClasses::test_known_breaks",
+      "tests/test_style_looks.py::TestIndexClasses::test_no_label_claims_a_meaning",
+      "tests/test_style_looks.py::TestManagementZones::test_a_zone_label_never_states_a_rate_or_a_yield",
+      "tests/test_style_looks.py::TestChangeClasses::test_loss_stable_gain_are_minus_one_zero_one_and_not_red_or_green",
+      "tests/test_style_profiles.py::TestEveryPalette::test_a_published_standard_palette_is_kept_as_published_and_its_weak_pairs_are_recorded_exactly"
+    ],
+    "hand_verified": "not verified: CI only; hand-computed and published known answers offline, nothing seen on a real map",
+    "hand_row": "none: an offline registry of colour and legend choices; the picture check is the hand row of the tool that draws it (C20-environment-looks)"
+  },
+  {
+    "id": "land-cover-look-tool",
+    "feature": "apply_land_cover_look draws a look on a layer the user already has: 'esa_worldcover' (official class colours on a classified raster as a paletted renderer, or on a vector field holding the class code, the code as text or the class name, as categories), 'change_classes' (-1, 0, 1 or loss, stable, gain), and 'protected_area_hatch' (a diagonal hatch with an outline on a polygon layer, no fill); every legend entry carries the class name and code; a value that is not a class is drawn grey, labelled 'not in the ... legend' and listed in the reply, never recoloured; nothing matching leaves the layer untouched and says so; a missing layer, unknown scheme, missing field and a non-polygon layer for the hatch are refused; it only changes how the layer is drawn",
+    "issues": [],
+    "since": "1.18.6",
+    "sources": [
+      "src/cartogen_ai/core/agent/tools/land_cover_look_tool.py",
+      "src/cartogen_ai/core/representation/style_looks.py",
+      "src/cartogen_ai/core/tool_operations.py"
+    ],
+    "guards": [
+      "tests/test_layout_report_kinds.py::TestPlanClasses::test_what_is_not_a_class_is_grey_named_and_listed_never_recoloured",
+      "tests/test_layout_report_kinds.py::TestPlanClasses::test_every_class_label_carries_name_and_code",
+      "tests/test_land_cover_look_live.py::TestVectorLooks::test_worldcover_by_code_text_code_and_name_gives_the_official_colours_with_names_in_the_legend",
+      "tests/test_land_cover_look_live.py::TestRasterLooks::test_a_classified_raster_gets_the_official_colours_and_named_classes",
+      "tests/test_land_cover_look_live.py::TestVectorLooks::test_the_protected_area_hatch_is_a_diagonal_brush_with_an_outline"
+    ],
+    "hand_verified": "not verified: CI only (the renderer is read back from real QGIS objects in the live job, written without a local QGIS); nobody has looked at the colours on a real map",
+    "hand_row": "C20-environment-looks"
+  },
+  {
+    "id": "report-layouts",
+    "feature": "the field_report and change_report print-layout templates: create_print_layout(template='field_report' or 'change_report') builds the same one-page text panel as the sitrep with its own headings (FIELD, INDEX READINGS, or CHANGE, CHANGE FIGURES), a reading guide (index class ranges and units; orange, grey, purple for loss, stable, gain) and a standing note instead of the handling note: index values are not a yield forecast or a seed, fertiliser or chemical rate or an agronomic recommendation; change classes are a screening, not a survey; the sitrep figure rules apply (figures from a layer or marked '[not found in the project data]'), the shortening rules keep the sources and the note, the map is not moved unless zoom_to_layer is given, the sitrep's words are unchanged, and an unknown template name is still the standard layout",
+    "issues": [],
+    "since": "1.18.6",
+    "sources": [
+      "src/cartogen_ai/core/agent/tools/layout_style.py",
+      "src/cartogen_ai/core/agent/tools/layout_tools.py"
+    ],
+    "guards": [
+      "tests/test_layout_report_kinds.py::TestReportKinds::test_sitrep_keeps_its_words_exactly",
+      "tests/test_layout_report_kinds.py::TestReportKinds::test_a_field_report_has_its_own_headings_guide_and_note",
+      "tests/test_layout_report_kinds.py::TestReportKinds::test_a_change_report_has_its_own_headings_and_note",
+      "tests/test_layout_report_kinds.py::TestReportKinds::test_a_long_summary_is_shortened_but_the_note_and_the_sources_survive_in_every_kind",
+      "tests/test_layout_report_kinds_live.py::TestReportLayouts::test_a_field_report_has_its_headings_the_figures_from_the_layer_and_the_no_rate_note",
+      "tests/test_layout_report_kinds_live.py::TestReportLayouts::test_a_change_report_has_its_headings_and_the_screening_note"
+    ],
+    "hand_verified": "not verified: CI only (the text panel of a real layout is read back in the live job, written without a local QGIS); nobody has looked at an exported page, so wrapping and fit are unseen. The plan's 'before and after pair of maps and a change-matrix chart' is not built: the change report is one map and a text panel",
+    "hand_row": "C20-environment-looks"
   }
 ]
 }

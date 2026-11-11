@@ -509,19 +509,20 @@ def _merge_figures_from_layer(key_figures, key_figures_from):
 
 
 def _prepare_template(template, body_text, zoom_to_layer, key_figures, sources):
-    """Template-specific inputs (sitrep / access_map) plus the JIAF disclosure line.
+    """Template-specific inputs (sitrep / field_report / change_report / access_map) plus the JIAF disclosure line. field_report and change_report (PLAN-023 R3-6) are built on the sitrep text panel,
+    with their own headings, reading guide and standing note (layout_style.REPORT_KINDS); they do not move the map unless zoom_to_layer is given.
     Returns (template, body_text, zoom_to_layer, sitrep_args, sitrep_warning)."""
+    from . import layout_style
     sitrep_warning = None
     sitrep_args = None
-    if template == "sitrep":
+    if template in layout_style.REPORT_TEMPLATES:
         # HX1c: a one-page situation report. The text panel is built from what the caller supplies (summary in body_text, key figures,
         # sources) plus a standing handling note and the preparation date; nothing is written on the caller's behalf.
-        from . import layout_style
         visible = [e["name"] for e in layout_style.visible_layer_entries() if e["visible"]]
-        if not zoom_to_layer:
+        if template == "sitrep" and not zoom_to_layer:
             zoom_to_layer = layout_style.access_zoom_layer_name(visible) or ""
         if not layout_style.sitrep_has_content(body_text, key_figures, sources):
-            sitrep_warning = ("No summary, key figures or sources were supplied, so the report holds only the standing handling note. "
+            sitrep_warning = ("No summary, key figures or sources were supplied, so the report holds only the standing note. "
                               "Do not fill it with unverified content: pass the figures from the analysis results.")
         # Built at the point the label box size is known (below), so that a long summary is shortened and the sources and the
         # handling note are not: plain truncation would cut exactly the end of the text, where they sit.
@@ -536,17 +537,17 @@ def _prepare_template(template, body_text, zoom_to_layer, key_figures, sources):
                 f"These key figures were not found in any project layer and are marked {layout_style.UNVERIFIED_FIGURE_MARK} on the layout: "
                 f"{', '.join(unverified)}. Take figures from the data with key_figures_from, or from a tool result that is also written to a layer field; "
                 "never type a figure from memory.")
-        sitrep_args = (body_text, key_figures, sources, layout_style.access_reading_guide(visible), unverified)
+        guide = layout_style.access_reading_guide(visible) if template == "sitrep" else layout_style.REPORT_KINDS[template][2]
+        sitrep_args = (body_text, key_figures, sources, guide, unverified, template)
         body_text = "sitrep"
     if template == "access_map":
-        from . import layout_style
         visible = [e["name"] for e in layout_style.visible_layer_entries() if e["visible"]]
         if not zoom_to_layer:
             zoom_to_layer = layout_style.access_zoom_layer_name(visible) or ""
         if not body_text:
             body_text = layout_style.access_reading_guide(visible)
     jiaf_note = None
-    if template != "sitrep":
+    if template not in layout_style.REPORT_TEMPLATES:
         jiaf_note = jiaf_layout_note(_visible_layer_field_names())
         if jiaf_note and jiaf_note not in (body_text or ""):
             # rc22 hand test J16 (issue 229): a layout of JIAF-support results left without the statement that this is not the JIAF
@@ -631,10 +632,10 @@ def _remember_profile(layout, profile, name=None):
             "output_format": {"type": "string", "description": "Only when output_path is a FOLDER: 'pdf' (default), 'png' or 'jpg'. The file is then named <title>_<date>.<format>."},
             "body_text": {"type": "string", "description": "Optional summary/sitrep text shown in a panel on the layout (e.g. priority findings, data sources)."},
             "zoom_to_layer": {"type": "string", "description": "Name of a layer to fit the map to its full extent before capturing it, e.g. the national boundary layer for a full-country sitrep map. Omit to use whatever extent the canvas currently shows."},
-            "template": {"type": "string", "description": "'standard' (default), 'access_map' or 'sitrep'. 'access_map': for the result of a service-area / facility-access analysis. Fits the map to the reach layer when zoom_to_layer is omitted, lists the reach polygon, access points and cost-graded roads first in the legend, and (when body_text is empty) adds a short 'how to read this map' guide for the layers present. 'sitrep': a one-page situation report; body_text is the situation summary, key_figures and sources fill the KEY FIGURES and SOURCES sections, and a standing handling note (estimates, no exact locations of people or sensitive sites) and the preparation date are always added."},
+            "template": {"type": "string", "description": "'standard' (default), 'access_map', 'sitrep', 'field_report' or 'change_report'. 'access_map': for the result of a service-area / facility-access analysis. Fits the map to the reach layer when zoom_to_layer is omitted, lists the reach polygon, access points and cost-graded roads first in the legend, and (when body_text is empty) adds a short 'how to read this map' guide for the layers present. 'sitrep': a one-page situation report; body_text is the situation summary, key_figures and sources fill the KEY FIGURES and SOURCES sections, and a standing handling note (estimates, no exact locations of people or sensitive sites) and the preparation date are always added. 'field_report' (one field: body_text is the field summary, key_figures the index readings with their dates and units) and 'change_report' (two dates: key_figures the change figures such as hectares lost, gained and stable) use the same panel with a reading guide and a standing note of their own: index values are not a yield or rate recommendation; change classes are a screening, not a survey. They keep the map where it is unless zoom_to_layer is given."},
             "key_figures": {"type": "array", "items": {"type": "object", "properties": {"label": {"type": "string"}, "value": {"type": "string"}, "source": {"type": "string"}}, "required": ["label", "value"]}, "description": "For template='sitrep': up to 8 headline figures, each copied from a tool result (never estimated or remembered), e.g. {label: 'People within 1 hour of a clinic', value: '412,000 (estimate)', source: 'population_access_gap'}."},
             "key_figures_from": {"type": "object", "properties": {"layer_name": {"type": "string"}, "label_field": {"type": "string"}, "value_field": {"type": "string"}, "top_n": {"type": "integer"}, "order": {"type": "string", "description": "'highest' (default) or 'lowest'"}}, "required": ["layer_name", "label_field", "value_field"], "description": "For template='sitrep': take the headline figures straight from a layer, e.g. {layer_name: 'admin_units', label_field: 'ADM2_EN', value_field: 'people_in_need', top_n: 3}. The numbers are read from the layer, so they cannot be mistyped; prefer this over typing figures. Any typed key_figures whose number is not found in a project layer (a value, or a total, minimum, maximum, mean or count of a numeric field) is marked 'not found in the project data' on the layout and listed in the reply."},
-            "sources": {"type": "array", "items": {"type": "string"}, "description": "For template='sitrep': the data sources behind the figures, e.g. ['OCHA COD-AB 2024', 'WorldPop 2020']."},
+            "sources": {"type": "array", "items": {"type": "string"}, "description": "For template 'sitrep', 'field_report' or 'change_report': the data sources behind the figures, e.g. ['OCHA COD-AB 2024', 'WorldPop 2020']."},
             "include_inset_map": {"type": "boolean", "description": "Add a small locator/inset map (zoomed out ~6x from the main map, same center) showing the main map's location within its wider region. Defaults to true."},
         },
         "required": ["title"],
@@ -663,7 +664,7 @@ def create_print_layout(title: str, page_orientation: str | None = None, output_
 
     try:
         requested = str(template or "").lower()
-        template = requested if requested in ("access_map", "sitrep") else "standard"
+        template = requested if requested in ("access_map", "sitrep", "field_report", "change_report") else "standard"
         key_figures, problem = _merge_figures_from_layer(key_figures, key_figures_from)
         if problem:
             return {"error": problem}
@@ -846,9 +847,9 @@ def create_print_layout(title: str, page_orientation: str | None = None, output_
             body_label = QgsLayoutItemLabel(layout)
             if sitrep_args is not None:
                 from . import layout_style
-                summary, figures, srcs, guide, unverified_labels = sitrep_args
+                summary, figures, srcs, guide, unverified_labels, report_kind = sitrep_args
                 body_label.setText(layout_style.sitrep_body(summary, figures, srcs, guide, max_chars=_text_budget(col_w, body_h),
-                                                            unverified_labels=unverified_labels))
+                                                            unverified_labels=unverified_labels, kind=report_kind))
             else:
                 body_label.setText(_fit_text_to_box(body_text, col_w, body_h))
             layout.addLayoutItem(body_label)

@@ -5,7 +5,7 @@ Run:  python tools/add_persona_tasks.py            # rewrite register + persona 
 
 What it does
   * every existing task gets `persona`: ["engineering"] for section 36 (engineering hydrology) and ["humanitarian"] for the rest, because the register was written as the humanitarian mapping register (docs/PERSONA_TOOLS_STYLING_PLAN_2026-10-04.md section 1, point 3);
-  * sections 38 to 50 are added, one per persona except `general` and `defense_intel` (persona numbers 2 to 14), 4 tasks each, 52 in all; section 37 stays empty on purpose (the plan numbers the persona sections 38 to 50);
+  * sections 38 to 50 are added, one per persona except `general` and `defense_intel` (persona numbers 2 to 14), 4 tasks each (52), and R3-6 adds 1 to agriculture and 2 to environment (55 in all); section 37 stays empty on purpose (the plan numbers the persona sections 38 to 50);
   * each persona file's `task_ids` is set to its own tasks.
 Every new task uses only tools that exist in the registry TODAY (a test checks it); a capability that is `not built` in the persona's readiness list has no task. `acc` and `prod` are filled in by tools/derive_task_io.py's own derive(), so one run of this script is enough."""
 import argparse
@@ -55,12 +55,15 @@ SECTIONS = [
         ("Compare crop condition between two seasons", "analysis", ["time_range"], ["raster_time_series_stats", "calculate_change_matrix"]),
         ("Delineate management zones inside a field", "layer", [], ["add_layer_from_path", "create_zoning_map", "zonal_statistics"]),
         ("Check crop water stress with NDWI and NDRE", "layer", ["aoi", "time_range"], ["search_stac_satellite_imagery", "calculate_ndwi", "calculate_ndre"]),
+        ("Lay out a report for one field", "layout", [], ["add_layer_from_path", "create_print_layout", "print_map"]),
     ]),
     ("43", "environment", "Environment: land cover, change and suitability", [
         ("Detect land cover change between two dates", "layer", [], ["add_layer_from_path", "calculate_raster_change_detection"]),
         ("Tabulate land cover from-to transitions", "analysis", [], ["calculate_change_matrix"]),
         ("Classify land cover from training samples", "layer", [], ["add_layer_from_path", "supervised_classification"]),
         ("Rank sites for habitat or restoration suitability", "analysis", [], ["weighted_overlay_analysis", "buffer_analysis"]),
+        ("Colour a classified layer with the official ESA WorldCover legend", "layer", [], ["add_layer_from_path", "apply_land_cover_look"]),
+        ("Lay out a report on land cover change", "layout", [], ["add_layer_from_path", "apply_land_cover_look", "create_print_layout", "print_map"]),
     ]),
     ("44", "public_health", "Public health: access, cases and indicators", [
         ("Map health facility access and the population left out", "analysis", ["aoi", "facility_type", "threshold"], ["fetch_worldpop_population", "calculate_service_area", "classify_facilities_by_access", "population_access_gap"]),
