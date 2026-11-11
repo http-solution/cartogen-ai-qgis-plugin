@@ -12,10 +12,9 @@ from ..agent.chat_persistence import PERSIST_DEFAULT, PERSIST_SETTING_KEY
 from ..agent.memory import PERSIST_PROJECT_MEMORY_KEY
 
 from ..models.model_view import SCHEMA_DISCLOSURE
-from ..services.prompt_refiner import (
-    PROFILE_LABELS, DEFAULT_PROFILE,
-    PROMPT_REFINEMENT_ENABLED_KEY, PROMPT_PREVIEW_ENABLED_KEY, USER_PROFILE_KEY,
-)
+from ..personas.selection import write_selection
+from ..services.prompt_refiner import PROMPT_REFINEMENT_ENABLED_KEY, PROMPT_PREVIEW_ENABLED_KEY, get_persona_selection
+from .persona_picker import PersonaPicker
 from .chat_formatting import build_dock_stylesheet, BRAND_TEAL
 from ...infrastructure.settings_keys import (
     SETTINGS_API_TRACE_ENABLED,
@@ -363,16 +362,11 @@ class CartogenAiSettingsDialog(QDialog):
 
         layout.addWidget(self._section_header("03", "Who the assistant writes for"))
 
-        profile_form = QFormLayout()
-        self.user_profile_combo = QComboBox()
-        for value, label in PROFILE_LABELS.items():
-            self.user_profile_combo.addItem(label, value)
-        current_profile = self.settings.value(USER_PROFILE_KEY, DEFAULT_PROFILE)
-        profile_index = self.user_profile_combo.findData(current_profile)
-        if profile_index >= 0:
-            self.user_profile_combo.setCurrentIndex(profile_index)
-        profile_form.addRow("Refinement Persona:", self.user_profile_combo)
-        layout.addLayout(profile_form)
+        # R1-3: two persona dropdowns and the readiness panel (one widget shared with the onboarding dialog). The old name of the primary dropdown is kept for code that still reads it.
+        primary_persona, secondary_persona = get_persona_selection()
+        self.persona_picker = PersonaPicker(self, primary_persona, secondary_persona)
+        self.user_profile_combo = self.persona_picker.primary_combo
+        layout.addWidget(self.persona_picker)
 
         # Not to be confused with "Refinement Persona" just above -- this is the separate
         # onboarding profile (role/experience/communication style, agent/onboarding_profile.py),
@@ -563,6 +557,6 @@ QPushButton#settingsCancelButton {{
         self.settings.setValue(LOCAL_DATA_ASK_ABOVE_MB_KEY, self.local_data_ask_spin.value())
         self.settings.setValue(EGRESS_GATE_MODE_KEY, self.egress_gate_mode_combo.currentData())
         self.settings.setValue(EGRESS_GATE_STRICT_KEY, self.egress_gate_strict_checkbox.isChecked())
-        self.settings.setValue(USER_PROFILE_KEY, self.user_profile_combo.currentData())
+        write_selection(self.settings, *self.persona_picker.selection())      # R1-2/R1-3: primary and secondary persona; also mirrors the old key
 
         super().accept()

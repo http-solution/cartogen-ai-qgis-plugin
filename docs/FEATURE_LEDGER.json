@@ -2068,6 +2068,49 @@
     "hand_row": "none"
   },
   {
+    "id": "persona-selection",
+    "feature": "one persona list and one stored choice: the refinement persona dropdown and the onboarding role no longer disagree. The 15 persona files are the only list (PROFILE_LABELS and PROFILE_GUIDANCE in the prompt refiner are views of them); the choice is persona_primary and an optional persona_secondary in the settings; the first read migrates once and writes back: an existing old user_profile value becomes the primary unchanged for each of the 15 values, an unset old value does not count as a choice, a finished onboarding role is mapped (humanitarian_analyst and emergency_responder to humanitarian, urban_planner to urban_planning, researcher to research, cartographer, gis_student and other to general), an invalid stored value is replaced, the secondary is never guessed and is dropped when it equals the primary; the old key is kept as a mirror of the primary; a settings store that fails reads as the defaults and is logged; a change made in Settings is not undone by the next read",
+    "issues": [],
+    "since": "1.18.6",
+    "sources": [
+      "src/cartogen_ai/core/personas/selection.py",
+      "src/cartogen_ai/core/services/prompt_refiner.py",
+      "src/cartogen_ai/infrastructure/settings_keys.py"
+    ],
+    "guards": [
+      "tests/test_persona_selection.py::TestResolve::test_each_of_the_fifteen_old_stored_values_becomes_the_same_primary",
+      "tests/test_persona_selection.py::TestResolve::test_an_explicit_old_general_is_a_choice_and_beats_the_role_but_an_unset_one_is_not",
+      "tests/test_persona_selection.py::TestRoleMapping::test_the_agreed_mapping",
+      "tests/test_persona_selection.py::TestReadAndWrite::test_the_first_read_migrates_once_and_writes_all_three_keys",
+      "tests/test_persona_selection.py::TestReadAndWrite::test_a_change_made_in_settings_is_not_undone_by_the_next_read",
+      "tests/test_persona_picker_live.py::TestPersonaPickerLive::test_an_old_stored_choice_becomes_the_primary_persona_on_the_first_read"
+    ],
+    "hand_verified": "not verified: CI only; the migration rules are pure and tested offline for all 15 old values, the real QgsSettings round trip runs in the live job; never run on a profile that already has an old stored choice by a person (hand row R1-H3 covers an upgrade)",
+    "hand_row": "C18-persona-upgrade"
+  },
+  {
+    "id": "persona-picker-panel",
+    "feature": "Settings and the onboarding dialog show two persona dropdowns (primary and an optional secondary) and a read-only readiness panel generated from the persona files: Built and seen working, Available (checked by automatic tests) with the tool, Not built yet with the release, Out of scope and Declined with the reason, the primary first and the secondary under its own title, the guardrails the assistant will follow, and a closing line that every tool stays available whichever persona is chosen; the panel can never say more than the files do (a test checks every capability of every persona appears and nothing is called built unless a file says so); choosing the secondary as the primary drops the secondary; unknown ids fall back to the generalist; the onboarding dialog suggests a persona from the role until the person picks one by hand, and a reopened dialog does not overwrite the stored choice",
+    "issues": [],
+    "since": "1.18.6",
+    "sources": [
+      "src/cartogen_ai/core/personas/panel.py",
+      "src/cartogen_ai/core/ui/persona_picker.py",
+      "src/cartogen_ai/core/ui/settings_dialog.py",
+      "src/cartogen_ai/core/ui/onboarding_dialog.py"
+    ],
+    "guards": [
+      "tests/test_persona_panel.py::TestSections::test_the_agreed_example_primary_public_health_secondary_logistics",
+      "tests/test_persona_panel.py::TestSections::test_every_capability_of_every_persona_appears_in_its_panel",
+      "tests/test_persona_panel.py::TestSections::test_nothing_is_called_built_unless_a_file_says_built",
+      "tests/test_persona_picker_live.py::TestPersonaPickerLive::test_the_picker_lists_all_fifteen_personas_and_the_panel_follows_the_choice",
+      "tests/test_persona_picker_live.py::TestPersonaPickerLive::test_the_settings_window_embeds_the_picker_and_saves_both_choices",
+      "tests/test_persona_picker_live.py::TestPersonaPickerLive::test_the_onboarding_dialog_suggests_a_persona_from_the_role_until_the_person_picks_one"
+    ],
+    "hand_verified": "not verified: CI only; the panel text is pure and tested offline, the widgets are built and driven in the live job; never looked at by a person and no picture check was made (no QGIS in the sandbox that wrote it), so layout, wrapping and dark-theme appearance are unseen",
+    "hand_row": "R1-H1-persona-panel"
+  },
+  {
     "id": "add-layer-from-path-forwards-sublayer",
     "feature": "asking add_layer_from_path for one named layer of a multi-layer file (GeoPackage, FileGDB, KML, GPX, SpatiaLite) reaches the tool through the orchestrator, so that layer opens instead of the first one",
     "issues": [],

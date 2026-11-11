@@ -90,6 +90,9 @@ SETTINGS_PROJECT_INSPECTOR_ENABLED = "cartogen_ai/project_inspector_enabled"
 # always-on: it's a real narrow experiment awaiting live-LLM evaluation, not a settled default.
 SETTINGS_PLAN_VALIDATION_GATE_ENABLED = "cartogen_ai/plan_validation_gate_enabled"
 SETTINGS_USER_PROFILE = "cartogen_ai/user_profile"
+# PLAN-023 R1-2: the persona choice (see core/personas/selection.py). The old key above is kept as a mirror of the primary persona.
+SETTINGS_PERSONA_PRIMARY = "cartogen_ai/persona_primary"
+SETTINGS_PERSONA_SECONDARY = "cartogen_ai/persona_secondary"
 SETTINGS_PROMPT_REFINEMENT_MODEL = "cartogen_ai/prompt_refinement_model"
 
 # Custom Project & Layer Properties (stored via QgsProject/QgsMapLayer custom properties)

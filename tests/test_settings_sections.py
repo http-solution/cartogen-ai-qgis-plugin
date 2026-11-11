@@ -64,7 +64,7 @@ class TestSections(unittest.TestCase):
                 continue
             self.assertIn(f"self.{widget}.isChecked()", accept, widget)
         for widget in ("egress_gate_mode_combo", "max_tool_iterations_spin", "max_turn_tokens_spin", "local_data_ask_spin",
-                       "layout_masthead_edit", "layout_disclaimer_checkbox", "layout_disclaimer_edit", "user_profile_combo"):
+                       "layout_masthead_edit", "layout_disclaimer_checkbox", "layout_disclaimer_edit", "persona_picker"):
             self.assertIn(f"self.{widget}.", accept, widget)
 
 
