@@ -26,6 +26,7 @@ from . import land_cover_look_tool
 from . import spatial_stats_tool
 from . import hotspot_tool
 from . import cluster_scan_tool
+from . import health_rates_tool
 from . import raster_series_tool
 from . import raster_change_tool
 from . import management_zones_tool
@@ -130,6 +131,7 @@ __all__ = [
     "get_tool_registry",
     "get_tools_schema",
     "hazard_monitoring_tools",
+    "health_rates_tool",
     "hotspot_tool",
     "humanitarian_look_tools",
     "humanitarian_tools",

@@ -1001,6 +1001,24 @@
    "layers": {}
   },
   {
+   "id": "C24-health-rates",
+   "issue": "S",
+   "session": "C",
+   "title": "Rates, relative risk and smoothing on a real layer, compared with R or GeoDa",
+   "covers": [
+    "health-rates"
+   ],
+   "needs": "QGIS only for steps 1 to 3 (Python console); R (epitools, spdep) or GeoDa for step 4",
+   "starts_from": "QGIS open with an area layer that has a whole-number case field and a population field (for example districts); the plugin enabled",
+   "do": "(1) Plugins > Python Console: from cartogen_ai.core.agent.tools.health_rates_tool import calculate_health_rates as f; r = f('<layer>', '<cases>', '<population>', method='crude'); print(r)  (2) open the new '<layer>_rates' layer: look at rate, rate_lo, rate_hi, rel_risk, small_number and value_shown; find an area with fewer than 5 cases  (3) run it again with method='eb', and with method='smr' and an expected field if you have one  (4) in GeoDa (Empirical Bayes rate smoothing) or R (epitools::pois.exact for the interval, spdep::EBest or EBlocal for smoothing) compute the same measures for three areas.",
+   "expect": "(2) crude rate = cases / population x 100,000; any area with cases below 5 has small_number 'cases below 5' and an EMPTY value_shown; your layer is unchanged. (3) the smoothed rates lie between each area's own rate and the overall rate, and small areas move the most. (4) the crude rate and relative risk agree exactly; the interval agrees with the exact Poisson interval to about 0.1 of a rate unit (ours is Byar's approximation); the smoothed rate agrees with GeoDa's global Empirical Bayes (Marshall) to 3 decimals; R's EBest is a different estimator and may differ.",
+   "evidence": "The printed result -> results\\\\outputs\\\\C24-health-rates\\\\result.txt; the values from the other tool for three areas and which tool and function it used; a screenshot of the new layer table.",
+   "files": [],
+   "pass_if": "crude rate, relative risk and the small-number flag are exactly right, the smoothed rate matches GeoDa's global EB, the input layer is unchanged. A different number, a shown value for an area with under 5 cases, or a crash is a Fail: send both outputs.",
+   "cost": "about 20 minutes, free",
+   "layers": {}
+  },
+  {
    "id": "D1-fetch-live",
    "issue": "S",
    "session": "D",
