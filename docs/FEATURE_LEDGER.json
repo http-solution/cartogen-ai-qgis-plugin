@@ -1928,6 +1928,26 @@
     "hand_row": "C13-processing-batch"
   },
   {
+    "id": "run-algorithm-in-place",
+    "feature": "run_algorithm_in_place applies an approved Processing algorithm that QGIS says can edit the given layer in place (smooth, translate, simplify ...) directly to the user's own vector layer, through QGIS's own in-place executor: the algorithm must be on the approved list and supportInPlaceEdit for this layer, the same parameter and expression screens as a normal run apply, an input or output key in the settings is refused, selected_only true with nothing selected is refused, a confirmation card with the exact feature count comes first, the change is one undoable step (undo_manual_edit) left unsaved in the edit session, and the user's selection is put back; known answers: translating 2 of 3 points by 10 moves exactly those two to the same positions as the new-layer run, the third stays, one undo restores all three",
+    "issues": [],
+    "since": "1.18.6",
+    "sources": [
+      "src/cartogen_ai/core/agent/tools/in_place_ops.py",
+      "src/cartogen_ai/core/agent/tools/in_place_tool.py"
+    ],
+    "guards": [
+      "tests/test_in_place_ops.py::TestCheck::test_bad_requests_are_refused",
+      "tests/test_in_place_ops.py::TestCheck::test_the_card_text_counts_features",
+      "tests/test_in_place_tool.py::TestRegistration::test_the_description_states_what_it_does_to_the_data",
+      "tests/test_in_place_tool_live.py::TestRunAlgorithmInPlaceLive::test_selected_points_move_like_the_new_layer_run_and_undo_in_one_step",
+      "tests/test_in_place_tool_live.py::TestRunAlgorithmInPlaceLive::test_selected_only_false_changes_every_feature_and_restores_no_selection",
+      "tests/test_in_place_tool_live.py::TestRunAlgorithmInPlaceLive::test_requests_that_cannot_run_are_refused_and_change_nothing"
+    ],
+    "hand_verified": "not verified: CI only; the request check is pure and tested offline, the in-place run, the undo and the selection restore happen in the live job on small generated point layers using QGIS's processing.gui.AlgorithmExecutor.execute_in_place; never smoothing or simplifying real lines or polygons, never a layer from a file or database (provider edit support differs), and the Stop button cannot reach the run",
+    "hand_row": "C14-in-place"
+  },
+  {
     "id": "add-layer-from-path-forwards-sublayer",
     "feature": "asking add_layer_from_path for one named layer of a multi-layer file (GeoPackage, FileGDB, KML, GPX, SpatiaLite) reaches the tool through the orchestrator, so that layer opens instead of the first one",
     "issues": [],
