@@ -8,14 +8,16 @@ E = C x (population inside / total population) are expected under 'cases fall in
 LLR = c ln(c/E) + (C - c) ln((C - c)/(C - E)). The circle with the highest LLR is the most likely cluster. Its p-value comes from re-drawing all C cases at random in proportion to population (conditioned on C,
 a multinomial), scanning again, and counting how often the best simulated LLR reaches the observed one: p = (1 + number reaching it) / (1 + replicates). Secondary clusters are the next best circles that share no area
 with a stronger one, judged against the same simulated distribution."""
+import importlib.util
 import math
 
-try:
+HAVE_NUMPY = importlib.util.find_spec("numpy") is not None
+
+
+def _np():
+    """numpy, imported on first use so this module loads (and the pure helpers work) where numpy is absent. A module-level `np = None` fallback fails mypy where numpy is installed (CI), so it is imported lazily instead."""
     import numpy as np
-    HAVE_NUMPY = True
-except ImportError:                      # pragma: no cover - exercised only where numpy is absent
-    np = None
-    HAVE_NUMPY = False
+    return np
 
 MIN_MONTE_CARLO = 99
 MAX_MONTE_CARLO = 9999
@@ -80,6 +82,7 @@ def _check_inputs(cases, populations, points, max_pop_fraction, max_radius):
 def _candidates(points, populations, max_pop_fraction, max_radius):
     """(order, cum_pop, valid, radius): for each centre i, `order[i]` lists all areas nearest first; prefix k (1-based) is a circle. valid[i, k-1] is True when the circle holds at most max_pop_fraction of the
     population, is within max_radius, and ends where the next area is strictly farther (a circle never splits areas at the same distance). radius[i, k-1] is the distance to the k-th area."""
+    np = _np()
     xy = np.asarray(points, dtype=np.float64)
     pops = np.asarray(populations, dtype=np.float64)
     n = len(xy)
@@ -96,26 +99,13 @@ def _candidates(points, populations, max_pop_fraction, max_radius):
     return order, cum_pop, valid, radius
 
 
-def _llr_matrix(cum_cases, expected, total):
-    """Vectorised Poisson LLR for every candidate circle (0 where cases do not exceed expected)."""
-    c = cum_cases.astype(np.float64)
-    out = np.zeros_like(c)
-    more = c > expected
-    cm, em = c[more], expected[more]
-    value = cm * np.log(cm / em)
-    rest = total - cm
-    tail = rest > 0
-    value[tail] += rest[tail] * np.log(rest[tail] / (total - em[tail]))
-    out[more] = value
-    return out
-
-
 def scan(cases, populations, points, max_pop_fraction=0.5, max_radius=None, monte_carlo=999, seed=1, max_clusters=5, alpha=0.05):
     """Run the scan. Returns {'clusters': [{'centre', 'members', 'radius', 'cases', 'expected', 'relative_risk', 'llr', 'p_value'}], 'total_cases', 'total_population', 'monte_carlo', 'seed', 'alpha',
     'critical_llr', 'candidates'}. clusters[0] is the most likely cluster whether or not it is significant; later ones are only listed when p <= alpha and they share no area with a stronger one.
     `centre` and `members` are positions in the input lists. ValueError for bad input or when no circle satisfies the limits; RuntimeError when numpy is missing."""
     if not HAVE_NUMPY:
         raise RuntimeError("the cluster scan needs numpy, which ships with QGIS but was not found here")
+    np = _np()
     _check_inputs(cases, populations, points, max_pop_fraction, max_radius)
     problem = check_work(len(cases), monte_carlo)
     if problem:
