@@ -1,0 +1,118 @@
+{
+ "id": "real_estate",
+ "number": 14,
+ "label": "Real Estate / Site Selection",
+ "aliases": [
+  "site selection",
+  "property",
+  "retail"
+ ],
+ "summary": "Site comparison: what is near, who lives around, how long it takes to get there, scored against explicit criteria.",
+ "guidance": "Prioritize site constraints, proximity, accessibility, demographics, market context, scenario comparison, and auditable decision criteria.",
+ "workflows": [
+  {
+   "id": "re.site",
+   "title": "Compare candidate sites",
+   "tools": [
+    "buffer_analysis",
+    "calculate_service_area",
+    "estimate_population_exposure",
+    "calculate_mcda_ranking"
+   ]
+  },
+  {
+   "id": "re.context",
+   "title": "Neighbourhood context",
+   "tools": [
+    "fetch_osm_features",
+    "find_nearest_features",
+    "geocode_batch",
+    "generate_html_dashboard"
+   ]
+  }
+ ],
+ "tool_priority": [
+  "buffer_analysis",
+  "estimate_population_exposure",
+  "calculate_service_area",
+  "calculate_mcda_ranking",
+  "fetch_osm_features",
+  "generate_html_dashboard",
+  "find_nearest_features",
+  "geocode_batch",
+  "weighted_overlay_analysis",
+  "spatial_join",
+  "zonal_statistics",
+  "generate_report"
+ ],
+ "tool_aliases": {
+  "calculate_mcda_ranking": [
+   "rank the sites",
+   "score the locations"
+  ],
+  "calculate_service_area": [
+   "trade area",
+   "catchment by drive time"
+  ]
+ },
+ "task_ids": [],
+ "data_sources": [
+  "osm",
+  "worldpop",
+  "geocoding"
+ ],
+ "style_profile": "real_estate",
+ "layout_templates": [],
+ "readiness": [
+  {
+   "capability": "catchments and population around a site",
+   "state": "CI-checked",
+   "tool": "estimate_population_exposure"
+  },
+  {
+   "capability": "drive-time areas",
+   "state": "CI-checked",
+   "tool": "calculate_service_area"
+  },
+  {
+   "capability": "multi-criteria site ranking",
+   "state": "CI-checked",
+   "tool": "calculate_mcda_ranking"
+  },
+  {
+   "capability": "points of interest from OpenStreetMap",
+   "state": "CI-checked",
+   "tool": "fetch_osm_features"
+  },
+  {
+   "capability": "Huff gravity model",
+   "state": "not built",
+   "since": "R6 (1.24.0)"
+  },
+  {
+   "capability": "weighted centre of gravity",
+   "state": "not built",
+   "since": "R6 (1.24.0)"
+  },
+  {
+   "capability": "revenue scenarios from explicit inputs",
+   "state": "not built",
+   "since": "R6 (1.24.0)"
+  },
+  {
+   "capability": "site comparison layout",
+   "state": "not built",
+   "since": "R6 (1.24.0)"
+  },
+  {
+   "capability": "licensed place and spending data",
+   "state": "not built",
+   "since": "user-supplied only",
+   "reason": "licensed data is supplied by the user with their own key"
+  }
+ ],
+ "guardrails": [
+  "Never invent a market rate, rent or spending figure; use only the inputs given.",
+  "A site score is only as good as the stated criteria and weights; show them."
+ ]
+}

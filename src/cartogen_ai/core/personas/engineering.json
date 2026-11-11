@@ -1,0 +1,110 @@
+{
+ "id": "engineering",
+ "number": 3,
+ "label": "Engineering / Infrastructure",
+ "aliases": [
+  "civil",
+  "infrastructure"
+ ],
+ "summary": "Terrain, drainage and site engineering: slopes, profiles, basins, peak flow screening and suitability.",
+ "guidance": "Prioritize survey accuracy, coordinate reference systems, construction phases, asset condition, constraints, measurements, QA checks, and deliverables suitable for engineering review.",
+ "workflows": [
+  {
+   "id": "eng.terrain",
+   "title": "Terrain products for a site",
+   "tools": [
+    "fetch_dem",
+    "hillshade",
+    "slope_analysis",
+    "generate_contours",
+    "elevation_profile"
+   ]
+  },
+  {
+   "id": "eng.hydro",
+   "title": "Basin and peak flow screening",
+   "tools": [
+    "delineate_watershed",
+    "assess_watershed_hydrology_request",
+    "calculate_rational_watershed_peak_flow"
+   ]
+  }
+ ],
+ "tool_priority": [
+  "fetch_dem",
+  "slope_analysis",
+  "aspect_analysis",
+  "hillshade",
+  "generate_contours",
+  "elevation_profile",
+  "delineate_watershed",
+  "calculate_rational_watershed_peak_flow",
+  "assess_watershed_hydrology_request",
+  "weighted_overlay_analysis",
+  "georeference_image",
+  "parse_dms_location"
+ ],
+ "tool_aliases": {
+  "delineate_watershed": [
+   "watershed",
+   "catchment boundary",
+   "drainage basin"
+  ],
+  "calculate_rational_watershed_peak_flow": [
+   "peak flow",
+   "design flow"
+  ]
+ },
+ "task_ids": [],
+ "data_sources": [
+  "geocoding"
+ ],
+ "style_profile": "engineering",
+ "layout_templates": [],
+ "readiness": [
+  {
+   "capability": "slope, aspect, hillshade and profiles",
+   "state": "CI-checked",
+   "tool": "slope_analysis"
+  },
+  {
+   "capability": "contour lines",
+   "state": "CI-checked",
+   "tool": "generate_contours"
+  },
+  {
+   "capability": "basin delineation",
+   "state": "CI-checked",
+   "tool": "delineate_watershed"
+  },
+  {
+   "capability": "rational-method peak flow",
+   "state": "CI-checked",
+   "tool": "calculate_rational_watershed_peak_flow"
+  },
+  {
+   "capability": "georeferencing a scanned plan",
+   "state": "CI-checked",
+   "tool": "georeference_image"
+  },
+  {
+   "capability": "cut and fill volume from a DEM difference",
+   "state": "not built",
+   "since": "R4 (1.22.0)"
+  },
+  {
+   "capability": "engineering sheet layout (title block, datum, units)",
+   "state": "not built",
+   "since": "R4 (1.22.0)"
+  },
+  {
+   "capability": "IFC/Revit to CityGML and 3D rendering",
+   "state": "out of scope",
+   "reason": "needs FME or ifcopenshell, which this plugin does not depend on"
+  }
+ ],
+ "guardrails": [
+  "Peak flow is a screening estimate: it needs a cited rainfall intensity and runoff coefficient, never an assumed one.",
+  "State the datum and the DEM resolution behind every terrain figure."
+ ]
+}

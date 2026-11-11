@@ -1,0 +1,118 @@
+{
+ "id": "logistics",
+ "number": 5,
+ "label": "Logistics / Supply Chain",
+ "aliases": [
+  "supply chain",
+  "delivery",
+  "fleet"
+ ],
+ "summary": "Routes, hubs and coverage: travel cost over a road network, depot siting and allocation, with barriers and risk.",
+ "guidance": "Prioritize origins/destinations, network accessibility, travel cost, hub-and-spoke coverage, route constraints, service levels, fleet assumptions, and operational map outputs.",
+ "workflows": [
+  {
+   "id": "log.hubs",
+   "title": "Where to put hubs and who they serve",
+   "tools": [
+    "optimal_hub_siting",
+    "location_allocation",
+    "calculate_allocation_envelope"
+   ]
+  },
+  {
+   "id": "log.routes",
+   "title": "Routes and travel times",
+   "tools": [
+    "travel_time_matrix",
+    "optimize_delivery_route",
+    "apply_network_barriers",
+    "score_route_incident_risk"
+   ]
+  }
+ ],
+ "tool_priority": [
+  "optimize_delivery_route",
+  "travel_time_matrix",
+  "optimal_hub_siting",
+  "location_allocation",
+  "calculate_allocation_envelope",
+  "apply_network_barriers",
+  "score_route_incident_risk",
+  "calculate_service_area",
+  "analyze_critical_links",
+  "build_composite_impedance_field",
+  "estimate_road_speeds",
+  "fetch_gdacs_disaster_alerts"
+ ],
+ "tool_aliases": {
+  "optimal_hub_siting": [
+   "where should the depot go",
+   "best warehouse location"
+  ],
+  "travel_time_matrix": [
+   "distance matrix",
+   "travel times between"
+  ]
+ },
+ "task_ids": [],
+ "data_sources": [
+  "osm",
+  "gdacs"
+ ],
+ "style_profile": "logistics",
+ "layout_templates": [
+  "access_map"
+ ],
+ "readiness": [
+  {
+   "capability": "travel time matrix and single-vehicle tour",
+   "state": "CI-checked",
+   "tool": "optimize_delivery_route"
+  },
+  {
+   "capability": "hub siting and location-allocation",
+   "state": "CI-checked",
+   "tool": "optimal_hub_siting"
+  },
+  {
+   "capability": "barriers and route incident risk",
+   "state": "CI-checked",
+   "tool": "score_route_incident_risk"
+  },
+  {
+   "capability": "critical link analysis",
+   "state": "CI-checked",
+   "tool": "analyze_critical_links"
+  },
+  {
+   "capability": "vehicle routing with capacity and time windows",
+   "state": "not built",
+   "since": "R5 (1.23.0)"
+  },
+  {
+   "capability": "weighted centre of gravity",
+   "state": "not built",
+   "since": "R6 (1.24.0)"
+  },
+  {
+   "capability": "route plan layout with a stop table",
+   "state": "not built",
+   "since": "R5 (1.23.0)"
+  },
+  {
+   "capability": "real-time telemetry",
+   "state": "out of scope",
+   "reason": "live vehicle feeds are outside what the plugin connects to"
+  },
+  {
+   "capability": "AIS and licensed traffic feeds",
+   "state": "not built",
+   "since": "user-supplied only",
+   "reason": "licensed data is supplied by the user"
+  }
+ ],
+ "guardrails": [
+  "State the speeds and the fleet assumptions behind every travel time.",
+  "A route is only as good as the road data; say when the network is OpenStreetMap."
+ ]
+}

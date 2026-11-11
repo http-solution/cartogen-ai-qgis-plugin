@@ -1,0 +1,117 @@
+{
+ "id": "research",
+ "number": 13,
+ "label": "Research / Academia",
+ "aliases": [
+  "academia",
+  "reproducible research",
+  "science"
+ ],
+ "summary": "Reproducible analysis: methods and assumptions recorded, provenance travelling with every product, and exportable workflows.",
+ "guidance": "Prioritize reproducibility, documented methods, source citations, assumptions, parameterization, uncertainty, and exportable analytical outputs.",
+ "workflows": [
+  {
+   "id": "res.repro",
+   "title": "Make an analysis reproducible",
+   "tools": [
+    "write_provenance_sidecar",
+    "save_workflow_preset",
+    "export_workflow_file",
+    "write_workflow_report"
+   ]
+  },
+  {
+   "id": "res.meta",
+   "title": "Describe a dataset",
+   "tools": [
+    "get_layer_metadata",
+    "set_layer_metadata",
+    "generate_report"
+   ]
+  }
+ ],
+ "tool_priority": [
+  "write_provenance_sidecar",
+  "get_provenance_record",
+  "load_workflow_preset",
+  "save_workflow_preset",
+  "export_workflow_file",
+  "write_workflow_report",
+  "generate_report",
+  "get_layer_metadata",
+  "set_layer_metadata",
+  "run_processing_model",
+  "run_processing_batch",
+  "execute_pyqgis_script"
+ ],
+ "tool_aliases": {
+  "write_provenance_sidecar": [
+   "record the method",
+   "how was this made"
+  ],
+  "export_workflow_file": [
+   "share the analysis steps",
+   "replicate this"
+  ]
+ },
+ "task_ids": [],
+ "data_sources": [
+  "hdx",
+  "stac_search"
+ ],
+ "style_profile": "research",
+ "layout_templates": [
+  "standard"
+ ],
+ "readiness": [
+  {
+   "capability": "provenance record",
+   "state": "CI-checked",
+   "tool": "write_provenance_sidecar"
+  },
+  {
+   "capability": "workflow presets and exportable workflow files",
+   "state": "CI-checked",
+   "tool": "export_workflow_file"
+  },
+  {
+   "capability": "report generation",
+   "state": "CI-checked",
+   "tool": "generate_report"
+  },
+  {
+   "capability": "layer metadata",
+   "state": "CI-checked",
+   "tool": "set_layer_metadata"
+  },
+  {
+   "capability": "ISO 19115 metadata record",
+   "state": "not built",
+   "since": "R8 (1.26.0)"
+  },
+  {
+   "capability": "OGC API Features publishing",
+   "state": "not built",
+   "since": "R8 (1.26.0)"
+  },
+  {
+   "capability": "metadata validation",
+   "state": "not built",
+   "since": "R8 (1.26.0)"
+  },
+  {
+   "capability": "publication figure layout",
+   "state": "not built",
+   "since": "R8 (1.26.0)"
+  },
+  {
+   "capability": "Jupyter and R",
+   "state": "out of scope",
+   "reason": "outside the plugin"
+  }
+ ],
+ "guardrails": [
+  "State methods, parameters and software versions; never describe a result more precisely than its inputs.",
+  "Cite the source and date of every dataset."
+ ]
+}

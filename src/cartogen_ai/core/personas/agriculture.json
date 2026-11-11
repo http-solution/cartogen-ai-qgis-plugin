@@ -1,0 +1,112 @@
+{
+ "id": "agriculture",
+ "number": 6,
+ "label": "Agriculture / Food Security",
+ "aliases": [
+  "farming",
+  "food security",
+  "crop"
+ ],
+ "summary": "Fields and crops from satellite imagery: vegetation and moisture indices, seasonal change and management zones.",
+ "guidance": "Prioritize fields, crop/soil conditions, vegetation indices, irrigation, seasonal comparisons, yield proxies, and uncertainty in remote-sensing interpretation.",
+ "workflows": [
+  {
+   "id": "agr.scene",
+   "title": "Get imagery and compute indices",
+   "tools": [
+    "search_stac_satellite_imagery",
+    "load_stac_assets",
+    "calculate_spectral_index",
+    "calculate_ndvi"
+   ]
+  },
+  {
+   "id": "agr.season",
+   "title": "Seasonal comparison and zones",
+   "tools": [
+    "raster_time_series_stats",
+    "calculate_change_matrix",
+    "create_zoning_map",
+    "zonal_statistics"
+   ]
+  }
+ ],
+ "tool_priority": [
+  "search_stac_satellite_imagery",
+  "load_stac_assets",
+  "calculate_spectral_index",
+  "calculate_ndvi",
+  "calculate_ndwi",
+  "calculate_ndre",
+  "raster_time_series_stats",
+  "create_zoning_map",
+  "zonal_statistics",
+  "calculate_change_matrix",
+  "unsupervised_classification",
+  "export_layer"
+ ],
+ "tool_aliases": {
+  "create_zoning_map": [
+   "management zones",
+   "variable rate zones"
+  ],
+  "calculate_spectral_index": [
+   "soil adjusted vegetation index",
+   "moisture index",
+   "burn ratio"
+  ]
+ },
+ "task_ids": [],
+ "data_sources": [
+  "stac_search"
+ ],
+ "style_profile": "agriculture",
+ "layout_templates": [],
+ "readiness": [
+  {
+   "capability": "Sentinel-2 scene search and band download for an area",
+   "state": "CI-checked",
+   "tool": "load_stac_assets"
+  },
+  {
+   "capability": "NDVI, NDWI, NDRE and SAVI, EVI, NDMI, NBR, MNDWI, BSI",
+   "state": "CI-checked",
+   "tool": "calculate_spectral_index"
+  },
+  {
+   "capability": "multi-date statistics, trend and anomaly",
+   "state": "CI-checked",
+   "tool": "raster_time_series_stats"
+  },
+  {
+   "capability": "from-to change matrix",
+   "state": "CI-checked",
+   "tool": "calculate_change_matrix"
+  },
+  {
+   "capability": "management zones",
+   "state": "CI-checked",
+   "tool": "create_zoning_map"
+  },
+  {
+   "capability": "field report layout and index class looks",
+   "state": "not built",
+   "since": "after the profile packages (R3-6)"
+  },
+  {
+   "capability": "rainfall and climate grids (CHIRPS, ERA5)",
+   "state": "not built",
+   "since": "R7 (1.25.0)"
+  },
+  {
+   "capability": "yield prediction",
+   "state": "declined",
+   "reason": "not recommended without ground truth; the plugin gives indices and zones, not yield or rate recommendations"
+  }
+ ],
+ "guardrails": [
+  "Indices describe vegetation and moisture, not yield; say so.",
+  "Never recommend an input rate or a yield from imagery alone.",
+  "Cloud cover and the acquisition date go in every statement about a scene."
+ ]
+}

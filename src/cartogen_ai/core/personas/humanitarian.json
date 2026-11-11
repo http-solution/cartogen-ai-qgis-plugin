@@ -1,0 +1,138 @@
+{
+ "id": "humanitarian",
+ "number": 2,
+ "label": "Humanitarian Aid / Crisis Response",
+ "aliases": [
+  "aid",
+  "crisis response",
+  "ocha"
+ ],
+ "summary": "Crisis response: affected people, access, needs and severity, 3W/4W presence and decision-ready products, with do-no-harm handling.",
+ "guidance": "Prioritize affected populations, administrative levels, 3W/4W presence, needs/severity, protection, do-no-harm handling, data provenance, uncertainty, and decision-ready map outputs.",
+ "workflows": [
+  {
+   "id": "hum.overview",
+   "title": "Situation overview of an area",
+   "tools": [
+    "fetch_hdx_admin_boundaries",
+    "fetch_worldpop_population",
+    "fetch_gdacs_disaster_alerts",
+    "generate_situation_dashboard"
+   ]
+  },
+  {
+   "id": "hum.access",
+   "title": "Who can reach what",
+   "tools": [
+    "calculate_service_area",
+    "classify_facilities_by_access",
+    "population_access_gap",
+    "analyze_critical_links"
+   ]
+  },
+  {
+   "id": "hum.needs",
+   "title": "Needs and severity",
+   "tools": [
+    "aggregate_survey_indicator",
+    "calculate_severity_index",
+    "compute_jiaf_preliminary",
+    "calculate_population_in_need"
+   ]
+  }
+ ],
+ "tool_priority": [
+  "fetch_hdx_admin_boundaries",
+  "fetch_worldpop_population",
+  "fetch_osm_features",
+  "fetch_gdacs_disaster_alerts",
+  "calculate_service_area",
+  "calculate_severity_index",
+  "calculate_population_in_need",
+  "generate_mapping_task_grid",
+  "aggregate_survey_indicator",
+  "generate_situation_dashboard",
+  "compute_jiaf_preliminary",
+  "obfuscate_sensitive_points"
+ ],
+ "tool_aliases": {
+  "calculate_population_in_need": [
+   "people in need",
+   "how many people are affected"
+  ],
+  "generate_situation_dashboard": [
+   "situation report",
+   "sitrep"
+  ]
+ },
+ "task_ids": [],
+ "data_sources": [
+  "hdx",
+  "geoboundaries",
+  "worldpop",
+  "osm",
+  "gdacs",
+  "firms",
+  "fts",
+  "ucdp"
+ ],
+ "style_profile": "humanitarian",
+ "layout_templates": [
+  "access_map"
+ ],
+ "readiness": [
+  {
+   "capability": "administrative boundaries, population and hazard feeds",
+   "state": "CI-checked",
+   "tool": "fetch_hdx_admin_boundaries"
+  },
+  {
+   "capability": "service areas and access gaps",
+   "state": "CI-checked",
+   "tool": "population_access_gap"
+  },
+  {
+   "capability": "severity and JIAF-style scoring",
+   "state": "CI-checked",
+   "tool": "compute_jiaf_preliminary"
+  },
+  {
+   "capability": "critical link analysis",
+   "state": "CI-checked",
+   "tool": "analyze_critical_links"
+  },
+  {
+   "capability": "situation dashboard",
+   "state": "CI-checked",
+   "tool": "generate_situation_dashboard"
+  },
+  {
+   "capability": "sensitive point obfuscation",
+   "state": "CI-checked",
+   "tool": "obfuscate_sensitive_points"
+  },
+  {
+   "capability": "Kobo/ODK survey pull",
+   "state": "not built",
+   "since": "R7 (1.25.0)",
+   "reason": "needs the owner's credentials; goes through the egress gate"
+  },
+  {
+   "capability": "ACLED conflict events",
+   "state": "not built",
+   "since": "R7 (1.25.0)",
+   "reason": "needs a licence key"
+  },
+  {
+   "capability": "QField package export",
+   "state": "not built",
+   "since": "no release planned yet",
+   "reason": "see the humanitarian gap analysis"
+  }
+ ],
+ "guardrails": [
+  "Do-no-harm: never show individual locations of vulnerable people; aggregate or obfuscate.",
+  "State the data date and source on every figure.",
+  "Do not present a score as a verified need."
+ ]
+}

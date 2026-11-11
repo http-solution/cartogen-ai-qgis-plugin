@@ -1,0 +1,73 @@
+{
+ "id": "defense_intel",
+ "number": 15,
+ "label": "Defense / Intelligence",
+ "aliases": [
+  "intelligence",
+  "defence",
+  "osint"
+ ],
+ "summary": "Not built as written. Open-source conflict and access analysis is available under Humanitarian and Public Safety.",
+ "guidance": "Prioritize provenance, uncertainty, temporal context, access controls, lawful use, and explicit separation of observation from inference.",
+ "workflows": [
+  {
+   "id": "def.open",
+   "title": "Open-source change and terrain",
+   "tools": [
+    "calculate_raster_change_detection",
+    "slope_analysis",
+    "geocode_batch"
+   ]
+  }
+ ],
+ "tool_priority": [
+  "calculate_raster_change_detection",
+  "slope_analysis",
+  "geocode_batch",
+  "search_web",
+  "fetch_ucdp_conflict_events",
+  "calculate_service_area"
+ ],
+ "tool_aliases": {},
+ "task_ids": [],
+ "data_sources": [
+  "ucdp",
+  "web_search",
+  "geocoding"
+ ],
+ "style_profile": "general",
+ "layout_templates": [],
+ "readiness": [
+  {
+   "capability": "change detection between two images",
+   "state": "CI-checked",
+   "tool": "calculate_raster_change_detection"
+  },
+  {
+   "capability": "slope",
+   "state": "CI-checked",
+   "tool": "slope_analysis"
+  },
+  {
+   "capability": "geocoding",
+   "state": "CI-checked",
+   "tool": "geocode_batch"
+  },
+  {
+   "capability": "this profile as written",
+   "state": "out of scope",
+   "reason": "Not built as written. Open-source conflict and access analysis is available under Humanitarian and Public Safety. Classified data must never be used with this plugin."
+  },
+  {
+   "capability": "conflict data needing a licence key (ACLED)",
+   "state": "not built",
+   "since": "R7 (1.25.0)",
+   "reason": "needs a licence key supplied by the user"
+  }
+ ],
+ "guardrails": [
+  "Classified or restricted data must never be used with this plugin.",
+  "Keep observation separate from inference, and say how certain each is.",
+  "Lawful use only."
+ ]
+}

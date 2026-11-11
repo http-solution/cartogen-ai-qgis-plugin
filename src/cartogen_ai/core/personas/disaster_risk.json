@@ -1,0 +1,114 @@
+{
+ "id": "disaster_risk",
+ "number": 9,
+ "label": "Disaster Risk / Climate Resilience",
+ "aliases": [
+  "climate resilience",
+  "hazard",
+  "drr"
+ ],
+ "summary": "Hazard, exposure and consequence: live hazard feeds, who and what is exposed, triggers and scenario products with their assumptions.",
+ "guidance": "Prioritize hazard, exposure, vulnerability, scenario assumptions, evacuation/access constraints, time sensitivity, and uncertainty-aware decision products.",
+ "workflows": [
+  {
+   "id": "drr.feeds",
+   "title": "Current hazards",
+   "tools": [
+    "fetch_gdacs_disaster_alerts",
+    "fetch_nasa_eonet_events",
+    "fetch_nasa_active_fires",
+    "fetch_usgs_earthquakes"
+   ]
+  },
+  {
+   "id": "drr.exposure",
+   "title": "Who and what is exposed",
+   "tools": [
+    "estimate_population_exposure",
+    "calculate_damage_exposure_severity",
+    "evaluate_forecast_trigger",
+    "generate_situation_dashboard"
+   ]
+  }
+ ],
+ "tool_priority": [
+  "fetch_gdacs_disaster_alerts",
+  "fetch_nasa_eonet_events",
+  "fetch_nasa_active_fires",
+  "fetch_usgs_earthquakes",
+  "evaluate_forecast_trigger",
+  "schedule_recurring_workflow",
+  "estimate_population_exposure",
+  "calculate_damage_exposure_severity",
+  "weighted_overlay_analysis",
+  "fetch_dem",
+  "generate_situation_dashboard",
+  "run_monitoring_workflow"
+ ],
+ "tool_aliases": {
+  "estimate_population_exposure": [
+   "how many people are in the flood zone",
+   "exposed population"
+  ],
+  "evaluate_forecast_trigger": [
+   "has the trigger been reached"
+  ]
+ },
+ "task_ids": [],
+ "data_sources": [
+  "gdacs",
+  "eonet",
+  "firms",
+  "usgs",
+  "worldpop"
+ ],
+ "style_profile": "disaster_risk",
+ "layout_templates": [],
+ "readiness": [
+  {
+   "capability": "hazard feeds (GDACS, EONET, FIRMS, USGS)",
+   "state": "CI-checked",
+   "tool": "fetch_gdacs_disaster_alerts"
+  },
+  {
+   "capability": "forecast triggers and scheduled workflows",
+   "state": "CI-checked",
+   "tool": "evaluate_forecast_trigger"
+  },
+  {
+   "capability": "population exposure and damage severity",
+   "state": "CI-checked",
+   "tool": "estimate_population_exposure"
+  },
+  {
+   "capability": "flood footprint from a DEM and a water level (bathtub, HAND)",
+   "state": "not built",
+   "since": "R4 (1.22.0)"
+  },
+  {
+   "capability": "landslide susceptibility as a documented weighted overlay",
+   "state": "not built",
+   "since": "R4 (1.22.0)"
+  },
+  {
+   "capability": "hazard brief layout",
+   "state": "not built",
+   "since": "after the profile packages"
+  },
+  {
+   "capability": "rainfall grids (CHIRPS, GPM)",
+   "state": "not built",
+   "since": "R7 (1.25.0)"
+  },
+  {
+   "capability": "hydraulic simulation",
+   "state": "out of scope",
+   "reason": "the plugin does not fake a flood model; it states exposure to a stated level"
+  }
+ ],
+ "guardrails": [
+  "A scenario is not a forecast: say 'scenario' and list the assumptions.",
+  "Quote the source and time of every hazard feed.",
+  "A bathtub footprint ignores flow; never call it a flood model."
+ ]
+}

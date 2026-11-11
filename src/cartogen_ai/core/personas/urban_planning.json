@@ -1,0 +1,124 @@
+{
+ "id": "urban_planning",
+ "number": 4,
+ "label": "Urban Planning / Local Government",
+ "aliases": [
+  "planning",
+  "local government",
+  "zoning"
+ ],
+ "summary": "Land use, zoning checks, service catchments, population served and planning scenarios readable by stakeholders.",
+ "guidance": "Prioritize parcels, zoning, land use, accessibility, service catchments, population, development scenarios, planning constraints, and stakeholder-readable outputs.",
+ "workflows": [
+  {
+   "id": "urb.zoning",
+   "title": "Zoning and land use checks",
+   "tools": [
+    "intersect_layers",
+    "spatial_join",
+    "buffer_analysis",
+    "generate_report"
+   ]
+  },
+  {
+   "id": "urb.catchments",
+   "title": "Service catchments and who is served",
+   "tools": [
+    "calculate_service_area",
+    "estimate_population_exposure",
+    "population_access_gap",
+    "generate_html_dashboard"
+   ]
+  }
+ ],
+ "tool_priority": [
+  "intersect_layers",
+  "spatial_join",
+  "buffer_analysis",
+  "calculate_service_area",
+  "estimate_population_exposure",
+  "population_access_gap",
+  "calculate_mcda_ranking",
+  "weighted_overlay_analysis",
+  "split_features_by_line",
+  "fetch_osm_features",
+  "generate_html_dashboard",
+  "create_print_layout"
+ ],
+ "tool_aliases": {
+  "calculate_service_area": [
+   "walking distance catchment",
+   "service area around schools"
+  ],
+  "split_features_by_line": [
+   "split the parcel",
+   "subdivide the plot"
+  ]
+ },
+ "task_ids": [],
+ "data_sources": [
+  "osm",
+  "worldpop",
+  "footprints"
+ ],
+ "style_profile": "urban_planning",
+ "layout_templates": [
+  "standard"
+ ],
+ "readiness": [
+  {
+   "capability": "overlay and zoning checks",
+   "state": "CI-checked",
+   "tool": "intersect_layers"
+  },
+  {
+   "capability": "service areas and population served",
+   "state": "CI-checked",
+   "tool": "estimate_population_exposure"
+  },
+  {
+   "capability": "multi-criteria ranking",
+   "state": "CI-checked",
+   "tool": "calculate_mcda_ranking"
+  },
+  {
+   "capability": "HTML dashboard",
+   "state": "CI-checked",
+   "tool": "generate_html_dashboard"
+  },
+  {
+   "capability": "splitting a parcel along a line",
+   "state": "CI-checked",
+   "tool": "split_features_by_line"
+  },
+  {
+   "capability": "parcel subdivision by target area",
+   "state": "not built",
+   "since": "R6 (1.24.0)"
+  },
+  {
+   "capability": "scenario allocation of future land use",
+   "state": "not built",
+   "since": "R6 (1.24.0)"
+  },
+  {
+   "capability": "planning board layout",
+   "state": "not built",
+   "since": "R6 (1.24.0)"
+  },
+  {
+   "capability": "line of sight",
+   "state": "not built",
+   "since": "R4 (1.22.0)"
+  },
+  {
+   "capability": "urban heat island (needs land-surface temperature)",
+   "state": "not built",
+   "since": "no release planned yet"
+  }
+ ],
+ "guardrails": [
+  "A scenario is an illustration with stated assumptions, not a forecast.",
+  "Name the zoning source and its date; do not infer zoning from imagery."
+ ]
+}
