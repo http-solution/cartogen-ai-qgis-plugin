@@ -68,6 +68,19 @@ class TestReportLayouts(unittest.TestCase):
             self.assertIn(expected, body)
         self.assertNotIn("HANDLING", body)
 
+    def test_an_epi_bulletin_has_its_headings_the_figures_from_the_layer_and_the_method_and_limits_box(self):
+        from cartogen_ai.core.agent.tools import layout_style as ls
+        from cartogen_ai.core.agent.tools.layout_tools import create_print_layout
+        result = create_print_layout("Epidemic bulletin", template="epi_bulletin", body_text="Cases reported to 2026-11-08",
+                                     key_figures_from={"layer_name": "fields", "label_field": "name", "value_field": "lost_ha", "top_n": 2}, sources=["District health office line list"])
+        body = self._body(result)
+        self.assertEqual(result["template"], "epi_bulletin")
+        self.assertTrue(body.startswith("SUMMARY\nCases reported to 2026-11-08"), body)
+        for expected in ("CASES AND RATES", "South: 30", "North: 12", "HOW TO READ THIS MAP\n" + ls.EPI_BULLETIN_GUIDE, "SOURCES\nDistrict health office line list", "METHOD AND LIMITS\n" + ls.EPI_BULLETIN_NOTE):
+            self.assertIn(expected, body)
+        for absent in ("SITUATION", "HANDLING", ls.UNVERIFIED_FIGURE_MARK):
+            self.assertNotIn(absent, body)
+
     def test_sitrep_is_unchanged_and_an_unknown_template_is_the_standard_layout(self):
         from cartogen_ai.core.agent.tools import layout_style as ls
         from cartogen_ai.core.agent.tools.layout_tools import create_print_layout

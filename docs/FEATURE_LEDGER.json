@@ -3304,6 +3304,33 @@
     ],
     "hand_verified": "not verified: CI only (offline known answers and a live run on real QGIS layers, written without a local QGIS); never compared with R or GeoDa on a real layer, and never run by a person",
     "hand_row": "C24-health-rates"
+  },
+  {
+    "id": "public-health-look",
+    "feature": "apply_public_health_look draws the public-health look on a layer the user already has: look rate colours a numeric rate field (default value_shown from calculate_health_rates) in the single-hue Blues ramp of the public_health style profile with up to 5 quantile classes from the figures that are shown (repeated figures merge classes rather than make empty ones, and the reply says how many were dropped), draws suppressed small-number areas (empty value) as a grey diagonal hatch labelled Suppressed (n < 5) and carries the legend sentence 'Rate per 100,000; suppressed where n < 5'; look cluster draws a black 1.2 mm line under a narrower white 0.5 mm line with no fill and never red, for the circles of detect_spatial_clusters; looks lisa and hotspot colour the Local Moran classes (HH, HL, LH, LL, not significant, no neighbours) and the Getis-Ord hot and cold spot classes with ColorBrewer PuOr orange and purple, so no class is red or green and neighbouring classes stay distinguishable in normal vision and three simulated colour deficiencies (the lightest purple is darkened to #C6C8E2 to pass the repo's floor of 10, recorded in the module); the epi_bulletin template of create_print_layout is a one-page bulletin on the sitrep text panel with SUMMARY, CASES AND RATES, HOW TO READ THIS MAP, SOURCES and a METHOD AND LIMITS note that says rates are crude and for areas not individuals, areas under 5 cases are not shown, a cluster is not a cause and cases are those reported by the date stated, with the same figure check as a sitrep; known answers: the quantile breaks of 1 to 100 in 5 classes are 1, 20.8, 40.6, 60.4, 80.2, 100, no colour in the look is red, every feature falls in exactly one rate rule. Not built: the plan's epidemic-curve chart inside the template (generate_chart makes it separately). Not tested: how an exported bulletin page looks (hand row C25)",
+    "issues": [],
+    "since": "1.18.6",
+    "sources": [
+      "src/cartogen_ai/core/representation/epi_look.py",
+      "src/cartogen_ai/core/agent/tools/public_health_look_tool.py",
+      "src/cartogen_ai/core/agent/tools/layout_style.py",
+      "src/cartogen_ai/core/agent/tools/layout_tools.py",
+      "src/cartogen_ai/core/tool_operations.py"
+    ],
+    "guards": [
+      "tests/test_epi_look.py::TestLegendAndClasses::test_the_legend_sentence_is_exactly_the_plans",
+      "tests/test_epi_look.py::TestLegendAndClasses::test_quantiles_of_1_to_100_break_at_the_hand_computed_points",
+      "tests/test_epi_look.py::TestLegendAndClasses::test_every_shown_figure_falls_in_exactly_one_class_and_suppressed_ones_in_none",
+      "tests/test_epi_look.py::TestColourRules::test_nothing_in_the_look_is_red",
+      "tests/test_epi_look.py::TestColourRules::test_cluster_outline_is_a_black_line_under_a_narrower_white_line",
+      "tests/test_epi_look.py::TestColourRules::test_class_neighbours_stay_distinguishable_in_every_vision_type",
+      "tests/test_layout_report_kinds.py::TestReportKinds::test_an_epi_bulletin_has_its_own_headings_and_a_method_and_limits_box",
+      "tests/test_public_health_look_live.py::TestPublicHealthLook::test_rate_look_has_five_blue_rules_a_hatch_rule_and_the_legend_sentence",
+      "tests/test_public_health_look_live.py::TestPublicHealthLook::test_cluster_look_is_a_black_line_under_a_white_line_with_no_fill_and_no_red",
+      "tests/test_layout_report_kinds_live.py::TestReportLayouts::test_an_epi_bulletin_has_its_headings_the_figures_from_the_layer_and_the_method_and_limits_box"
+    ],
+    "hand_verified": "not verified: CI only (offline rules and live renderer read-backs on real QGIS layers, written without a local QGIS); nobody has looked at the colours on a real map or at an exported bulletin page",
+    "hand_row": "C25-public-health-look"
   }
 ]
 }
