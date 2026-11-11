@@ -49,17 +49,24 @@ def plan_classes(values, scheme):
             unmatched.append(value)
         else:
             matched.append({"value": value, "label": f"{entry['label']} ({entry['code']})", "colour": entry["colour"], "matched": True, "_rank": order[entry["code"]]})
-    matched.sort(key=lambda c: (c["_rank"], str(c["value"])))
-    unmatched.sort(key=str)
+    matched.sort(key=lambda c: (c["_rank"], _show(c["value"])))
+    unmatched.sort(key=_show)
     tail = [{"value": v, "label": _unmatched_label(v, scheme), "colour": UNMATCHED_COLOUR, "matched": False} for v in unmatched]
     for c in matched:
         c.pop("_rank")
-    return matched + tail, [str(v) for v in unmatched]
+    return matched + tail, [_show(v) for v in unmatched]
+
+
+def _show(value):
+    """A value as people read it: QGIS hands raster cell values back as floats, so 11.0 is shown as 11 (found by the CI live run, 2026-11-11)."""
+    if isinstance(value, float) and value.is_integer():
+        return str(int(value))
+    return str(value)
 
 
 def _unmatched_label(value, scheme):
     phrase = _SCHEME_TEXT[scheme][1]
-    return f"no value (not in {phrase})" if value is None or str(value) in ("", "NULL") else f"{value} (not in {phrase})"
+    return f"no value (not in {phrase})" if value is None or str(value) in ("", "NULL") else f"{_show(value)} (not in {phrase})"
 
 
 def _apply_vector(layer, scheme, field):

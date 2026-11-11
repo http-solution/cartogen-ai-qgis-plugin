@@ -84,6 +84,13 @@ class TestPlanClasses(unittest.TestCase):
         self.assertEqual([c["label"] for c in grey], ["11 (not in the ESA WorldCover legend)", "no value (not in the ESA WorldCover legend)", "forest (not in the ESA WorldCover legend)"])
         self.assertEqual(classes[0]["label"], "Tree cover (10)")
 
+    def test_a_whole_number_that_arrives_as_a_float_is_shown_without_the_point_zero(self):
+        # QGIS returns raster cell values as floats: the CI live run showed '11.0 (not in ...)' before this was fixed
+        classes, unmatched = lc.plan_classes([10.0, 11.0, 12.5], "esa_worldcover")
+        self.assertEqual(unmatched, ["11", "12.5"])
+        self.assertEqual([c["label"] for c in classes], ["Tree cover (10)", "11 (not in the ESA WorldCover legend)", "12.5 (not in the ESA WorldCover legend)"])
+        self.assertEqual(classes[0]["value"], 10.0)
+
     def test_change_classes_in_order_loss_stable_gain(self):
         classes, unmatched = lc.plan_classes([1, "loss", 0, -1, 2], "change_classes")
         self.assertEqual([c["label"] for c in classes if c["matched"]], ["loss (-1)", "loss (-1)", "stable (0)", "gain (1)"])
