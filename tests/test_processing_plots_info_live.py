@@ -16,7 +16,7 @@ PLOTS = {
     "qgis:barplot": {"INPUT": "towns", "NAME_FIELD": "name", "VALUE_FIELD": "pop"},
     "qgis:boxplot": {"INPUT": "towns", "NAME_FIELD": "name", "VALUE_FIELD": "pop"},
     "qgis:meanandstandarddeviationplot": {"INPUT": "towns", "NAME_FIELD": "name", "VALUE_FIELD": "pop"},
-    "qgis:polarplot": {"INPUT": "towns", "NAME_FIELD": "name", "VALUE_FIELD": "pop"},
+    "qgis:polarplot": {"INPUT": "towns", "VALUE_FIELD": "pop"},       # no NAME_FIELD: the first CI run of this test showed the algorithm has only INPUT and VALUE_FIELD
     "qgis:rasterlayerhistogram": {"INPUT": "dem", "BAND": 1, "BINS": 10},
     "qgis:vectorlayerhistogram": {"INPUT": "towns", "FIELD": "pop", "BINS": 5},
     "qgis:vectorlayerscatterplot": {"INPUT": "towns", "XFIELD": "pop", "YFIELD": "pop2"},
@@ -91,11 +91,15 @@ class TestPlotsAndInfoLive(unittest.TestCase):
         self.assertLessEqual(len(as_json["report_text"]), 4000)
 
     def test_record_whether_the_elevation_profile_image_can_run(self):
-        # not asserted: the answer decides whether it is built (a line to profile is given as WKT)
-        result = self._run("native:generateelevationprofileimage", {"CURVE": "LineString(0.2 0.2, 3.8 3.8)", "MAP_LAYERS": ["dem"], "TERRAIN_LAYER": "dem", "WIDTH": 400, "HEIGHT": 300})
-        print(f"ELEVPROFILE {'ok' if result.get('success') else 'FAILED'} {str(result)[:400]}")
-        self.assertIn("alg_id", {**result, "alg_id": 1})
-
+        # not asserted, and NOT through the generic tool (the algorithm is not approved, so that tool would refuse it): the answer decides whether it is built
+        import processing
+        out = os.path.join(self.folder, "profile.png")
+        try:
+            result = processing.run("native:generateelevationprofileimage", {"CURVE": "LineString(0.2 0.2, 3.8 3.8)", "MAP_LAYERS": ["dem"], "TERRAIN_LAYER": "dem",
+                                                                              "WIDTH": 400, "HEIGHT": 300, "OUTPUT": out})
+            print(f"ELEVPROFILE ok {sorted(result)} file={os.path.isfile(out)} bytes={os.path.getsize(out) if os.path.isfile(out) else 0}")
+        except Exception as e:  # a probe: any failure is the answer
+            print(f"ELEVPROFILE FAILED {type(e).__name__}: {str(e)[:400]}")
 
 if __name__ == "__main__":
     unittest.main()
