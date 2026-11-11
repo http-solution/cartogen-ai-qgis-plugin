@@ -5,7 +5,7 @@ Run:  python tools/add_persona_tasks.py            # rewrite register + persona 
 
 What it does
   * every existing task gets `persona`: ["engineering"] for section 36 (engineering hydrology) and ["humanitarian"] for the rest, because the register was written as the humanitarian mapping register (docs/PERSONA_TOOLS_STYLING_PLAN_2026-10-04.md section 1, point 3);
-  * sections 38 to 50 are added, one per persona except `general` and `defense_intel` (persona numbers 2 to 14), 4 tasks each (52), and R3-6 adds 1 to agriculture and 2 to environment (55 in all); section 37 stays empty on purpose (the plan numbers the persona sections 38 to 50);
+  * sections 38 to 50 are added, one per persona except `general` and `defense_intel` (persona numbers 2 to 14), 4 tasks each (52), R3-6 adds 1 to agriculture and 2 to environment (55 in all) and R2-6 adds 2 to humanitarian, 1 to urban planning, 1 to environment, 4 to public health, 1 to public safety and 1 to real estate (65 in all); section 37 stays empty on purpose (the plan numbers the persona sections 38 to 50);
   * each persona file's `task_ids` is set to its own tasks.
 Every new task uses only tools that exist in the registry TODAY (a test checks it); a capability that is `not built` in the persona's readiness list has no task. `acc` and `prod` are filled in by tools/derive_task_io.py's own derive(), so one run of this script is enough."""
 import argparse
@@ -31,6 +31,8 @@ SECTIONS = [
         ("Find who cannot reach services within a travel time", "analysis", ["facility_type", "threshold"], ["calculate_service_area", "classify_facilities_by_access", "population_access_gap"]),
         ("Estimate people in need and a preliminary JIAF severity", "analysis", [], ["aggregate_survey_indicator", "calculate_severity_index", "compute_jiaf_preliminary", "calculate_population_in_need"]),
         ("Divide a response area into a mapping task grid", "layer", ["aoi"], ["fetch_hdx_admin_boundaries", "generate_mapping_task_grid"]),
+        ("Check whether disease cases cluster more than chance explains", "analysis", [], ["detect_spatial_clusters", "analyze_hotspots_gi_star"]),
+        ("Work out case rates and relative risk for each area", "analysis", [], ["calculate_health_rates", "apply_public_health_look"]),
     ]),
     ("39", "engineering", "Engineering: terrain, corridors and plans", [
         ("Produce terrain products for a site", "layer", ["aoi"], ["fetch_dem", "hillshade", "slope_analysis", "generate_contours"]),
@@ -43,6 +45,7 @@ SECTIONS = [
         ("Show who a planned public facility would serve", "analysis", ["threshold", "population_src"], ["calculate_service_area", "estimate_population_exposure", "population_access_gap"]),
         ("Rank candidate sites for a new public facility", "layer", ["aoi", "facility_type"], ["fetch_osm_features", "calculate_mcda_ranking"]),
         ("Split a parcel along a proposed boundary line", "layer", [], ["add_layer_from_path", "split_features_by_line"]),
+        ("Test whether a pattern such as vacancy or rents is clustered across neighbourhoods", "analysis", [], ["calculate_spatial_autocorrelation", "analyze_hotspots_gi_star"]),
     ]),
     ("41", "logistics", "Logistics: hubs, routes and delivery risk", [
         ("Choose hub locations and the demand each one serves", "layer", [], ["add_layer_from_path", "optimal_hub_siting", "location_allocation", "calculate_allocation_envelope"]),
@@ -64,12 +67,17 @@ SECTIONS = [
         ("Rank sites for habitat or restoration suitability", "analysis", [], ["weighted_overlay_analysis", "buffer_analysis"]),
         ("Colour a classified layer with the official ESA WorldCover legend", "layer", [], ["add_layer_from_path", "apply_land_cover_look"]),
         ("Lay out a report on land cover change", "layout", [], ["add_layer_from_path", "apply_land_cover_look", "create_print_layout", "print_map"]),
+        ("Test where a measured value such as pollution is significantly high or low", "analysis", [], ["calculate_spatial_autocorrelation", "analyze_hotspots_gi_star", "detect_spatial_clusters"]),
     ]),
     ("44", "public_health", "Public health: access, cases and indicators", [
         ("Map health facility access and the population left out", "analysis", ["aoi", "facility_type", "threshold"], ["fetch_worldpop_population", "calculate_service_area", "classify_facilities_by_access", "population_access_gap"]),
         ("Geocode case addresses and chart the trend over time", "layer", ["time_range"], ["geocode_batch", "analyze_incident_trend", "generate_chart"]),
         ("Show where cases cluster with a density surface", "layer", [], ["add_layer_from_path", "hotspot_analysis", "obfuscate_sensitive_points"]),
         ("Summarise a survey indicator with small-number suppression", "analysis", [], ["aggregate_survey_indicator", "generate_chart"]),
+        ("Test whether cases form a real cluster in space", "analysis", [], ["calculate_spatial_autocorrelation", "detect_spatial_clusters"]),
+        ("Find hot spots and cold spots with a significance test", "layer", [], ["add_layer_from_path", "analyze_hotspots_gi_star", "apply_public_health_look"]),
+        ("Compute rates per 100,000 and relative risk by area and map them", "layer", [], ["add_layer_from_path", "calculate_health_rates", "apply_public_health_look"]),
+        ("Lay out an epidemic bulletin for a reporting period", "layout", [], ["add_layer_from_path", "create_print_layout", "print_map"]),
     ]),
     ("45", "disaster_risk", "Disaster risk: hazards, exposure and triggers", [
         ("Check current hazard alerts for an area", "layer", ["aoi"], ["fetch_gdacs_disaster_alerts", "fetch_nasa_eonet_events", "fetch_usgs_earthquakes"]),
@@ -94,6 +102,7 @@ SECTIONS = [
         ("Blur exact incident points to protect people", "dataset", [], ["obfuscate_sensitive_points", "set_layer_sensitivity"]),
         ("Rate route safety from past incidents", "analysis", [], ["score_route_incident_risk", "apply_network_barriers"]),
         ("Show response coverage within a response time", "layer", ["aoi", "threshold"], ["fetch_osm_features", "calculate_service_area"]),
+        ("Test whether incidents form a statistically significant hot spot", "analysis", [], ["analyze_hotspots_gi_star", "detect_spatial_clusters"]),
     ]),
     ("49", "research", "Research: provenance, workflows and metadata", [
         ("Record how a result was produced", "report", [], ["write_provenance_sidecar", "get_provenance_record"]),
@@ -106,6 +115,7 @@ SECTIONS = [
         ("Rank candidate sites with weighted criteria", "analysis", [], ["calculate_mcda_ranking", "weighted_overlay_analysis"]),
         ("Map the amenities around a candidate site", "layer", ["aoi", "facility_type"], ["fetch_osm_features", "find_nearest_features"]),
         ("Build a neighbourhood dashboard for a site", "dashboard", ["aoi"], ["geocode_batch", "fetch_osm_features", "generate_html_dashboard"]),
+        ("Test whether high prices are spatially clustered", "analysis", [], ["calculate_spatial_autocorrelation", "analyze_hotspots_gi_star"]),
     ]),
 ]
 

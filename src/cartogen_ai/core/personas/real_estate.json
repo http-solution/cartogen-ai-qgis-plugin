@@ -42,8 +42,8 @@
   "geocode_batch",
   "weighted_overlay_analysis",
   "spatial_join",
-  "zonal_statistics",
-  "generate_report"
+  "calculate_spatial_autocorrelation",
+  "analyze_hotspots_gi_star"
  ],
  "tool_aliases": {
   "calculate_mcda_ranking": [
@@ -53,13 +53,22 @@
   "calculate_service_area": [
    "trade area",
    "catchment by drive time"
+  ],
+  "calculate_spatial_autocorrelation": [
+   "are prices clustered",
+   "spatial pattern"
+  ],
+  "analyze_hotspots_gi_star": [
+   "hotspot test",
+   "hot and cold areas"
   ]
  },
  "task_ids": [
   "50.01",
   "50.02",
   "50.03",
-  "50.04"
+  "50.04",
+  "50.05"
  ],
  "data_sources": [
   "osm",

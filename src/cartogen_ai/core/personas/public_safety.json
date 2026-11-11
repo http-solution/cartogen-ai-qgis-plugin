@@ -14,6 +14,7 @@
    "id": "saf.incidents",
    "title": "Incident patterns",
    "tools": [
+    "find_incident_reports",
     "analyze_incident_trend",
     "hotspot_analysis",
     "analyze_hotspots_gi_star",
@@ -39,12 +40,12 @@
   "apply_network_barriers",
   "obfuscate_sensitive_points",
   "analyze_incident_trend",
-  "add_incident_point",
   "calculate_service_area",
-  "find_incident_reports",
-  "fetch_ucdp_conflict_events",
   "set_layer_sensitivity",
-  "aggregate_data"
+  "calculate_spatial_autocorrelation",
+  "analyze_hotspots_gi_star",
+  "detect_spatial_clusters",
+  "calculate_health_rates"
  ],
  "tool_aliases": {
   "hotspot_analysis": [
@@ -54,13 +55,26 @@
   "obfuscate_sensitive_points": [
    "generalise locations",
    "hide exact addresses"
+  ],
+  "analyze_hotspots_gi_star": [
+   "hotspot test",
+   "statistically significant hot spots"
+  ],
+  "detect_spatial_clusters": [
+   "clustering of incidents",
+   "is this cluster real"
+  ],
+  "calculate_health_rates": [
+   "crime rate per",
+   "incidents per 100,000"
   ]
  },
  "task_ids": [
   "48.01",
   "48.02",
   "48.03",
-  "48.04"
+  "48.04",
+  "48.05"
  ],
  "data_sources": [
   "ucdp",

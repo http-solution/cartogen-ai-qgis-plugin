@@ -7,19 +7,19 @@ A persona is a lens, not a gate: it changes which tools are suggested first and 
 | # | Persona | Built | Available | Not built | Out of scope | Declined | Tasks |
 |---|---|---|---|---|---|---|---|
 | 1 | GIS Generalist | 0 | 5 | 3 | 0 | 0 | 0 |
-| 2 | Humanitarian Aid / Crisis Response | 0 | 6 | 3 | 0 | 0 | 4 |
+| 2 | Humanitarian Aid / Crisis Response | 0 | 6 | 3 | 0 | 0 | 6 |
 | 3 | Engineering / Infrastructure | 0 | 5 | 2 | 1 | 0 | 5 |
-| 4 | Urban Planning / Local Government | 0 | 5 | 5 | 0 | 0 | 4 |
+| 4 | Urban Planning / Local Government | 0 | 5 | 5 | 0 | 0 | 5 |
 | 5 | Logistics / Supply Chain | 0 | 4 | 4 | 1 | 0 | 4 |
 | 6 | Agriculture / Food Security | 0 | 6 | 2 | 0 | 1 | 5 |
-| 7 | Environment / Natural Resources | 0 | 7 | 1 | 0 | 0 | 6 |
-| 8 | Public Health / Epidemiology | 0 | 10 | 1 | 0 | 0 | 4 |
+| 7 | Environment / Natural Resources | 0 | 7 | 1 | 0 | 0 | 7 |
+| 8 | Public Health / Epidemiology | 0 | 10 | 1 | 0 | 0 | 8 |
 | 9 | Disaster Risk / Climate Resilience | 0 | 3 | 4 | 1 | 0 | 4 |
 | 10 | Utilities / Energy / Water | 0 | 4 | 3 | 1 | 0 | 4 |
 | 11 | Transport / Mobility | 0 | 4 | 3 | 1 | 0 | 4 |
-| 12 | Public Safety / Security | 0 | 5 | 2 | 1 | 0 | 4 |
+| 12 | Public Safety / Security | 0 | 5 | 2 | 1 | 0 | 5 |
 | 13 | Research / Academia | 0 | 4 | 4 | 1 | 0 | 4 |
-| 14 | Real Estate / Site Selection | 0 | 4 | 5 | 0 | 0 | 4 |
+| 14 | Real Estate / Site Selection | 0 | 4 | 5 | 0 | 0 | 5 |
 | 15 | Defense / Intelligence | 0 | 3 | 1 | 1 | 0 | 0 |
 
 ## 1. GIS Generalist
@@ -67,7 +67,7 @@ General GIS work: loading, converting, cleaning and checking spatial data, and p
 
 Crisis response: affected people, access, needs and severity, 3W/4W presence and decision-ready products, with do-no-harm handling.
 
-**Tools suggested first:** `fetch_hdx_admin_boundaries`, `fetch_worldpop_population`, `fetch_osm_features`, `fetch_gdacs_disaster_alerts`, `calculate_service_area`, `calculate_severity_index`, `calculate_population_in_need`, `generate_mapping_task_grid`, `aggregate_survey_indicator`, `generate_situation_dashboard`, `compute_jiaf_preliminary`, `obfuscate_sensitive_points`
+**Tools suggested first:** `fetch_hdx_admin_boundaries`, `fetch_worldpop_population`, `fetch_gdacs_disaster_alerts`, `calculate_severity_index`, `calculate_population_in_need`, `aggregate_survey_indicator`, `generate_situation_dashboard`, `compute_jiaf_preliminary`, `obfuscate_sensitive_points`, `detect_spatial_clusters`, `calculate_health_rates`, `analyze_hotspots_gi_star`
 
 **Workflows:**
 
@@ -81,6 +81,8 @@ Crisis response: affected people, access, needs and severity, 3W/4W presence and
 - 38.02 Find who cannot reach services within a travel time
 - 38.03 Estimate people in need and a preliminary JIAF severity
 - 38.04 Divide a response area into a mapping task grid
+- 38.05 Check whether disease cases cluster more than chance explains
+- 38.06 Work out case rates and relative risk for each area
 
 **Available (checked by automatic tests):**
 
@@ -164,7 +166,7 @@ Terrain, drainage and site engineering: slopes, profiles, basins, peak flow scre
 
 Land use, zoning checks, service catchments, population served and planning scenarios readable by stakeholders.
 
-**Tools suggested first:** `intersect_layers`, `spatial_join`, `buffer_analysis`, `calculate_service_area`, `estimate_population_exposure`, `population_access_gap`, `calculate_mcda_ranking`, `weighted_overlay_analysis`, `split_features_by_line`, `fetch_osm_features`, `generate_html_dashboard`, `create_print_layout`
+**Tools suggested first:** `intersect_layers`, `spatial_join`, `buffer_analysis`, `calculate_service_area`, `estimate_population_exposure`, `population_access_gap`, `calculate_mcda_ranking`, `weighted_overlay_analysis`, `split_features_by_line`, `fetch_osm_features`, `calculate_spatial_autocorrelation`, `analyze_hotspots_gi_star`
 
 **Workflows:**
 
@@ -177,6 +179,7 @@ Land use, zoning checks, service catchments, population served and planning scen
 - 40.02 Show who a planned public facility would serve
 - 40.03 Rank candidate sites for a new public facility
 - 40.04 Split a parcel along a proposed boundary line
+- 40.05 Test whether a pattern such as vacancy or rents is clustered across neighbourhoods
 
 **Available (checked by automatic tests):**
 
@@ -314,7 +317,7 @@ Fields and crops from satellite imagery: vegetation and moisture indices, season
 
 Land cover, habitat and protected areas: change between dates, classification, suitability and evidence that can be reproduced.
 
-**Tools suggested first:** `calculate_raster_change_detection`, `calculate_change_matrix`, `raster_time_series_stats`, `supervised_classification`, `unsupervised_classification`, `weighted_overlay_analysis`, `buffer_analysis`, `intersect_layers`, `zonal_statistics`, `extract_features_from_imagery`, `create_zoning_map`, `load_stac_assets`
+**Tools suggested first:** `calculate_raster_change_detection`, `calculate_change_matrix`, `raster_time_series_stats`, `supervised_classification`, `weighted_overlay_analysis`, `buffer_analysis`, `zonal_statistics`, `create_zoning_map`, `load_stac_assets`, `calculate_spatial_autocorrelation`, `analyze_hotspots_gi_star`, `detect_spatial_clusters`
 
 **Workflows:**
 
@@ -330,6 +333,7 @@ Land cover, habitat and protected areas: change between dates, classification, s
 - 43.04 Rank sites for habitat or restoration suitability
 - 43.05 Colour a classified layer with the official ESA WorldCover legend
 - 43.06 Lay out a report on land cover change
+- 43.07 Test where a measured value such as pollution is significantly high or low
 
 **Available (checked by automatic tests):**
 
@@ -363,7 +367,7 @@ Land cover, habitat and protected areas: change between dates, classification, s
 
 Health services and disease patterns by area: catchments, access, rates and trends, always aggregated and protected.
 
-**Tools suggested first:** `geocode_batch`, `analyze_incident_trend`, `calculate_presence_gap`, `hotspot_analysis`, `aggregate_survey_indicator`, `obfuscate_sensitive_points`, `generate_chart`, `population_access_gap`, `classify_facilities_by_access`, `calculate_population_in_need`, `fetch_worldpop_population`, `set_layer_sensitivity`
+**Tools suggested first:** `geocode_batch`, `analyze_incident_trend`, `calculate_presence_gap`, `hotspot_analysis`, `aggregate_survey_indicator`, `obfuscate_sensitive_points`, `generate_chart`, `population_access_gap`, `calculate_spatial_autocorrelation`, `analyze_hotspots_gi_star`, `detect_spatial_clusters`, `calculate_health_rates`
 
 **Workflows:**
 
@@ -371,6 +375,7 @@ Health services and disease patterns by area: catchments, access, rates and tren
 - Trends and hotspots: `geocode_batch` -> `analyze_incident_trend` -> `hotspot_analysis` -> `generate_chart`
 - Rates and risk by area: `calculate_health_rates`
 - Is there a spatial pattern?: `calculate_spatial_autocorrelation` -> `analyze_hotspots_gi_star` -> `detect_spatial_clusters` -> `apply_public_health_look`
+- Epidemic bulletin: `apply_public_health_look` -> `generate_chart` -> `create_print_layout`
 
 **Tasks in the register:**
 
@@ -378,6 +383,10 @@ Health services and disease patterns by area: catchments, access, rates and tren
 - 44.02 Geocode case addresses and chart the trend over time
 - 44.03 Show where cases cluster with a density surface
 - 44.04 Summarise a survey indicator with small-number suppression
+- 44.05 Test whether cases form a real cluster in space
+- 44.06 Find hot spots and cold spots with a significance test
+- 44.07 Compute rates per 100,000 and relative risk by area and map them
+- 44.08 Lay out an epidemic bulletin for a reporting period
 
 **Available (checked by automatic tests):**
 
@@ -556,11 +565,11 @@ Movement and access: travel times and isochrones, accessibility to services, spe
 
 Incident patterns and response coverage with lawful, aggregated handling of sensitive locations.
 
-**Tools suggested first:** `hotspot_analysis`, `apply_heatmap_style`, `score_route_incident_risk`, `apply_network_barriers`, `obfuscate_sensitive_points`, `analyze_incident_trend`, `add_incident_point`, `calculate_service_area`, `find_incident_reports`, `fetch_ucdp_conflict_events`, `set_layer_sensitivity`, `aggregate_data`
+**Tools suggested first:** `hotspot_analysis`, `apply_heatmap_style`, `score_route_incident_risk`, `apply_network_barriers`, `obfuscate_sensitive_points`, `analyze_incident_trend`, `calculate_service_area`, `set_layer_sensitivity`, `calculate_spatial_autocorrelation`, `analyze_hotspots_gi_star`, `detect_spatial_clusters`, `calculate_health_rates`
 
 **Workflows:**
 
-- Incident patterns: `analyze_incident_trend` -> `hotspot_analysis` -> `analyze_hotspots_gi_star` -> `detect_spatial_clusters` -> `apply_heatmap_style` -> `obfuscate_sensitive_points`
+- Incident patterns: `find_incident_reports` -> `analyze_incident_trend` -> `hotspot_analysis` -> `analyze_hotspots_gi_star` -> `detect_spatial_clusters` -> `apply_heatmap_style` -> `obfuscate_sensitive_points`
 - Response coverage and route safety: `calculate_service_area` -> `score_route_incident_risk` -> `apply_network_barriers`
 
 **Tasks in the register:**
@@ -569,6 +578,7 @@ Incident patterns and response coverage with lawful, aggregated handling of sens
 - 48.02 Blur exact incident points to protect people
 - 48.03 Rate route safety from past incidents
 - 48.04 Show response coverage within a response time
+- 48.05 Test whether incidents form a statistically significant hot spot
 
 **Available (checked by automatic tests):**
 
@@ -654,7 +664,7 @@ Reproducible analysis: methods and assumptions recorded, provenance travelling w
 
 Site comparison: what is near, who lives around, how long it takes to get there, scored against explicit criteria.
 
-**Tools suggested first:** `buffer_analysis`, `estimate_population_exposure`, `calculate_service_area`, `calculate_mcda_ranking`, `fetch_osm_features`, `generate_html_dashboard`, `find_nearest_features`, `geocode_batch`, `weighted_overlay_analysis`, `spatial_join`, `zonal_statistics`, `generate_report`
+**Tools suggested first:** `buffer_analysis`, `estimate_population_exposure`, `calculate_service_area`, `calculate_mcda_ranking`, `fetch_osm_features`, `generate_html_dashboard`, `find_nearest_features`, `geocode_batch`, `weighted_overlay_analysis`, `spatial_join`, `calculate_spatial_autocorrelation`, `analyze_hotspots_gi_star`
 
 **Workflows:**
 
@@ -667,6 +677,7 @@ Site comparison: what is near, who lives around, how long it takes to get there,
 - 50.02 Rank candidate sites with weighted criteria
 - 50.03 Map the amenities around a candidate site
 - 50.04 Build a neighbourhood dashboard for a site
+- 50.05 Test whether high prices are spatially clustered
 
 **Available (checked by automatic tests):**
 
