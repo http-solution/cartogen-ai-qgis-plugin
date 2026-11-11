@@ -947,6 +947,24 @@
    "layers": {}
   },
   {
+   "id": "C21-spatial-autocorrelation",
+   "issue": "S",
+   "session": "C",
+   "title": "Moran's I on a real layer, compared with a published tool",
+   "covers": [
+    "spatial-autocorrelation"
+   ],
+   "needs": "QGIS only for steps 1 to 3 (Python console); a second tool (GeoDa, or R with spdep, or PySAL) for step 4",
+   "starts_from": "QGIS open with a polygon layer that has a numeric field and shared boundaries (for example districts with a case count); the plugin enabled",
+   "do": "(1) Plugins > Python Console: from cartogen_ai.core.agent.tools.spatial_stats_tool import calculate_spatial_autocorrelation as f; r = f('<layer>', '<field>', weights='queen', permutations=999, write_local=True); print(r)  (2) read the interpretation sentence and the islands count; open the new '<layer>_lisa' layer and look at lisa_class  (3) run it again with weights='rook' and with weights='knn', k=5  (4) in GeoDa (or R: spdep::moran.test with a row-standardised queen list, or PySAL esda.Moran) run Moran's I on the same layer and field with the same neighbour rule.",
+   "expect": "(2) a plain sentence that says similar or different values and never a cause; the number of islands is 0 for clean district boundaries (a larger number means boundaries that do not share exact corner points; the reply says so). (2) the local layer has one feature per input feature and your original layer is unchanged. (4) the Moran's I value agrees with ours to 3 decimals for the same neighbour rule and row-standardised weights (the p-value will differ slightly: ours is a permutation test).",
+   "evidence": "The printed result for each weights choice -> results\\\\outputs\\\\C21-spatial-autocorrelation\\\\result.txt; the value from the other tool and which tool and neighbour rule it used; a screenshot of the local layer table.",
+   "files": [],
+   "pass_if": "I matches the other tool to 3 decimals for the same rule, the interpretation is sensible, the input layer is unchanged. A different I, a crash, or islands on a clean layer is a Fail: send both numbers and the layer's source.",
+   "cost": "about 15 minutes, free",
+   "layers": {}
+  },
+  {
    "id": "D1-fetch-live",
    "issue": "S",
    "session": "D",

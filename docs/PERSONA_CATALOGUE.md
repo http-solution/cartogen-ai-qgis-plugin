@@ -13,7 +13,7 @@ A persona is a lens, not a gate: it changes which tools are suggested first and 
 | 5 | Logistics / Supply Chain | 0 | 4 | 4 | 1 | 0 | 4 |
 | 6 | Agriculture / Food Security | 0 | 6 | 2 | 0 | 1 | 5 |
 | 7 | Environment / Natural Resources | 0 | 7 | 1 | 0 | 0 | 6 |
-| 8 | Public Health / Epidemiology | 0 | 4 | 5 | 0 | 0 | 4 |
+| 8 | Public Health / Epidemiology | 0 | 5 | 5 | 0 | 0 | 4 |
 | 9 | Disaster Risk / Climate Resilience | 0 | 3 | 4 | 1 | 0 | 4 |
 | 10 | Utilities / Energy / Water | 0 | 4 | 3 | 1 | 0 | 4 |
 | 11 | Transport / Mobility | 0 | 4 | 3 | 1 | 0 | 4 |
@@ -369,6 +369,7 @@ Health services and disease patterns by area: catchments, access, rates and tren
 
 - Health facility access: `calculate_service_area` -> `classify_facilities_by_access` -> `population_access_gap` -> `fetch_worldpop_population`
 - Trends and hotspots: `geocode_batch` -> `analyze_incident_trend` -> `hotspot_analysis` -> `generate_chart`
+- Is there a spatial pattern?: `calculate_spatial_autocorrelation`
 
 **Tasks in the register:**
 
@@ -383,10 +384,11 @@ Health services and disease patterns by area: catchments, access, rates and tren
 - density surface of cases [hotspot_analysis]
 - survey indicators with small-number suppression [aggregate_survey_indicator]
 - sensitive point obfuscation [obfuscate_sensitive_points]
+- Moran's I (global and local) with permutation p-values, the neighbour rule you choose, and a new local-result layer [calculate_spatial_autocorrelation]
 
 **Not built yet:**
 
-- Moran's I and Getis-Ord Gi* tests - due in R2 (1.20.0)
+- Getis-Ord Gi* hotspot test - due in R2 (1.20.0)
 - Kulldorff spatial scan with Monte Carlo - due in R2 (1.20.0)
 - rates, relative risk, standardised ratios and smoothing - due in R2 (1.20.0)
 - epidemic bulletin layout - due in R2 (1.20.0)
