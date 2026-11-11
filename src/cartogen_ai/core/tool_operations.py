@@ -165,6 +165,7 @@ TOOL_OPERATION_TYPES = {
     "raster_time_series_stats": CREATE, # R3-3: new Float32 raster (mean, trend per year or anomaly) from rasters; no input layer changes
     "calculate_change_matrix": CREATE,  # R3-4: two new table layers (transitions, per-class summary) and a chart from two class rasters; no input layer changes
     "create_zoning_map": CREATE,  # R3-5: new polygon layer of zones from rasters; no input layer changes
+    "calculate_spatial_autocorrelation": CREATE,  # R2-1: global Moran and, on request, a NEW local-result layer; the input layer is never changed
     "copy_features_between_layers": MODIFY,   # R9-4: adds features to an existing layer behind a preview with the field mapping, one undoable edit command
     "reshape_geometry": MODIFY,         # R9-3: changes one feature's geometry behind a preview, one undoable edit command
     "reverse_line": MODIFY,             # R9-3: reverses line direction in place behind a preview

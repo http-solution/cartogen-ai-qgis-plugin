@@ -3209,6 +3209,31 @@
     ],
     "hand_verified": "not verified: CI only (the text panel of a real layout is read back in the live job, written without a local QGIS); nobody has looked at an exported page, so wrapping and fit are unseen. The plan's 'before and after pair of maps and a change-matrix chart' is not built: the change report is one map and a text panel",
     "hand_row": "C20-environment-looks"
+  },
+  {
+    "id": "spatial-autocorrelation",
+    "feature": "calculate_spatial_autocorrelation tests whether a numeric field is spatially clustered, alternating or no different from random: global Moran's I with a permutation p-value and z (99 to 9999 shuffles, seeded, identical on every Python 3.x because the shuffler is our own Fisher-Yates), and with write_local a NEW layer with Local Moran's I (lisa_i, lisa_p, lisa_class HH, LL, HL, LH or not significant, conditional permutation, p-values stated as not corrected for testing every feature); neighbours by queen or rook from shared polygon corner points (a T-junction is not detected and shows up as an island, which the reply names), k nearest or a distance band from centroids (the band refused on a geographic CRS); known answers: a 4 by 4 checkerboard with rook weights gives I = -1 exactly with 48 links, expected I for 16 features is -0.0667, a path of 1 2 3 4 gives 1/3 (binary) and 0.4 (row-standardised), the local values average to the global value; a constant field, weights with no link, a missing number or geometry, more than 5,000 features, more than 25 million link-permutations and a bad k, distance or permutation count are refused with the cause; the input layer is never changed; no sentence claims a cause. Not tested: the published Columbus crime example (no clearly licensed data to commit); the real-data comparison with GeoDa or R is hand row C21",
+    "issues": [],
+    "since": "1.18.6",
+    "sources": [
+      "src/cartogen_ai/core/agent/tools/_spatial_weights.py",
+      "src/cartogen_ai/core/agent/tools/_spatial_stats.py",
+      "src/cartogen_ai/core/agent/tools/spatial_stats_tool.py",
+      "src/cartogen_ai/core/tool_operations.py"
+    ],
+    "guards": [
+      "tests/test_spatial_stats.py::TestGlobalMoran::test_a_4_by_4_checkerboard_with_rook_binary_weights_is_exactly_minus_one",
+      "tests/test_spatial_stats.py::TestGlobalMoran::test_a_path_of_four_values_1_2_3_4_has_I_one_third",
+      "tests/test_spatial_stats.py::TestGlobalMoran::test_a_constant_field_is_refused_with_the_cause",
+      "tests/test_spatial_stats.py::TestGlobalMoran::test_the_seeded_shuffler_is_pinned_so_a_python_upgrade_cannot_change_every_p_value",
+      "tests/test_spatial_stats.py::TestLocalMoran::test_the_local_values_average_to_the_global_value_for_row_weights",
+      "tests/test_spatial_weights.py::TestContiguity::test_on_a_3_by_3_grid_the_centre_has_8_queen_and_4_rook_neighbours_a_corner_3_and_2",
+      "tests/test_spatial_weights.py::TestContiguity::test_a_t_junction_is_not_detected_and_shows_up_as_an_island",
+      "tests/test_spatial_stats_tool_live.py::TestSpatialAutocorrelationTool::test_rook_on_a_checkerboard_is_minus_one_with_three_neighbours_on_average",
+      "tests/test_spatial_stats_tool_live.py::TestSpatialAutocorrelationTool::test_write_local_adds_a_new_layer_and_leaves_the_input_alone"
+    ],
+    "hand_verified": "not verified: CI only (offline known answers and a live run on real QGIS layers, written without a local QGIS); never compared with GeoDa, PySAL or R on a real layer, and never run by a person",
+    "hand_row": "C21-spatial-autocorrelation"
   }
 ]
 }
