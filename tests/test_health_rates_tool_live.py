@@ -14,9 +14,9 @@ def _boot():
     _boot_qgis()
 
 
-def _areas(name, cases, pops, expected=None, geometry=True):
-    kind = "Polygon?crs=EPSG:3857" if geometry else "None"
-    layer = QgsVectorLayer(f"{kind}&field=cases:integer&field=pop:double&field=expd:double&field=label:string" if geometry else "None?field=cases:integer&field=pop:double&field=expd:double&field=label:string", name, "memory")
+def _areas(name, cases, pops, expected=None, geometry=True, case_type="integer"):
+    head = "Polygon?crs=EPSG:3857&" if geometry else "None?"
+    layer = QgsVectorLayer(f"{head}field=cases:{case_type}&field=pop:double&field=expd:double&field=label:string", name, "memory")
     feats = []
     for i, (c, p) in enumerate(zip(cases, pops, strict=True)):
         f = QgsFeature(layer.fields())
@@ -99,7 +99,7 @@ class TestHealthRatesTool(unittest.TestCase):
 
     def test_refusals_name_the_cause(self):
         _areas("a", [10, 20, 30], [1000, 2000, 3000])
-        _areas("frac", [2.5, 5, 6], [100, 100, 100])
+        _areas("frac", [2.5, 5, 6], [100, 100, 100], case_type="double")       # an integer field cannot hold 2.5 (CI run 43088474111 truncated it to 2, so nothing was refused)
         _areas("zero", [5, 5, 6], [0, 100, 100])
         self.assertIn("not found", self._run("nope", "cases", "pop")["error"])
         self.assertIn("not found", self._run("a", "nope", "pop")["error"])
