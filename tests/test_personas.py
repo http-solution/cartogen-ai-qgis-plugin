@@ -7,7 +7,7 @@ import copy
 import unittest
 
 from cartogen_ai.core import personas as pp
-from cartogen_ai.core.agent import task_register
+from cartogen_ai.core.agent import data_sources, task_register
 from cartogen_ai.core.representation import style_profiles
 from cartogen_ai.core.agent.tools.registry import TOOL_REGISTRY
 from cartogen_ai.core.services.prompt_refiner import PROFILE_GUIDANCE, PROFILE_LABELS
@@ -33,7 +33,7 @@ class TestSchema(unittest.TestCase):
     def test_every_persona_passes_the_checker_against_the_real_registry(self):
         problems = []
         for persona in pp.load_all().values():
-            problems += pp.validate(persona, tool_names=set(TOOL_REGISTRY), task_ids={e["id"] for e in task_register.load()}, style_profile_ids=set(style_profiles.PROFILES))
+            problems += pp.validate(persona, tool_names=set(TOOL_REGISTRY), task_ids={e["id"] for e in task_register.load()}, style_profile_ids=set(style_profiles.PROFILES), data_source_ids={s["id"] for s in data_sources.load()})
         self.assertEqual(problems, [], "\n" + "\n".join(problems))
 
     def test_a_persona_has_only_the_known_fields_and_no_tier_or_hiding_logic(self):

@@ -1,0 +1,336 @@
+{
+ "_about": "The data-source catalogue (PLAN-023 R1-8): one place for what the plugin knows about each outside source it reads, so the persona picker, the tests and later guards read the same facts. Fields: id (the id the persona files use), label, personas (the personas whose file lists the source; a test keeps it equal to the persona files), kind (file, API, STAC or feed), access (open, free key or licensed), credential (the Auth Manager name of the key when access is 'free key'), licence (what the tool or the provider states; 'see provider terms' where the code does not say), size_class (small, variable or large: variable means the size is only known from Content-Length at run time), size_guard (which existing guard asks first: content_length = check_download_size, whole_country_flag = allow_whole_country, extract_ask = local_data_loader.should_ask_before_download, or null), egress_class (what a request carries out of the machine: none = nothing about the user's request, area = a country code, place or bounding box, text = words the user or model wrote or text taken from a layer), egress_note, hosts (every host the code contacts), asset_hosts (hosts a file may be READ from after a search; only STAC uses it, and stac_ops.ALLOWED_HOSTS is built from it), cache_folder (under the project's data/00_raw, or null) and tools (registered tool names). Licensed or closed sources (HERE, TomTom, Google Places, AIS, commercial imagery, classified feeds) are not integrated and are not listed: the plugin takes a user-supplied file or key for them. Sources the persona files call 'not built' (Kobo/ODK, ACLED, CHIRPS, GTFS, DHIS2 ...) are added here only when they are built.",
+ "sources": [
+  {
+   "id": "hdx",
+   "label": "Humanitarian Data Exchange (HDX)",
+   "personas": [
+    "general",
+    "humanitarian",
+    "public_health",
+    "research"
+   ],
+   "kind": "API",
+   "access": "open",
+   "licence": "each HDX dataset states its own licence; the search tool ranks by it",
+   "size_class": "variable",
+   "size_guard": "content_length",
+   "egress_class": "text",
+   "egress_note": "the search words are sent to HDX",
+   "hosts": [
+    "data.humdata.org"
+   ],
+   "cache_folder": null,
+   "tools": [
+    "search_hdx_datasets",
+    "fetch_hdx_admin_boundaries"
+   ]
+  },
+  {
+   "id": "geoboundaries",
+   "label": "geoBoundaries",
+   "personas": [
+    "humanitarian"
+   ],
+   "kind": "API",
+   "access": "open",
+   "licence": "each release states its own licence; see provider terms",
+   "size_class": "variable",
+   "size_guard": "content_length",
+   "egress_class": "area",
+   "egress_note": "a country code and admin level are sent",
+   "hosts": [
+    "www.geoboundaries.org"
+   ],
+   "cache_folder": null,
+   "tools": [
+    "fetch_geoboundaries"
+   ]
+  },
+  {
+   "id": "osm",
+   "label": "OpenStreetMap (Overpass and Geofabrik extracts)",
+   "personas": [
+    "humanitarian",
+    "logistics",
+    "public_safety",
+    "real_estate",
+    "transport",
+    "urban_planning",
+    "utilities"
+   ],
+   "kind": "API",
+   "access": "open",
+   "licence": "ODbL 1.0 (OpenStreetMap contributors)",
+   "size_class": "variable",
+   "size_guard": "extract_ask",
+   "egress_class": "area",
+   "egress_note": "a bounding box and a feature key and value are sent to a public Overpass server",
+   "hosts": [
+    "overpass-api.de",
+    "overpass.private.coffee",
+    "overpass.kumi.systems"
+   ],
+   "cache_folder": "osm",
+   "tools": [
+    "fetch_osm_features"
+   ]
+  },
+  {
+   "id": "footprints",
+   "label": "Microsoft Global ML Building Footprints",
+   "personas": [
+    "urban_planning"
+   ],
+   "kind": "file",
+   "access": "open",
+   "licence": "CDLA Permissive 2.0, as the tool states in its result",
+   "size_class": "large",
+   "size_guard": "content_length",
+   "egress_class": "area",
+   "egress_note": "map tile keys covering the area are requested",
+   "hosts": [
+    "minedbuildings.z5.web.core.windows.net"
+   ],
+   "cache_folder": null,
+   "tools": [
+    "fetch_building_footprints"
+   ]
+  },
+  {
+   "id": "worldpop",
+   "label": "WorldPop population rasters",
+   "personas": [
+    "disaster_risk",
+    "humanitarian",
+    "public_health",
+    "real_estate",
+    "urban_planning"
+   ],
+   "kind": "file",
+   "access": "open",
+   "licence": "CC BY 4.0 (WorldPop); see provider terms",
+   "size_class": "large",
+   "size_guard": "whole_country_flag",
+   "egress_class": "area",
+   "egress_note": "a country code and year are requested",
+   "hosts": [
+    "hub.worldpop.org"
+   ],
+   "cache_folder": "worldpop",
+   "tools": [
+    "fetch_worldpop_population"
+   ]
+  },
+  {
+   "id": "gdacs",
+   "label": "GDACS disaster alerts",
+   "personas": [
+    "disaster_risk",
+    "humanitarian",
+    "logistics"
+   ],
+   "kind": "feed",
+   "access": "open",
+   "licence": "see provider terms (gdacs.org)",
+   "size_class": "small",
+   "size_guard": null,
+   "egress_class": "none",
+   "egress_note": "the whole alert list is requested with fixed filters; nothing about the user's area is sent",
+   "hosts": [
+    "www.gdacs.org"
+   ],
+   "cache_folder": null,
+   "tools": [
+    "fetch_gdacs_disaster_alerts"
+   ]
+  },
+  {
+   "id": "eonet",
+   "label": "NASA EONET natural events",
+   "personas": [
+    "disaster_risk"
+   ],
+   "kind": "feed",
+   "access": "open",
+   "licence": "NASA open data; see provider terms",
+   "size_class": "small",
+   "size_guard": null,
+   "egress_class": "area",
+   "egress_note": "an optional bounding box, a category and a day count are sent",
+   "hosts": [
+    "eonet.gsfc.nasa.gov"
+   ],
+   "cache_folder": null,
+   "tools": [
+    "fetch_nasa_eonet_events"
+   ]
+  },
+  {
+   "id": "firms",
+   "label": "NASA FIRMS active fires",
+   "personas": [
+    "disaster_risk",
+    "humanitarian"
+   ],
+   "kind": "API",
+   "access": "free key",
+   "credential": "firms",
+   "licence": "NASA open data; a free MAP_KEY is required; see provider terms",
+   "size_class": "small",
+   "size_guard": null,
+   "egress_class": "area",
+   "egress_note": "a bounding box, a day count and the user's own MAP_KEY are sent",
+   "hosts": [
+    "firms.modaps.eosdis.nasa.gov"
+   ],
+   "cache_folder": null,
+   "tools": [
+    "fetch_nasa_active_fires"
+   ]
+  },
+  {
+   "id": "fts",
+   "label": "OCHA Financial Tracking Service (FTS)",
+   "personas": [
+    "humanitarian"
+   ],
+   "kind": "API",
+   "access": "open",
+   "licence": "see provider terms (OCHA FTS)",
+   "size_class": "small",
+   "size_guard": null,
+   "egress_class": "area",
+   "egress_note": "a country code or plan id is sent",
+   "hosts": [
+    "api.hpc.tools"
+   ],
+   "cache_folder": null,
+   "tools": [
+    "fetch_fts_funding_data"
+   ]
+  },
+  {
+   "id": "usgs",
+   "label": "USGS earthquake catalogue",
+   "personas": [
+    "disaster_risk"
+   ],
+   "kind": "feed",
+   "access": "open",
+   "licence": "see provider terms (USGS)",
+   "size_class": "small",
+   "size_guard": null,
+   "egress_class": "area",
+   "egress_note": "a bounding box and a time window are sent",
+   "hosts": [
+    "earthquake.usgs.gov"
+   ],
+   "cache_folder": null,
+   "tools": [
+    "fetch_usgs_earthquakes"
+   ]
+  },
+  {
+   "id": "ucdp",
+   "label": "UCDP candidate georeferenced events",
+   "personas": [
+    "defense_intel",
+    "humanitarian",
+    "public_safety"
+   ],
+   "kind": "file",
+   "access": "open",
+   "licence": "see provider terms (ucdp.uu.se); the tool says in every result that events are preliminary",
+   "size_class": "variable",
+   "size_guard": null,
+   "egress_class": "none",
+   "egress_note": "a published file is downloaded and filtered on this machine; the JSON API needs a token and is not used",
+   "hosts": [
+    "ucdp.uu.se"
+   ],
+   "cache_folder": null,
+   "tools": [
+    "fetch_ucdp_conflict_events"
+   ]
+  },
+  {
+   "id": "stac_search",
+   "label": "Sentinel-2 imagery (Earth Search STAC)",
+   "personas": [
+    "agriculture",
+    "environment",
+    "research"
+   ],
+   "kind": "STAC",
+   "access": "open",
+   "licence": "Copernicus Sentinel data terms (free, full and open); see provider terms",
+   "size_class": "large",
+   "size_guard": null,
+   "egress_class": "area",
+   "egress_note": "a bounding box, a date range and a cloud limit are sent to the search; files are then read from the asset host",
+   "hosts": [
+    "earth-search.aws.element84.com",
+    "sentinel-cogs.s3.us-west-2.amazonaws.com"
+   ],
+   "asset_hosts": [
+    "sentinel-cogs.s3.us-west-2.amazonaws.com"
+   ],
+   "cache_folder": null,
+   "tools": [
+    "search_stac_satellite_imagery",
+    "load_stac_assets"
+   ]
+  },
+  {
+   "id": "geocoding",
+   "label": "Geocoding (OpenStreetMap Nominatim)",
+   "personas": [
+    "defense_intel",
+    "engineering",
+    "general",
+    "public_health",
+    "real_estate"
+   ],
+   "kind": "API",
+   "access": "open",
+   "licence": "ODbL 1.0 (OpenStreetMap contributors); Nominatim has a usage policy",
+   "size_class": "small",
+   "size_guard": null,
+   "egress_class": "text",
+   "egress_note": "the place or address text is sent to a public server; for a batch the text comes from the layer's own fields",
+   "hosts": [
+    "nominatim.openstreetmap.org"
+   ],
+   "cache_folder": null,
+   "tools": [
+    "geocode_and_enrich",
+    "geocode_batch"
+   ]
+  },
+  {
+   "id": "web_search",
+   "label": "Web and news search",
+   "personas": [
+    "defense_intel"
+   ],
+   "kind": "API",
+   "access": "open",
+   "licence": "results keep their publishers' own terms",
+   "size_class": "small",
+   "size_guard": null,
+   "egress_class": "text",
+   "egress_note": "the search words are sent to DuckDuckGo, GDELT or Google News",
+   "hosts": [
+    "html.duckduckgo.com",
+    "api.gdeltproject.org",
+    "news.google.com"
+   ],
+   "cache_folder": null,
+   "tools": [
+    "search_web",
+    "web_research"
+   ]
+  }
+ ]
+}

@@ -876,12 +876,13 @@
    "session": "C",
    "title": "Pick a persona and read what the assistant can do for it",
    "covers": [
+    "data-source-catalogue",
     "persona-picker-panel"
    ],
    "needs": "person",
    "starts_from": "A fresh QGIS profile or after resetting the Cartogen AI settings; open Cartogen AI Settings",
    "do": "(1) in section 03 pick Primary 'Public Health / Epidemiology' and Secondary 'Logistics / Supply Chain'  (2) read the panel  (3) pick Primary 'Logistics / Supply Chain' (the same as the secondary)  (4) pick 'Defense / Intelligence'  (5) press OK, close and reopen Settings  (6) reset the profile, start onboarding, choose the role 'Urban Planner' and read the panel, then choose Primary yourself and change the role again.",
-   "expect": "(2) a panel that names the primary and the secondary, lists 'Available (checked by automatic tests)' with tool names and 'Not built yet' with a release such as 'due in R2 (1.20.0)', and ends with the line that every tool stays available. (3) the secondary goes back to None. (4) the panel starts with 'Not built as written ... Classified data must never be used with this plugin.' (5) the choice is still there. (6) the panel follows the role until you pick a persona yourself, then stays on yours.",
+   "expect": "(2) a panel that names the primary and the secondary, lists 'Available (checked by automatic tests)' with tool names and 'Not built yet' with a release such as 'due in R2 (1.20.0)', then a 'Data it can read:' list for each persona (for Public Health, for example, 'Humanitarian Data Exchange (HDX) (open)', 'WorldPop population rasters (open)' and 'Geocoding (OpenStreetMap Nominatim) (open)'), and ends with the line that every tool stays available. (3) the secondary goes back to None. (4) the panel starts with 'Not built as written ... Classified data must never be used with this plugin.' (5) the choice is still there. (6) the panel follows the role until you pick a persona yourself, then stays on yours.",
    "evidence": "Screenshot of the panel for step 2 and for step 4 -> results\\screens\\R1-H1-panel.png. Say whether the text is readable in your theme (light or dark) and whether anything is cut off.",
    "files": [],
    "pass_if": "all as Expect and the panel is readable.",

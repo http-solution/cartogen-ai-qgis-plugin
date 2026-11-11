@@ -36,8 +36,8 @@ def sections(persona):
     return out
 
 
-def persona_text(persona_id, title=None):
-    """The text block of one persona, or '' for an unknown id. Pure."""
+def persona_text(persona_id, title=None, source_lines=None):
+    """The text block of one persona, or '' for an unknown id. `source_lines` are the data sources the persona can read, as ready-made lines (the caller, in the UI layer, gets them from the data-source catalogue; this package may not import the agent). Pure."""
     persona = get(persona_id)
     if persona is None:
         return ""
@@ -45,16 +45,20 @@ def persona_text(persona_id, title=None):
     for heading, lines in sections(persona):
         parts.append(f"{heading}:")
         parts.extend(f"  - {line}" for line in lines)
+    if source_lines:
+        parts.append("Data it can read:")
+        parts.extend(f"  - {line}" for line in source_lines)
     if persona.get("guardrails"):
         parts.append("The assistant will:")
         parts.extend(f"  - {g}" for g in persona["guardrails"])
     return "\n".join(parts)
 
 
-def panel_text(primary, secondary=""):
-    """The full panel for the chosen primary and optional secondary persona (ids). Pure."""
-    blocks = [persona_text(primary, "Primary")]
+def panel_text(primary, secondary="", sources_for=None):
+    """The full panel for the chosen primary and optional secondary persona (ids). `sources_for(persona_id)` returns that persona's data-source lines, or is None to leave the section out. Pure."""
+    lines = sources_for or (lambda _persona_id: None)
+    blocks = [persona_text(primary, "Primary", lines(primary))]
     if secondary and secondary != primary:
-        blocks.append(persona_text(secondary, "Secondary"))
+        blocks.append(persona_text(secondary, "Secondary", lines(secondary)))
     blocks = [b for b in blocks if b]
     return ("\n\n".join(blocks) + "\n\n" + NOTE) if blocks else ""

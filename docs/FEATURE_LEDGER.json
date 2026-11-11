@@ -3125,6 +3125,30 @@
     ],
     "hand_verified": "not verified: CI only; the colour maths is checked against published answers and the rules offline, but no person has looked at a palette on a real map and nothing draws from the registry yet",
     "hand_row": "none: an offline registry of colour choices that nothing draws from yet; the picture check belongs to the package that first uses it (R3-6)"
+  },
+  {
+    "id": "data-source-catalogue",
+    "feature": "the data-source catalogue: core/agent/data_sources.json records the 14 outside sources the persona files name (HDX, geoBoundaries, OpenStreetMap, Microsoft building footprints, WorldPop, GDACS, NASA EONET, NASA FIRMS, OCHA FTS, USGS earthquakes, UCDP, Sentinel-2 STAC, geocoding, web search) with kind, access (open or free key), licence as the code or provider states it, size class and which existing size guard covers it, what a request carries out of the machine (none, area or text), every host contacted, cache folder and tools; the loader answers by tool and by persona and a checker rejects each kind of fault (missing field, bad value, key without credential, malformed host, asset host not listed, unregistered tool, unknown persona, personas that differ from the persona files); tests keep the record equal to the persona files, the registered tools, the orchestrator's network tool sets, the allow_large_download and allow_whole_country flags, the FIRMS credential name and the cache folders; stac_ops.ALLOWED_HOSTS is built from it (same one host as before; an unreadable catalogue allows none), the persona checker rejects an unknown source id, and the readiness panel lists each persona's sources with how to get them; the size guards and the egress gate are NOT changed and do not read it",
+    "issues": [],
+    "since": "1.18.6",
+    "sources": [
+      "src/cartogen_ai/core/agent/data_sources.json",
+      "src/cartogen_ai/core/agent/data_sources.py",
+      "src/cartogen_ai/core/agent/tools/stac_ops.py",
+      "src/cartogen_ai/core/personas/panel.py",
+      "src/cartogen_ai/core/ui/persona_picker.py"
+    ],
+    "guards": [
+      "tests/test_data_sources.py::TestTheShippedCatalogue::test_it_passes_the_checker_against_the_real_tools_personas_and_persona_files",
+      "tests/test_data_sources.py::TestTheShippedCatalogue::test_the_size_guard_record_matches_the_code",
+      "tests/test_data_sources.py::TestTheShippedCatalogue::test_every_catalogued_tool_is_a_network_tool_the_orchestrator_already_knows",
+      "tests/test_data_sources.py::TestStacHostsComeFromTheCatalogue::test_the_allowed_host_is_what_it_was_before_the_catalogue",
+      "tests/test_data_sources.py::TestStacHostsComeFromTheCatalogue::test_an_unreadable_catalogue_leaves_no_host_allowed",
+      "tests/test_data_sources.py::TestTheCheckerCatchesEachFault::test_each_fault_is_reported_with_the_source_and_the_cause",
+      "tests/test_data_sources.py::TestPanelShowsTheSources::test_the_panel_lists_each_persons_sources_when_given_the_lines"
+    ],
+    "hand_verified": "not verified: CI only; the catalogue is checked offline against the code, and the panel text runs in the live widget job, but no person has read the new 'Data it can read' list on screen",
+    "hand_row": "R1-H1-persona-panel"
   }
 ]
 }

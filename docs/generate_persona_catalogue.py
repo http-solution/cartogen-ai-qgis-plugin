@@ -11,7 +11,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "src"))
 
 from cartogen_ai.core import personas  # noqa: E402
-from cartogen_ai.core.agent import task_register  # noqa: E402
+from cartogen_ai.core.agent import data_sources, task_register  # noqa: E402
 from cartogen_ai.core.personas.panel import HEADINGS, _line  # noqa: E402
 
 PATH = os.path.join(ROOT, "docs", "PERSONA_CATALOGUE.md")
@@ -47,10 +47,10 @@ def render():
             lines = [_line(r) for r in p["readiness"] if r["state"] == state]
             if lines:
                 out += [f"**{heading}:**", ""] + [f"- {line}" for line in lines] + [""]
-        extra = [("Data sources", p["data_sources"]), ("Style profile", [p["style_profile"]] if p["style_profile"] else []), ("Layout templates", p["layout_templates"])]
+        extra = [("Data sources", [f"{d['label']} ({data_sources.access_text(d)})" for d in data_sources.for_persona(p["id"])]), ("Style profile", [p["style_profile"]] if p["style_profile"] else []), ("Layout templates", p["layout_templates"])]
         for title, values in extra:
             if values:
-                out.append(f"**{title}:** " + ", ".join(f"`{v}`" for v in values))
+                out.append(f"**{title}:** " + ", ".join(v if title == "Data sources" else f"`{v}`" for v in values))
                 out.append("")
         if p["guardrails"]:
             out += ["**The assistant will:**", ""] + [f"- {g}" for g in p["guardrails"]] + [""]
