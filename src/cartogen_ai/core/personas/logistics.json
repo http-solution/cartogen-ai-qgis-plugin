@@ -54,7 +54,12 @@
    "travel times between"
   ]
  },
- "task_ids": [],
+ "task_ids": [
+  "41.01",
+  "41.02",
+  "41.03",
+  "41.04"
+ ],
  "data_sources": [
   "osm",
   "gdacs"

@@ -54,7 +54,7 @@ black-box answer.
   badges, ellipsoidal geodetic distance measurement (`QgsDistanceArea`), geoprivacy obfuscation for
   sensitive point data (Do No Harm), and workflow presets — see
   [docs/TOOLS_REFERENCE.md](docs/TOOLS_REFERENCE.md) for the full, auto-generated list.
-- **Guided by a 792-task Humanitarian Mapping Task Register**: a request that
+- **Guided by a 844-task Task Register (the Humanitarian Mapping Task Register plus a section of tasks for each of 13 personas)**: a request that
   matches a task shows the exact prompt about to be sent, with the reasoning behind it, before
   it's sent; stops to ask only when a detail genuinely can't be safely guessed (e.g. hazard or
   facility type); and checks the response against what the task promised, with one automatic,

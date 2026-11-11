@@ -12,7 +12,7 @@ class TestRegisterIntegrity(unittest.TestCase):
         self.data = reg.load()
 
     def test_register_loads_all_tasks(self):
-        self.assertEqual(len(self.data), 792)
+        self.assertEqual(len(self.data), 844)
 
     def test_ids_are_unique(self):
         ids = [e["id"] for e in self.data]
@@ -425,3 +425,97 @@ class TestHumanitarianToolsAreReachableFromTasks(unittest.TestCase):
         }
         for tid, tool in expected.items():
             self.assertIn(tool, by[tid]["tools"], tid)
+
+
+def _section(entry):
+    """The number of a task's section; the old register has sections such as '25a'."""
+    import re
+    return int(re.match(r"\d+", entry["cat"]).group())
+
+
+class TestPersonaField(unittest.TestCase):
+    """PLAN-023 R1-5: every task lists the personas it is for; the 13 persona sections 38 to 50 hold 4 tasks each; the matcher gives a small bonus to the person's own persona."""
+
+    def setUp(self):
+        self.data = reg.load()
+
+    def test_every_task_lists_at_least_one_real_persona(self):
+        from cartogen_ai.core import personas as pp
+        known = set(pp.ids())
+        for e in self.data:
+            self.assertTrue(e.get("persona"), e["id"])
+            self.assertLessEqual(set(e["persona"]), known, e["id"])
+
+    def test_sections_38_to_50_are_one_per_persona_with_four_tasks_each(self):
+        sections = {}
+        for e in self.data:
+            if _section(e) >= 38:
+                sections.setdefault(e["cat"], []).append(e)
+        self.assertEqual(sorted(sections, key=int), [str(n) for n in range(38, 51)])
+        owners = []
+        for number, tasks in sections.items():
+            self.assertEqual(len(tasks), 4, number)
+            self.assertEqual(len({t["cname"] for t in tasks}), 1, number)
+            self.assertEqual(len({tuple(t["persona"]) for t in tasks}), 1, number)
+            self.assertEqual(len(tasks[0]["persona"]), 1, number)
+            owners.append(tasks[0]["persona"][0])
+        self.assertEqual(len(set(owners)), 13)
+        self.assertNotIn("general", owners)
+        self.assertNotIn("defense_intel", owners)
+
+    def test_the_persona_files_list_exactly_the_tasks_that_name_them(self):
+        from cartogen_ai.core import personas as pp
+        for pid in pp.ids():
+            named = sorted(e["id"] for e in self.data if pid in e["persona"] and _section(e) >= 36)
+            self.assertEqual(sorted(pp.get(pid)["task_ids"]), named, pid)
+
+    def test_the_old_register_belongs_to_humanitarian_except_engineering_hydrology(self):
+        for e in self.data:
+            if _section(e) < 36:
+                self.assertEqual(e["persona"], ["humanitarian"], e["id"])
+        self.assertEqual(reg.by_id("36.01")["persona"], ["engineering"])
+
+
+class TestPersonaBonus(unittest.TestCase):
+    ENTRY_A = {"id": "a", "cat": "1", "cname": "x", "text": "t", "out": "analysis", "slots": [], "tools": [], "kw": ["alpha", "beta"], "persona": ["engineering"]}
+    ENTRY_B = {"id": "b", "cat": "2", "cname": "y", "text": "t", "out": "analysis", "slots": [], "tools": [], "kw": ["alpha", "beta"], "persona": ["research"]}
+
+    def match(self, personas):
+        real = reg.load
+        reg.load = lambda: [self.ENTRY_B, self.ENTRY_A]
+        try:
+            return tm.match("alpha beta", personas=personas)
+        finally:
+            reg.load = real
+
+    def test_no_persona_leaves_the_scores_alone_and_ties_break_by_id(self):
+        out = self.match(None)
+        self.assertEqual([e["id"] for e, _ in out], ["a", "b"])
+        self.assertEqual(out[0][1], out[1][1])
+
+    def test_the_primary_persona_adds_a_tenth_and_the_secondary_half_of_that(self):
+        base = self.match(None)[0][1]
+        prim = dict((e["id"], s) for e, s in self.match(("research", "")))
+        self.assertAlmostEqual(prim["b"] - base, 0.1, places=3)
+        self.assertEqual(prim["a"], base)
+        sec = dict((e["id"], s) for e, s in self.match(("general", "research")))
+        self.assertAlmostEqual(sec["b"] - base, 0.05, places=3)
+        self.assertEqual(self.match(("research", ""))[0][0]["id"], "b")
+
+    def test_general_gives_no_bonus_and_a_task_that_did_not_match_gets_none(self):
+        self.assertEqual(self.match(("general", "")), self.match(None))
+        real = reg.load
+        reg.load = lambda: [self.ENTRY_B]
+        try:
+            self.assertEqual(tm.match("nothing relevant here", personas=("research", "")), [])
+        finally:
+            reg.load = real
+
+    def test_the_bonus_never_pushes_a_score_above_one(self):
+        entry = dict(self.ENTRY_B, kw=["alpha"])
+        real = reg.load
+        reg.load = lambda: [entry]
+        try:
+            self.assertLessEqual(tm.match("alpha", personas=("research", ""))[0][1], 1.0)
+        finally:
+            reg.load = real

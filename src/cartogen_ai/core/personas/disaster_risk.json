@@ -54,7 +54,12 @@
    "has the trigger been reached"
   ]
  },
- "task_ids": [],
+ "task_ids": [
+  "45.01",
+  "45.02",
+  "45.03",
+  "45.04"
+ ],
  "data_sources": [
   "gdacs",
   "eonet",

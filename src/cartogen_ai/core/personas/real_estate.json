@@ -55,7 +55,12 @@
    "catchment by drive time"
   ]
  },
- "task_ids": [],
+ "task_ids": [
+  "50.01",
+  "50.02",
+  "50.03",
+  "50.04"
+ ],
  "data_sources": [
   "osm",
   "worldpop",

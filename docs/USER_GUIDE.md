@@ -132,8 +132,8 @@ flow, but live account creation requires a deployed/configured Cartogen service.
 
 ## What happens to your message before it is sent
 
-Cartogen AI carries the **Humanitarian Mapping Task Register** — 792 mapping
-tasks grouped into 36 sections, each one describing what it needs, what tools
+Cartogen AI carries the **Humanitarian Mapping Task Register** — 844 mapping
+tasks grouped into 49 sections, each one describing what it needs, what tools
 it should use, and what you should end up with. When you type a request, it is
 matched against that register locally, on your machine. No API call is made to
 do the matching, and the register itself is never sent to the model.

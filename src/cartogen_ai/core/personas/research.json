@@ -54,7 +54,12 @@
    "replicate this"
   ]
  },
- "task_ids": [],
+ "task_ids": [
+  "49.01",
+  "49.02",
+  "49.03",
+  "49.04"
+ ],
  "data_sources": [
   "hdx",
   "stac_search"

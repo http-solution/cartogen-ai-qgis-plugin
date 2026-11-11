@@ -149,7 +149,6 @@
  },
  "not_hand_testable": {
   "persona-pack": "data files and a checker with no screen of their own yet; the picker and readiness panel (R1-3) get hand rows R1-H1 to R1-H3",
-  "persona-rerank": "a change to which tools the router offers, covered by a replay of every routing request with every persona; what a person can watch is the answer a real model gives, which hand row R1-H2 checks once R1-5 gives personas their tasks",
   "pyqgis-call-arity-ratchet": "an offline check of the source code against a saved list of QGIS 4.2 argument counts; there is nothing to run in QGIS, and a test plants wrong calls to prove it fails",
   "processing-review-decisions": "a decision record (28 algorithms reviewed and declined with reasons); there is nothing to run, a test compares the table with the coverage matrix in CI",
   "tool-prompt-replay": "offline only by design: replays every prompt of the tool sheet against the router in CI",
@@ -902,6 +901,25 @@
    "files": [],
    "pass_if": "the old choice is kept.",
    "cost": "two minutes",
+   "layers": {}
+  },
+  {
+   "id": "C19-persona-request",
+   "issue": "S",
+   "session": "C",
+   "title": "The same request under Engineering and under the GIS Generalist",
+   "covers": [
+    "persona-rerank",
+    "persona-tasks"
+   ],
+   "needs": "a model key and the network (the request fetches a DEM)",
+   "starts_from": "QGIS open with an empty project and Cartogen AI Settings reachable; any working model",
+   "do": "(1) in Settings section 03 pick Primary 'Engineering / Infrastructure', OK  (2) in the chat send exactly: delineate the watershed at 31.0297 N 35.8058 E  (3) note which tools the assistant calls (the tool list in the chat or the log)  (4) start a new chat, in Settings pick Primary 'GIS Generalist', OK  (5) send exactly the same sentence again  (6) note the tools again.",
+   "expect": "(3) delineate_watershed is among the tools called (fetch_dem first is normal). (6) the same: delineate_watershed is called as well, because a persona only nudges which tools are offered and never takes one away.",
+   "evidence": "Screenshot of the chat after step 2 and after step 5 -> results\\screens\\C19-engineering.png and results\\screens\\C19-generalist.png; paste the two tool lists in the notes.",
+   "files": [],
+   "pass_if": "delineate_watershed is called in both runs. A run that never calls it, or an error about the persona, is a Fail: say which run.",
+   "cost": "two model runs, about 5 minutes",
    "layers": {}
   },
   {

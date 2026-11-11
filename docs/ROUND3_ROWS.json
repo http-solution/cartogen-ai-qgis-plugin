@@ -57,6 +57,7 @@
   "W8-export": "1 feature(s) seen on an older build whose code changed since (workflow-file-export). Round 2 (2026-11-05, build 728dad3, agent): Pass.",
   "W9-import-good": "1 feature(s) seen on an older build whose code changed since (workflow-file-import). Round 2 (2026-11-05, build 728dad3, agent): Pass.",
   "W10-import-bad": "1 feature(s) seen on an older build whose code changed since (workflow-file-import). Round 2 (2026-11-05, build 728dad3, agent): Partial.",
-  "W11-import-egress": "1 feature(s) seen on an older build whose code changed since (gates-on-fetch-and-confirm-paths). Round 2 (2026-11-05, build 728dad3, agent): Pass."
+  "W11-import-egress": "1 feature(s) seen on an older build whose code changed since (gates-on-fetch-and-confirm-paths). Round 2 (2026-11-05, build 728dad3, agent): Pass.",
+  "C19-persona-request": "2 feature(s) never seen live (persona-rerank, persona-tasks): the same sentence under Engineering and under the GIS Generalist must call the same tool."
  }
 }
