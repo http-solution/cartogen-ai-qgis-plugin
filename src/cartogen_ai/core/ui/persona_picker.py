@@ -6,6 +6,7 @@ from qgis.PyQt.QtWidgets import QComboBox, QFormLayout, QLabel, QPlainTextEdit, 
 
 from ..personas import ids as persona_ids
 from ..personas import get as persona_get
+from ..agent import data_sources
 from ..personas.panel import panel_text
 from ..personas.selection import DEFAULT_PERSONA
 
@@ -63,4 +64,4 @@ class PersonaPicker(QWidget):
         primary, secondary = self.selection()
         if secondary == primary:
             secondary = ""
-        self.readiness_panel.setPlainText(panel_text(primary, secondary))
+        self.readiness_panel.setPlainText(panel_text(primary, secondary, data_sources.lines_for_persona))

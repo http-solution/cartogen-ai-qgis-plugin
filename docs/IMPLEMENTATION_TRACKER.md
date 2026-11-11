@@ -1822,6 +1822,10 @@ Decided 2026-10-12: Python-implemented Processing algorithms (`gdal:*`) stay on 
 
 Workflow builder: share plans and presets as files, no node editor for now. Specialist agent roles: full team, but as a design plan with a measured cost and a stop condition before any code (the audit's "benefit unproven" caution stands). Cloud workers: the plugin stays local, nothing in this codebase sends project data to a service. Skills marketplace: files only, no store, no code in packages. What each rules out, and the follow-up plans to write, are in `docs/plans/PLAN-047-roadmap-g-owner-decisions.md`.
 
+### 1.26 Batch geocoding sends a layer's own text to a public server, outside the egress gate (found 2026-11-11, PLAN-023 R1-8)
+
+Building the data-source catalogue recorded what each outside source receives. `geocode_batch` sends the address or place text taken from a layer's own fields to the public OpenStreetMap Nominatim server (the catalogue marks `geocoding` as egress class `text`). The egress gate (`core/models/egress_gate.py`) protects against sending RESTRICTED or SENSITIVE layer data to a cloud model provider; it does not look at what a data-source tool sends to its own service, and `geocode_batch` has no sensitivity check of its own. So a layer tagged SENSITIVE (for example case addresses in a health project) can be geocoded against a public server with no question. Nothing was changed. Decision needed from the owner: (a) leave as it is and say so in the tool description and the User Guide, (b) make `geocode_batch` and `geocode_and_enrich` refuse or ask when the layer is protected, or (c) a Settings switch. My recommendation is (b), because the persona text for Public Health already promises to protect patient-level points.
+
 ## 2. Open items blocked on this sandbox's environment (not a decision, not a bug)
 
 - **Live-QGIS verification pass — the "does it even load" gap closed 2026-08-22 (see §1.2);

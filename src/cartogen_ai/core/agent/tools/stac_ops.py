@@ -15,8 +15,11 @@ import re
 from datetime import date
 from urllib.parse import urlparse
 
+from .. import data_sources
+
 COLLECTION = "sentinel-2-l2a"
-ALLOWED_HOSTS = frozenset({"sentinel-cogs.s3.us-west-2.amazonaws.com"})
+# built from the data-source catalogue (PLAN-023 R1-8); a catalogue that cannot be read leaves this EMPTY, so every address is refused (fail closed)
+ALLOWED_HOSTS = data_sources.asset_hosts("stac_search")
 # band name in the catalogue -> pixel size in metres (Sentinel-2 L2A COG assets of Earth Search v1)
 S2_BANDS = {"blue": 10, "green": 10, "red": 10, "nir": 10, "rededge1": 20, "rededge2": 20, "rededge3": 20, "nir08": 20, "nir09": 60, "swir16": 20, "swir22": 20, "scl": 20, "coastal": 60}
 MAX_ASSETS = 6
