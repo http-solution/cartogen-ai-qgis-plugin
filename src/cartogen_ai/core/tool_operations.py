@@ -361,6 +361,7 @@ TOOL_OPERATION_TYPES = {
 
     # -- styling_tools.py --
     "apply_categorized_style": MODIFY,
+    "apply_land_cover_look": MODIFY,
     "apply_graduated_style": MODIFY,
     "apply_graduated_symbol_style": MODIFY,
     "apply_rule_based_style": MODIFY,

@@ -22,6 +22,7 @@ from . import watershed_tools
 from . import raster_calculator_tool
 from . import spectral_index_tool
 from . import stac_load_tool
+from . import land_cover_look_tool
 from . import raster_series_tool
 from . import raster_change_tool
 from . import management_zones_tool
@@ -136,6 +137,7 @@ __all__ = [
     "jiaf_inputs",
     "jiaf_patterns",
     "jiaf_review",
+    "land_cover_look_tool",
     "layer_display_tools",
     "layout_chart_profile_tools",
     "layout_extra_tools",

@@ -170,7 +170,8 @@
   "delivery-matrix-from-trees": "the gain only shows on a real road network of tens of thousands of roads, which the package does not ship; equality with the native calls is the CI live test",
   "persona-catalogue": "a generated document; a test compares it with the persona files and the task register in CI, there is nothing to run in QGIS",
   "tool-reachability-ratchet": "an offline check of the registered tools against the task register and the persona files; there is nothing to run in QGIS, and a test shows it can fail",
-  "style-profiles": "an offline registry of colour choices plus colour maths, checked against published answers; nothing draws from it yet, so there is nothing to look at in QGIS until a later package uses it"
+  "style-profiles": "an offline registry of colour choices plus colour maths, checked against published answers; nothing draws from it yet, so there is nothing to look at in QGIS until a later package uses it",
+  "style-looks": "an offline registry of colour and legend choices checked against the published legend and hand-computed values; the picture check is row C20, which looks at what the tool draws from it"
  },
  "rows": [
   {
@@ -924,6 +925,25 @@
    "files": [],
    "pass_if": "delineate_watershed is called in both runs. A run that never calls it, or an error about the persona, is a Fail: say which run.",
    "cost": "two model runs, about 5 minutes",
+   "layers": {}
+  },
+  {
+   "id": "C20-environment-looks",
+   "issue": "S",
+   "session": "C",
+   "title": "Official land-cover colours, the hatch and the two report layouts, looked at",
+   "covers": [
+    "land-cover-look-tool",
+    "report-layouts"
+   ],
+   "needs": "QGIS only for steps 1 to 4 (run the tools from the Python console); a model key for step 5",
+   "starts_from": "QGIS open; a classified land-cover raster (for example an ESA WorldCover tile clipped to your area) and any polygon layer loaded; the plugin enabled",
+   "do": "(1) Plugins > Python Console: from cartogen_ai.core.agent.tools.land_cover_look_tool import apply_land_cover_look; print(apply_land_cover_look('<your raster layer name>', 'esa_worldcover'))  (2) look at the map and the layer legend  (3) print(apply_land_cover_look('<polygon layer name>', 'protected_area_hatch')) and look  (4) print(apply_land_cover_look('<a layer with loss/stable/gain values>', 'change_classes', field='<field>')) if you have one  (5) in the chat ask: make a field report layout for <a polygon layer>, with a title, then ask for a change report layout the same way; open both layouts and export one as PDF.",
+   "expect": "(2) the classes use the official ESA WorldCover colours (tree cover dark green, shrubland orange, grassland yellow, cropland pink, built-up red, bare grey, water blue ...) and every legend line reads like 'Tree cover (10)'. (3) the polygons show diagonal hatching with an outline and the map underneath stays visible. (4) loss orange, stable grey, gain purple. (5) each layout has a text panel headed FIELD / INDEX READINGS or CHANGE / CHANGE FIGURES with a NOTE that says the numbers are not a yield or rate recommendation (field) or a screening, not a survey (change), nothing cut off or overlapping, in the PDF too.",
+   "evidence": "Screenshots of the map with the legend after step 1 and 3, and of each layout -> results\\screens\\C20-*.png; the exported PDF -> results\\outputs\\C20-environment-looks\\. Say whether any pair of colours is hard to tell apart on your screen (the plugin lists tree cover against built-up as a weak pair for red-blind viewers).",
+   "files": [],
+   "pass_if": "everything in Expect, and the colours and legend names are readable. A wrong colour, a missing class name, a cut-off or overlapping text panel is a Fail: say which.",
+   "cost": "about 10 minutes, one short model run for step 5",
    "layers": {}
   },
   {

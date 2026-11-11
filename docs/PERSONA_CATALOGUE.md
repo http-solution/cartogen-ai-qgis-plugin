@@ -11,8 +11,8 @@ A persona is a lens, not a gate: it changes which tools are suggested first and 
 | 3 | Engineering / Infrastructure | 0 | 5 | 2 | 1 | 0 | 5 |
 | 4 | Urban Planning / Local Government | 0 | 5 | 5 | 0 | 0 | 4 |
 | 5 | Logistics / Supply Chain | 0 | 4 | 4 | 1 | 0 | 4 |
-| 6 | Agriculture / Food Security | 0 | 5 | 2 | 0 | 1 | 4 |
-| 7 | Environment / Natural Resources | 0 | 5 | 2 | 0 | 0 | 4 |
+| 6 | Agriculture / Food Security | 0 | 6 | 2 | 0 | 1 | 5 |
+| 7 | Environment / Natural Resources | 0 | 7 | 1 | 0 | 0 | 6 |
 | 8 | Public Health / Epidemiology | 0 | 4 | 5 | 0 | 0 | 4 |
 | 9 | Disaster Risk / Climate Resilience | 0 | 3 | 4 | 1 | 0 | 4 |
 | 10 | Utilities / Energy / Water | 0 | 4 | 3 | 1 | 0 | 4 |
@@ -275,6 +275,7 @@ Fields and crops from satellite imagery: vegetation and moisture indices, season
 - 42.02 Compare crop condition between two seasons
 - 42.03 Delineate management zones inside a field
 - 42.04 Check crop water stress with NDWI and NDRE
+- 42.05 Lay out a report for one field
 
 **Available (checked by automatic tests):**
 
@@ -283,10 +284,11 @@ Fields and crops from satellite imagery: vegetation and moisture indices, season
 - multi-date statistics, trend and anomaly [raster_time_series_stats]
 - from-to change matrix [calculate_change_matrix]
 - management zones [create_zoning_map]
+- field report layout (index readings with dates and units, a reading guide, and a note that they are not a yield or rate recommendation) [create_print_layout]
 
 **Not built yet:**
 
-- field report layout and index class looks - due in after the profile packages (R3-6)
+- index class and management-zone looks drawn on a raster (the class ranges, units and 3 to 5 zone legend text exist and are tested; nothing paints them yet) - due in after R3-6 (needs a discrete colour shader)
 - rainfall and climate grids (CHIRPS, ERA5) - due in R7 (1.25.0)
 
 **Declined:**
@@ -296,6 +298,8 @@ Fields and crops from satellite imagery: vegetation and moisture indices, season
 **Data sources:** Sentinel-2 imagery (Earth Search STAC) (open)
 
 **Style profile:** `agriculture`
+
+**Layout templates:** `field_report`
 
 **The assistant will:**
 
@@ -316,6 +320,7 @@ Land cover, habitat and protected areas: change between dates, classification, s
 
 - Change between two dates: `calculate_raster_change_detection` -> `calculate_change_matrix` -> `raster_time_series_stats`
 - Classify land cover: `supervised_classification` -> `unsupervised_classification` -> `zonal_statistics`
+- Official colours for land cover and change: `apply_land_cover_look`
 
 **Tasks in the register:**
 
@@ -323,6 +328,8 @@ Land cover, habitat and protected areas: change between dates, classification, s
 - 43.02 Tabulate land cover from-to transitions
 - 43.03 Classify land cover from training samples
 - 43.04 Rank sites for habitat or restoration suitability
+- 43.05 Colour a classified layer with the official ESA WorldCover legend
+- 43.06 Lay out a report on land cover change
 
 **Available (checked by automatic tests):**
 
@@ -331,15 +338,18 @@ Land cover, habitat and protected areas: change between dates, classification, s
 - time-series statistics and trend [raster_time_series_stats]
 - supervised and unsupervised classification [supervised_classification]
 - weighted-overlay suitability [weighted_overlay_analysis]
+- change report layout (change figures, a reading guide for loss, stable and gain, and a screening-not-survey note) [create_print_layout]
+- official ESA WorldCover class colours, loss/stable/gain colours and a protected-area hatch on a layer you already have [apply_land_cover_look]
 
 **Not built yet:**
 
 - ESA WorldCover and protected-area layers (WDPA) - due in R7 (1.25.0)
-- change report layout and land-cover palettes - due in after the profile packages (R3-6)
 
 **Data sources:** Sentinel-2 imagery (Earth Search STAC) (open)
 
 **Style profile:** `environment`
+
+**Layout templates:** `change_report`
 
 **The assistant will:**
 
