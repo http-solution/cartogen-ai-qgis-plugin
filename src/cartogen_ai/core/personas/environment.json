@@ -41,14 +41,14 @@
   "calculate_change_matrix",
   "raster_time_series_stats",
   "supervised_classification",
-  "unsupervised_classification",
   "weighted_overlay_analysis",
   "buffer_analysis",
-  "intersect_layers",
   "zonal_statistics",
-  "extract_features_from_imagery",
   "create_zoning_map",
-  "load_stac_assets"
+  "load_stac_assets",
+  "calculate_spatial_autocorrelation",
+  "analyze_hotspots_gi_star",
+  "detect_spatial_clusters"
  ],
  "tool_aliases": {
   "calculate_change_matrix": [
@@ -58,6 +58,17 @@
   "supervised_classification": [
    "train a classifier",
    "classify from training polygons"
+  ],
+  "analyze_hotspots_gi_star": [
+   "hotspot test",
+   "cold spots"
+  ],
+  "calculate_spatial_autocorrelation": [
+   "spatial pattern",
+   "is it clustered"
+  ],
+  "detect_spatial_clusters": [
+   "is this a real cluster"
   ]
  },
  "task_ids": [
@@ -66,7 +77,8 @@
   "43.03",
   "43.04",
   "43.05",
-  "43.06"
+  "43.06",
+  "43.07"
  ],
  "data_sources": [
   "stac_search"

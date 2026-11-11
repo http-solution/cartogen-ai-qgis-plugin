@@ -46,6 +46,15 @@
     "detect_spatial_clusters",
     "apply_public_health_look"
    ]
+  },
+  {
+   "id": "ph.bulletin",
+   "title": "Epidemic bulletin",
+   "tools": [
+    "apply_public_health_look",
+    "generate_chart",
+    "create_print_layout"
+   ]
   }
  ],
  "tool_priority": [
@@ -57,10 +66,10 @@
   "obfuscate_sensitive_points",
   "generate_chart",
   "population_access_gap",
-  "classify_facilities_by_access",
-  "calculate_population_in_need",
-  "fetch_worldpop_population",
-  "set_layer_sensitivity"
+  "calculate_spatial_autocorrelation",
+  "analyze_hotspots_gi_star",
+  "detect_spatial_clusters",
+  "calculate_health_rates"
  ],
  "tool_aliases": {
   "hotspot_analysis": [
@@ -70,13 +79,35 @@
   "obfuscate_sensitive_points": [
    "protect patient locations",
    "blur the points"
+  ],
+  "detect_spatial_clusters": [
+   "is this a real cluster",
+   "outbreak cluster",
+   "most likely cluster"
+  ],
+  "analyze_hotspots_gi_star": [
+   "hotspot test",
+   "significant hot spots"
+  ],
+  "calculate_spatial_autocorrelation": [
+   "is there clustering",
+   "spatial pattern of cases"
+  ],
+  "calculate_health_rates": [
+   "rate per 100,000",
+   "relative risk",
+   "attack rate"
   ]
  },
  "task_ids": [
   "44.01",
   "44.02",
   "44.03",
-  "44.04"
+  "44.04",
+  "44.05",
+  "44.06",
+  "44.07",
+  "44.08"
  ],
  "data_sources": [
   "worldpop",

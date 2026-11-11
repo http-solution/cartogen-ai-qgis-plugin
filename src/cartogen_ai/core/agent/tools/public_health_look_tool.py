@@ -116,7 +116,8 @@ def _apply_categories(layer, look, field):
         "required": ["layer_name", "look"],
     },
     keywords=["rate map colours", "epidemiological map colours", "public health map look", "colour the rates", "color the rates", "hatch the suppressed", "suppressed small numbers", "cluster outline",
-              "outline the cluster", "colour the hot spots", "color the hot spots", "colour the lisa", "color the lisa", "hot spot colours", "cold spot colours"],
+              "outline the cluster", "colour the hot spots", "color the hot spots", "colour the lisa", "color the lisa", "hot spot colours", "cold spot colours",
+              "fewer than 5 cases", "district rates", "colour the district", "color the district", "hatch the ones", "rate map"],
 )
 def apply_public_health_look(layer_name, look, field=None, classes=5, per=100000, min_cases=epi_look.DEFAULT_MIN_CASES):
     if not QGIS_AVAILABLE:
