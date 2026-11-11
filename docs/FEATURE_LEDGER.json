@@ -3044,7 +3044,7 @@
       "tests/test_persona_rerank.py::TestReplayWithEveryPersona::test_each_persona_changes_at_most_five_tools_and_never_removes_a_required_one"
     ],
     "hand_verified": "not verified: CI only; the replay of 156 routing requests plus the golden rows runs with every persona offline; nobody has yet watched a persona change which tools a real model sees (hand row R1-H2 comes with R1-5)",
-    "hand_row": "none"
+    "hand_row": "none: the offline replay of every routing request with every persona is the check; the real-model hand row R1-H2 is added with R1-5"
   }
 ]
 }
