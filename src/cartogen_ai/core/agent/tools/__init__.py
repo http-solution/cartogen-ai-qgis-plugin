@@ -24,6 +24,7 @@ from . import spectral_index_tool
 from . import raster_series_tool
 from . import raster_change_tool
 from . import management_zones_tool
+from . import batch_tool
 from . import copy_features_tool
 from . import field_rules_tools
 from . import identify_tool
@@ -100,6 +101,7 @@ __all__ = [
     "analysis_tools",
     "attribute_edit_tools",
     "barrier_tools",
+    "batch_tool",
     "cartographic_advisory_tools",
     "confidence_tools",
     "copy_features_tool",

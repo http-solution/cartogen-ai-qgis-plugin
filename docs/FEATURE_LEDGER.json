@@ -1908,6 +1908,26 @@
     "hand_row": "C12-run-processing-model"
   },
   {
+    "id": "run-processing-batch",
+    "feature": "run_processing_batch runs ONE approved Processing algorithm over 1 to 20 named layers, one run per layer with the shared parameters, each run going through run_allowlisted_processing_algorithm so it gets every check a single run gets (approved list, parameter and expression screens, temporary outputs, layer-kind checks); before the first run it refuses an unapproved algorithm, one that changes the user's own layer, a missing layer, a repeated layer name, a shared parameter that is the input or an output, and an existing group name; each result layer is named <layer>_<algorithm> and all are gathered in one new layer group; a run that fails does not stop the others and the reply lists each failure with its reason and says partial; Stop ends the batch and says how far it got; results are temporary and the user's layers are not changed; known answers: buffer over three point layers of 1, 2 and 3 points gives three layers of 1, 2 and 3 buffers in one group, 21 layers are refused, a raster in the list fails alone",
+    "issues": [],
+    "since": "1.18.6",
+    "sources": [
+      "src/cartogen_ai/core/agent/tools/batch_ops.py",
+      "src/cartogen_ai/core/agent/tools/batch_tool.py"
+    ],
+    "guards": [
+      "tests/test_batch_ops.py::TestCheck::test_twenty_one_layers_empty_and_repeated_names_are_refused",
+      "tests/test_batch_ops.py::TestSummary::test_three_successes_and_one_failure_are_partial_and_name_the_failure",
+      "tests/test_batch_tool.py::TestRegistration::test_the_description_states_the_limits",
+      "tests/test_batch_tool_live.py::TestRunProcessingBatchLive::test_three_layers_give_three_result_layers_in_one_new_group",
+      "tests/test_batch_tool_live.py::TestRunProcessingBatchLive::test_a_layer_that_cannot_be_processed_fails_alone_and_the_others_succeed",
+      "tests/test_batch_tool_live.py::TestRunProcessingBatchLive::test_requests_that_cannot_run_are_refused_before_anything_runs"
+    ],
+    "hand_verified": "not verified: CI only; the request check and the summary are pure and tested offline, the grouping and the real runs happen in the live job on small generated layers; never a batch on real data, and never a 20-layer batch (how long that takes on a real machine is unknown)",
+    "hand_row": "C13-processing-batch"
+  },
+  {
     "id": "add-layer-from-path-forwards-sublayer",
     "feature": "asking add_layer_from_path for one named layer of a multi-layer file (GeoPackage, FileGDB, KML, GPX, SpatiaLite) reaches the tool through the orchestrator, so that layer opens instead of the first one",
     "issues": [],

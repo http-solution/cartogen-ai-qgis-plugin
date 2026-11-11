@@ -739,6 +739,36 @@
    }
   },
   {
+   "id": "C13-processing-batch",
+   "issue": "S",
+   "session": "C",
+   "title": "The same algorithm over several layers, grouped",
+   "covers": [
+    "run-processing-batch"
+   ],
+   "needs": "person and a real model",
+   "starts_from": "A new empty project; a fresh chat, 'Save an evidence folder for each request' ticked; load smoke_admin and smoke_zones from smoke_data.gpkg and smoke_roads and smoke_hubs_4326 from smoke_network.gpkg",
+   "do": "Send in order: (1) buffer smoke_roads, smoke_zones and smoke_admin by 100 metres in one go  (2) do the same again with the group name 'second'  (3) repeat (1) without changing the group name  (4) run the buffer on smoke_roads and a raster layer you load (any GeoTIFF) together  (5) run select by location on smoke_roads and smoke_zones in a batch.",
+   "expect": "(1) three new layers named smoke_roads_buffer and so on, all inside one new group buffer_batch; your three layers are unchanged. (2) a second group 'second'. (3) refused: the group already exists, and nothing ran. (4) the roads are buffered and the raster is reported as failed with its reason, in one reply that says partial. (5) refused: the algorithm changes your layer.",
+   "evidence": "snap('C13'). Screenshot of the layers panel with the groups -> results\\screens\\C13-groups.png.",
+   "files": [
+    "smoke_data.gpkg",
+    "smoke_network.gpkg"
+   ],
+   "pass_if": "all as Expect.",
+   "cost": "five short requests",
+   "layers": {
+    "smoke_data.gpkg": [
+     "smoke_admin",
+     "smoke_zones"
+    ],
+    "smoke_network.gpkg": [
+     "smoke_roads",
+     "smoke_hubs_4326"
+    ]
+   }
+  },
+  {
    "id": "D1-fetch-live",
    "issue": "S",
    "session": "D",
