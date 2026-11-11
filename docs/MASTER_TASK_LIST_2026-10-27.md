@@ -449,3 +449,4 @@ Newest last. One line per status change; written by `tools/master_list.py set`.
 - 2026-11-11: PR-R1 In progress -> In progress. Owner go 2026-11-11. R1-1 merged (PR 619); R1-2 and R1-3 built (PR open); R1-4..R1-8 not started
 - 2026-11-11: PR-R1 In progress -> In progress. R1-1 to R1-3 merged or in review; R1-4 router re-rank built (persona-rerank); R1-5 to R1-9 not started
 - 2026-11-11: PR-R1 In progress -> In progress. R1-1 to R1-5 built (R1-4 merged, R1-5 in review); R1-6 built; R1-7 to R1-9 not started
+- 2026-11-11: PR-R1 In progress -> In progress. R1-1 to R1-6 built (R1-1 to R1-4 merged, R1-5 and R1-6 in review); R1-7 to R1-9 not started

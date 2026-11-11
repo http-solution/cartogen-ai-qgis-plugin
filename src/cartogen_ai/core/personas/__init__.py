@@ -46,6 +46,13 @@ def get(persona_id):
     return load_all().get(persona_id)
 
 
+def tools_named(persona):
+    """The set of tool names one persona dict mentions anywhere: priority list, alias keys, workflow steps and readiness lines. Pure. Used by the catalogue and the reachability ratchet
+    (PLAN-023 R1-6) so both read a persona the same way."""
+    named = set(persona["tool_priority"]) | set(persona["tool_aliases"]) | {t for w in persona["workflows"] for t in w.get("tools", [])}
+    return named | {r["tool"] for r in persona["readiness"] if r.get("tool")}
+
+
 def validate(persona, tool_names=None, task_ids=None, working_features=None):
     """Problems with one persona dict as a list of readable strings (empty = fine). `tool_names` is the set of registered tools, `task_ids` the task-register ids and `working_features` the
     ledger features a live run saw working; a check that needs one is skipped when it is None. Pure."""
