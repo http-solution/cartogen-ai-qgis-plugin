@@ -298,7 +298,7 @@
    "size_class": "small",
    "size_guard": null,
    "egress_class": "text",
-   "egress_note": "the place or address text is sent to a public server; for a batch the text comes from the layer's own fields",
+   "egress_note": "the place or address text is sent to a public server; for a batch the text comes from the layer's own fields, and a lookup is refused when the text comes from a protected (RESTRICTED or SENSITIVE) layer",
    "hosts": [
     "nominatim.openstreetmap.org"
    ],

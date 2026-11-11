@@ -65,6 +65,7 @@
   "C23-cluster-scan": "1 feature never seen live (spatial-cluster-scan): the Kulldorff scan on a real layer must match SaTScan for the same centroids.",
   "C24-health-rates": "1 feature never seen live (health-rates): crude rate, relative risk and the small-number flag on a real layer must match R or GeoDa.",
   "C25-public-health-look": "1 feature never seen live (public-health-look): the rate map, cluster outline, hot-spot colours and the epidemic bulletin must be looked at on a real map and an exported page.",
-  "C26-r2-routing": "1 feature never seen live (r2-persona-wiring): the twelve plain spatial-statistics requests must reach the right tool when a real model answers them as each persona."
+  "C26-r2-routing": "1 feature never seen live (r2-persona-wiring): the twelve plain spatial-statistics requests must reach the right tool when a real model answers them as each persona.",
+  "C27-geocode-protected": "1 feature never seen live (geocoding-protected-refusal): geocoding a protected layer must be refused and an open layer must go ahead."
  }
 }

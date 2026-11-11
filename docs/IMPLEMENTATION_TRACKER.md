@@ -1,7 +1,7 @@
 # Cartogen AI — Implementation Tracker
 
 > **Current status (2026-11-05, HY-2 sweep).** The opening paragraphs below are the 2026-09-20 snapshot (177 tools, 1,958 tests, `v1.16.0-rc1`) and are **history**, kept as written.
-> Today: 335 tools in the live registry, about 6,000 offline tests, 161 guarded features in `docs/FEATURE_LEDGER.json`, 60 plans in `docs/plans/`, version 1.18.5 with 1.18.6 held.
+> Today: 335 tools in the live registry, about 6,000 offline tests, 162 guarded features in `docs/FEATURE_LEDGER.json`, 60 plans in `docs/plans/`, version 1.18.5 with 1.18.6 held.
 > The planning source is `docs/MASTER_TASK_LIST_2026-10-27.md` (open work, one row each), what has been seen working in a real QGIS run is `docs/LIVE_RESULTS.json`
 > (checked by `python tools/live_results.py --gate`), and the guarded features and their tests are in `docs/FEATURE_LEDGER.json`. This file keeps the decisions, the history and the
 > reasons; where it disagrees with those three, they win. Section numbers 1.19 to 1.24 were each used twice; the earlier set is now 1.19a to 1.24a (nothing outside this file
@@ -1825,6 +1825,8 @@ Workflow builder: share plans and presets as files, no node editor for now. Spec
 ### 1.26 Batch geocoding sends a layer's own text to a public server, outside the egress gate (found 2026-11-11, PLAN-023 R1-8)
 
 Building the data-source catalogue recorded what each outside source receives. `geocode_batch` sends the address or place text taken from a layer's own fields to the public OpenStreetMap Nominatim server (the catalogue marks `geocoding` as egress class `text`). The egress gate (`core/models/egress_gate.py`) protects against sending RESTRICTED or SENSITIVE layer data to a cloud model provider; it does not look at what a data-source tool sends to its own service, and `geocode_batch` has no sensitivity check of its own. So a layer tagged SENSITIVE (for example case addresses in a health project) can be geocoded against a public server with no question. Nothing was changed. Decision needed from the owner: (a) leave as it is and say so in the tool description and the User Guide, (b) make `geocode_batch` and `geocode_and_enrich` refuse or ask when the layer is protected, or (c) a Settings switch. My recommendation is (b), because the persona text for Public Health already promises to protect patient-level points.
+
+**Decided 2026-11-11 (owner: refuse) and built.** `geocode_batch` and `geocode_and_enrich` now refuse, before any lookup, place text that comes from a protected (RESTRICTED or SENSITIVE) layer: either the caller names it in the new `source_layer` argument, or the text equals a value in a text field of a protected layer in the project (so the refusal does not depend on the caller saying where the text came from). It applies whatever the AI provider is, never changes a tag, and fails closed on a protected layer it cannot compare. Limit: a retyped or derived text does not match, so it catches copies of protected values, not every derived text. Feature-ledger entry `geocoding-protected-refusal`, hand row C27. Options (a) and (c) were not taken; a Settings switch (c) remains possible later.
 
 ## 2. Open items blocked on this sandbox's environment (not a decision, not a bug)
 
