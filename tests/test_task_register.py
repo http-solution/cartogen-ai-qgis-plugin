@@ -477,8 +477,8 @@ class TestPersonaField(unittest.TestCase):
 
 
 class TestPersonaBonus(unittest.TestCase):
-    ENTRY_A = {"id": "a", "cat": "1", "cname": "x", "text": "t", "out": "analysis", "slots": [], "tools": [], "kw": ["alpha", "beta"], "persona": ["engineering"]}
-    ENTRY_B = {"id": "b", "cat": "2", "cname": "y", "text": "t", "out": "analysis", "slots": [], "tools": [], "kw": ["alpha", "beta"], "persona": ["research"]}
+    ENTRY_A: ClassVar[dict] = {"id": "a", "cat": "1", "cname": "x", "text": "t", "out": "analysis", "slots": [], "tools": [], "kw": ["alpha", "beta"], "persona": ["engineering"]}
+    ENTRY_B: ClassVar[dict] = {"id": "b", "cat": "2", "cname": "y", "text": "t", "out": "analysis", "slots": [], "tools": [], "kw": ["alpha", "beta"], "persona": ["research"]}
 
     def match(self, personas):
         real = reg.load
@@ -495,10 +495,10 @@ class TestPersonaBonus(unittest.TestCase):
 
     def test_the_primary_persona_adds_a_tenth_and_the_secondary_half_of_that(self):
         base = self.match(None)[0][1]
-        prim = dict((e["id"], s) for e, s in self.match(("research", "")))
+        prim = {e["id"]: s for e, s in self.match(("research", ""))}
         self.assertAlmostEqual(prim["b"] - base, 0.1, places=3)
         self.assertEqual(prim["a"], base)
-        sec = dict((e["id"], s) for e, s in self.match(("general", "research")))
+        sec = {e["id"]: s for e, s in self.match(("general", "research"))}
         self.assertAlmostEqual(sec["b"] - base, 0.05, places=3)
         self.assertEqual(self.match(("research", ""))[0][0]["id"], "b")
 

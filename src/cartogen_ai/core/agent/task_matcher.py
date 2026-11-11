@@ -110,7 +110,7 @@ def _persona_bonus(entry, personas):
     if not personas:
         return 0.0
     listed = entry.get("persona") or ()
-    primary, secondary = (tuple(personas) + (None, None))[:2]
+    primary, secondary = (*tuple(personas), None, None)[:2]
     if primary and primary != "general" and primary in listed:
         return PERSONA_BONUS
     if secondary and secondary != "general" and secondary in listed:
