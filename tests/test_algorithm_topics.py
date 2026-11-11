@@ -55,6 +55,8 @@ ROWS = [
     ("how much area does each class cover in the land cover raster", {"native:rasterlayeruniquevaluesreport"}),
     ("what volume of earth is above 100 metres in the dem", {"native:rastersurfacevolume"}),
     ("turn the classified raster into editable polygons", {"gdal:polygonize"}),
+    ("connect the gps points in order into a track line", {"native:pointstopath"}),
+    ("make a shaded relief map of the dem", {"native:relief"}),
     ("make filled elevation bands from the dem every 50 metres", {"gdal:contour_polygon"}),
 ]
 

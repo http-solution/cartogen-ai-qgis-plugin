@@ -10,6 +10,9 @@ Each phrase is a bag of words, not prose: order does not matter. Keep them short
 """
 
 NOTES = {
+    # --- PLAN-023 R11-4 (2026-11-11): the two PLAN-006 E2c exports that make a plain layer
+    "native:pointstopath": "connect points in order into a line track path route gps field points sequence order by field",
+    "native:relief": "shaded relief hillshade colour terrain elevation map relief raster with colours",
 
     # --- rc46: plain-language notes added after measuring 385 humanitarian prompts against the index (61 percent in the first five). These are
     # the words a person uses for what the algorithm DOES, for algorithms whose catalog sentences describe it in other terms.
