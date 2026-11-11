@@ -17,6 +17,10 @@ from tests._processing_live_rows import GEOMETRY_NOT_YET
 
 TIMEOUT_SECONDS = 60
 
+# Raster-only algorithms whose own live test supplies a raster and the options the vector sweep below cannot guess: native:relief needs a DEM and either relief colours or
+# AUTO_COLORS (the first CI run of PLAN-023 R11-4 failed it here with 'Specify relief colors or activate Generate relief classes automatically'). It runs in tests/test_processing_e2c_live.py.
+OWN_LIVE_TEST = {"native:relief"}
+
 
 def _run_one(alg_id):
     """(ok, detail) for one algorithm run in its own process; a hang, a crash or a missing result line is a failure with its reason."""
@@ -43,7 +47,7 @@ class TestGeometryFamilyRuns(unittest.TestCase):
         from concurrent.futures import ThreadPoolExecutor
         # the GRASS family has its own probe and test (tests/test_processing_grass_family_live.py): its raster and imagery algorithms refuse
         # the vector test layers on purpose, so running them here would only report that guard as a failure
-        ids = sorted(set(FAMILY_NAMES) - set(GEOMETRY_NOT_YET) - set(GRASS_FAMILY) - set(MESH_FAMILY))
+        ids = sorted(set(FAMILY_NAMES) - set(GEOMETRY_NOT_YET) - set(GRASS_FAMILY) - set(MESH_FAMILY) - OWN_LIVE_TEST)
         with ThreadPoolExecutor(max_workers=6) as pool:
             outcomes = dict(zip(ids, pool.map(_run_one, ids), strict=True))
         failures = {k: v[1] for k, v in outcomes.items() if not v[0]}
