@@ -843,6 +843,30 @@
    }
   },
   {
+   "id": "C17-stac-load",
+   "issue": "S",
+   "session": "C",
+   "title": "Satellite bands for my area only",
+   "covers": [
+    "load-stac-assets"
+   ],
+   "needs": "person and a real model",
+   "starts_from": "A saved project; a fresh chat, 'Save an evidence folder for each request' ticked; load smoke_admin from smoke_data.gpkg",
+   "do": "Send in order: (1) download the red and near-infrared Sentinel-2 bands for the extent of smoke_admin from the last two months, cloud under 30 percent  (2) confirm it  (3) ask for the same again  (4) ask for Landsat bands for the same area  (5) ask for 12 bands.",
+   "expect": "(1) a preview that lists the scene, the two bands and a size in megabytes, and nothing is added yet. (2) two new raster layers in the project and files in data/00_raw/stac, each with a .provenance.json that names the scene and carries the Copernicus Sentinel notice; the reply says how big they are. (3) the preview, then on confirming, the same files are reused, not downloaded again. (4) refused with the reason (not supported, needs AWS credentials). (5) refused (at most 6 bands).",
+   "evidence": "snap('C17'). Screenshot of the preview card and of the two layers on the map -> results\\screens\\C17-stac.png. If your network needs a proxy, say so: GDAL's own downloads may not follow QGIS's proxy settings.",
+   "files": [
+    "smoke_data.gpkg"
+   ],
+   "pass_if": "all as Expect.",
+   "cost": "five short requests and one small download",
+   "layers": {
+    "smoke_data.gpkg": [
+     "smoke_admin"
+    ]
+   }
+  },
+  {
    "id": "D1-fetch-live",
    "issue": "S",
    "session": "D",

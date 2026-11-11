@@ -105,7 +105,7 @@ TWO_PHASE_TOOLS = frozenset({
     "fetch_worldpop_population", "gemini_grounded_search", "openai_grounded_search",
     "fetch_nasa_active_fires", "fetch_nasa_eonet_events", "fetch_gdacs_disaster_alerts",
     "fetch_usgs_earthquakes", "fetch_ucdp_conflict_events", "find_incident_reports",
-    "ingest_osm_features", "extract_features_from_imagery",
+    "ingest_osm_features", "extract_features_from_imagery", "load_stac_assets",
 })
 
 
@@ -1288,7 +1288,7 @@ class CartogenAi:
             result["egress_warning"] = egress["warning"]
         return result
 
-    def _run_two_phase_tool(self, name, arguments):
+    def _run_two_phase_tool(self, name, arguments):  # noqa: C901 (one dispatch over the tool names; each branch is that tool's own phases)
         """Handles TWO_PHASE_TOOLS (see module-level comment): runs the network
         fetch on the calling thread (background, when invoked from run()), then
         bounces only the fast, local-disk-only QGIS layer-creation step to the
@@ -1371,6 +1371,22 @@ class CartogenAi:
             # the downloaded file must stay on disk for as long as the raster
             # layer exists (see add_worldpop_population_layer_main_thread_phase).
             res = self._run_current_turn_on_main_thread(add_worldpop_population_layer_main_thread_phase, fetch_result)
+            self._log_tool_success(name, filtered_args, res)
+            return res
+
+        if name == "load_stac_assets":
+            # PLAN-023 R3-2: the catalogue search and the window downloads run here on the worker thread; only the area lookup and the layer creation are
+            # marshalled to the main thread (the same split as fetch_worldpop_population). `confirmed` is never in filtered_args (it is not in the tool's schema, so
+            # a model cannot send it): a call from the model always ends in the preview card, and the person's Apply runs the registered function via execute_confirmed.
+            from .tools import stac_load_tool as stac
+            prepared = self._run_current_turn_on_main_thread(lambda a: stac.prepare_request(a["layer_name"], a["bbox"]),
+                                                             {"layer_name": filtered_args.get("layer_name"), "bbox": filtered_args.get("bbox")})
+            if "error" in prepared:
+                return prepared
+            fetch_result = stac.load_stac_assets_network_phase(
+                filtered_args.get("start_date"), filtered_args.get("end_date"), filtered_args.get("assets"), prepared["bbox"], prepared["folder"],
+                filtered_args.get("max_cloud", 20), filtered_args.get("limit", 1), filtered_args.get("item_ids"), False)
+            res = self._run_current_turn_on_main_thread(stac.add_stac_layers_main_thread_phase, fetch_result)
             self._log_tool_success(name, filtered_args, res)
             return res
 
