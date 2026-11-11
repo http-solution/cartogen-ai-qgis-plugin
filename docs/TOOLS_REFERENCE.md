@@ -1,6 +1,6 @@
 # Tool Reference
 
-Auto-generated from the live tool registry (332 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
+Auto-generated from the live tool registry (333 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
 
 Flags: **network-only** tools bypass the main-thread QGIS dispatcher entirely (pure HTTP, safe from any background thread); **two-phase** tools split a network fetch (background thread) from the QGIS-touching part (main thread); **task-management** tools are excluded from auto-advance in the Task Manager.
 
@@ -1768,6 +1768,26 @@ Recommends which styling tool fits a layer/field's actual data semantics -- geom
 | `layer_name` | string | yes |  |
 | `field` | string | no | Optional. Omit for a reference/location-only map with no field to style by. |
 | `intended_message` | string | no | Optional free-text hint, e.g. 'show which districts have the worst access gap' or 'show route status'. Used only to explain a recommendation more specifically -- never to override what the data itself actually supports. |
+
+## cluster_scan_tool
+
+### `detect_spatial_clusters`
+
+Find the most likely CLUSTER of excess cases with Kulldorff's circular spatial scan statistic (Poisson model): it tries circles of every size around every area, scores each by how many more cases it holds than its population would give, and reports the best circle with its centre, radius, cases, expected cases, relative risk and a Monte Carlo p-value (how often chance alone does as well), plus further non-overlapping circles that are also significant. Writes the circles to a NEW layer (the input is never changed). Needs a whole-number case field and a population field on every area, a projected CRS, and numpy (ships with QGIS). Use it for 'is this a real cluster', 'where is the most likely cluster', outbreak or incident clustering; it shows where cases exceed population, never why. max_pop_fraction (default 0.5, the largest allowed) caps a cluster's share of the population. At most 1,500 areas.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes |  |
+| `case_field` | string | yes | Whole-number case counts per area. |
+| `population_field` | string | yes | Population at risk per area (above zero). |
+| `model` | string | no | Only 'poisson' is built. |
+| `max_pop_fraction` | number | no | Largest share of the population a cluster may hold, 0.01 to 0.5 (default 0.5). |
+| `max_radius` | number | no | Largest cluster radius in layer units (default: no limit besides the population cap). |
+| `monte_carlo` | integer | no | Random re-draws for the p-value, 99 to 9999 (default 999). |
+| `seed` | integer | no | Random seed (default 1); the same seed gives the same numbers on the same numpy version. |
+| `max_clusters` | integer | no | Most clusters to report, 1 to 20 (default 5). |
+| `alpha` | number | no | Significance level for secondary clusters (default 0.05). |
+| `output_layer_name` | string | no | Name of the new layer (default '<layer>_scan_clusters'). |
 
 ## confidence_tools
 

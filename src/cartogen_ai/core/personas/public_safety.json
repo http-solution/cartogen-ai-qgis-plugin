@@ -17,6 +17,7 @@
     "analyze_incident_trend",
     "hotspot_analysis",
     "analyze_hotspots_gi_star",
+    "detect_spatial_clusters",
     "apply_heatmap_style",
     "obfuscate_sensitive_points"
    ]
@@ -90,8 +91,8 @@
   },
   {
    "capability": "scan statistic",
-   "state": "not built",
-   "since": "R2 (1.20.0)"
+   "state": "CI-checked",
+   "tool": "detect_spatial_clusters"
   },
   {
    "capability": "viewshed",
