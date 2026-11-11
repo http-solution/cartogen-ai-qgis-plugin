@@ -12,7 +12,7 @@ class TestRegisterIntegrity(unittest.TestCase):
         self.data = reg.load()
 
     def test_register_loads_all_tasks(self):
-        self.assertEqual(len(self.data), 847)
+        self.assertEqual(len(self.data), 857)
 
     def test_ids_are_unique(self):
         ids = [e["id"] for e in self.data]
@@ -453,7 +453,9 @@ class TestPersonaField(unittest.TestCase):
                 sections.setdefault(e["cat"], []).append(e)
         self.assertEqual(sorted(sections, key=int), [str(n) for n in range(38, 51)])
         owners = []
-        extra = {"42": 1, "43": 2}          # R3-6 added a field report (agriculture) and a land-cover colour task and a change report (environment) to the four each had
+        # R3-6 added a field report (agriculture) and a land-cover colour task and a change report (environment) to the four each had; R2-6 added the spatial-statistics tasks:
+        # 38 humanitarian +2 (cluster test, case rates), 40 urban planning +1, 43 environment +1 (on top of R3-6's 2), 44 public health +4, 48 public safety +1, 50 real estate +1
+        extra = {"38": 2, "40": 1, "42": 1, "43": 3, "44": 4, "48": 1, "50": 1}
         for number, tasks in sections.items():
             self.assertEqual(len(tasks), 4 + extra.get(number, 0), number)
             self.assertEqual(len({t["cname"] for t in tasks}), 1, number)
