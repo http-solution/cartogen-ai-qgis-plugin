@@ -12,6 +12,8 @@ import os
 import re
 import unicodedata
 
+from . import persona_rerank
+
 
 # Curated phrase synonyms for tools whose real-world paraphrases don't share
 # vocabulary with their name/description -- e.g. "rank the districts by how
@@ -316,14 +318,17 @@ class ToolRouter:
     def __init__(self, full_schema_list: list[dict]):
         self.full_schema_list = full_schema_list
 
-    def filter_relevant_tools(self, user_query: str, top_k: int = DEFAULT_TOP_K, carry_over_tools=None) -> list[dict]:
+    def filter_relevant_tools(self, user_query: str, top_k: int = DEFAULT_TOP_K, carry_over_tools=None, personas=None) -> list[dict]:
         """Returns top_k relevant tool schemas matching user query terms.
 
         `carry_over_tools`: names of tools the PREVIOUS turn used. A short follow-up ("EPSG:3857", "yes, the second one") shares no
         vocabulary with any tool, so scoring on the new message alone dropped the tool the conversation was in the middle of: in the
         rc17 hand test (2026-10-06) the model answered the CRS question with "add_point_layer is unavailable" because it was not in
         the turn's tool list, and the rc16 hint telling it to call add_point_layer again could not help. Names that are not
-        registered tools are ignored."""
+        registered tools are ignored.
+
+        `personas`: optional (primary, secondary) persona ids (PLAN-023 R1-4). They nudge which tools are offered, within the
+        limits in `persona_rerank`; None, "general" or unknown ids leave the selection exactly as it was."""
         if len(self.full_schema_list) <= top_k:
             return self.full_schema_list
 
@@ -453,7 +458,8 @@ class ToolRouter:
         # For a request of more than _LONG_QUERY_WORDS words a tool must score at least _LONG_QUERY_MIN_SCORE (a name or alias match,
         # three description words, or a capability the request names) to take a slot. Short requests keep the old rule (score > 0).
         floor = _LONG_QUERY_MIN_SCORE if len(user_query.split()) > _LONG_QUERY_WORDS else 1
-        chosen = [tool for score, tool in scored_tools[:top_k] if score >= floor]
+        primary, secondary = personas if personas else (None, None)
+        chosen = persona_rerank.select_tools(scored_tools, top_k, floor, persona_rerank.build_bonuses(primary, secondary, query_lower))
         # find_tools is always offered, on top of top_k so it takes no slot from a relevant tool (PLAN-042 step 4): the offered tools are
         # a selection, and it is how the model asks for one the selection missed. Measured 2026-10-30: the best score was 10 or more for
         # all 493 test requests, so a "weak match" trigger never fires; the miss that mattered ("list medical service") was a confident
