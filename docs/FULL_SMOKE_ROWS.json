@@ -1037,6 +1037,24 @@
    "layers": {}
   },
   {
+   "id": "C26-r2-routing",
+   "issue": "S",
+   "session": "C",
+   "title": "Ask the chat the twelve plain spatial-statistics questions as each persona",
+   "covers": [
+    "r2-persona-wiring"
+   ],
+   "needs": "QGIS and the plugin with a working model key; a small area layer with a case or incident count and a population field (the layers from rows C22 to C24 will do)",
+   "starts_from": "QGIS open with an area layer that has cases and population fields; the plugin enabled; the persona picker set as named in each question",
+   "do": "For each line, pick the persona shown, then type the request into the chat and note which tool the agent calls first. Public health: 'Is this cluster of cases real or just chance?' (expect detect_spatial_clusters); 'Are cases more concentrated in some districts than a random pattern would give?' (calculate_spatial_autocorrelation); 'Find the statistically significant hot spots of cases by district' (analyze_hotspots_gi_star); 'What is the rate per 100,000 and the relative risk in each district?' (calculate_health_rates); 'Colour the district rates and hatch the ones with fewer than 5 cases' (apply_public_health_look); 'Make an epidemic bulletin PDF for last week's cases' (create_print_layout, template epi_bulletin). Public safety: 'Is the clustering of incidents statistically significant?' and 'Run a hotspot test on the burglary counts by neighbourhood'. Humanitarian: 'We have an outbreak in the camps, is there a cluster of cases?'. Urban planning: 'Are vacant buildings clustered across neighbourhoods?'. Environment: 'Where are the significantly high pollution readings?'. Real estate: 'Are high prices clustered in particular areas?'.",
+   "expect": "Each request leads to the tool named, or to a sensible alternative from the same family (a hot-spot test or autocorrelation for a clustering question), without the agent asking you which tool to use; the answers state the method and its limits and never a cause; the reply for any rate says which areas were suppressed for small numbers.",
+   "evidence": "For each request: the persona, the first tool the agent called (from the tool-call lines in the chat), and the final answer's first sentence -> results\\\\outputs\\\\C26-r2-routing\\\\calls.txt.",
+   "files": [],
+   "pass_if": "at least 11 of the 12 requests reach the intended family of tools on the first try; no answer claims a cause. A request that goes to a wrong tool, or to execute_pyqgis_script, is a Fail for that line: send the request, the persona and the tool called.",
+   "cost": "about 30 minutes, a dozen short model runs",
+   "layers": {}
+  },
+  {
    "id": "D1-fetch-live",
    "issue": "S",
    "session": "D",

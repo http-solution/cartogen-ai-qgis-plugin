@@ -44,16 +44,16 @@
  "tool_priority": [
   "fetch_hdx_admin_boundaries",
   "fetch_worldpop_population",
-  "fetch_osm_features",
   "fetch_gdacs_disaster_alerts",
-  "calculate_service_area",
   "calculate_severity_index",
   "calculate_population_in_need",
-  "generate_mapping_task_grid",
   "aggregate_survey_indicator",
   "generate_situation_dashboard",
   "compute_jiaf_preliminary",
-  "obfuscate_sensitive_points"
+  "obfuscate_sensitive_points",
+  "detect_spatial_clusters",
+  "calculate_health_rates",
+  "analyze_hotspots_gi_star"
  ],
  "tool_aliases": {
   "calculate_population_in_need": [
@@ -63,13 +63,26 @@
   "generate_situation_dashboard": [
    "situation report",
    "sitrep"
+  ],
+  "detect_spatial_clusters": [
+   "outbreak",
+   "disease cluster"
+  ],
+  "calculate_health_rates": [
+   "attack rate",
+   "cases per population"
+  ],
+  "analyze_hotspots_gi_star": [
+   "hotspot test"
   ]
  },
  "task_ids": [
   "38.01",
   "38.02",
   "38.03",
-  "38.04"
+  "38.04",
+  "38.05",
+  "38.06"
  ],
  "data_sources": [
   "hdx",
