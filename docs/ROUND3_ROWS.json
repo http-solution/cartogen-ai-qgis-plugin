@@ -62,6 +62,7 @@
   "C20-environment-looks": "2 feature(s) never seen live (land-cover-look-tool, report-layouts): the official colours and the two report layouts must be looked at on a real map.",
   "C21-spatial-autocorrelation": "1 feature never seen live (spatial-autocorrelation): Moran's I on a real layer must match a published tool for the same neighbour rule.",
   "C22-hotspots-gi-star": "1 feature never seen live (spatial-hotspots-gi-star): Gi* z-scores on a real layer must match a published tool for the same neighbour rule.",
-  "C23-cluster-scan": "1 feature never seen live (spatial-cluster-scan): the Kulldorff scan on a real layer must match SaTScan for the same centroids."
+  "C23-cluster-scan": "1 feature never seen live (spatial-cluster-scan): the Kulldorff scan on a real layer must match SaTScan for the same centroids.",
+  "C24-health-rates": "1 feature never seen live (health-rates): crude rate, relative risk and the small-number flag on a real layer must match R or GeoDa."
  }
 }

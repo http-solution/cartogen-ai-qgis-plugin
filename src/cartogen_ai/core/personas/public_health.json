@@ -31,6 +31,13 @@
    ]
   },
   {
+   "id": "ph.rates",
+   "title": "Rates and risk by area",
+   "tools": [
+    "calculate_health_rates"
+   ]
+  },
+  {
    "id": "ph.pattern",
    "title": "Is there a spatial pattern?",
    "tools": [
@@ -114,9 +121,9 @@
    "tool": "detect_spatial_clusters"
   },
   {
-   "capability": "rates, relative risk, standardised ratios and smoothing",
-   "state": "not built",
-   "since": "R2 (1.20.0)"
+   "capability": "rates per 100,000, relative risk, standardised ratios from your expected counts, smoothing and a small-number flag",
+   "state": "CI-checked",
+   "tool": "calculate_health_rates"
   },
   {
    "capability": "epidemic bulletin layout",
