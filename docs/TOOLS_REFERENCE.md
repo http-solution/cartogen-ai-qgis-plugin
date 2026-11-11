@@ -1,6 +1,6 @@
 # Tool Reference
 
-Auto-generated from the live tool registry (326 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
+Auto-generated from the live tool registry (327 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
 
 Flags: **network-only** tools bypass the main-thread QGIS dispatcher entirely (pure HTTP, safe from any background thread); **two-phase** tools split a network fetch (background thread) from the QGIS-touching part (main thread); **task-management** tools are excluded from auto-advance in the Task Manager.
 
@@ -1742,6 +1742,20 @@ Put blocked or degraded places into a road network for routing: destroyed bridge
 | `penalty_factor` | number | no | For mode='penalise': speed multiplier between 0 and 1 (e.g. 0.25). Ignored for 'block'. |
 | `speed_field` | string | no | Optional existing numeric speed field (km/h) to start from, e.g. from build_composite_impedance_field. |
 | `output_field` | string | no | Name of the new speed field. Default 'barrier_speed'. |
+
+## batch_tool
+
+### `run_processing_batch`
+
+Run ONE approved Processing algorithm over several layers (1 to 20), one run per layer, with the same settings for each, and put the results together in a new layer group. For example buffer 5 layers by 100 m, or compute slope for 8 rasters. `layers` are layer names; `parameters` are the settings shared by all runs (not the input and not an output); `input_parameter` names the algorithm's input (default INPUT). Each result layer is named <layer>_<algorithm> and is temporary. A layer that fails does not stop the others: the reply lists each failure and its reason. Algorithms that change your own layers (selections) are refused. The group name must be new. Stop ends the batch and the reply says how far it got.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `algorithm_id` | string | yes | An approved algorithm id such as native:buffer. |
+| `layers` | array[string] | yes | 1 to 20 layer names, each once. |
+| `parameters` | object | no | Settings shared by all runs, for example {"DISTANCE": 100}. |
+| `input_parameter` | string | no | The algorithm's input parameter name (default INPUT). |
+| `group_name` | string | no | Name of the new layer group (default <algorithm>_batch); it must not exist yet. |
 
 ## cartographic_advisory_tools
 
