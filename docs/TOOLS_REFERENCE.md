@@ -1,6 +1,6 @@
 # Tool Reference
 
-Auto-generated from the live tool registry (327 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
+Auto-generated from the live tool registry (328 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
 
 Flags: **network-only** tools bypass the main-thread QGIS dispatcher entirely (pure HTTP, safe from any background thread); **two-phase** tools split a network fetch (background thread) from the QGIS-touching part (main thread); **task-management** tools are excluded from auto-advance in the Task Manager.
 
@@ -2362,6 +2362,19 @@ Builds a single blended per-segment speed field on a road network layer -- combi
 | `dem_layer` | string | no | Optional DEM raster layer. When given, each segment's endpoints are sampled for elevation and a slope penalty applied -- steeper segments get a lower effective speed. |
 | `output_field` | string | no | Name of the new field to write the blended speed (km/h) into. Defaults to 'impedance_cost'. |
 | `dem_vertical_unit` | string | no | Vertical unit of the DEM's elevation values: 'm' (default), 'ft' or 'us_ft'. A raster does not carry it. |
+
+## in_place_tool
+
+### `run_algorithm_in_place`
+
+Apply an approved Processing algorithm that supports editing in place (for example native:smoothgeometry, native:translategeometry, native:simplifygeometries) DIRECTLY to a vector layer instead of making a new layer. selected_only true changes only the selected features, false changes every feature. `parameters` are the algorithm's settings (not the input or output). Changes your data: a preview with the exact feature count is shown first, the change is ONE undoable step (undo_manual_edit) and stays UNSAVED in the layer's edit session until you save it (set_layer_editing). Your selection is put back afterwards.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `algorithm_id` | string | yes | An approved algorithm id that supports in-place editing, e.g. native:smoothgeometry. |
+| `layer_name` | string | yes | The vector layer to change. |
+| `selected_only` | boolean | yes | true: only the selected features; false: every feature. |
+| `parameters` | object | no | The algorithm's settings, for example {"ITERATIONS": 2}. |
 
 ## incident_search_tools
 

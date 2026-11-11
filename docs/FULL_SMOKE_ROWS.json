@@ -769,6 +769,30 @@
    }
   },
   {
+   "id": "C14-in-place",
+   "issue": "S",
+   "session": "C",
+   "title": "An approved algorithm applied to the layer itself, then undone",
+   "covers": [
+    "run-algorithm-in-place"
+   ],
+   "needs": "person and a real model",
+   "starts_from": "A new empty project; a fresh chat, 'Save an evidence folder for each request' ticked; load smoke_roads from smoke_network.gpkg",
+   "do": "Send in order: (1) smooth the selected roads in place (select 3 roads by hand first)  (2) undo it  (3) smooth every road in place and then save the layer edits  (4) smooth smoke_roads in place, selected only, after clearing the selection.",
+   "expect": "(1) a preview naming 3 features; after Apply only those 3 roads change shape and the layer is in edit mode with the change unsaved; your 3 selected roads are still selected. (2) the roads return to their old shape in one step. (3) all roads change; saving writes them to the file. (4) refused: nothing is selected.",
+   "evidence": "snap('C14'). Screenshot of the map before and after step 1 -> results\\screens\\C14-smooth.png.",
+   "files": [
+    "smoke_network.gpkg"
+   ],
+   "pass_if": "all as Expect.",
+   "cost": "four short requests",
+   "layers": {
+    "smoke_network.gpkg": [
+     "smoke_roads"
+    ]
+   }
+  },
+  {
    "id": "D1-fetch-live",
    "issue": "S",
    "session": "D",

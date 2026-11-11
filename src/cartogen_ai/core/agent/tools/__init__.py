@@ -28,6 +28,7 @@ from . import batch_tool
 from . import copy_features_tool
 from . import field_rules_tools
 from . import identify_tool
+from . import in_place_tool
 from . import layer_display_tools
 from . import line_edit_tools
 from . import parts_edit_tool
@@ -128,6 +129,7 @@ __all__ = [
     "identify_tool",
     "imagery_extraction",
     "impedance_tools",
+    "in_place_tool",
     "incident_search_tools",
     "jiaf_engine",
     "jiaf_inputs",

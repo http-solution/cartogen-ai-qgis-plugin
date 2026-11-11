@@ -439,3 +439,4 @@ Newest last. One line per status change; written by `tools/master_list.py set`.
 - 2026-11-10: PR-R10 In progress -> In progress. R10-1..R10-5 merged; R10-6 PR open: 3D module present (probe), R12-5 create_3d_view planned; hand rows C7..C11 owed on real data
 - 2026-11-11: PR-R11 In progress -> In progress. R11-1 run_processing_model built (PR open); R11-2..R11-6 not started
 - 2026-11-11: PR-R11 In progress -> In progress. R11-1 merged; R11-2 batch built (PR open); R11-3..R11-6 not started
+- 2026-11-11: PR-R11 In progress -> In progress. R11-1, R11-2 merged; R11-3 in-place built (PR open); R11-4..R11-6 not started
