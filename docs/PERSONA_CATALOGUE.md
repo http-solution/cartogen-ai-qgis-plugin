@@ -49,7 +49,7 @@ General GIS work: loading, converting, cleaning and checking spatial data, and p
 - ISO 19115 metadata record - due in R8 (1.26.0)
 - generic open-data portals (CKAN, ArcGIS Hub, Socrata) - due in R7 (1.25.0)
 
-**Data sources:** `hdx`, `geocoding`
+**Data sources:** Humanitarian Data Exchange (HDX) (open), Geocoding (OpenStreetMap Nominatim) (open)
 
 **Style profile:** `general`
 
@@ -97,7 +97,7 @@ Crisis response: affected people, access, needs and severity, 3W/4W presence and
 - ACLED conflict events - due in R7 (1.25.0) (needs a licence key)
 - QField package export - due in no release planned yet (see the humanitarian gap analysis)
 
-**Data sources:** `hdx`, `geoboundaries`, `worldpop`, `osm`, `gdacs`, `firms`, `fts`, `ucdp`
+**Data sources:** Humanitarian Data Exchange (HDX) (open), geoBoundaries (open), OpenStreetMap (Overpass and Geofabrik extracts) (open), WorldPop population rasters (open), GDACS disaster alerts (open), NASA FIRMS active fires (needs a free key), OCHA Financial Tracking Service (FTS) (open), UCDP candidate georeferenced events (open)
 
 **Style profile:** `humanitarian`
 
@@ -148,7 +148,7 @@ Terrain, drainage and site engineering: slopes, profiles, basins, peak flow scre
 
 - IFC/Revit to CityGML and 3D rendering - needs FME or ifcopenshell, which this plugin does not depend on
 
-**Data sources:** `geocoding`
+**Data sources:** Geocoding (OpenStreetMap Nominatim) (open)
 
 **Style profile:** `engineering`
 
@@ -194,7 +194,7 @@ Land use, zoning checks, service catchments, population served and planning scen
 - line of sight - due in R4 (1.22.0)
 - urban heat island (needs land-surface temperature) - due in no release planned yet
 
-**Data sources:** `osm`, `worldpop`, `footprints`
+**Data sources:** OpenStreetMap (Overpass and Geofabrik extracts) (open), Microsoft Global ML Building Footprints (open), WorldPop population rasters (open)
 
 **Style profile:** `urban_planning`
 
@@ -244,7 +244,7 @@ Routes, hubs and coverage: travel cost over a road network, depot siting and all
 
 - real-time telemetry - live vehicle feeds are outside what the plugin connects to
 
-**Data sources:** `osm`, `gdacs`
+**Data sources:** OpenStreetMap (Overpass and Geofabrik extracts) (open), GDACS disaster alerts (open)
 
 **Style profile:** `logistics`
 
@@ -293,7 +293,7 @@ Fields and crops from satellite imagery: vegetation and moisture indices, season
 
 - yield prediction - not recommended without ground truth; the plugin gives indices and zones, not yield or rate recommendations
 
-**Data sources:** `stac_search`
+**Data sources:** Sentinel-2 imagery (Earth Search STAC) (open)
 
 **Style profile:** `agriculture`
 
@@ -337,7 +337,7 @@ Land cover, habitat and protected areas: change between dates, classification, s
 - ESA WorldCover and protected-area layers (WDPA) - due in R7 (1.25.0)
 - change report layout and land-cover palettes - due in after the profile packages (R3-6)
 
-**Data sources:** `stac_search`
+**Data sources:** Sentinel-2 imagery (Earth Search STAC) (open)
 
 **Style profile:** `environment`
 
@@ -382,7 +382,7 @@ Health services and disease patterns by area: catchments, access, rates and tren
 - epidemic bulletin layout - due in R2 (1.20.0)
 - DHIS2 connector - due in R7 (1.25.0) (needs the owner's credentials)
 
-**Data sources:** `worldpop`, `hdx`, `geocoding`
+**Data sources:** Humanitarian Data Exchange (HDX) (open), WorldPop population rasters (open), Geocoding (OpenStreetMap Nominatim) (open)
 
 **Style profile:** `public_health`
 
@@ -430,7 +430,7 @@ Hazard, exposure and consequence: live hazard feeds, who and what is exposed, tr
 
 - hydraulic simulation - the plugin does not fake a flood model; it states exposure to a stated level
 
-**Data sources:** `gdacs`, `eonet`, `firms`, `usgs`, `worldpop`
+**Data sources:** WorldPop population rasters (open), GDACS disaster alerts (open), NASA EONET natural events (open), NASA FIRMS active fires (needs a free key), USGS earthquake catalogue (open)
 
 **Style profile:** `disaster_risk`
 
@@ -477,7 +477,7 @@ Network assets and service: topology checks, nearest assets, service areas and o
 
 - SCADA and live meters - live telemetry is outside what the plugin connects to
 
-**Data sources:** `osm`
+**Data sources:** OpenStreetMap (Overpass and Geofabrik extracts) (open)
 
 **Style profile:** `utilities`
 
@@ -524,7 +524,7 @@ Movement and access: travel times and isochrones, accessibility to services, spe
 
 - mobile-phone telemetry - privacy: the plugin does not process personal movement data
 
-**Data sources:** `osm`
+**Data sources:** OpenStreetMap (Overpass and Geofabrik extracts) (open)
 
 **Style profile:** `transport`
 
@@ -572,7 +572,7 @@ Incident patterns and response coverage with lawful, aggregated handling of sens
 
 - 3D blast radius - the plugin has 2D buffers only
 
-**Data sources:** `ucdp`, `osm`
+**Data sources:** OpenStreetMap (Overpass and Geofabrik extracts) (open), UCDP candidate georeferenced events (open)
 
 **Style profile:** `public_safety`
 
@@ -621,7 +621,7 @@ Reproducible analysis: methods and assumptions recorded, provenance travelling w
 
 - Jupyter and R - outside the plugin
 
-**Data sources:** `hdx`, `stac_search`
+**Data sources:** Humanitarian Data Exchange (HDX) (open), Sentinel-2 imagery (Earth Search STAC) (open)
 
 **Style profile:** `research`
 
@@ -668,7 +668,7 @@ Site comparison: what is near, who lives around, how long it takes to get there,
 - site comparison layout - due in R6 (1.24.0)
 - licensed place and spending data - due in user-supplied only (licensed data is supplied by the user with their own key)
 
-**Data sources:** `osm`, `worldpop`, `geocoding`
+**Data sources:** OpenStreetMap (Overpass and Geofabrik extracts) (open), WorldPop population rasters (open), Geocoding (OpenStreetMap Nominatim) (open)
 
 **Style profile:** `real_estate`
 
@@ -704,7 +704,7 @@ Not built as written. Open-source conflict and access analysis is available unde
 
 - this profile as written - Not built as written. Open-source conflict and access analysis is available under Humanitarian and Public Safety. Classified data must never be used with this plugin.
 
-**Data sources:** `ucdp`, `web_search`, `geocoding`
+**Data sources:** UCDP candidate georeferenced events (open), Geocoding (OpenStreetMap Nominatim) (open), Web and news search (open)
 
 **Style profile:** `general`
 
