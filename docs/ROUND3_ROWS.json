@@ -59,6 +59,7 @@
   "W10-import-bad": "1 feature(s) seen on an older build whose code changed since (workflow-file-import). Round 2 (2026-11-05, build 728dad3, agent): Partial.",
   "W11-import-egress": "1 feature(s) seen on an older build whose code changed since (gates-on-fetch-and-confirm-paths). Round 2 (2026-11-05, build 728dad3, agent): Pass.",
   "C19-persona-request": "2 feature(s) never seen live (persona-rerank, persona-tasks): the same sentence under Engineering and under the GIS Generalist must call the same tool.",
-  "C20-environment-looks": "2 feature(s) never seen live (land-cover-look-tool, report-layouts): the official colours and the two report layouts must be looked at on a real map."
+  "C20-environment-looks": "2 feature(s) never seen live (land-cover-look-tool, report-layouts): the official colours and the two report layouts must be looked at on a real map.",
+  "C21-spatial-autocorrelation": "1 feature never seen live (spatial-autocorrelation): Moran's I on a real layer must match a published tool for the same neighbour rule."
  }
 }

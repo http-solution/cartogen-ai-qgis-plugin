@@ -1,6 +1,6 @@
 # Tool Reference
 
-Auto-generated from the live tool registry (330 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
+Auto-generated from the live tool registry (331 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
 
 Flags: **network-only** tools bypass the main-thread QGIS dispatcher entirely (pure HTTP, safe from any background thread); **two-phase** tools split a network fetch (background thread) from the QGIS-touching part (main thread); **task-management** tools are excluded from auto-advance in the Task Manager.
 
@@ -3454,6 +3454,25 @@ Tags a layer with a sensitivity/disclosure classification -- PUBLIC, INTERNAL, R
 | `layer_name` | string | yes |  |
 | `level` | string | yes | PUBLIC, INTERNAL, RESTRICTED, or SENSITIVE. |
 | `reason` | string | no | Optional short reason shown in the export warning, e.g. 'contains individual beneficiary GPS coordinates'. |
+
+## spatial_stats_tool
+
+### `calculate_spatial_autocorrelation`
+
+Test whether a numeric field is spatially clustered (similar values near each other), alternating (high next to low) or no different from a random arrangement: global Moran's I with a permutation p-value, and with write_local=true the Local Moran's I (LISA) per feature as a NEW layer with lisa_i, lisa_p and lisa_class (HH high among high, LL low among low, HL a high outlier among low, LH a low outlier among high, or 'not significant'). weights: 'queen' or 'rook' (polygon layers, from shared boundaries), 'knn' (k nearest, pass k) or 'distance' (a distance band in layer units, projected CRS only, pass distance). Needs a number on every feature (it refuses and says how many are missing). At most 5,000 features. The input layer is never changed. Evidence of a pattern, not of its cause; the local p-values are not corrected for testing every feature.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes |  |
+| `field` | string | yes | A numeric field. |
+| `weights` | string | no | queen (default), rook, knn or distance. |
+| `k` | integer | no | For weights='knn': how many nearest neighbours each feature counts (for example 5). |
+| `distance` | number | no | For weights='distance': the band in the layer's units (projected CRS). |
+| `permutations` | integer | no | Shuffles for the p-value, 99 to 9999 (default 999). |
+| `seed` | integer | no | Random seed (default 1); the same seed gives the same numbers. |
+| `write_local` | boolean | no | Also add a new layer with the Local Moran result per feature (default false). |
+| `alpha` | number | no | Significance level for the local classes (default 0.05). |
+| `output_name` | string | no | Name of the local-result layer (default '<layer>_lisa'). |
 
 ## spectral_index_tool
 

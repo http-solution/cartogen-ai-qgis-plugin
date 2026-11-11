@@ -29,6 +29,13 @@
     "hotspot_analysis",
     "generate_chart"
    ]
+  },
+  {
+   "id": "ph.pattern",
+   "title": "Is there a spatial pattern?",
+   "tools": [
+    "calculate_spatial_autocorrelation"
+   ]
   }
  ],
  "tool_priority": [
@@ -90,7 +97,12 @@
    "tool": "obfuscate_sensitive_points"
   },
   {
-   "capability": "Moran's I and Getis-Ord Gi* tests",
+   "capability": "Moran's I (global and local) with permutation p-values, the neighbour rule you choose, and a new local-result layer",
+   "state": "CI-checked",
+   "tool": "calculate_spatial_autocorrelation"
+  },
+  {
+   "capability": "Getis-Ord Gi* hotspot test",
    "state": "not built",
    "since": "R2 (1.20.0)"
   },
