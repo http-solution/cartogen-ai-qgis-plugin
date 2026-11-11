@@ -16,6 +16,7 @@
    "tools": [
     "analyze_incident_trend",
     "hotspot_analysis",
+    "analyze_hotspots_gi_star",
     "apply_heatmap_style",
     "obfuscate_sensitive_points"
    ]
@@ -83,7 +84,12 @@
    "tool": "obfuscate_sensitive_points"
   },
   {
-   "capability": "hotspot tests (Gi*, scan statistic)",
+   "capability": "Getis-Ord Gi* hotspot test",
+   "state": "CI-checked",
+   "tool": "analyze_hotspots_gi_star"
+  },
+  {
+   "capability": "scan statistic",
    "state": "not built",
    "since": "R2 (1.20.0)"
   },

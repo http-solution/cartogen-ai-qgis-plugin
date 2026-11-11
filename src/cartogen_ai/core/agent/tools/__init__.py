@@ -24,6 +24,7 @@ from . import spectral_index_tool
 from . import stac_load_tool
 from . import land_cover_look_tool
 from . import spatial_stats_tool
+from . import hotspot_tool
 from . import raster_series_tool
 from . import raster_change_tool
 from . import management_zones_tool
@@ -127,6 +128,7 @@ __all__ = [
     "get_tool_registry",
     "get_tools_schema",
     "hazard_monitoring_tools",
+    "hotspot_tool",
     "humanitarian_look_tools",
     "humanitarian_tools",
     "identify_tool",

@@ -168,3 +168,90 @@ def interpret_global(result, alpha=0.05):
     if i > expected:
         return f"{figures}. Neighbouring features tend to have SIMILAR values: high values sit near high values and low near low, more than chance explains."
     return f"{figures}. Neighbouring features tend to have DIFFERENT values: high values sit near low values, more than chance explains."
+
+
+# --------------------------------------------------------------------------------------------------------------------------------------------------------------------
+# Getis-Ord Gi* (PLAN-023 R2-2)
+# --------------------------------------------------------------------------------------------------------------------------------------------------------------------
+HOT_COLD_LEVELS = ((0.01, 99), (0.05, 95), (0.10, 90))
+
+
+def normal_two_sided_p(z):
+    """Two-sided p-value of a standard-normal z: 2 x (1 - Phi(|z|))."""
+    return math.erfc(abs(z) / math.sqrt(2))
+
+
+def gi_star(values, neighbours):
+    """Getis-Ord Gi* z-score (Ord and Getis 1995) for every feature, with binary weights that INCLUDE the feature itself:
+        z_i = (sum_j w_ij x_j - Xbar x sum_j w_ij) / (S x sqrt((n x sum_j w_ij^2 - (sum_j w_ij)^2) / (n - 1))),   Xbar = mean, S = sqrt(sum x^2 / n - Xbar^2).
+    Returns [{'z', 'p_value', 'neighbours'}] in feature order; p is the two-sided normal p of z (an approximation that is poor for strongly skewed values: say so). A feature with no neighbour at all gets z and p None
+    (its window would be itself alone, which tests nothing). A field with no variation has z = 0 and p = 1 everywhere. ValueError for non-numeric values, fewer than 3 features, or a length mismatch."""
+    x = _clean(values)
+    n = len(x)
+    if len(neighbours) != n:
+        raise ValueError("the weights and the values have different lengths")
+    mean = sum(x) / n
+    s2 = sum(v * v for v in x) / n - mean * mean
+    s = math.sqrt(s2) if s2 > 0 else 0.0
+    out = []
+    for i, row in enumerate(neighbours):
+        if not row:
+            out.append({"z": None, "p_value": None, "neighbours": 0})
+            continue
+        window = [i, *row]
+        k = len(window)                                   # binary weights: sum w = sum w^2 = k
+        if s == 0:
+            out.append({"z": 0.0, "p_value": 1.0, "neighbours": len(row)})
+            continue
+        spread = n * k - k * k
+        denominator = s * math.sqrt(spread / (n - 1)) if spread > 0 else 0.0
+        z = (sum(x[j] for j in window) - mean * k) / denominator if denominator > 0 else 0.0
+        out.append({"z": z, "p_value": normal_two_sided_p(z), "neighbours": len(row)})
+    return out
+
+
+def benjamini_hochberg(p_values):
+    """Adjusted p-values (q-values) by the Benjamini-Hochberg step-up procedure (1995): reject the tests with q <= alpha to keep the expected share of false discoveries at or below alpha. Order is preserved.
+    q_(i) = min over j >= i of p_(j) x m / j for the sorted p-values. ValueError for a value outside [0, 1]."""
+    m = len(p_values)
+    if any(isinstance(p, bool) or not isinstance(p, (int, float)) or not 0 <= p <= 1 for p in p_values):
+        raise ValueError("every p-value must be a number from 0 to 1")
+    order = sorted(range(m), key=lambda i: p_values[i])
+    adjusted = [0.0] * m
+    running = 1.0
+    for rank in range(m, 0, -1):
+        i = order[rank - 1]
+        running = min(running, p_values[i] * m / rank)
+        adjusted[i] = running
+    return adjusted
+
+
+def hot_cold_class(z, level_p, alpha=0.05):
+    """'Hot spot 99%', 'Cold spot 95%' ... or 'Not significant' from the sign of z and the p-value used for the decision (raw or BH-adjusted). The confidence level is the strictest of 99, 95, 90 the p-value
+    meets, and nothing weaker than `alpha` is reported (alpha 0.05 reports 99 and 95; 0.10 adds 90). A z of exactly 0 is never a spot."""
+    if z is None or level_p is None or z == 0:
+        return "Not significant"
+    for cutoff, level in HOT_COLD_LEVELS:
+        if level_p <= cutoff and cutoff <= alpha + 1e-12:
+            return f"{'Hot' if z > 0 else 'Cold'} spot {level}%"
+    return "Not significant"
+
+
+def hotspots(values, neighbours, fdr=True, alpha=0.05):
+    """Gi* z, p, the BH-adjusted p (when fdr) and the hot/cold class per feature. Returns {'features': [{'z', 'p_value', 'p_adjusted', 'class', 'neighbours'}], 'counts': {class: n}, 'fdr', 'alpha', 'tested'}.
+    Features with no neighbour have class 'No neighbours' and take no part in the correction. ValueError for an alpha outside (0, 1)."""
+    if isinstance(alpha, bool) or not isinstance(alpha, (int, float)) or not 0 < alpha < 1:
+        raise ValueError("alpha must be between 0 and 1")
+    rows = gi_star(values, neighbours)
+    tested = [i for i, r in enumerate(rows) if r["p_value"] is not None]
+    adjusted = dict(zip(tested, benjamini_hochberg([rows[i]["p_value"] for i in tested]), strict=True)) if fdr else {}
+    features, counts = [], {}
+    for i, r in enumerate(rows):
+        if r["p_value"] is None:
+            label, q = "No neighbours", None
+        else:
+            q = adjusted.get(i, r["p_value"]) if fdr else None
+            label = hot_cold_class(r["z"], q if fdr else r["p_value"], alpha)
+        counts[label] = counts.get(label, 0) + 1
+        features.append({"z": r["z"], "p_value": r["p_value"], "p_adjusted": q, "class": label, "neighbours": r["neighbours"]})
+    return {"features": features, "counts": counts, "fdr": bool(fdr), "alpha": alpha, "tested": len(tested)}
