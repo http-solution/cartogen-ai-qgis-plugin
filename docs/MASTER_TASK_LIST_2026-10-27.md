@@ -437,3 +437,4 @@ Newest last. One line per status change; written by `tools/master_list.py set`.
 - 2026-11-10: PR-R10 In progress -> In progress. R10-1..R10-4 merged; R10-5 project settings built (PR open); R10-6 not started
 - 2026-11-10: PR-R10 In progress -> In progress. R10-1..R10-5 merged; R10-6 3D probe and coverage close-out built (PR open); hand rows C7..C11 owed on real data
 - 2026-11-10: PR-R10 In progress -> In progress. R10-1..R10-5 merged; R10-6 PR open: 3D module present (probe), R12-5 create_3d_view planned; hand rows C7..C11 owed on real data
+- 2026-11-11: PR-R11 In progress -> In progress. R11-1 run_processing_model built (PR open); R11-2..R11-6 not started

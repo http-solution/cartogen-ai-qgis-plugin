@@ -715,6 +715,30 @@
    }
   },
   {
+   "id": "C12-run-processing-model",
+   "issue": "S",
+   "session": "C",
+   "title": "Run a model from the graphical modeler, and a model that must be refused",
+   "covers": [
+    "run-processing-model"
+   ],
+   "needs": "person and a real model",
+   "starts_from": "A new empty project; a fresh chat, 'Save an evidence folder for each request' ticked; load smoke_admin from smoke_data.gpkg and SAVE the project into results\\outputs\\C12-run-processing-model\\ (models are read from the project folder)",
+   "do": "In QGIS's Graphical Modeler (Processing > Graphical Modeler) build two models and save each as a .model3 file in the project folder: (A) 'flood_prep': one vector input, Buffer by 500 m, then Centroids; give the last step a model output. (B) 'with_script': the same, plus any step that is a Python script or an algorithm you do not recognise as plain (for example a step made from a script in your Processing toolbox, or Select by location). Then send in order: (1) run the model flood_prep.model3 on smoke_admin  (2) run with_script.model3 on smoke_admin  (3) run ../flood_prep.model3  (4) delete the project's saved state by opening a new unsaved project and ask to run flood_prep.model3 again.",
+   "expect": "(1) a new temporary layer appears, with the centroids of the buffered districts; smoke_admin is unchanged; the reply says the result is temporary. (2) the reply REFUSES and names the step and the algorithm that is not approved; nothing is added to the project. (3) refused: the file must be inside the project folder. (4) the reply says to save the project first.",
+   "evidence": "snap('C12'). Screenshot of the map with the centroids and of the refusal text -> results\\screens\\C12-model.png, results\\screens\\C12-refused.png.",
+   "files": [
+    "smoke_data.gpkg"
+   ],
+   "pass_if": "all as Expect; (2) is the important one: the refusal must name the algorithm.",
+   "cost": "four short requests and two models to build",
+   "layers": {
+    "smoke_data.gpkg": [
+     "smoke_admin"
+    ]
+   }
+  },
+  {
    "id": "D1-fetch-live",
    "issue": "S",
    "session": "D",

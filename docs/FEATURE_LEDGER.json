@@ -1887,6 +1887,27 @@
     "hand_row": "C11-project-coordinates-and-decorations"
   },
   {
+    "id": "run-processing-model",
+    "feature": "run_processing_model runs a graphical-modeler model (.model3) from the project folder only if EVERY step is approved: the file is read as XML text (at most 1 MB, an XML entity declaration refused, absurd nesting refused), every algorithm id found anywhere in it must be on the approved list (a nested model, a Python script and an unknown kind never are), an algorithm that changes the user's own layer is refused, every parameter goes through parameter_violation and every expression through the expression screen, a step whose algorithm id cannot be read refuses the whole model, and the ids are checked a second time from QGIS's own parse of the file (QGIS seeing an id the first parse missed refuses it); the refusal names the step and the algorithm and happens before anything runs; the file must be inside the saved project's folder; inputs are only the model's own input names with layer names resolved; every output is forced to a temporary layer and a model with a folder or file destination is refused; results are new project layers and no existing layer is changed; the run keeps the window painting but cannot be stopped; known answers: a model of native:buffer then native:centroids over two polygons returns two point features while the input is unchanged, a model with script:dosomething is refused naming it",
+    "issues": [],
+    "since": "1.18.6",
+    "sources": [
+      "src/cartogen_ai/core/agent/tools/model_ops.py",
+      "src/cartogen_ai/core/agent/tools/model_tool.py"
+    ],
+    "guards": [
+      "tests/test_model_ops.py::TestRefused::test_a_python_script_or_another_model_is_refused_by_name",
+      "tests/test_model_ops.py::TestRefused::test_an_id_hidden_outside_the_children_is_still_found",
+      "tests/test_model_ops.py::TestRefused::test_an_expression_that_calls_a_denied_function_is_refused_naming_the_step",
+      "tests/test_model_ops.py::TestUnreadable::test_an_xml_entity_declaration_is_refused",
+      "tests/test_model_tool.py::TestRegistration::test_the_description_states_the_refusal_rule_and_the_limits",
+      "tests/test_model_tool_live.py::TestRunProcessingModelLive::test_a_two_step_approved_model_runs_and_gives_a_new_temporary_layer",
+      "tests/test_model_tool_live.py::TestRunProcessingModelLive::test_a_model_with_a_script_an_unapproved_or_a_selection_algorithm_is_refused_by_name_before_running"
+    ],
+    "hand_verified": "not verified: CI only; the approval check is pure and tested offline against hand-written model files, the QGIS side (QgsProcessingModelAlgorithm.fromFile, childAlgorithms, checkParameterValues, processing.run on a model) runs only in the live job on models that the same job writes with QGIS's own writer; never a model a person built in the graphical modeler, and no model with a real expression or a real-world dataset",
+    "hand_row": "C12-run-processing-model"
+  },
+  {
     "id": "add-layer-from-path-forwards-sublayer",
     "feature": "asking add_layer_from_path for one named layer of a multi-layer file (GeoPackage, FileGDB, KML, GPX, SpatiaLite) reaches the tool through the orchestrator, so that layer opens instead of the first one",
     "issues": [],

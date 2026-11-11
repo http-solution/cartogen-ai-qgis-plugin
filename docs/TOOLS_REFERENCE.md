@@ -1,6 +1,6 @@
 # Tool Reference
 
-Auto-generated from the live tool registry (325 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
+Auto-generated from the live tool registry (326 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
 
 Flags: **network-only** tools bypass the main-thread QGIS dispatcher entirely (pure HTTP, safe from any background thread); **two-phase** tools split a network fetch (background thread) from the QGIS-touching part (main thread); **task-management** tools are excluded from auto-advance in the Task Manager.
 
@@ -2920,6 +2920,18 @@ Rank areas (or any features) on several weighted criteria and test how much the 
 | `trials` | integer | no | Number of perturbation trials, default 500, maximum 5000. |
 | `seed` | integer | no | Random seed for the perturbation. Omit for a generated one (returned). |
 | `output_prefix` | string | no | Optional: write <prefix>_score, <prefix>_rank, <prefix>_rank_min, <prefix>_rank_max to the layer. |
+
+## model_tool
+
+### `run_processing_model`
+
+Run a model made in QGIS's graphical modeler (a .model3 file in the project folder, so save the project first). It is run ONLY if every step is an approved algorithm: a model that contains a Python script, another model, an unapproved algorithm, one that changes your own layers, or an expression that calls a denied function is REFUSED and the reply names the step and the algorithm. `inputs` gives the model's inputs ({input name: layer name or value}); outputs always become temporary new layers in the project, and a model that writes a folder or file is refused. The run keeps the window painting but cannot be stopped with Stop.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `model_file` | string | yes | Name of the .model3 file in the project folder (or a path inside it). |
+| `inputs` | object | no | {input name: layer name or plain value} for the model's inputs. |
+| `output_name` | string | no | Name for the result layer(s) (default: the model's name). |
 
 ## new_layer_tools
 

@@ -1,7 +1,7 @@
 # Cartogen AI — Implementation Tracker
 
 > **Current status (2026-11-05, HY-2 sweep).** The opening paragraphs below are the 2026-09-20 snapshot (177 tools, 1,958 tests, `v1.16.0-rc1`) and are **history**, kept as written.
-> Today: 325 tools in the live registry, about 6,000 offline tests, 156 guarded features in `docs/FEATURE_LEDGER.json`, 60 plans in `docs/plans/`, version 1.18.5 with 1.18.6 held.
+> Today: 326 tools in the live registry, about 6,000 offline tests, 156 guarded features in `docs/FEATURE_LEDGER.json`, 60 plans in `docs/plans/`, version 1.18.5 with 1.18.6 held.
 > The planning source is `docs/MASTER_TASK_LIST_2026-10-27.md` (open work, one row each), what has been seen working in a real QGIS run is `docs/LIVE_RESULTS.json`
 > (checked by `python tools/live_results.py --gate`), and the guarded features and their tests are in `docs/FEATURE_LEDGER.json`. This file keeps the decisions, the history and the
 > reasons; where it disagrees with those three, they win. Section numbers 1.19 to 1.24 were each used twice; the earlier set is now 1.19a to 1.24a (nothing outside this file
