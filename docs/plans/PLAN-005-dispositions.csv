@@ -35,16 +35,16 @@ native:savefeatures,Save vector features to file,E2-EXPORT,dedicated tools expor
 native:printlayouttopdf,Export print layout as PDF,E2-EXPORT,dedicated tool export_layout exists
 native:printlayouttoimage,Export print layout as image,E2-EXPORT,dedicated tool export_layout exists
 native:atlaslayouttopdf,Export atlas layout as PDF (single file),E2-EXPORT,dedicated tool export_layout_atlas exists
-native:exportlayermetadata,Export layer metadata,E2-EXPORT,"writes to a path the user names: needs the export folder, an overwrite check and a confirm card; a dedicated tool covers it where one exists"
-native:convertgpsdata,Convert GPS data,E2-EXPORT,"writes to a path the user names: needs the export folder, an overwrite check and a confirm card; a dedicated tool covers it where one exists"
-native:convertgpxfeaturetype,Convert GPX feature type,E2-EXPORT,"writes to a path the user names: needs the export folder, an overwrite check and a confirm card; a dedicated tool covers it where one exists"
-gdal:convertformat,Convert format,E2-EXPORT,"writes to a path the user names: needs the export folder, an overwrite check and a confirm card; a dedicated tool covers it where one exists"
-native:splitvectorlayer,Split vector layer,E2-EXPORT,"writes to a path the user names: needs the export folder, an overwrite check and a confirm card; a dedicated tool covers it where one exists"
-native:extractbinary,Extract binary field,E2-EXPORT,"writes to a path the user names: needs the export folder, an overwrite check and a confirm card; a dedicated tool covers it where one exists"
-native:pointstopath,Points to path,E2-EXPORT,"writes to a path the user names: needs the export folder, an overwrite check and a confirm card; a dedicated tool covers it where one exists"
-native:hypsometriccurves,Hypsometric curves,E2-EXPORT,"writes to a path the user names: needs the export folder, an overwrite check and a confirm card; a dedicated tool covers it where one exists"
-native:relief,Relief,E2-EXPORT,"writes to a path the user names: needs the export folder, an overwrite check and a confirm card; a dedicated tool covers it where one exists"
-native:tinmeshcreation,TIN Mesh Creation,E2-EXPORT,"writes to a path the user names: needs the export folder, an overwrite check and a confirm card; a dedicated tool covers it where one exists"
+native:exportlayermetadata,Export layer metadata,E2-EXPORT,"declined 2026-11-11 (PLAN-023 R11-4): writes a metadata file to a path; the layer-metadata tools already read and set it, and a file on disk adds nothing a chat can show"
+native:convertgpsdata,Convert GPS data,E2-EXPORT,declined 2026-11-11 (PLAN-023 R11-4): converts between GPS file formats through external converters on a path the user names; a dedicated GPX import exists and export_layer writes GPX
+native:convertgpxfeaturetype,Convert GPX feature type,E2-EXPORT,"declined 2026-11-11 (PLAN-023 R11-4): rewrites a GPX file into another feature type; niche, and the same layer can be added and exported"
+gdal:convertformat,Convert format,E2-EXPORT,declined 2026-11-11 (PLAN-023 R11-4): export_layer and save_layer_as already convert between the common formats; a second route only adds ambiguity
+native:splitvectorlayer,Split vector layer,E2-EXPORT,"declined 2026-11-11 (PLAN-023 R11-4): writes one file per value into a folder, which cannot be a temporary output; split_features_by_line and the select-and-export route cover the need"
+native:extractbinary,Extract binary field,E2-EXPORT,"declined 2026-11-11 (PLAN-023 R11-4): writes binary files (images, documents) from a field into a folder; no chat use and a folder the model would have to choose"
+native:pointstopath,Points to path,E2-EXPORT,built 2026-11-11 (PLAN-023 R11-4): allow-listed; makes one line layer from ordered points; the text-folder destination is never given a path
+native:hypsometriccurves,Hypsometric curves,E2-EXPORT,declined 2026-11-11 (PLAN-023 R11-4): writes one CSV per polygon into a folder; the raster statistics and elevation tools cover the numbers
+native:relief,Relief,E2-EXPORT,built 2026-11-11 (PLAN-023 R11-4): allow-listed; makes a shaded-relief raster as a temporary file
+native:tinmeshcreation,TIN Mesh Creation,E2-EXPORT,declined 2026-11-11 (PLAN-023 R11-4): writes a mesh file; the mesh family and the TIN interpolation algorithm cover the use
 native:tilesxyzdirectory,Generate XYZ tiles (Directory),E3-NOT-PLANNED,"not planned: tile pyramids, style databases, 3D conversion or modeler helpers; large or niche outputs with no chat use"
 native:tilesxyzmbtiles,Generate XYZ tiles (MBTiles),E3-NOT-PLANNED,"not planned: tile pyramids, style databases, 3D conversion or modeler helpers; large or niche outputs with no chat use"
 native:writevectortiles_mbtiles,Write Vector Tiles (MBTiles),E3-NOT-PLANNED,"not planned: tile pyramids, style databases, 3D conversion or modeler helpers; large or niche outputs with no chat use"

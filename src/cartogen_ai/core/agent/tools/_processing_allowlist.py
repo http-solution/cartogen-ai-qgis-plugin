@@ -587,7 +587,16 @@ FILE_VECTOR_FAMILY = {
 REPORT_ALGORITHM_IDS = frozenset(REPORT_FAMILY)
 FILE_VECTOR_ALGORITHM_IDS = frozenset(FILE_VECTOR_FAMILY)
 ALLOWED_ALGORITHM_IDS = frozenset(set(ALLOWED_ALGORITHM_IDS) | set(REPORT_FAMILY) | set(FILE_VECTOR_FAMILY))
-FAMILY_NAMES = {**GEOMETRY_FAMILY, **TABLE_FAMILY, **ANALYSIS_FAMILY, **EXPRESSION_FAMILY, **RASTER_FAMILY, **MIXED_FAMILY, **GRASS_FAMILY, **MESH_FAMILY, **REPORT_FAMILY, **FILE_VECTOR_FAMILY}
+# PLAN-023 R11-4 (PLAN-006 package E2c, the two exports whose result is a plain layer): points to path makes a line layer from ordered points (GPS and field tracks),
+# relief makes a shaded-relief raster. Both write only to the plugin's temporary outputs like every family above; the folder and report destinations they also have are
+# never given a path (see tests/test_processing_e2c_live.py). The other E2c exports stay off ON PURPOSE (reasons in docs/plans/PLAN-005-dispositions.csv): they write many
+# files or folders or to a path the model would have to choose, or a dedicated tool already does the job.
+E2C_FAMILY = {
+    "native:pointstopath": "Points to path",
+    "native:relief": "Relief (shaded relief raster)",
+}
+ALLOWED_ALGORITHM_IDS = frozenset(set(ALLOWED_ALGORITHM_IDS) | set(E2C_FAMILY))
+FAMILY_NAMES = {**GEOMETRY_FAMILY, **TABLE_FAMILY, **ANALYSIS_FAMILY, **EXPRESSION_FAMILY, **RASTER_FAMILY, **MIXED_FAMILY, **GRASS_FAMILY, **MESH_FAMILY, **REPORT_FAMILY, **FILE_VECTOR_FAMILY, **E2C_FAMILY}
 
 # Algorithms whose OUTPUT is a RASTER FILE, not a vector sink. "memory:" is not a valid raster destination, and a raster
 # result comes back as a file path, not a layer: before 2026-10-01 these ran and the tool reported "no new layer output".
@@ -595,7 +604,7 @@ RASTER_OUTPUT_ALGORITHM_IDS = frozenset({
     "native:hillshade", "native:slope", "native:aspect",
     "gdal:cliprasterbymasklayer", "gdal:merge", "gdal:pansharp",
     "qgis:idwinterpolation", "qgis:tininterpolation", "qgis:heatmapkerneldensityestimation",
-    "native:reclassifybytable", "native:cellstatistics",
+    "native:reclassifybytable", "native:cellstatistics", "native:relief",
 })
 
 

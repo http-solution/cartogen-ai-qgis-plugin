@@ -793,6 +793,30 @@
    }
   },
   {
+   "id": "C15-points-to-path-and-relief",
+   "issue": "S",
+   "session": "C",
+   "title": "Points to a track line, and a shaded relief",
+   "covers": [
+    "file-output-wave-e2c-layers"
+   ],
+   "needs": "person and a real model",
+   "starts_from": "A new empty project; a fresh chat, 'Save an evidence folder for each request' ticked; load smoke_hubs_4326 from smoke_network.gpkg and any elevation GeoTIFF as dem",
+   "do": "Send in order: (1) connect the hub points into one line in the order of their id  (2) make a shaded relief of the dem  (3) save the line layer.",
+   "expect": "(1) one new temporary line layer that passes through the hubs in id order. (2) one new temporary raster that looks like a coloured shaded terrain. (3) the save goes through the normal export card.",
+   "evidence": "snap('C15'). Screenshot of the map with the line and the relief -> results\\screens\\C15-line-relief.png.",
+   "files": [
+    "smoke_network.gpkg"
+   ],
+   "pass_if": "all as Expect.",
+   "cost": "three short requests",
+   "layers": {
+    "smoke_network.gpkg": [
+     "smoke_hubs_4326"
+    ]
+   }
+  },
+  {
    "id": "D1-fetch-live",
    "issue": "S",
    "session": "D",
