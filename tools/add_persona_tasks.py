@@ -34,7 +34,7 @@ SECTIONS = [
     ]),
     ("39", "engineering", "Engineering: terrain, corridors and plans", [
         ("Produce terrain products for a site", "layer", ["aoi"], ["fetch_dem", "hillshade", "slope_analysis", "generate_contours"]),
-        ("Draw an elevation profile along a line", "analysis", [], ["fetch_dem", "elevation_profile"]),
+        ("Draw a terrain cross-section along a line", "analysis", [], ["fetch_dem", "elevation_profile"]),
         ("Rank candidate corridors by slope and constraints", "layer", ["aoi"], ["fetch_dem", "slope_analysis", "weighted_overlay_analysis"]),
         ("Georeference a scanned site plan", "layer", [], ["georeference_image", "parse_dms_location"]),
     ]),
@@ -88,7 +88,7 @@ SECTIONS = [
     ]),
     ("48", "public_safety", "Public safety: incidents, coverage and route safety", [
         ("Map incident density and its trend", "layer", [], ["add_layer_from_path", "hotspot_analysis", "apply_heatmap_style", "analyze_incident_trend"]),
-        ("Protect sensitive incident locations before sharing", "dataset", [], ["obfuscate_sensitive_points", "set_layer_sensitivity"]),
+        ("Blur exact incident points to protect people", "dataset", [], ["obfuscate_sensitive_points", "set_layer_sensitivity"]),
         ("Rate route safety from past incidents", "analysis", [], ["score_route_incident_risk", "apply_network_barriers"]),
         ("Show response coverage within a response time", "layer", ["aoi", "threshold"], ["fetch_osm_features", "calculate_service_area"]),
     ]),

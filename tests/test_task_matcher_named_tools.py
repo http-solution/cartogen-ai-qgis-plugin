@@ -207,6 +207,12 @@ class TestNamedDataSourceGivesNoTaskDirective(unittest.TestCase):
                       "conflict events in Yemen for last year from UCDP",
                       "show current disaster alerts for Yemen from GDACS"):
             verdict = tm.classify(query)
+            if query.endswith("GDACS") and verdict["best"] is not None:
+                # R1-5 added task 45.01 (check current hazard alerts), whose tools DO include fetch_gdacs_disaster_alerts: a GDACS request matching
+                # it is the right task, not the wrong "Map ..." one this test guards against. Any other task must still be refused.
+                self.assertEqual(verdict["best"]["id"], "45.01", query)
+                self.assertIn("fetch_gdacs_disaster_alerts", verdict["best"]["tools"], query)
+                continue
             self.assertIsNone(verdict["best"], query)
             self.assertEqual(verdict["reason"], "names a tool the matched task does not use", query)
 
