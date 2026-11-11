@@ -1,6 +1,6 @@
 # Tool Reference
 
-Auto-generated from the live tool registry (328 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
+Auto-generated from the live tool registry (329 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
 
 Flags: **network-only** tools bypass the main-thread QGIS dispatcher entirely (pure HTTP, safe from any background thread); **two-phase** tools split a network fetch (background thread) from the QGIS-touching part (main thread); **task-management** tools are excluded from auto-advance in the Task Manager.
 
@@ -3457,6 +3457,22 @@ Calculate a spectral index raster from band layers: NDVI (vegetation greenness),
 | `soil_factor` | number | no | SAVI only: the soil brightness factor L, default 0.5 (0 gives NDVI, 1 for very sparse vegetation). |
 | `align_to_first` | boolean | no | If the rasters are not on one pixel grid, warp the others onto the first raster's grid (its CRS, extent and cell size) instead of refusing. The result says which raster was the reference and the resampling used. Default false: refuse. |
 | `resampling` | string | no | With align_to_first: 'bilinear' (default, for continuous values such as reflectance), 'nearest' (for classes or counts) or 'cubic'. |
+
+## stac_load_tool
+
+### `load_stac_assets` _(two-phase)_
+
+Download Sentinel-2 satellite band images (Earth Search, no key) for the user's AREA ONLY and add them to the project: only the part of each band image that covers the area is downloaded, so a few megabytes instead of a whole scene. Give the area as `bbox` (WGS84 min_lon, min_lat, max_lon, max_lat) or `layer_name` (that layer's extent), a date range, and the bands in `assets` (blue, green, red, nir, nir08, rededge1-3, swir16, swir22, coastal, nir09, scl; at most 6). max_cloud (percent, default 20) and limit (1 to 3 scenes, default 1, newest first). A preview lists the scenes, the bands and the estimated size first; nothing is downloaded until it is confirmed, and the confirmed call fetches exactly the scenes the preview named. Each file gets a provenance record and the Copernicus Sentinel licence notice. Landsat and the elevation model are not supported (they need AWS credentials). To only LIST scenes use search_stac_satellite_imagery.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `bbox` | array[number] | no | WGS84 [min_lon, min_lat, max_lon, max_lat]; or use layer_name. |
+| `layer_name` | string | no | A project layer whose extent is the area. |
+| `start_date` | string | yes | YYYY-MM-DD |
+| `end_date` | string | yes | YYYY-MM-DD |
+| `assets` | array[string] | yes | Band names such as red, nir, swir16 (1 to 6). |
+| `max_cloud` | number | no | Largest cloud cover in percent (default 20). |
+| `limit` | integer | no | Number of scenes, 1 to 3 (default 1). |
 
 ## survey_tools
 

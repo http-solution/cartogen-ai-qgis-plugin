@@ -2025,6 +2025,29 @@
     "hand_row": "none"
   },
   {
+    "id": "load-stac-assets",
+    "feature": "load_stac_assets downloads WINDOWS of Sentinel-2 L2A band images from Element 84's Earth Search catalogue (no key) for the user's area only, clipped with GDAL range reads through /vsicurl/, and adds them to the project: the area is a WGS84 bbox or a layer's extent, at most 6 bands from a fixed list and 3 scenes, newest first with a cloud limit; only https addresses on the Sentinel-2 bucket are read (Landsat and the Copernicus elevation model are s3:// requester-pays files and are refused with that reason); a preview lists the scenes, bands and the estimated size (window cells x 2 bytes, per-band cap 60 million cells, total cap 600 MB) and nothing is downloaded or added until it is confirmed; the confirmed call fetches exactly the scenes the preview named; files are kept in <project>/data/00_raw/stac, never overwritten, and each gets a provenance record with the Copernicus Sentinel licence notice; known answers: a 0.1 by 0.1 degree window at the equator on a 10 m band is 1,114 x 1,106 cells, an http, other-host, userinfo, port or s3 address is refused, and a recorded real item has 38 assets, 19 of them on the allowed https host, of which 13 are loadable bands (the others are metadata, thumbnails and the s3:// JPEG2000 copies)",
+    "issues": [],
+    "since": "1.18.6",
+    "sources": [
+      "src/cartogen_ai/core/agent/tools/stac_ops.py",
+      "src/cartogen_ai/core/agent/tools/stac_load_tool.py",
+      "tests/fixtures/stac_sentinel2_item_2026-11-11.json"
+    ],
+    "guards": [
+      "tests/test_stac_ops.py::TestAddresses::test_only_the_sentinel_bucket_over_https_is_allowed",
+      "tests/test_stac_ops.py::TestWindowSize::test_hand_computed_window_cells",
+      "tests/test_stac_ops.py::TestRealItem::test_a_plan_for_two_bands_of_the_real_item",
+      "tests/test_stac_ops.py::TestRealItem::test_a_window_above_the_cell_limit_and_a_total_above_the_byte_limit_are_refused",
+      "tests/test_stac_ops.py::TestRequest::test_bad_requests_are_refused_with_the_reason",
+      "tests/test_stac_load_tool.py::TestRegistration::test_the_description_states_the_limits_and_what_is_not_supported",
+      "tests/test_stac_load_tool_live.py::TestLoadStacAssetsLive::test_refusals_that_need_no_network",
+      "tests/test_stac_load_tool_live.py::TestLoadStacAssetsLive::test_preview_then_confirmed_load_of_one_small_window"
+    ],
+    "hand_verified": "not verified: CI only; the rules (addresses, sizes, limits, provenance) are pure and tested offline against one real item recorded from the service on 2026-11-11; the real download runs in the live job and SKIPS, not fails, when the CI runner cannot reach the catalogue or the image store; never run by a person, never on a real study area, and the Windows behaviour of GDAL range reads and the proxy settings of a user's network are unknown (GDAL's own HTTP stack does not use QGIS's proxy or authentication settings)",
+    "hand_row": "C17-stac-load"
+  },
+  {
     "id": "add-layer-from-path-forwards-sublayer",
     "feature": "asking add_layer_from_path for one named layer of a multi-layer file (GeoPackage, FileGDB, KML, GPX, SpatiaLite) reaches the tool through the orchestrator, so that layer opens instead of the first one",
     "issues": [],

@@ -401,6 +401,7 @@ TOOL_OPERATION_TYPES = {
     "get_layer_extent": READ,
     "run_processing_batch": CREATE,     # R11-2: one approved algorithm over up to 20 layers into a new layer group; temporary results, your layers untouched
     "run_algorithm_in_place": MODIFY,   # R11-3: an approved in-place algorithm changes the user's own layer behind a preview, one undoable edit, left unsaved
+    "load_stac_assets": CREATE,         # R3-2: windows of Sentinel-2 bands downloaded for the user's area into the project data folder, behind a size preview; nothing existing changes
     "run_processing_model": CREATE,     # R11-1: runs an approved-steps-only .model3 from the project folder; outputs are temporary new layers, nothing existing is changed
     "set_project_transform_context": MODIFY,   # R10-5: lists datum operations; setting one changes how every layer is reprojected, behind a preview
     "define_custom_crs": MODIFY,        # R10-5: validates a custom CRS, optionally makes it the project CRS (not added to the shared CRS database)
