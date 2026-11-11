@@ -443,3 +443,4 @@ Newest last. One line per status change; written by `tools/master_list.py set`.
 - 2026-11-11: PR-R11 In progress -> In progress. R11-1..R11-3 merged; R11-4 (pointstopath, relief; 8 exports declined with reasons) built (PR open); R11-5, R11-6 not started
 - 2026-11-11: PR-R11 In progress -> In progress. R11-1..R11-4 merged; R11-5 plot and info probe built (PR open); R11-6 not started
 - 2026-11-11: PR-R11 In progress -> In progress. R11-1..R11-4 merged, R11-5 probe merged; R11-5 charts and file info built (PR open); expression and path-reading reviews, R11-6 not started
+- 2026-11-11: PR-R11 In progress -> In progress. R11-1..R11-5 merged or built (R11-5 close-out PR open: 28 algorithms reviewed, all declined with reasons); R11-6 not started
