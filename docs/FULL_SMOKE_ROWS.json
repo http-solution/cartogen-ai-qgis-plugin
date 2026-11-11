@@ -148,6 +148,7 @@
   }
  },
  "not_hand_testable": {
+  "pyqgis-call-arity-ratchet": "an offline check of the source code against a saved list of QGIS 4.2 argument counts; there is nothing to run in QGIS, and a test plants wrong calls to prove it fails",
   "processing-review-decisions": "a decision record (28 algorithms reviewed and declined with reasons); there is nothing to run, a test compares the table with the coverage matrix in CI",
   "tool-prompt-replay": "offline only by design: replays every prompt of the tool sheet against the router in CI",
   "tools-reference-sync": "offline only by design: docs/TOOLS_REFERENCE.md is regenerated and compared in CI",
