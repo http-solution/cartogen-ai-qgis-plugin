@@ -447,3 +447,4 @@ Newest last. One line per status change; written by `tools/master_list.py set`.
 - 2026-11-11: PR-R3 In progress -> In progress. Merged: R3-1 (PR 593), R3-3 (594), R3-4 (595); R3-5 and R3-2 (STAC load, Sentinel-2 only: Landsat and the DEM need AWS credentials) built, CI only (R3-2 PR open). R3-6 looks and layouts NOT built: needs R1-7 style profiles and R1 persona files, which are not started (assessed 2026-11-11, recommendation in PLAN-023).
 - 2026-11-11: PR-R1 Decision needed -> In progress. Owner go 2026-11-11. R1-1 persona schema, loader and 15 files built with R1-9's text check (PR open); R1-2..R1-8 not started
 - 2026-11-11: PR-R1 In progress -> In progress. Owner go 2026-11-11. R1-1 merged (PR 619); R1-2 and R1-3 built (PR open); R1-4..R1-8 not started
+- 2026-11-11: PR-R1 In progress -> In progress. R1-1 to R1-3 merged or in review; R1-4 router re-rank built (persona-rerank); R1-5 to R1-9 not started

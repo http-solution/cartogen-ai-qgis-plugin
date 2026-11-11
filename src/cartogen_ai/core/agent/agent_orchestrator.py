@@ -1949,7 +1949,9 @@ class CartogenAi:
         recent_names, recent_turn = getattr(self, "_recent_tools", ((), 0))
         # Only the last two turns count: a tool from twenty messages ago is not "what we were in the middle of".
         carry_over = recent_names if self._turn_counter - recent_turn <= 2 else ()
-        active_tools = router.filter_relevant_tools(user_query, top_k=configured_top_k(), carry_over_tools=carry_over)
+        from ..services.prompt_refiner import get_persona_selection
+        active_tools = router.filter_relevant_tools(
+            user_query, top_k=configured_top_k(), carry_over_tools=carry_over, personas=get_persona_selection())
         active_tool_names = {
             t.get("function", {}).get("name", "") for t in active_tools if isinstance(t, dict)
         }

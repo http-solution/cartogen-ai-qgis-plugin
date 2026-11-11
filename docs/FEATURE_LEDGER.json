@@ -3026,6 +3026,25 @@
     ],
     "hand_verified": "not verified: offline tests only. The record itself comes from an AI agent's live run, not a person's.",
     "hand_row": "none: this is the measure, not a feature a person runs"
+  },
+  {
+    "id": "persona-rerank",
+    "feature": "the persona re-rank of the offered tools: the router adds a bonus to the primary persona's tool_priority tools (full) and the secondary's (half), doubled when a persona alias phrase appears in the request; a tool is boosted only if it already scored as relevant to the request; at most 5 tools enter the offered set because of it and the same number of the lowest-ranked ordinary tools leave; always-included tools are never displaced; the general persona, an unknown one or none gives exactly the old selection; no tool is removed from the registry and find_tools still reaches every tool",
+    "issues": [],
+    "since": "1.18.6",
+    "sources": [
+      "src/cartogen_ai/core/services/persona_rerank.py",
+      "src/cartogen_ai/core/services/tool_router.py",
+      "src/cartogen_ai/core/agent/agent_orchestrator.py"
+    ],
+    "guards": [
+      "tests/test_persona_rerank.py::TestSelect::test_at_most_five_enter_and_the_best_five_are_the_ones",
+      "tests/test_persona_rerank.py::TestSelect::test_a_tool_with_no_relevance_is_never_boosted_in",
+      "tests/test_persona_rerank.py::TestReplayWithEveryPersona::test_the_generalist_gets_exactly_what_it_got_before",
+      "tests/test_persona_rerank.py::TestReplayWithEveryPersona::test_each_persona_changes_at_most_five_tools_and_never_removes_a_required_one"
+    ],
+    "hand_verified": "not verified: CI only; the replay of 156 routing requests plus the golden rows runs with every persona offline; nobody has yet watched a persona change which tools a real model sees (hand row R1-H2 comes with R1-5)",
+    "hand_row": "none"
   }
 ]
 }
