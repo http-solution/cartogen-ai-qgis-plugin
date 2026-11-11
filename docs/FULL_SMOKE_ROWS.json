@@ -169,7 +169,8 @@
   "unsupervised-classification-in-background": "needs a raster of tens of millions of cells and a person watching a real QGIS window stay responsive; the package has no such raster",
   "delivery-matrix-from-trees": "the gain only shows on a real road network of tens of thousands of roads, which the package does not ship; equality with the native calls is the CI live test",
   "persona-catalogue": "a generated document; a test compares it with the persona files and the task register in CI, there is nothing to run in QGIS",
-  "tool-reachability-ratchet": "an offline check of the registered tools against the task register and the persona files; there is nothing to run in QGIS, and a test shows it can fail"
+  "tool-reachability-ratchet": "an offline check of the registered tools against the task register and the persona files; there is nothing to run in QGIS, and a test shows it can fail",
+  "style-profiles": "an offline registry of colour choices plus colour maths, checked against published answers; nothing draws from it yet, so there is nothing to look at in QGIS until a later package uses it"
  },
  "rows": [
   {
