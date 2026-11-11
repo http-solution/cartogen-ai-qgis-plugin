@@ -11,6 +11,7 @@ It applies whatever the AI provider is, because the text goes to the geocoder ei
 
 Limits, stated plainly: a text the user retyped or changed (a street without its house number, another spelling, a value split across fields) does not match, so check 2 catches copies of a protected value, not every derived text; a layer
 that has no tag and no protected ancestor is open under the default (non-strict) setting. At most MAX_FEATURES features and MAX_VALUES text values per protected layer are compared; a larger layer is refused as 'could not verify'."""
+from ...logger import log_event
 from ...models import egress_gate
 from ..protection import effective_sensitivity
 
@@ -104,8 +105,9 @@ def check(tool_name, texts, source_layer=None):
                 if len(values) > MAX_VALUES:
                     raise ValueError("too many distinct text values")
             candidates[layer.name()] = values
-        except Exception:
-            reasons[layer.name()] = f"{level}; could not be read to compare, so it could not be verified"
+        except Exception as e:
+            log_event("geocode_guard_layer_unreadable", tag="Geocoding", error_class=type(e).__name__, error=True)      # metadata only: never the layer name or a value
+            reasons[layer.name()] = f"{level}; could not be read to compare ({type(e).__name__}), so it could not be verified"
     for name, count in texts_matching(texts, candidates).items():
         level = next((lv for ly, lv in protected if ly.name() == name), "protected")
         reasons[name] = f"{level}; {count} of the {len(texts)} text(s) match values in it"
