@@ -16,6 +16,8 @@ from qgis.PyQt.QtWidgets import (
 )
 
 from ..agent import onboarding_profile as op
+from ..personas.selection import ROLE_TO_PERSONA, read_selection, write_selection
+from .persona_picker import PersonaPicker
 from .chat_formatting import build_dock_stylesheet
 from .theme import extract_theme_palette
 
@@ -32,7 +34,7 @@ class OnboardingDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle(self.tr("Welcome to Cartogen AI"))
-        self.resize(440, 360)
+        self.resize(480, 640)
 
         layout = QVBoxLayout(self)
 
@@ -64,6 +66,12 @@ class OnboardingDialog(QDialog):
         form.addRow(self.tr("Communication style:"), self.style_combo)
 
         layout.addLayout(form)
+
+        # R1-3: the persona (the kind of work the assistant should lean towards) and what it can and cannot do for it. Chosen from the role until the person picks one themselves.
+        self.persona_picker = PersonaPicker(self, ROLE_TO_PERSONA.get(self.role_combo.currentData(), "general"), "")
+        self._persona_chosen_by_hand = False
+        self.persona_picker.primary_combo.activated.connect(self._on_persona_chosen_by_hand)
+        layout.addWidget(self.persona_picker)
         layout.addStretch()
 
         buttons = QHBoxLayout()
@@ -82,6 +90,12 @@ class OnboardingDialog(QDialog):
 
     def _on_role_changed(self, _index):
         self.role_other_edit.setEnabled(self.role_combo.currentData() == "other")
+        if not getattr(self, "_persona_chosen_by_hand", True):
+            _primary, secondary = self.persona_picker.selection()
+            self.persona_picker.set_selection(ROLE_TO_PERSONA.get(self.role_combo.currentData(), "general"), secondary)
+
+    def _on_persona_chosen_by_hand(self, _index):
+        self._persona_chosen_by_hand = True
 
     def _load_existing(self):
         """Pre-fills from the saved .md file when reopened via Settings -> Edit My Profile.
@@ -102,6 +116,9 @@ class OnboardingDialog(QDialog):
         style_idx = self.style_combo.findData(profile["style"])
         if style_idx >= 0:
             self.style_combo.setCurrentIndex(style_idx)
+        from qgis.core import QgsSettings
+        self.persona_picker.set_selection(*read_selection(QgsSettings(), profile["role"]))
+        self._persona_chosen_by_hand = True        # reopened from Settings: the stored persona is the person's, the role must not overwrite it
 
     def _on_save(self):
         op.save_onboarding_profile(
@@ -110,6 +127,8 @@ class OnboardingDialog(QDialog):
             experience=self.experience_combo.currentData(),
             style=self.style_combo.currentData(),
         )
+        from qgis.core import QgsSettings
+        write_selection(QgsSettings(), *self.persona_picker.selection())
         self.accept()
 
     def _on_skip(self):
