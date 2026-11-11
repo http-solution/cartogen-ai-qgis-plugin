@@ -22,7 +22,7 @@ import re
 from .registry import register_tool
 from ._layer_checks import degrees_value_problem
 from ... import _background_processing as _bg
-from ._processing_allowlist import (ALLOWED_ALGORITHM_IDS, FILE_VECTOR_ALGORITHM_IDS, GRASS_ALGORITHM_IDS, MUTATES_INPUT_ALGORITHM_IDS,
+from ._processing_allowlist import (ALLOWED_ALGORITHM_IDS, FILE_VECTOR_ALGORITHM_IDS, GRASS_ALGORITHM_IDS, INFO_REPORT_ALGORITHM_IDS, MUTATES_INPUT_ALGORITHM_IDS,
                                     RASTER_OUTPUT_ALGORITHM_IDS, parameter_violation)
 
 try:
@@ -42,6 +42,7 @@ except ImportError:
 _OUTPUT_KEY_SUFFIXES = ("output", "output_lines")
 _SAFE_OUTPUT_VALUE = "memory:"
 _SAFE_RASTER_OUTPUT_VALUE = "TEMPORARY_OUTPUT"   # a temporary file: rasters cannot go to "memory:"
+REPORT_EXCERPT_CHARS = 4000     # PLAN-006 E2a: the most of an information report the model is given
 MEMORY_COPY_LIMIT = 50000      # PLAN-005 rule R1: a file-backed vector result up to this many features is copied into a memory layer
 MAX_STATISTICS = 40            # PLAN-005 rule R3: at most this many plain values from a result dictionary reach the model
 MAX_STATISTIC_TEXT = 200
@@ -789,7 +790,26 @@ def _with_report_fields(result, statistics, report_files):
     if report_files:
         result["report_files"] = report_files
         result["report_note"] = "The report is a temporary file; it is not part of the project and is not kept."
+        if result.get("alg_id") in INFO_REPORT_ALGORITHM_IDS:
+            excerpt = report_excerpt(next(iter(report_files.values())))
+            if excerpt:
+                result["report_text"], result["report_text_truncated"] = excerpt
     return result
+
+
+def report_excerpt(path, limit=REPORT_EXCERPT_CHARS):
+    """(text, truncated) read from the plugin's OWN temporary report file, at most `limit` characters, with the <pre> wrapper QGIS adds removed; None when it cannot be read.
+    Only ever called with a path the algorithm wrote to a temporary file the plugin chose (never one the caller supplied). Pure apart from the read."""
+    try:
+        with open(path, encoding="utf-8", errors="replace") as fh:
+            raw = fh.read(limit * 2 + 16)
+    except OSError:
+        return None
+    text = raw.strip()
+    if text.startswith("<pre>"):
+        text = text[5:]
+    text = text.replace("</pre>", "").replace("&lt;", "<").replace("&gt;", ">").replace("&amp;", "&").strip()
+    return text[:limit], len(text) > limit
 
 
 def _small_result_in_memory(layer):

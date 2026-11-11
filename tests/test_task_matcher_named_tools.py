@@ -152,6 +152,19 @@ class TestRegisterCorpusIsNotWorse(unittest.TestCase):
         self.assertGreaterEqual(directive, 466)
 
 
+class TestDashboardRequestKeepsItsTask(unittest.TestCase):
+    """PLAN-023 R11-5: the algorithm topic index grew by 11 entries and a one-word algorithm score crossed the outranking bar; a request that names a dashboard, matched to a
+    task that builds one, must keep its directive whatever any algorithm scores."""
+
+    def test_even_a_top_scoring_algorithm_does_not_take_a_dashboard_request_from_its_task(self):
+        from unittest import mock
+        q = "build me a dashboard of displacement by district"
+        with mock.patch("cartogen_ai.core.agent.algorithm_topics.algorithm_outranks_task", return_value=True):
+            verdict = tm.classify(q)
+        self.assertEqual(verdict["reason"], "tie across sections")
+        self.assertIn("dashboard", " ".join(verdict["best"]["tools"]))
+
+
 if __name__ == "__main__":
     unittest.main()
 

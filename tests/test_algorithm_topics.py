@@ -57,6 +57,9 @@ ROWS = [
     ("turn the classified raster into editable polygons", {"gdal:polygonize"}),
     ("connect the gps points in order into a track line", {"native:pointstopath"}),
     ("make a shaded relief map of the dem", {"native:relief"}),
+    ("draw a histogram of the dem values", {"qgis:rasterlayerhistogram"}),
+    ("show me a scatter plot of population against area", {"qgis:vectorlayerscatterplot"}),
+    ("what projection and extent does this raster file have", {"gdal:gdalinfo"}),
     ("make filled elevation bands from the dem every 50 metres", {"gdal:contour_polygon"}),
 ]
 

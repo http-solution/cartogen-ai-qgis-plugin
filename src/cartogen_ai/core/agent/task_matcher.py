@@ -253,6 +253,9 @@ _READS_METADATA = re.compile(r"\b(show|display|read|view|see|what(?:'s| is| are)
 _WRITES_METADATA = re.compile(r"\b(creat\w*|writ\w*|produc\w*|generat\w*|export\w*|develop\w*|sidecar|provenance|standard\w*|record)\b")
 
 
+_ASKS_FOR_DASHBOARD = re.compile(r"\bdashboards?\b")
+
+
 def _is_weak_match(query, best, top):
     """True when the best task must not steer the model, i.e. the verdict is "below confidence floor": no directive, the message goes as typed.
 
@@ -276,9 +279,14 @@ def _is_weak_match(query, best, top):
             return True
     # rc48 hand test (#380): a strong algorithm match the task does not carry means the task directive would steer the model away from it
     # ("Sort the districts by population" matched "Map population distribution"). Same verdict as a below-floor match: no directive.
+    # PLAN-023 R11-5: a request that NAMES a dashboard, matched to a task that builds one, keeps its directive whatever an algorithm scores. Adding 11 chart and information
+    # algorithms to the topic index moved the score of qgis:pointsdisplacement for "build me a dashboard of displacement by district" from 9.98 to 10.03 (the corpus size
+    # shifts every word's weight), across the 10.0 bar, on the one word "displacement" that the request uses for the data and not for the tool: a bar that a one-word coincidence
+    # can sit on either side of must not decide a request that names what it wants built.
+    names_a_dashboard = bool(_ASKS_FOR_DASHBOARD.search(lowered)) and any("dashboard" in t for t in best.get("tools") or ())
     with contextlib.suppress(Exception):
         from .algorithm_topics import algorithm_outranks_task
-        if algorithm_outranks_task(query, best.get("id"), top, best.get("text", "")):
+        if not names_a_dashboard and algorithm_outranks_task(query, best.get("id"), top, best.get("text", "")):
             return True
     # rc45 smoke run, check I4: "make a chart of population by district" matched "Map population distribution" (WorldPop fetch, zonal
     # statistics, styling) and the model was sent after a map nobody asked for. A request that names a chart is answered by the chart tools.
