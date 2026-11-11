@@ -25,6 +25,7 @@ from . import stac_load_tool
 from . import land_cover_look_tool
 from . import spatial_stats_tool
 from . import hotspot_tool
+from . import cluster_scan_tool
 from . import raster_series_tool
 from . import raster_change_tool
 from . import management_zones_tool
@@ -108,6 +109,7 @@ __all__ = [
     "barrier_tools",
     "batch_tool",
     "cartographic_advisory_tools",
+    "cluster_scan_tool",
     "confidence_tools",
     "copy_features_tool",
     "corridor_tools",

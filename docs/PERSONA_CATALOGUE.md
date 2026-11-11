@@ -13,11 +13,11 @@ A persona is a lens, not a gate: it changes which tools are suggested first and 
 | 5 | Logistics / Supply Chain | 0 | 4 | 4 | 1 | 0 | 4 |
 | 6 | Agriculture / Food Security | 0 | 6 | 2 | 0 | 1 | 5 |
 | 7 | Environment / Natural Resources | 0 | 7 | 1 | 0 | 0 | 6 |
-| 8 | Public Health / Epidemiology | 0 | 6 | 4 | 0 | 0 | 4 |
+| 8 | Public Health / Epidemiology | 0 | 7 | 3 | 0 | 0 | 4 |
 | 9 | Disaster Risk / Climate Resilience | 0 | 3 | 4 | 1 | 0 | 4 |
 | 10 | Utilities / Energy / Water | 0 | 4 | 3 | 1 | 0 | 4 |
 | 11 | Transport / Mobility | 0 | 4 | 3 | 1 | 0 | 4 |
-| 12 | Public Safety / Security | 0 | 4 | 3 | 1 | 0 | 4 |
+| 12 | Public Safety / Security | 0 | 5 | 2 | 1 | 0 | 4 |
 | 13 | Research / Academia | 0 | 4 | 4 | 1 | 0 | 4 |
 | 14 | Real Estate / Site Selection | 0 | 4 | 5 | 0 | 0 | 4 |
 | 15 | Defense / Intelligence | 0 | 3 | 1 | 1 | 0 | 0 |
@@ -369,7 +369,7 @@ Health services and disease patterns by area: catchments, access, rates and tren
 
 - Health facility access: `calculate_service_area` -> `classify_facilities_by_access` -> `population_access_gap` -> `fetch_worldpop_population`
 - Trends and hotspots: `geocode_batch` -> `analyze_incident_trend` -> `hotspot_analysis` -> `generate_chart`
-- Is there a spatial pattern?: `calculate_spatial_autocorrelation` -> `analyze_hotspots_gi_star`
+- Is there a spatial pattern?: `calculate_spatial_autocorrelation` -> `analyze_hotspots_gi_star` -> `detect_spatial_clusters`
 
 **Tasks in the register:**
 
@@ -386,10 +386,10 @@ Health services and disease patterns by area: catchments, access, rates and tren
 - sensitive point obfuscation [obfuscate_sensitive_points]
 - Moran's I (global and local) with permutation p-values, the neighbour rule you choose, and a new local-result layer [calculate_spatial_autocorrelation]
 - Getis-Ord Gi* hotspot test with false-discovery correction and a new result layer [analyze_hotspots_gi_star]
+- Kulldorff spatial scan with Monte Carlo (Poisson model, circles to a new layer) [detect_spatial_clusters]
 
 **Not built yet:**
 
-- Kulldorff spatial scan with Monte Carlo - due in R2 (1.20.0)
 - rates, relative risk, standardised ratios and smoothing - due in R2 (1.20.0)
 - epidemic bulletin layout - due in R2 (1.20.0)
 - DHIS2 connector - due in R7 (1.25.0) (needs the owner's credentials)
@@ -558,7 +558,7 @@ Incident patterns and response coverage with lawful, aggregated handling of sens
 
 **Workflows:**
 
-- Incident patterns: `analyze_incident_trend` -> `hotspot_analysis` -> `analyze_hotspots_gi_star` -> `apply_heatmap_style` -> `obfuscate_sensitive_points`
+- Incident patterns: `analyze_incident_trend` -> `hotspot_analysis` -> `analyze_hotspots_gi_star` -> `detect_spatial_clusters` -> `apply_heatmap_style` -> `obfuscate_sensitive_points`
 - Response coverage and route safety: `calculate_service_area` -> `score_route_incident_risk` -> `apply_network_barriers`
 
 **Tasks in the register:**
@@ -574,10 +574,10 @@ Incident patterns and response coverage with lawful, aggregated handling of sens
 - route incident risk and barriers [score_route_incident_risk]
 - sensitive location obfuscation [obfuscate_sensitive_points]
 - Getis-Ord Gi* hotspot test [analyze_hotspots_gi_star]
+- scan statistic [detect_spatial_clusters]
 
 **Not built yet:**
 
-- scan statistic - due in R2 (1.20.0)
 - viewshed - due in R4 (1.22.0)
 - patrol brief layout - due in after the profile packages
 
