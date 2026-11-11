@@ -65,7 +65,12 @@
    "sitrep"
   ]
  },
- "task_ids": [],
+ "task_ids": [
+  "38.01",
+  "38.02",
+  "38.03",
+  "38.04"
+ ],
  "data_sources": [
   "hdx",
   "geoboundaries",

@@ -137,8 +137,10 @@ class TestReplayWithEveryPersona(unittest.TestCase):
             for prompt, needed in self.prompts:
                 base = self.offered(prompt)
                 with_persona = self.offered(prompt, persona, None)
-                self.assertLessEqual(len(with_persona - base), 5, f"{persona}: {prompt}")
-                self.assertLessEqual(len(base - with_persona), 5, f"{persona}: {prompt}")
+                # 5 from the re-rank (PERSONA_BOOST_SLOTS) plus up to 6 from a task the persona bonus made the matcher choose, whose tools are offered
+                # on purpose (tool_router._MAX_TASK_TOOLS; PLAN-023 R1-5)
+                self.assertLessEqual(len(with_persona - base), 5 + 6, f"{persona}: {prompt}")
+                self.assertLessEqual(len(base - with_persona), 5 + 6, f"{persona}: {prompt}")
                 for need in needed:
                     options = set(need) if isinstance(need, (list, tuple)) else {need}
                     if options & base and not options & with_persona:
@@ -148,7 +150,7 @@ class TestReplayWithEveryPersona(unittest.TestCase):
         for prompt, needed in self.prompts[:80]:
             base = self.offered(prompt)
             both = self.offered(prompt, "public_health", "logistics")
-            self.assertLessEqual(len(both - base), 5, prompt)
+            self.assertLessEqual(len(both - base), 5 + 6, prompt)
             for need in needed:
                 options = set(need) if isinstance(need, (list, tuple)) else {need}
                 if options & base and not options & both:

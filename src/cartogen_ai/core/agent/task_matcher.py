@@ -99,8 +99,27 @@ def _names_unmentioned_hazard(query_words, entry):
     return bool(named) and not any(query_words & words for words in named)
 
 
-def match(query, limit=MAX_CANDIDATES):
-    """Return [(entry, score)] best first. Empty when nothing scores."""
+# PLAN-023 R1-5: a task that lists the person's primary persona scores a little higher, the secondary persona half as much. The bonus is
+# added only to a task that already matched something in the request (s > 0), so a persona can never make an unrelated task match, and it
+# is small next to AMBIGUITY_MARGIN (0.08) + CONFIDENT_SCORE (0.34) so it breaks near-ties, not clear differences.
+PERSONA_BONUS = 0.1
+SECONDARY_PERSONA_BONUS = 0.05
+
+
+def _persona_bonus(entry, personas):
+    if not personas:
+        return 0.0
+    listed = entry.get("persona") or ()
+    primary, secondary = (*tuple(personas), None, None)[:2]
+    if primary and primary != "general" and primary in listed:
+        return PERSONA_BONUS
+    if secondary and secondary != "general" and secondary in listed:
+        return SECONDARY_PERSONA_BONUS
+    return 0.0
+
+
+def match(query, limit=MAX_CANDIDATES, personas=None):
+    """Return [(entry, score)] best first. Empty when nothing scores. `personas` is (primary, secondary) persona ids or None."""
     q = _tokens(query)
     if not q:
         return []
@@ -112,7 +131,7 @@ def match(query, limit=MAX_CANDIDATES):
             continue
         s = _score(q, e)
         if s > 0:
-            scored.append((e, s))
+            scored.append((e, round(min(s + _persona_bonus(e, personas), 1.0), 4)))
     scored.sort(key=lambda x: (-x[1], x[0]["id"]))
     return scored[:limit]
 
@@ -298,8 +317,8 @@ def _is_weak_match(query, best, top):
     return len(_tokens(query)) > _SINGLE_HIT_MAX_TOKENS and len(_tokens(query) & set(best.get("kw") or ())) < 2
 
 
-def classify(query):
-    """Full local verdict for a query.
+def classify(query, personas=None):
+    """Full local verdict for a query. `personas` is (primary, secondary) persona ids or None (see PERSONA_BONUS).
 
     {"matches": [...], "best": entry|None, "score": float,
      "ambiguous": bool, "reason": str}
@@ -322,7 +341,7 @@ def classify(query):
         if names_algorithm(query):
             return {"matches": [], "best": None, "score": 0.0,
                     "ambiguous": False, "reason": "names a Processing algorithm"}
-    ms = match(query)
+    ms = match(query, personas=personas)
     if not ms:
         return {"matches": [], "best": None, "score": 0.0,
                 "ambiguous": False, "reason": "no match"}

@@ -277,7 +277,7 @@ def analyze_request(query, context=None, attachments=None):
         return _empty_analysis(query)
 
     try:
-        verdict = tmatch.classify(query)
+        verdict = tmatch.classify(query, personas=get_persona_selection())
         # `ambiguous` means the local match is below the confidence floor, or
         # tied across sections -- the register's own signal that a second
         # (stage-2) opinion is warranted before trusting it. That stage-2 call

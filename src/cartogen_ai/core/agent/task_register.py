@@ -1,6 +1,6 @@
 """The Humanitarian Mapping Task Register, as machine-readable task contracts.
 
-792 tasks across 36 sections. Each entry carries:
+844 tasks across 49 sections (the 792 humanitarian tasks and sections 38 to 50, four tasks for each of 13 personas, PLAN-023 R1-5). Each entry carries:
 
     id      "07.14"          section number . position, stable
     cat     "7"              section number

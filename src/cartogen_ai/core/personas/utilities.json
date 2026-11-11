@@ -45,7 +45,12 @@
    "send to autocad"
   ]
  },
- "task_ids": [],
+ "task_ids": [
+  "46.01",
+  "46.02",
+  "46.03",
+  "46.04"
+ ],
  "data_sources": [
   "osm"
  ],
