@@ -93,10 +93,16 @@ FIELD_REPORT_NOTE = ("Index values describe what the satellite saw on the dates 
 CHANGE_REPORT_NOTE = ("Change classes come from two dates of imagery or two land-cover maps. This is a screening of where change may have happened, not a survey: map accuracy and cloud affect it, so check the places that matter on the ground.")
 FIELD_REPORT_GUIDE = "Colours show the index classes in the legend, by the value ranges and units given there. Zones, where shown, are labelled with their mean index value."
 CHANGE_REPORT_GUIDE = "Orange marks loss, grey marks stable and purple marks gain between the two dates; the legend names every class."
+# R2-5: the epidemic bulletin. Same panel; the standing note is the METHOD box, so a rate on a bulletin never goes out without its limits. Words, not numbers: the figures are the caller's, copied from tool results.
+EPI_BULLETIN_NOTE = ("Rates are crude (not adjusted for age or sex) and describe areas, not individuals. Areas with fewer than 5 cases are not shown, because small numbers are unstable and can identify people. A cluster or hot spot "
+                     "marks where cases exceed what chance and population explain; it is not a finding about cause. Cases are those reported by the date stated; late reports will change the figures.")
+EPI_BULLETIN_GUIDE = ("Shades of blue show the rate per population in the legend; hatched areas are suppressed small numbers. Where drawn, a black and white outline marks a statistically unusual cluster of cases; "
+                      "orange and purple mark high and low spots. The legend names every class.")
 REPORT_KINDS = {
     "sitrep": ("SITUATION", "KEY FIGURES", None, "HANDLING", SITREP_HANDLING),
     "field_report": ("FIELD", "INDEX READINGS", FIELD_REPORT_GUIDE, "NOTE", FIELD_REPORT_NOTE),
     "change_report": ("CHANGE", "CHANGE FIGURES", CHANGE_REPORT_GUIDE, "NOTE", CHANGE_REPORT_NOTE),
+    "epi_bulletin": ("SUMMARY", "CASES AND RATES", EPI_BULLETIN_GUIDE, "METHOD AND LIMITS", EPI_BULLETIN_NOTE),
 }
 REPORT_TEMPLATES = tuple(REPORT_KINDS)
 

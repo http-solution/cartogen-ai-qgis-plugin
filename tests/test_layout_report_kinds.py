@@ -11,8 +11,8 @@ TODAY = datetime.date(2026, 11, 11)
 
 
 class TestReportKinds(unittest.TestCase):
-    def test_the_three_templates_are_the_report_templates(self):
-        self.assertEqual(ls.REPORT_TEMPLATES, ("sitrep", "field_report", "change_report"))
+    def test_the_four_templates_are_the_report_templates(self):
+        self.assertEqual(ls.REPORT_TEMPLATES, ("sitrep", "field_report", "change_report", "epi_bulletin"))
 
     def test_sitrep_keeps_its_words_exactly(self):
         text = ls.sitrep_body("Floods in the south", FIGURES, ["OCHA"], "Guide", today=TODAY)
@@ -38,6 +38,24 @@ class TestReportKinds(unittest.TestCase):
         self.assertIn("NOTE\n" + ls.CHANGE_REPORT_NOTE, text)
         self.assertNotIn("HANDLING", text)
 
+    def test_an_epi_bulletin_has_its_own_headings_and_a_method_and_limits_box(self):
+        text = ls.sitrep_body("Cases reported to 2026-11-08", [{"label": "Cases", "value": "412"}], ["District health office"], ls.EPI_BULLETIN_GUIDE, today=TODAY, kind="epi_bulletin")
+        self.assertTrue(text.startswith("SUMMARY\nCases reported to 2026-11-08"))
+        for heading in ("CASES AND RATES\n- Cases: 412", "HOW TO READ THIS MAP\n" + ls.EPI_BULLETIN_GUIDE, "SOURCES\nDistrict health office", "METHOD AND LIMITS\n" + ls.EPI_BULLETIN_NOTE):
+            self.assertIn(heading, text)
+        for absent in ("SITUATION", "KEY FIGURES", "HANDLING", "\nNOTE\n"):
+            self.assertNotIn(absent, text)
+        self.assertTrue(text.endswith("Prepared 2026-11-11."))
+
+    def test_the_bulletin_note_names_every_limit_the_plan_requires(self):
+        note = ls.EPI_BULLETIN_NOTE
+        for phrase in ("crude", "not individuals", "fewer than 5 cases", "not a finding about cause", "reported by the date stated"):
+            self.assertIn(phrase, note)
+
+    def test_the_bulletin_guide_matches_the_look_it_describes(self):
+        for phrase in ("blue", "hatched", "black and white", "legend"):
+            self.assertIn(phrase, ls.EPI_BULLETIN_GUIDE)
+
     def test_the_notes_say_what_the_report_is_not(self):
         self.assertIn("not a yield forecast", ls.FIELD_REPORT_NOTE)
         self.assertIn("agronomic recommendation", ls.FIELD_REPORT_NOTE)
@@ -52,7 +70,7 @@ class TestReportKinds(unittest.TestCase):
         self.assertEqual(ls.sitrep_body("x", None, None, "", today=TODAY, kind="nonsense"), ls.sitrep_body("x", None, None, "", today=TODAY))
 
     def test_a_long_summary_is_shortened_but_the_note_and_the_sources_survive_in_every_kind(self):
-        for kind, note in (("field_report", ls.FIELD_REPORT_NOTE), ("change_report", ls.CHANGE_REPORT_NOTE), ("sitrep", ls.SITREP_HANDLING)):
+        for kind, note in (("field_report", ls.FIELD_REPORT_NOTE), ("change_report", ls.CHANGE_REPORT_NOTE), ("epi_bulletin", ls.EPI_BULLETIN_NOTE), ("sitrep", ls.SITREP_HANDLING)):
             text = ls.sitrep_body("A very long summary. " * 80, FIGURES * 4, ["Source one", "Source two"], "Guide " * 20, today=TODAY, max_chars=900, kind=kind)
             self.assertLessEqual(len(text), 900, kind)
             self.assertIn(note, text, kind)

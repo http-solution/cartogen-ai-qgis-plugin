@@ -14,7 +14,7 @@ class TestSections(unittest.TestCase):
 
     def test_not_built_lines_name_the_release_and_out_of_scope_lines_name_the_reason(self):
         text = panel.panel_text("public_health")
-        self.assertIn("epidemic bulletin layout - due in R2 (1.20.0)", text)
+        self.assertIn("epidemic bulletin layout (text box with its method and limits; the epidemic-curve chart is made separately) [create_print_layout]", text)
         self.assertIn("DHIS2 connector - due in R7 (1.25.0) (needs the owner's credentials)", text)
         text = panel.panel_text("utilities")
         self.assertIn("SCADA and live meters - live telemetry is outside what the plugin connects to", text)

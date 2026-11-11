@@ -1,6 +1,6 @@
 # Tool Reference
 
-Auto-generated from the live tool registry (334 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
+Auto-generated from the live tool registry (335 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
 
 Flags: **network-only** tools bypass the main-thread QGIS dispatcher entirely (pure HTTP, safe from any background thread); **two-phase** tools split a network fetch (background thread) from the QGIS-touching part (main thread); **task-management** tools are excluded from auto-advance in the Task Manager.
 
@@ -551,10 +551,10 @@ Create a map print layout composition with title, legend, scalebar, north arrow,
 | `output_format` | string | no | Only when output_path is a FOLDER: 'pdf' (default), 'png' or 'jpg'. The file is then named <title>_<date>.<format>. |
 | `body_text` | string | no | Optional summary/sitrep text shown in a panel on the layout (e.g. priority findings, data sources). |
 | `zoom_to_layer` | string | no | Name of a layer to fit the map to its full extent before capturing it, e.g. the national boundary layer for a full-country sitrep map. Omit to use whatever extent the canvas currently shows. |
-| `template` | string | no | 'standard' (default), 'access_map', 'sitrep', 'field_report' or 'change_report'. 'access_map': for the result of a service-area / facility-access analysis. Fits the map to the reach layer when zoom_to_layer is omitted, lists the reach polygon, access points and cost-graded roads first in the legend, and (when body_text is empty) adds a short 'how to read this map' guide for the layers present. 'sitrep': a one-page situation report; body_text is the situation summary, key_figures and sources fill the KEY FIGURES and SOURCES sections, and a standing handling note (estimates, no exact locations of people or sensitive sites) and the preparation date are always added. 'field_report' (one field: body_text is the field summary, key_figures the index readings with their dates and units) and 'change_report' (two dates: key_figures the change figures such as hectares lost, gained and stable) use the same panel with a reading guide and a standing note of their own: index values are not a yield or rate recommendation; change classes are a screening, not a survey. They keep the map where it is unless zoom_to_layer is given. |
+| `template` | string | no | 'standard' (default), 'access_map', 'sitrep', 'field_report', 'change_report' or 'epi_bulletin'. 'access_map': for the result of a service-area / facility-access analysis. Fits the map to the reach layer when zoom_to_layer is omitted, lists the reach polygon, access points and cost-graded roads first in the legend, and (when body_text is empty) adds a short 'how to read this map' guide for the layers present. 'sitrep': a one-page situation report; body_text is the situation summary, key_figures and sources fill the KEY FIGURES and SOURCES sections, and a standing handling note (estimates, no exact locations of people or sensitive sites) and the preparation date are always added. 'field_report' (one field: body_text is the field summary, key_figures the index readings with their dates and units) and 'change_report' (two dates: key_figures the change figures such as hectares lost, gained and stable) use the same panel with a reading guide and a standing note of their own: index values are not a yield or rate recommendation; change classes are a screening, not a survey. They keep the map where it is unless zoom_to_layer is given. 'epi_bulletin' (an epidemic bulletin: body_text is the summary, key_figures the case and rate figures with the date they were reported to, sources the data sources) uses the same panel with a METHOD AND LIMITS note of its own: rates are crude and for areas not individuals, areas under 5 cases are not shown, a cluster is not a cause. It keeps the map where it is unless zoom_to_layer is given. |
 | `key_figures` | array[object] | no | For template='sitrep': up to 8 headline figures, each copied from a tool result (never estimated or remembered), e.g. {label: 'People within 1 hour of a clinic', value: '412,000 (estimate)', source: 'population_access_gap'}. |
 | `key_figures_from` | object | no | For template='sitrep': take the headline figures straight from a layer, e.g. {layer_name: 'admin_units', label_field: 'ADM2_EN', value_field: 'people_in_need', top_n: 3}. The numbers are read from the layer, so they cannot be mistyped; prefer this over typing figures. Any typed key_figures whose number is not found in a project layer (a value, or a total, minimum, maximum, mean or count of a numeric field) is marked 'not found in the project data' on the layout and listed in the reply. |
-| `sources` | array[string] | no | For template 'sitrep', 'field_report' or 'change_report': the data sources behind the figures, e.g. ['OCHA COD-AB 2024', 'WorldPop 2020']. |
+| `sources` | array[string] | no | For template 'sitrep', 'field_report', 'change_report' or 'epi_bulletin': the data sources behind the figures, e.g. ['OCHA COD-AB 2024', 'WorldPop 2020']. |
 | `include_inset_map` | boolean | no | Add a small locator/inset map (zoomed out ~6x from the main map, same center) showing the main map's location within its wider region. Defaults to true. |
 
 ### `export_layout_atlas`
@@ -3311,6 +3311,21 @@ Write a verified workflow report (Markdown) for one or more result layers, built
 | `layer_names` | array[string] | yes | The result layer(s) to document. |
 | `assumptions` | array[string] | no | Optional assumptions or limits the analyst states (one sentence each); added to the report as given. |
 | `output_path` | string | no | Optional file path (.md). Omit for Desktop. |
+
+## public_health_look_tool
+
+### `apply_public_health_look`
+
+Draw the public-health look on a layer. look 'rate': a single-hue (blue) quantile map of a rate field (default field value_shown, from calculate_health_rates), with areas whose figure is suppressed for small numbers drawn as a grey hatch labelled 'Suppressed (n < 5)'; the legend title is 'Rate per 100,000; suppressed where n < 5'. look 'cluster': a black line with a narrower white line on top and no fill, never red, for the circles from detect_spatial_clusters. look 'lisa': the Local Moran classes (field lisa_class). look 'hotspot': the Getis-Ord hot and cold spot classes (field gi_class). No class is red or green. This only changes how the layer is drawn; it never changes data.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes |  |
+| `look` | string | yes | rate, cluster, lisa or hotspot. |
+| `field` | string | no | The field to draw. Defaults: value_shown for rate, lisa_class for lisa, gi_class for hotspot. Not used for cluster. |
+| `classes` | integer | no | For look 'rate': number of quantile classes, 2 to 5 (default 5). |
+| `per` | number | no | For look 'rate': the rate denominator named in the legend (default 100000). |
+| `min_cases` | integer | no | For look 'rate': the small-number threshold named in the legend (default 5); use the same value as calculate_health_rates. |
 
 ## qa_checklist_tools
 
