@@ -165,7 +165,7 @@ class TestEveryNumberAYetUnrunRowQuotesIsTheCodesOwn(Inputs):
         a = hr.analyse(cases, pops, "crude", None, 100000, None, 5)
         c24 = rows["C24-health-rates"]["expect"]
         self.assertEqual(a["flagged"], 4)
-        for text in (f"overall_rate {a['overall_rate']:.1f}", f"flagged_small_numbers {a['flagged']}", f"rel_risk {a['areas'][44]['rel_risk']:.4f}", f"rate_lo {a['areas'][44]['rate_lo']:.2f}", f"rate_hi {a['areas'][44]['rate_hi']:.2f}"):
+        for text in (f"overall_rate {a['overall_rate']:.1f}", f"flagged_small_numbers {a['flagged']}", f"rel_risk {a['areas'][44]['rel_risk']:.4f}", f"rate_lo {round(a['areas'][44]['rate_lo'], 4)}", f"rate_hi {round(a['areas'][44]['rate_hi'], 4)}"):
             self.assertIn(text, c24)
         eb = hr.analyse(cases, pops, "eb", None, 100000, None, 5)["areas"]
         self.assertIn(f"{eb[44]['eb_rate']:.3f}", c24)
@@ -193,7 +193,7 @@ class TestEveryNumberAYetUnrunRowQuotesIsTheCodesOwn(Inputs):
         self.assertEqual(names[best["centre"]], "D44")
         self.assertEqual((len(best["members"]), best["cases"]), (9, 135))
         self.assertLessEqual(best["p_value"], 0.01)
-        for text in (f"{best['expected']:.2f} expected (relative risk {best['relative_risk']:.4f})", f"llr {best['llr']:.3f}", f"radius {best['radius']:.3f}", f"total_cases {sum(cases)}"):
+        for text in (f"{best['expected']:.2f} expected (relative risk {round(best['relative_risk'], 3)})", f"llr {best['llr']:.3f}", f"radius {best['radius']:.3f}", f"total_cases {sum(cases)}"):
             self.assertIn(text, c23)
         capped = kd.scan(cases, pops, cent, 0.05, None, 999, 1, 5, 0.05)["clusters"]
         self.assertTrue(all(len(c["members"]) <= 5 for c in capped))

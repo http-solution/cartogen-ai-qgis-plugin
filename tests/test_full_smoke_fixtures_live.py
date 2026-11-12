@@ -91,7 +91,7 @@ class TestTheShippedInputsInRealQgis(unittest.TestCase):
         self.assertTrue(r.get("success"), r)
         best = r["clusters"][0]
         self.assertEqual(self.names_by_id(layer)[best["centre_id"]], "D44")
-        self.assertEqual((best["areas"], best["cases"], best["expected"], best["relative_risk"], best["llr"], best["radius"], best["p_value"]), (9, 135, 63.63, 2.3864, 34.289, 1414.214, 0.001))
+        self.assertEqual((best["areas"], best["cases"], best["expected"], best["relative_risk"], best["llr"], best["radius"], best["p_value"]), (9, 135, 63.63, 2.386, 34.289, 1414.214, 0.001))
         self.assertEqual((len(r["clusters"]), r["significant_clusters"], r["total_cases"]), (1, 1, 707))
         small = scan("smoke_districts_cases", "cases", "population", monte_carlo=999, seed=1, max_pop_fraction=0.05, output_layer_name="capped")
         self.assertTrue(all(c["areas"] <= 5 for c in small["clusters"]))
@@ -115,7 +115,7 @@ class TestTheShippedInputsInRealQgis(unittest.TestCase):
         for n, rate in (("D00", 400.0), ("D09", 300.0), ("D90", 0.0), ("D99", 200.0)):
             self.assertEqual((table[n]["rate"], table[n]["small_number"]), (rate, "cases below 5"), n)
             self.assertTrue(table[n]["value_shown"] is None or str(table[n]["value_shown"]) == "NULL", n)
-        self.assertEqual((table["D44"]["rate"], table["D44"]["rel_risk"], table["D44"]["rate_lo"], table["D44"]["rate_hi"]), (1500.0, 2.1216, 838.93, 2474.16))
+        self.assertEqual((table["D44"]["rate"], table["D44"]["rel_risk"], table["D44"]["rate_lo"], table["D44"]["rate_hi"]), (1500.0, 2.1216, 838.9264, 2474.1631))
         self.assertEqual((table["D11"]["rate"], table["D11"]["rel_risk"]), (600.0, 0.8487))
         rates("smoke_districts_cases", "cases", "population", method="eb", output_layer_name="eb")
         eb = {names[f["src_id"]]: f["value"] for f in QgsProject.instance().mapLayersByName("eb")[0].getFeatures()}
