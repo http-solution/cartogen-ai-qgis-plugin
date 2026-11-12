@@ -265,7 +265,7 @@ def readme(v, count, label=None):
             "SESSIONS (what each needs)\n"
             "  A  no model, no key: layout script, Settings, CLI (about 45 minutes)\n"
             "  B  chat routing: a real model (about 1 hour)\n"
-            "  C  loading data, Stop, Undo: a real model\n"
+            "  C  loading data, Stop, Undo, land-cover looks, spatial statistics, persona routing, geocoding: a real model for most rows; rows C20 to C25 are mostly typed into the QGIS Python console (a model only for their last chat step)\n"
             "  D  analysis, fetched data, checks, provenance: a real model and internet\n"
             "  E  privacy gates, layouts, exports: a real model\n"
             "  F  MCP server, workflow files, close-out: a terminal with Python 3.10+, optionally an MCP client\n"

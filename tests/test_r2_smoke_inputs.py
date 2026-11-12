@@ -200,6 +200,37 @@ class TestEveryNumberAYetUnrunRowQuotesIsTheCodesOwn(Inputs):
         self.assertIn(f"{capped[0]['cases']} cases and relative risk {capped[0]['relative_risk']:.3f}", c23)
 
 
+class TestTheExactIntervalInRowC24IsTheExactOne(unittest.TestCase):
+    """Found by the second review of the package (2026-11-12): the row said the EXACT Poisson interval for 15 cases was 838.9 to 2474.1, which are Byar's numbers; the exact limits (chi-square, what epitools::pois.exact
+    gives) are 839.5 and 2474.0. Computed here from the Poisson distribution itself, with no plugin code."""
+
+    @staticmethod
+    def exact(count, level=0.05):
+        import math
+
+        def cdf(k, mu):
+            return sum(math.exp(-mu) * mu ** i / math.factorial(i) for i in range(k + 1))
+        lo, hi = 0.0, 1000.0
+        for _ in range(200):
+            mid = (lo + hi) / 2
+            lo, hi = (mid, hi) if 1 - cdf(count - 1, mid) < level / 2 else (lo, mid)
+        lower = lo
+        lo, hi = 0.0, 1000.0
+        for _ in range(200):
+            mid = (lo + hi) / 2
+            lo, hi = (mid, hi) if cdf(count, mid) > level / 2 else (lo, mid)
+        return lower, lo
+
+    def test_the_row_quotes_the_exact_limits_and_ours_is_within_one_per_100000(self):
+        lower, upper = self.exact(15)
+        text = _rows()["C24-health-rates"]["expect"]
+        self.assertIn(f"{lower / 1000 * 100000:.1f} to {upper / 1000 * 100000:.1f} per 100,000", text)
+        ours = hr.poisson_interval(15)
+        self.assertLess(abs(ours[0] - lower), 0.01)                                                # the same interval for the count itself, within 0.01 of a case
+        self.assertLess(abs(ours[1] - upper), 0.01)
+        self.assertIn("within 1 per 100,000", text)
+
+
 class TestTheConsoleCommandsInTheRowsAreReal(unittest.TestCase):
     CALLS = re.compile(r"\b(moran|gi|scan|rates|look|lc)\(")
     IMPORT = re.compile(r"from (cartogen_ai[\w.]+) import (\w+) as (\w+)")
