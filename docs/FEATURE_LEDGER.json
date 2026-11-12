@@ -2975,7 +2975,7 @@
   },
   {
     "id": "full-smoke-package",
-    "feature": "tools/build_full_smoke.py builds one live smoke package whose rows (docs/FULL_SMOKE_ROWS.json plus the 22 v2 rows) cover every ledger entry that is not verified by hand, or name why a person cannot test it; it ships every input file a row needs (generated ones included), a SHA-256 list and a verifier, a checklist per row, and an evidence checker that reads rows with several prompts",
+    "feature": "tools/build_full_smoke.py builds one live smoke package whose rows (docs/FULL_SMOKE_ROWS.json plus the 22 v2 rows) cover every ledger entry that is not verified by hand, or name why a person cannot test it; it ships every input file a row needs (generated ones included), a SHA-256 list and a verifier, a checklist per row, and an evidence checker that reads rows with several prompts; since 2026-11-12 every row carries a 'collect the evidence for this row before you move on' reminder (in the sheet, the evidence table and its CHECKLIST.txt), and rows C20 to C27 ship deterministic inputs (a 10 x 10 district grid with a planted cluster, exact-answer grids, a land-cover raster, change polygons, fictional client addresses) whose quoted numbers are recomputed from the shipped files by tests/test_r2_smoke_inputs.py and read back in real QGIS by tests/test_full_smoke_fixtures_live.py",
     "issues": [],
     "since": "1.18.6",
     "sources": [
@@ -2987,7 +2987,9 @@
       "docs/FULL_SMOKE_ROWS.json",
       "docs/ROUND2_ROWS.json",
       "docs/plans/PLAN-056-full-smoke-package.md",
-      "docs/plans/PLAN-059-round-2-live-package.md"
+      "docs/plans/PLAN-059-round-2-live-package.md",
+      "tests/test_r2_smoke_inputs.py",
+      "tests/test_full_smoke_fixtures_live.py"
     ],
     "guards": [
       "tests/test_full_smoke_package.py::TestCoverage::test_every_unverified_ledger_entry_is_accounted_for_and_nothing_else_is_named",
@@ -3000,7 +3002,12 @@
       "tests/test_smoke_round2.py::TestTheSubsetPackage::test_the_package_says_which_build_it_carries_so_an_old_1_18_5_is_not_tested_by_mistake",
       "tests/test_smoke_round2.py::TestSelectRows::test_an_unknown_id_is_named_not_ignored"
     ,
-      "tests/test_smoke_round3.py::TestRound3Rows::test_every_feature_never_seen_live_is_covered_by_a_listed_row"],
+      "tests/test_smoke_round3.py::TestRound3Rows::test_every_feature_never_seen_live_is_covered_by_a_listed_row",
+      "tests/test_r2_smoke_inputs.py::TestEveryRowAsksForItsEvidence::test_every_row_has_a_save_line_in_the_sheet_the_evidence_table_and_its_checklist_with_the_collect_reminder",
+      "tests/test_r2_smoke_inputs.py::TestEveryNumberAYetUnrunRowQuotesIsTheCodesOwn::test_morans_i_hotspots_rates_and_look_classes_in_the_rows_are_recomputed",
+      "tests/test_r2_smoke_inputs.py::TestTheConsoleCommandsInTheRowsAreReal::test_every_import_resolves_and_every_call_has_arguments_the_function_takes",
+      "tests/test_full_smoke_fixtures_live.py::TestTheShippedInputsInRealQgis::test_row_c23_cluster_scan"
+    ],
     "hand_verified": "not verified: no row has been run by a person. The package structure and every input are tested offline; whether a row's instruction produces its stated result in a real QGIS with a real model is exactly what the package is for. The rows were written without a QGIS install.",
     "hand_row": "row F3-check-evidence of the full smoke package: run the sessions, then python 5_check_evidence.py results"
   },

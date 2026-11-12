@@ -176,6 +176,18 @@ def subset_coverage_page(rows, features):
     return "\n".join(out) + "\n"
 
 
+SNAP_NAME = re.compile(r"^[A-Za-z]+\d+")
+
+
+def evidence_reminder(row):
+    """The sentence every row carries, in the sheet, the evidence table and its CHECKLIST.txt: collect the evidence for THIS row before moving on. Asked for by the owner on 2026-11-12 ('always ask to
+    collect the evidence for each row'): eleven rows had a Save line that named no folder and no snap (the V rows and W1/W2), and a tester who skimmed the sheet could finish a row with nothing kept. Pure."""
+    snap = SNAP_NAME.match(row["id"]).group(0)
+    return (f"COLLECT THE EVIDENCE FOR THIS ROW BEFORE YOU MOVE ON, whatever the result: (1) in the QGIS Python console run snap('{snap}') (or the snap names the row itself gives) right after the last reply (a row that needs no QGIS, such as the layout script "
+            f"or a terminal check, has no snap: say so in the notes); (2) save every item the Save line names into results\\outputs\\{row['id']}\\ (files) and results\\screens\\ (screenshots); "
+            "(3) write Pass / Partial / Fail / Skip and one line of notes for this row in 4_RESULTS.csv. If it failed or looks wrong: screenshot first, then snap, then FAILURE_PROTOCOL.md, before you retry anything.")
+
+
 def evidence_table(rows, v):
     """EVIDENCE_TABLE.md: for every row, in running order, what it needs, which input files it uses and exactly what evidence to save, on one page that can be read
     without opening 3_SHEET.md. Asked for by the owner on 2026-11-07 ('mention on each row what evidence is needed'). Pure."""
@@ -193,6 +205,7 @@ def evidence_table(rows, v):
                 f"- **Starts from:** {v2.fill(row['starts_from'], v)}",
                 f"- **Input files (in 3_test_files):** {given}",
                 f"- **Evidence to save:** {v2.fill(row['evidence'], v)}",
+                f"- **{evidence_reminder(row)}**",
                 f"- **Pass when:** {v2.fill(row.get('pass_if') or row['expect'], v)}", ""]
     return "\n".join(out)
 
@@ -208,7 +221,7 @@ def sheet(rows, doc, v):
         out += [f"### {row['id']}: {v2.fill(row['title'], v)}", "",
                 f"- **Covers:** {', '.join(row['covers']) or 'documentation only'}", f"- **Needs:** {row['needs']}",
                 f"- **Starts from:** {v2.fill(row['starts_from'], v)}", f"- **Do:** {v2.fill(row['do'], v)}",
-                f"- **Expect:** {v2.fill(row['expect'], v)}", f"- **Save:** {v2.fill(row['evidence'], v)}"]
+                f"- **Expect:** {v2.fill(row['expect'], v)}", f"- **Save:** {v2.fill(row['evidence'], v)}", f"- **Collect the evidence (do not skip):** {evidence_reminder(row)}"]
         for key, label in (("inputs", "Inputs"), ("outputs", "Outputs"), ("pass_if", "Pass if"), ("cost", "Cost")):
             if row.get(key):
                 out.append(f"- **{label}:** {v2.fill(row[key], v)}")
@@ -381,7 +394,7 @@ def main(argv):
         z.write(REPO / "docs" / "FULL_SMOKE_FAILURE_PROTOCOL.md", f"{top}/FAILURE_PROTOCOL.md")
         z.write(REPO / "docs" / "WORKFLOW_FILES.md", f"{top}/3_test_files/WORKFLOW_FILES.md")
         for row in rows:
-            z.writestr(f"{top}/results/evidence/{row['id']}/CHECKLIST.txt", v2.checklist(row, v))
+            z.writestr(f"{top}/results/evidence/{row['id']}/CHECKLIST.txt", v2.checklist(row, v) + "\r\n" + evidence_reminder(row) + "\r\n")
             z.writestr(f"{top}/results/outputs/{row['id']}/PUT_OUTPUT_FILES_HERE.txt",
                        f"Files row {row['id']} makes go here (see ../../evidence/{row['id']}/CHECKLIST.txt).\r\n")
         z.writestr(f"{top}/results/screens/PUT_SCREENSHOTS_HERE.txt", "Screenshots a row asks for, named as the row says.\r\n")
