@@ -159,8 +159,6 @@ class _FakeAgent:
         return None
 
 
-@unittest.skipUnless(QGIS_LIVE_AVAILABLE, "needs real qgis.core/qgis.PyQt bindings -- run from an OSGeo4W/QGIS Python")
-
 def _project_has_data(test):
     """Puts one layer in the open project. Since the rc22 area rule, a request that names no place on an EMPTY project cannot default its area to
     'the current canvas extent', so it asks for the area instead of showing the prompt preview; these tests are about the preview, so they run
@@ -171,6 +169,7 @@ def _project_has_data(test):
     test.addCleanup(QgsProject.instance().removeMapLayer, layer.id())
 
 
+@unittest.skipUnless(QGIS_LIVE_AVAILABLE, "needs real qgis.core/qgis.PyQt bindings -- run from an OSGeo4W/QGIS Python")
 class TestChatWidgetLive(unittest.TestCase):
     """Each test gets its own dock -- QDockWidget construction is cheap and
     this keeps one test's state (e.g. an open panel) from leaking into the
