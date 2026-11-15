@@ -41,7 +41,7 @@ if PACKAGE_DIR == "cartogen_ai":
     )
 EXCLUDE_DIRS = {
     ".git", ".github", "__pycache__", ".pytest_cache", "tests", ".idea", ".vscode", ".claude",
-    "dist", "brain", "scratch",
+    "dist", "brain", "scratch", "work", "outputs",
     # Tool caches. A build from a working checkout shipped .ruff_cache/ and src/cartogen_ai_core.egg-info/ (21 junk files) in the
     # rc17 zip rebuilt by hand on 2026-10-06; a clean CI checkout has neither, so the published zips were not affected.
     ".ruff_cache", ".mypy_cache",
@@ -127,6 +127,8 @@ EXCLUDE_FILES = {
     # docs/BUG_TRACKER.md BUG-2026-08-21-6). Real content now at
     # plugin_main.py, which is NOT excluded and ships normally.
     "cartogen_ai.py",
+    # QGIS runtime sqlite database created during live testing sessions
+    "symbology-style.db",
 }
 # Name PATTERNS (fnmatch, not exact match) for stray files that land at the repo
 # root and must never ship, even when the dev environment couldn't clean them up
@@ -156,7 +158,8 @@ EXCLUDE_FILES = {
 # underscore at the repo root, so the pattern is safe to be broad.
 EXCLUDE_FILE_PATTERNS = ("scratch_test_*", ".git_commit_msg*", "_delete_probe.py",
                          "*.bak", "*.bak-*", "*.orig", "*.rej",
-                         "_*.json", "_*.html", "_*.tgz", "_*.tar.gz")
+                         "_*.json", "_*.html", "_*.tgz", "_*.tar.gz",
+                         "out_*.txt")
 
 
 def get_plugin_version(script_dir):
