@@ -2,6 +2,7 @@
 Vector Geoprocessing & Spatial Tool implementations for Cartogen AI.
 """
 
+import contextlib
 import difflib
 import math
 import os
@@ -27,15 +28,17 @@ except ImportError:
 try:
     import processing
 except ImportError:
-    try:
+    processing = None
+    # Best-effort second look: QGIS ships `processing` inside its plugins dir, which is not
+    # always on sys.path at import time. Silence is intended here, hence suppress rather than
+    # a bare ExceptHandler (which would read as a swallowed error).
+    with contextlib.suppress(Exception):
         import sys
         for p in list(sys.path):
             cand = os.path.join(p, "plugins")
             if os.path.isdir(cand) and cand not in sys.path:
                 sys.path.append(cand)
         import processing
-    except Exception:
-        processing = None
 
 try:
     from qgis.utils import iface

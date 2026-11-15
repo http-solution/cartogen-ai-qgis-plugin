@@ -43,6 +43,7 @@ class TestEqualize(unittest.TestCase):
         self.assertEqual(int(out.max()), 0)
 
 
+@unittest.skipIf(np is None, "numpy not installed")
 class TestMemoryBudget(unittest.TestCase):
     """Audit A15: the guard counts cells x bands, not just cells."""
 

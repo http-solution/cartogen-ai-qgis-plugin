@@ -362,7 +362,9 @@ def _fallback_to_local_osm_extract(key: str, value: str, bbox: list = None,
         import zipfile
         from .. import local_data_loader
         from ..local_data_sources import find_region, find_region_by_name, HEALTH_FCLASSES, _HEALTH_WORDS
-    except Exception:
+    except Exception as e:
+        log_event("local_osm_fallback_unavailable", tag="humanitarian_tools",
+                  error_class=type(e).__name__, error=True)
         return None
 
     lon = None
@@ -384,7 +386,7 @@ def _fallback_to_local_osm_extract(key: str, value: str, bbox: list = None,
     # If region not resolved by coords, check active project layers for ISO/name hints
     if not region:
         if QGIS_AVAILABLE:
-            try:
+            with contextlib.suppress(Exception):      # layer-name hints are best-effort
                 from qgis.core import QgsProject
                 for l in QgsProject.instance().mapLayers().values():
                     m_iso = re.search(r"\b([A-Z]{3})\b", l.name())
@@ -392,8 +394,6 @@ def _fallback_to_local_osm_extract(key: str, value: str, bbox: list = None,
                         region = find_region_by_name(index, m_iso.group(1))
                         if region:
                             break
-            except Exception:
-                pass
 
     if not region:
         return None
@@ -409,15 +409,13 @@ def _fallback_to_local_osm_extract(key: str, value: str, bbox: list = None,
         os.path.join(os.path.expanduser("~"), "cartogen_ai", "data", "osm", region_id),
     ]
     if QGIS_AVAILABLE:
-        try:
+        with contextlib.suppress(Exception):          # an extra search dir is optional
             from qgis.core import QgsApplication
             qbase = QgsApplication.qgisSettingsDirPath()
             search_dirs.extend([
                 os.path.join(qbase, "cartogen_ai", "data", "osm"),
                 os.path.join(qbase, "cartogen_ai", "data", "osm", region_id),
             ])
-        except Exception:
-            pass
 
     # Check if zip exists
     zip_name = f"{region_id}-latest-free.shp.zip"

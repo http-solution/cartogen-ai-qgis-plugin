@@ -534,7 +534,7 @@ def _chain_uses(entry, slot):
     return any(f in str(t).lower() for t in (entry.get("tools") or []) for f in fragments)
 
 
-def defaults(missing, layer_names=None, entry=None):
+def defaults(missing, entry=None, layer_names=None):
     """{slot: value} for the missing slots that have a safe default.
 
     Slots whose default is None are deliberately excluded -- guessing a hazard

@@ -43,8 +43,12 @@ class TestSaveProjectBehavior(unittest.TestCase):
 
         res = save_project("/tmp/out.qgz")
 
-        # save_project anchors/normalises the path (tools/_paths.py), so on Windows "/tmp/out.qgz" becomes "\\tmp\\out.qgz"
-        instance.setFileName.assert_called_once_with(os.path.normpath("/tmp/out.qgz"))
+        # save_project anchors/normalises the path (tools/_paths.py). Assert the portable intent rather
+        # than one platform's string: on Windows "/tmp/out.qgz" is NOT absolute (no drive), so it is
+        # anchored and comes back drive-qualified, while on POSIX it is already absolute and unchanged.
+        given = instance.setFileName.call_args[0][0]
+        self.assertTrue(os.path.isabs(given), "the project file must be given an absolute path")
+        self.assertEqual(os.path.basename(given).lower(), "out.qgz")
         self.assertTrue(res["success"])
         self.assertEqual(res["file_path"], "/tmp/out.qgz")      # the mock project's fileName(), reported as is
 

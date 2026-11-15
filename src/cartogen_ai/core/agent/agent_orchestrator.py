@@ -1087,8 +1087,11 @@ class CartogenAi:
             contract_check = check_contract_for_tool(name, parsed_arguments)
             if contract_check is not None:
                 return contract_check
-        except Exception:
-            pass
+        except Exception as e:
+            # A gate that cannot run is not a gate that passed: leave a trace rather than
+            # letting a broken validator silently disable a humanitarian safety check.
+            log_event("humanitarian_contract_check_failed", tag="Agent", tool=name,
+                      error_class=type(e).__name__, error=True)
 
         # #138 (audit F02): the before-state (project layer ids + undo snapshot) and the after-state used to be read here, on
         # the calling context, which for a turn is the AgentQgsTask worker thread -- only the tool body itself was marshalled
@@ -1967,7 +1970,8 @@ class CartogenAi:
         history = self._read_history_snapshot()
         if len(user_query.split()) < 10 and history:
             prev_user_msgs = [m.get("content", "") for m in history
-                              if m.get("role") == "user" and isinstance(m.get("content"), str)]
+                              if isinstance(m, dict) and m.get("role") == "user"
+                              and isinstance(m.get("content"), str)]
             if prev_user_msgs:
                 router_query = f"{prev_user_msgs[-1]} {user_query}"
 
