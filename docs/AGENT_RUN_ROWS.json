@@ -6,15 +6,56 @@
    "title": "Crude rates: 10, 20 and 30 cases in 1,000, 2,000 and 3,000 people are each 1,000 per 100,000, relative risk 1",
    "covers_row": "C24-health-rates",
    "steps": [
-    {"do": "load", "file": "smoke_rates3.geojson", "name": "rates3"},
-    {"do": "tool", "name": "calculate_health_rates", "args": {"layer_name": "rates3", "case_field": "cases", "population_field": "population"}}
+    {
+     "do": "load",
+     "file": "smoke_rates3.geojson",
+     "name": "rates3"
+    },
+    {
+     "do": "tool",
+     "name": "calculate_health_rates",
+     "args": {
+      "layer_name": "rates3",
+      "case_field": "cases",
+      "population_field": "population"
+     }
+    }
    ],
    "checks": [
-    {"what": "the tool reports success", "step": 2, "path": "success", "op": "true"},
-    {"what": "overall rate 1000 per 100,000", "step": 2, "path": "overall_rate", "op": "approx", "value": 1000.0},
-    {"what": "every area's rate is 1000", "layer": "rates3_rates", "field": "rate", "op": "all_approx", "value": 1000.0},
-    {"what": "every area's relative risk is 1", "layer": "rates3_rates", "field": "rel_risk", "op": "all_approx", "value": 1.0},
-    {"what": "three areas written", "layer": "rates3_rates", "field": "rate", "op": "count_eq", "value": 3}
+    {
+     "what": "the tool reports success",
+     "step": 2,
+     "path": "success",
+     "op": "true"
+    },
+    {
+     "what": "overall rate 1000 per 100,000",
+     "step": 2,
+     "path": "overall_rate",
+     "op": "approx",
+     "value": 1000.0
+    },
+    {
+     "what": "every area's rate is 1000",
+     "layer": "rates3_rates",
+     "field": "rate",
+     "op": "all_approx",
+     "value": 1000.0
+    },
+    {
+     "what": "every area's relative risk is 1",
+     "layer": "rates3_rates",
+     "field": "rel_risk",
+     "op": "all_approx",
+     "value": 1.0
+    },
+    {
+     "what": "three areas written",
+     "layer": "rates3_rates",
+     "field": "rate",
+     "op": "count_eq",
+     "value": 3
+    }
    ]
   },
   {
@@ -22,14 +63,52 @@
    "title": "Moran's I of a 4 x 4 checkerboard of +1 and -1 with rook weights is exactly -1",
    "covers_row": "C21-spatial-autocorrelation",
    "steps": [
-    {"do": "load", "file": "smoke_checker4.geojson", "name": "smoke_checker4"},
-    {"do": "tool", "name": "calculate_spatial_autocorrelation", "args": {"layer_name": "smoke_checker4", "field": "v", "weights": "rook", "permutations": 999}}
+    {
+     "do": "load",
+     "file": "smoke_checker4.geojson",
+     "name": "smoke_checker4"
+    },
+    {
+     "do": "tool",
+     "name": "calculate_spatial_autocorrelation",
+     "args": {
+      "layer_name": "smoke_checker4",
+      "field": "v",
+      "weights": "rook",
+      "permutations": 999
+     }
+    }
    ],
    "checks": [
-    {"what": "the tool reports success", "step": 2, "path": "success", "op": "true"},
-    {"what": "Moran's I is -1", "step": 2, "path": "moran_i", "op": "approx", "value": -1.0, "tol": 1e-4},
-    {"what": "expected I is -0.0667", "step": 2, "path": "expected_i", "op": "approx", "value": -0.0667, "tol": 1e-4},
-    {"what": "16 areas used", "step": 2, "path": "features", "op": "eq", "value": 16}
+    {
+     "what": "the tool reports success",
+     "step": 2,
+     "path": "success",
+     "op": "true"
+    },
+    {
+     "what": "Moran's I is -1",
+     "step": 2,
+     "path": "moran_i",
+     "op": "approx",
+     "value": -1.0,
+     "tol": 0.0001
+    },
+    {
+     "what": "expected I is -0.0667",
+     "step": 2,
+     "path": "expected_i",
+     "op": "approx",
+     "value": -0.0667,
+     "tol": 0.0001
+    },
+    {
+     "what": "16 areas used",
+     "step": 2,
+     "path": "features",
+     "op": "eq",
+     "value": 16
+    }
    ]
   },
   {
@@ -37,13 +116,44 @@
    "title": "Getis-Ord Gi* on a 5 x 5 grid of zeros with one 10 in the middle: z is exactly 2.0 there with rook weights",
    "covers_row": "C22-hotspots-gi-star",
    "steps": [
-    {"do": "load", "file": "smoke_one_high5.geojson", "name": "smoke_one_high5"},
-    {"do": "tool", "name": "analyze_hotspots_gi_star", "args": {"layer_name": "smoke_one_high5", "field": "v", "weights": "rook", "fdr": false}}
+    {
+     "do": "load",
+     "file": "smoke_one_high5.geojson",
+     "name": "smoke_one_high5"
+    },
+    {
+     "do": "tool",
+     "name": "analyze_hotspots_gi_star",
+     "args": {
+      "layer_name": "smoke_one_high5",
+      "field": "v",
+      "weights": "rook",
+      "fdr": false
+     }
+    }
    ],
    "checks": [
-    {"what": "the tool reports success", "step": 2, "path": "success", "op": "true"},
-    {"what": "largest z is 2.0", "layer": "smoke_one_high5_gi_star", "field": "gi_z", "op": "max_approx", "value": 2.0, "tol": 1e-3},
-    {"what": "25 areas written", "layer": "smoke_one_high5_gi_star", "field": "gi_z", "op": "count_eq", "value": 25}
+    {
+     "what": "the tool reports success",
+     "step": 2,
+     "path": "success",
+     "op": "true"
+    },
+    {
+     "what": "largest z is 2.0",
+     "layer": "smoke_one_high5_gi_star",
+     "field": "gi_z",
+     "op": "max_approx",
+     "value": 2.0,
+     "tol": 0.001
+    },
+    {
+     "what": "25 areas written",
+     "layer": "smoke_one_high5_gi_star",
+     "field": "gi_z",
+     "op": "count_eq",
+     "value": 25
+    }
    ]
   },
   {
@@ -51,14 +161,679 @@
    "title": "A layer tagged SENSITIVE is refused by geocode_batch before any lookup (no network is used)",
    "covers_row": "C27-geocode-protected",
    "steps": [
-    {"do": "load", "file": "smoke_clients.geojson", "name": "clients"},
-    {"do": "tag", "layer": "clients", "level": "SENSITIVE"},
-    {"do": "tool", "name": "geocode_batch", "args": {"location_names": ["Flat 3, 12 Example Street, Crater, Aden", "7 Sample Lane, Khormaksar, Aden"], "source_layer": "clients"}}
+    {
+     "do": "load",
+     "file": "smoke_clients.geojson",
+     "name": "clients"
+    },
+    {
+     "do": "tag",
+     "layer": "clients",
+     "level": "SENSITIVE"
+    },
+    {
+     "do": "tool",
+     "name": "geocode_batch",
+     "args": {
+      "location_names": [
+       "Flat 3, 12 Example Street, Crater, Aden",
+       "7 Sample Lane, Khormaksar, Aden"
+      ],
+      "source_layer": "clients"
+     }
+    }
    ],
    "checks": [
-    {"what": "status is GEOCODING_REFUSED_PROTECTED", "step": 3, "path": "status", "op": "eq", "value": "GEOCODING_REFUSED_PROTECTED"},
-    {"what": "the message names the layer", "step": 3, "path": "layers.0", "op": "eq", "value": "clients"},
-    {"what": "the reply says refused", "step": 3, "path": "error", "op": "contains", "value": "refused"}
+    {
+     "what": "status is GEOCODING_REFUSED_PROTECTED",
+     "step": 3,
+     "path": "status",
+     "op": "eq",
+     "value": "GEOCODING_REFUSED_PROTECTED"
+    },
+    {
+     "what": "the message names the layer",
+     "step": 3,
+     "path": "layers.0",
+     "op": "eq",
+     "value": "clients"
+    },
+    {
+     "what": "the reply says refused",
+     "step": 3,
+     "path": "error",
+     "op": "contains",
+     "value": "refused"
+    }
+   ]
+  },
+  {
+   "id": "H5-moran-districts",
+   "title": "Moran's I of the 10 x 10 district grid: 0.3383 with queen weights (0.4114 rook, 5.0 neighbours with k=5), local classes 9 HH, 1 LL, 4 LH",
+   "covers_row": "C21-spatial-autocorrelation",
+   "steps": [
+    {
+     "do": "load",
+     "file": "smoke_districts_cases.geojson",
+     "name": "smoke_districts_cases"
+    },
+    {
+     "do": "tool",
+     "name": "calculate_spatial_autocorrelation",
+     "args": {
+      "layer_name": "smoke_districts_cases",
+      "field": "cases",
+      "weights": "queen",
+      "permutations": 999,
+      "write_local": true
+     }
+    },
+    {
+     "do": "tool",
+     "name": "calculate_spatial_autocorrelation",
+     "args": {
+      "layer_name": "smoke_districts_cases",
+      "field": "cases",
+      "weights": "rook"
+     }
+    },
+    {
+     "do": "tool",
+     "name": "calculate_spatial_autocorrelation",
+     "args": {
+      "layer_name": "smoke_districts_cases",
+      "field": "cases",
+      "weights": "knn",
+      "k": 5
+     }
+    }
+   ],
+   "checks": [
+    {
+     "what": "queen I 0.3383",
+     "step": 2,
+     "path": "moran_i",
+     "op": "approx",
+     "value": 0.3383,
+     "tol": 0.0001
+    },
+    {
+     "what": "expected I -0.0101",
+     "step": 2,
+     "path": "expected_i",
+     "op": "approx",
+     "value": -0.0101,
+     "tol": 0.0001
+    },
+    {
+     "what": "6.84 neighbours on average",
+     "step": 2,
+     "path": "mean_neighbours",
+     "op": "approx",
+     "value": 6.84,
+     "tol": 0.001
+    },
+    {
+     "what": "no islands",
+     "step": 2,
+     "path": "islands",
+     "op": "eq",
+     "value": 0
+    },
+    {
+     "what": "one connected group",
+     "step": 2,
+     "path": "separate_groups",
+     "op": "eq",
+     "value": 1
+    },
+    {
+     "what": "9 high-high areas",
+     "step": 2,
+     "path": "local_counts.HH",
+     "op": "eq",
+     "value": 9
+    },
+    {
+     "what": "1 low-low",
+     "step": 2,
+     "path": "local_counts.LL",
+     "op": "eq",
+     "value": 1
+    },
+    {
+     "what": "4 low-high",
+     "step": 2,
+     "path": "local_counts.LH",
+     "op": "eq",
+     "value": 4
+    },
+    {
+     "what": "86 not significant",
+     "step": 2,
+     "path": "local_counts.not significant",
+     "op": "eq",
+     "value": 86
+    },
+    {
+     "what": "rook I 0.4114",
+     "step": 3,
+     "path": "moran_i",
+     "op": "approx",
+     "value": 0.4114,
+     "tol": 0.0001
+    },
+    {
+     "what": "knn 5 neighbours each",
+     "step": 4,
+     "path": "mean_neighbours",
+     "op": "approx",
+     "value": 5.0,
+     "tol": 1e-06
+    },
+    {
+     "what": "the local layer has 100 areas",
+     "layer": "smoke_districts_cases_lisa",
+     "field": "src_id",
+     "op": "count_eq",
+     "value": 100
+    }
+   ]
+  },
+  {
+   "id": "H6-gi-districts",
+   "title": "Gi* on the district grid: 7 hot spots at 99% and 2 at 95% with false-discovery correction, 11 and 2 without",
+   "covers_row": "C22-hotspots-gi-star",
+   "steps": [
+    {
+     "do": "load",
+     "file": "smoke_districts_cases.geojson",
+     "name": "smoke_districts_cases"
+    },
+    {
+     "do": "tool",
+     "name": "analyze_hotspots_gi_star",
+     "args": {
+      "layer_name": "smoke_districts_cases",
+      "field": "cases",
+      "weights": "queen",
+      "fdr": true
+     }
+    },
+    {
+     "do": "tool",
+     "name": "analyze_hotspots_gi_star",
+     "args": {
+      "layer_name": "smoke_districts_cases",
+      "field": "cases",
+      "weights": "queen",
+      "fdr": false,
+      "output_layer_name": "nofdr"
+     }
+    }
+   ],
+   "checks": [
+    {
+     "what": "7 hot spots at 99%",
+     "step": 2,
+     "path": "classes.Hot spot 99%",
+     "op": "eq",
+     "value": 7
+    },
+    {
+     "what": "2 hot spots at 95%",
+     "step": 2,
+     "path": "classes.Hot spot 95%",
+     "op": "eq",
+     "value": 2
+    },
+    {
+     "what": "91 not significant",
+     "step": 2,
+     "path": "classes.Not significant",
+     "op": "eq",
+     "value": 91
+    },
+    {
+     "what": "no islands",
+     "step": 2,
+     "path": "islands",
+     "op": "eq",
+     "value": 0
+    },
+    {
+     "what": "summary says corrected",
+     "step": 2,
+     "path": "summary",
+     "op": "contains",
+     "value": "false-discovery corrected"
+    },
+    {
+     "what": "without correction 11 at 99%",
+     "step": 3,
+     "path": "classes.Hot spot 99%",
+     "op": "eq",
+     "value": 11
+    },
+    {
+     "what": "without correction 2 at 95%",
+     "step": 3,
+     "path": "classes.Hot spot 95%",
+     "op": "eq",
+     "value": 2
+    },
+    {
+     "what": "without correction 87 not significant",
+     "step": 3,
+     "path": "classes.Not significant",
+     "op": "eq",
+     "value": 87
+    }
+   ]
+  },
+  {
+   "id": "H7-cluster-scan",
+   "title": "Kulldorff scan: one cluster of 9 areas, 135 cases against 63.63 expected, relative risk 2.386, p 0.001; a model that is not built is refused",
+   "covers_row": "C23-cluster-scan",
+   "steps": [
+    {
+     "do": "load",
+     "file": "smoke_districts_cases.geojson",
+     "name": "smoke_districts_cases"
+    },
+    {
+     "do": "tool",
+     "name": "detect_spatial_clusters",
+     "args": {
+      "layer_name": "smoke_districts_cases",
+      "case_field": "cases",
+      "population_field": "population",
+      "monte_carlo": 999,
+      "seed": 1
+     }
+    },
+    {
+     "do": "tool",
+     "name": "detect_spatial_clusters",
+     "args": {
+      "layer_name": "smoke_districts_cases",
+      "case_field": "cases",
+      "population_field": "population",
+      "monte_carlo": 999,
+      "seed": 1,
+      "max_pop_fraction": 0.05,
+      "output_layer_name": "capped"
+     }
+    },
+    {
+     "do": "tool",
+     "name": "detect_spatial_clusters",
+     "args": {
+      "layer_name": "smoke_districts_cases",
+      "case_field": "cases",
+      "population_field": "population",
+      "model": "bernoulli"
+     }
+    }
+   ],
+   "checks": [
+    {
+     "what": "success",
+     "step": 2,
+     "path": "success",
+     "op": "true"
+    },
+    {
+     "what": "9 areas",
+     "step": 2,
+     "path": "clusters.0.areas",
+     "op": "eq",
+     "value": 9
+    },
+    {
+     "what": "135 cases",
+     "step": 2,
+     "path": "clusters.0.cases",
+     "op": "eq",
+     "value": 135
+    },
+    {
+     "what": "63.63 expected",
+     "step": 2,
+     "path": "clusters.0.expected",
+     "op": "approx",
+     "value": 63.63,
+     "tol": 0.001
+    },
+    {
+     "what": "relative risk 2.386",
+     "step": 2,
+     "path": "clusters.0.relative_risk",
+     "op": "approx",
+     "value": 2.386,
+     "tol": 0.001
+    },
+    {
+     "what": "llr 34.289",
+     "step": 2,
+     "path": "clusters.0.llr",
+     "op": "approx",
+     "value": 34.289,
+     "tol": 0.001
+    },
+    {
+     "what": "radius 1414.214",
+     "step": 2,
+     "path": "clusters.0.radius",
+     "op": "approx",
+     "value": 1414.214,
+     "tol": 0.001
+    },
+    {
+     "what": "p 0.001",
+     "step": 2,
+     "path": "clusters.0.p_value",
+     "op": "approx",
+     "value": 0.001,
+     "tol": 1e-09
+    },
+    {
+     "what": "one significant cluster",
+     "step": 2,
+     "path": "significant_clusters",
+     "op": "eq",
+     "value": 1
+    },
+    {
+     "what": "707 cases in total",
+     "step": 2,
+     "path": "total_cases",
+     "op": "eq",
+     "value": 707
+    },
+    {
+     "what": "a 5% cap gives 5 areas",
+     "step": 3,
+     "path": "clusters.0.areas",
+     "op": "eq",
+     "value": 5
+    },
+    {
+     "what": "and 75 cases",
+     "step": 3,
+     "path": "clusters.0.cases",
+     "op": "eq",
+     "value": 75
+    },
+    {
+     "what": "bernoulli is refused as not built",
+     "step": 4,
+     "path": "error",
+     "op": "contains",
+     "value": "not built"
+    }
+   ]
+  },
+  {
+   "id": "H8-rates-districts",
+   "title": "Rates on the district grid: 707 per 100,000, four small-number areas flagged and hidden, SMR on supplied expected counts, SMR without them refused",
+   "covers_row": "C24-health-rates",
+   "steps": [
+    {
+     "do": "load",
+     "file": "smoke_rates3.geojson",
+     "name": "smoke_rates3"
+    },
+    {
+     "do": "tool",
+     "name": "calculate_health_rates",
+     "args": {
+      "layer_name": "smoke_rates3",
+      "case_field": "cases",
+      "population_field": "population",
+      "method": "smr",
+      "expected_field": "expected"
+     }
+    },
+    {
+     "do": "load",
+     "file": "smoke_districts_cases.geojson",
+     "name": "smoke_districts_cases"
+    },
+    {
+     "do": "tool",
+     "name": "calculate_health_rates",
+     "args": {
+      "layer_name": "smoke_districts_cases",
+      "case_field": "cases",
+      "population_field": "population"
+     }
+    },
+    {
+     "do": "tool",
+     "name": "calculate_health_rates",
+     "args": {
+      "layer_name": "smoke_districts_cases",
+      "case_field": "cases",
+      "population_field": "population",
+      "method": "smr",
+      "output_layer_name": "smr"
+     }
+    }
+   ],
+   "checks": [
+    {
+     "what": "overall 1000",
+     "step": 2,
+     "path": "overall_rate",
+     "op": "approx",
+     "value": 1000.0
+    },
+    {
+     "what": "no area flagged",
+     "step": 2,
+     "path": "flagged_small_numbers",
+     "op": "eq",
+     "value": 0
+    },
+    {
+     "what": "SMRs are 0.8, 1.0 and 1.25",
+     "layer": "smoke_rates3_rates",
+     "field": "smr",
+     "op": "sorted_eq",
+     "value": [
+      0.8,
+      1.0,
+      1.25
+     ],
+     "tol": 1e-06
+    },
+    {
+     "what": "overall 707",
+     "step": 4,
+     "path": "overall_rate",
+     "op": "approx",
+     "value": 707.0
+    },
+    {
+     "what": "4 areas flagged",
+     "step": 4,
+     "path": "flagged_small_numbers",
+     "op": "eq",
+     "value": 4
+    },
+    {
+     "what": "96 shown",
+     "step": 4,
+     "path": "shown",
+     "op": "eq",
+     "value": 96
+    },
+    {
+     "what": "four areas have no value shown",
+     "layer": "smoke_districts_cases_rates",
+     "field": "value_shown",
+     "op": "any_empty_count_eq",
+     "value": 4
+    },
+    {
+     "what": "SMR without expected counts is refused, not invented",
+     "step": 5,
+     "path": "error",
+     "op": "contains",
+     "value": "does not invent"
+    }
+   ]
+  },
+  {
+   "id": "H9-public-health-look",
+   "title": "The rate look: four classes (one dropped), 96 shown, 4 suppressed, the legend says where it is suppressed, and the layer has a Suppressed rule",
+   "covers_row": "C25-public-health-look",
+   "steps": [
+    {
+     "do": "load",
+     "file": "smoke_districts_cases.geojson",
+     "name": "smoke_districts_cases"
+    },
+    {
+     "do": "tool",
+     "name": "calculate_health_rates",
+     "args": {
+      "layer_name": "smoke_districts_cases",
+      "case_field": "cases",
+      "population_field": "population"
+     }
+    },
+    {
+     "do": "tool",
+     "name": "apply_public_health_look",
+     "args": {
+      "layer_name": "smoke_districts_cases_rates",
+      "look": "rate",
+      "field": "rate"
+     }
+    }
+   ],
+   "checks": [
+    {
+     "what": "success",
+     "step": 3,
+     "path": "success",
+     "op": "true"
+    },
+    {
+     "what": "shown 96",
+     "step": 3,
+     "path": "shown",
+     "op": "eq",
+     "value": 96
+    },
+    {
+     "what": "suppressed 4",
+     "step": 3,
+     "path": "suppressed",
+     "op": "eq",
+     "value": 4
+    },
+    {
+     "what": "one class dropped",
+     "step": 3,
+     "path": "classes_dropped",
+     "op": "eq",
+     "value": 1
+    },
+    {
+     "what": "legend title",
+     "step": 3,
+     "path": "legend_title",
+     "op": "eq",
+     "value": "Rate per 100,000; suppressed where n < 5"
+    },
+    {
+     "what": "first class label",
+     "step": 3,
+     "path": "classes.0.label",
+     "op": "eq",
+     "value": "500 to 600"
+    },
+    {
+     "what": "last class label",
+     "step": 3,
+     "path": "classes.3.label",
+     "op": "eq",
+     "value": "800 to 1,500"
+    }
+   ]
+  },
+  {
+   "id": "H10-land-cover-look",
+   "title": "Land-cover look on the 40 x 40 raster: five known classes and the value 11 reported as unmatched; the change-classes look is refused on a land-cover raster",
+   "covers_row": "C20-environment-looks",
+   "steps": [
+    {
+     "do": "load_raster",
+     "file": "smoke_worldcover.asc",
+     "name": "smoke_worldcover"
+    },
+    {
+     "do": "tool",
+     "name": "apply_land_cover_look",
+     "args": {
+      "layer_name": "smoke_worldcover",
+      "scheme": "esa_worldcover"
+     }
+    },
+    {
+     "do": "tool",
+     "name": "apply_land_cover_look",
+     "args": {
+      "layer_name": "smoke_worldcover",
+      "scheme": "change_classes"
+     }
+    }
+   ],
+   "checks": [
+    {
+     "what": "success",
+     "step": 2,
+     "path": "success",
+     "op": "true"
+    },
+    {
+     "what": "value 11 is unmatched",
+     "step": 2,
+     "path": "unmatched_values.0",
+     "op": "eq",
+     "value": "11"
+    },
+    {
+     "what": "first class",
+     "step": 2,
+     "path": "classes.0.label",
+     "op": "eq",
+     "value": "Tree cover (10)"
+    },
+    {
+     "what": "water class",
+     "step": 2,
+     "path": "classes.4.label",
+     "op": "eq",
+     "value": "Permanent water bodies (80)"
+    },
+    {
+     "what": "the unmatched value is named",
+     "step": 2,
+     "path": "classes.5.label",
+     "op": "eq",
+     "value": "11 (not in the ESA WorldCover legend)"
+    },
+    {
+     "what": "the wrong look restyles nothing",
+     "step": 3,
+     "path": "error",
+     "op": "contains",
+     "value": "nothing was restyled"
+    }
    ]
   }
  ]

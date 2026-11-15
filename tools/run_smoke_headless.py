@@ -74,6 +74,13 @@ def run_row(row, inputs_dir, registry, out_dir):
                     raise RuntimeError(f"could not load {step['file']}")
                 QgsProject.instance().addMapLayer(layer)
                 result = {"loaded": step["name"], "features": layer.featureCount()}
+            elif kind == "load_raster":
+                from qgis.core import QgsRasterLayer
+                raster = QgsRasterLayer(str(Path(inputs_dir) / step["file"]), step["name"])
+                if not raster.isValid():
+                    raise RuntimeError(f"could not load {step['file']}")
+                QgsProject.instance().addMapLayer(raster)
+                result = {"loaded": step["name"], "width": raster.width(), "height": raster.height()}
             elif kind == "tag":
                 from cartogen_ai.core.models import sensitivity
                 layer = QgsProject.instance().mapLayersByName(step["layer"])[0]
