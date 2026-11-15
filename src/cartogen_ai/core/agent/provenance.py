@@ -81,12 +81,15 @@ def build_provenance_record(layer, lookup=None) -> dict:
     from .lineage import get_layer_lineage
     from ..models.dataset_status import get_dataset_status
     from ...infrastructure.settings_keys import PROJECT_PROPERTY_ANALYSIS_ID
+    from ..logger import log_event
     from . import source_record
 
     analysis_id = None
     try:
         analysis_id = layer.customProperty(PROJECT_PROPERTY_ANALYSIS_ID, None)
-    except Exception:
+    except Exception as e:
+        log_event("analysis_id_read_failed", tag="provenance",
+                  error_class=type(e).__name__, error=True)
         analysis_id = None
 
     record = {

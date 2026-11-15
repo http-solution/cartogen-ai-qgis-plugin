@@ -91,7 +91,7 @@ class TestFanOut(unittest.TestCase):
         self.assertIn("error", inc.find_incident_reports_network_phase())
         self.assertIn("error", inc.find_incident_reports_network_phase(country="Yemen", days=0))
         self.assertIn("error", inc.find_incident_reports_network_phase(country="Yemen", sources=["twitter"]))
-        self.assertIn("error", inc.find_incident_reports_network_phase(bbox=[10, 10, 5, 20]))
+        self.assertIn("error", inc.find_incident_reports_network_phase(bbox=[10, 20, 5, 10]))
 
     def test_max_reports_truncates_and_says_so(self):
         outcomes = {s: self._ok(s, 3) for s in inc.SOURCES}

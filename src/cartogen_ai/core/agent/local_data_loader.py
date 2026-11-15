@@ -26,6 +26,7 @@ from .local_data_sources import (
 from .tools._urllib_retry import urlopen_with_retry
 from ..net import build_request as _net_build_request
 from ..net import read_capped as _read_capped
+from ..logger import log_event
 
 try:
     from qgis.core import (
@@ -249,7 +250,9 @@ def download_extract(region, dest_dir, progress=None, is_cancelled=None):
                 import shutil
                 try:
                     shutil.copy2(candidate, path)
-                except Exception:
+                except Exception as e:
+                    log_event("osm_extract_cache_copy_failed", tag="local_data_loader",
+                              error_class=type(e).__name__, error=True)
                     path = candidate
                 break
     if _fresh(path, EXTRACT_MAX_AGE_S) and zipfile.is_zipfile(path):

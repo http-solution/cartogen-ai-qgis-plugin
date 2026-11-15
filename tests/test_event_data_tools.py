@@ -37,10 +37,27 @@ class TestUsgs(unittest.TestCase):
 
     def test_bad_arguments_are_errors_not_requests(self):
         with patch.object(ev, "urlopen_with_retry") as op:
-            self.assertIn("error", ev.fetch_usgs_earthquakes_network_phase(bbox=[10, 10, 5, 20]))
+            self.assertIn("error", ev.fetch_usgs_earthquakes_network_phase(bbox=[10, 20, 5, 10]))
             self.assertIn("error", ev.fetch_usgs_earthquakes_network_phase(days=0))
             self.assertIn("error", ev.fetch_usgs_earthquakes_network_phase(days="x"))
             op.assert_not_called()
+
+    def test_an_antimeridian_bbox_is_a_legal_request_not_a_malformed_one(self):
+        """RFC 7946 5.2: west > east means the box crosses the antimeridian (Fiji, Chukotka,
+        the Aleutians). It must be fetched, not refused as bad arguments."""
+        seen = {}
+
+        def fake(req, timeout):
+            seen["url"] = req.full_url
+            raise OSError("stop")
+
+        with patch.object(ev, "urlopen_with_retry", fake):
+            out = ev.fetch_usgs_earthquakes_network_phase(bbox=[179, -20, -179, 5])
+
+        self.assertIn("minlongitude=179", seen.get("url", ""),
+                      "an antimeridian box must reach the network, not be rejected")
+        self.assertNotIn("bbox", str(out.get("error", "")).lower(),
+                         "it must not be refused as a bad bbox")
 
     def test_request_url_carries_the_filters(self):
         seen = {}
