@@ -102,6 +102,11 @@ def run_row(row, inputs_dir, registry, out_dir):
     record["output_files"] = [{"path": p, "sha256": core.sha256_of(p)} for r in results for p in output_files(r)]
     outcomes = [core.evaluate(c, results, layer_values) for c in row.get("checks", [])]
     status = core.verdict(outcomes, error=record["error"], needs_eyes=bool(row.get("needs_eyes")))
+    for ok, detail in outcomes:
+        if not ok:
+            print(f"  {row['id']}: CHECK FAILED: {detail}"[:400])        # so a CI log or a terminal shows WHICH check failed, not just FAIL
+    if record["error"]:
+        print(f"  {row['id']}: ERROR: {record['error'].splitlines()[-1]}"[:400])
     core.write_row(out_dir, row, record, outcomes, status, note=(record["error"] or "").splitlines()[-1] if record["error"] else "")
     return status
 

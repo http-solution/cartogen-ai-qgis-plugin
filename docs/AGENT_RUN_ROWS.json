@@ -709,8 +709,7 @@
      "name": "apply_public_health_look",
      "args": {
       "layer_name": "smoke_districts_cases_rates",
-      "look": "rate",
-      "field": "rate"
+      "look": "rate"
      }
     }
    ],
