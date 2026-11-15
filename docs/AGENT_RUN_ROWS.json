@@ -834,6 +834,351 @@
      "value": "nothing was restyled"
     }
    ]
+  },
+  {
+   "id": "H11-task-grid-refusal",
+   "title": "A 1 km task grid over the 220 km square is refused (no layer made) with a size to use; at 4 km it is made with fewer than 5,000 tasks",
+   "covers_row": "D5-task-grid",
+   "steps": [
+    {
+     "do": "load",
+     "file": "smoke_big_area.geojson",
+     "name": "smoke_big_area"
+    },
+    {
+     "do": "tool",
+     "name": "generate_mapping_task_grid",
+     "args": {
+      "aoi_layer": "smoke_big_area",
+      "cell_size_m": 1000
+     }
+    },
+    {
+     "do": "tool",
+     "name": "generate_mapping_task_grid",
+     "args": {
+      "aoi_layer": "smoke_big_area",
+      "cell_size_m": 4000,
+      "output_layer_name": "tasks_4km"
+     }
+    }
+   ],
+   "checks": [
+    {
+     "what": "the reply says no grid was made",
+     "step": 2,
+     "path": "error",
+     "op": "contains",
+     "value": "No grid was made"
+    },
+    {
+     "what": "it names the task limit",
+     "step": 2,
+     "path": "error",
+     "op": "contains",
+     "value": "task limit"
+    },
+    {
+     "what": "it suggests at least 3 km",
+     "step": 2,
+     "path": "suggested_cell_size_m",
+     "op": "ge",
+     "value": 3000
+    },
+    {
+     "what": "and at most 5 km",
+     "step": 2,
+     "path": "suggested_cell_size_m",
+     "op": "le",
+     "value": 5000
+    },
+    {
+     "what": "no grid layer exists after the refusal",
+     "layer": "mapping_tasks",
+     "field": "name",
+     "op": "absent"
+    },
+    {
+     "what": "the 4 km grid reports its layer",
+     "step": 3,
+     "path": "layer_name",
+     "op": "eq",
+     "value": "tasks_4km"
+    },
+    {
+     "what": "with fewer than 5,000 tasks",
+     "step": 3,
+     "path": "task_count",
+     "op": "le",
+     "value": 5000
+    },
+    {
+     "what": "and at least one task",
+     "step": 3,
+     "path": "task_count",
+     "op": "ge",
+     "value": 1
+    }
+   ]
+  },
+  {
+   "id": "H12-statistics-refusals",
+   "title": "Bad requests to the statistics tools are refused with the reason, not guessed: unknown weights, a missing field, a missing layer",
+   "covers_row": "C21-spatial-autocorrelation",
+   "steps": [
+    {
+     "do": "load",
+     "file": "smoke_districts_cases.geojson",
+     "name": "smoke_districts_cases"
+    },
+    {
+     "do": "tool",
+     "name": "calculate_spatial_autocorrelation",
+     "args": {
+      "layer_name": "smoke_districts_cases",
+      "field": "cases",
+      "weights": "bogus"
+     }
+    },
+    {
+     "do": "tool",
+     "name": "calculate_spatial_autocorrelation",
+     "args": {
+      "layer_name": "smoke_districts_cases",
+      "field": "nope"
+     }
+    },
+    {
+     "do": "tool",
+     "name": "calculate_spatial_autocorrelation",
+     "args": {
+      "layer_name": "no_such_layer",
+      "field": "cases"
+     }
+    }
+   ],
+   "checks": [
+    {
+     "what": "unknown weights are named",
+     "step": 2,
+     "path": "error",
+     "op": "contains",
+     "value": "Unknown weights"
+    },
+    {
+     "what": "a missing field is named",
+     "step": 3,
+     "path": "error",
+     "op": "contains",
+     "value": "Field 'nope' not found"
+    },
+    {
+     "what": "the fields that do exist are listed",
+     "step": 3,
+     "path": "error",
+     "op": "contains",
+     "value": "cases"
+    },
+    {
+     "what": "a missing layer is named",
+     "step": 4,
+     "path": "error",
+     "op": "contains",
+     "value": "not found"
+    }
+   ]
+  },
+  {
+   "id": "H13-cluster-and-hotspot-looks",
+   "title": "The cluster look and the hotspot look are applied to the scan and Gi* layers the tools wrote",
+   "covers_row": "C25-public-health-look",
+   "steps": [
+    {
+     "do": "load",
+     "file": "smoke_districts_cases.geojson",
+     "name": "smoke_districts_cases"
+    },
+    {
+     "do": "tool",
+     "name": "detect_spatial_clusters",
+     "args": {
+      "layer_name": "smoke_districts_cases",
+      "case_field": "cases",
+      "population_field": "population"
+     }
+    },
+    {
+     "do": "tool",
+     "name": "analyze_hotspots_gi_star",
+     "args": {
+      "layer_name": "smoke_districts_cases",
+      "field": "cases"
+     }
+    },
+    {
+     "do": "tool",
+     "name": "apply_public_health_look",
+     "args": {
+      "layer_name": "smoke_districts_cases_scan_clusters",
+      "look": "cluster"
+     }
+    },
+    {
+     "do": "tool",
+     "name": "apply_public_health_look",
+     "args": {
+      "layer_name": "smoke_districts_cases_gi_star",
+      "look": "hotspot"
+     }
+    }
+   ],
+   "checks": [
+    {
+     "what": "the scan wrote a cluster layer",
+     "step": 2,
+     "path": "success",
+     "op": "true"
+    },
+    {
+     "what": "Gi* succeeded",
+     "step": 3,
+     "path": "success",
+     "op": "true"
+    },
+    {
+     "what": "the cluster look was applied",
+     "step": 4,
+     "path": "success",
+     "op": "true"
+    },
+    {
+     "what": "the hotspot look was applied",
+     "step": 5,
+     "path": "success",
+     "op": "true"
+    }
+   ]
+  },
+  {
+   "id": "H14-change-class-looks",
+   "title": "The change-classes look works on numeric and word fields, the protected-area hatch is applied, and a wrong scheme for the layer restyles nothing",
+   "covers_row": "C20-environment-looks",
+   "steps": [
+    {
+     "do": "load",
+     "file": "smoke_change_classes.geojson",
+     "name": "smoke_change_classes"
+    },
+    {
+     "do": "tool",
+     "name": "apply_land_cover_look",
+     "args": {
+      "layer_name": "smoke_change_classes",
+      "scheme": "change_classes",
+      "field": "change"
+     }
+    },
+    {
+     "do": "tool",
+     "name": "apply_land_cover_look",
+     "args": {
+      "layer_name": "smoke_change_classes",
+      "scheme": "change_classes",
+      "field": "change_word"
+     }
+    },
+    {
+     "do": "tool",
+     "name": "apply_land_cover_look",
+     "args": {
+      "layer_name": "smoke_change_classes",
+      "scheme": "protected_area_hatch"
+     }
+    }
+   ],
+   "checks": [
+    {
+     "what": "numeric -1, 0, 1",
+     "step": 2,
+     "path": "success",
+     "op": "true"
+    },
+    {
+     "what": "words loss, stable, gain",
+     "step": 3,
+     "path": "success",
+     "op": "true"
+    },
+    {
+     "what": "the hatch",
+     "step": 4,
+     "path": "success",
+     "op": "true"
+    },
+    {
+     "what": "the layer still has its six polygons",
+     "layer": "smoke_change_classes",
+     "field": "change",
+     "op": "count_eq",
+     "value": 6
+    }
+   ]
+  },
+  {
+   "id": "H15-rates-variants",
+   "title": "Empirical Bayes rates are written for all 100 districts; with min_cases 0 nothing is flagged as a small number",
+   "covers_row": "C24-health-rates",
+   "steps": [
+    {
+     "do": "load",
+     "file": "smoke_districts_cases.geojson",
+     "name": "smoke_districts_cases"
+    },
+    {
+     "do": "tool",
+     "name": "calculate_health_rates",
+     "args": {
+      "layer_name": "smoke_districts_cases",
+      "case_field": "cases",
+      "population_field": "population",
+      "method": "eb",
+      "output_layer_name": "eb"
+     }
+    },
+    {
+     "do": "tool",
+     "name": "calculate_health_rates",
+     "args": {
+      "layer_name": "smoke_districts_cases",
+      "case_field": "cases",
+      "population_field": "population",
+      "min_cases": 0,
+      "output_layer_name": "no_min"
+     }
+    }
+   ],
+   "checks": [
+    {
+     "what": "the EB run succeeded",
+     "step": 2,
+     "path": "success",
+     "op": "true"
+    },
+    {
+     "what": "100 smoothed values written",
+     "layer": "eb",
+     "field": "value",
+     "op": "count_eq",
+     "value": 100
+    },
+    {
+     "what": "with min_cases 0 none is flagged",
+     "step": 3,
+     "path": "flagged_small_numbers",
+     "op": "eq",
+     "value": 0
+    }
+   ]
   }
  ]
 }
