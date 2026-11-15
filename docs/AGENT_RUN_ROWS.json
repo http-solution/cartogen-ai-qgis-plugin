@@ -1,0 +1,65 @@
+{
+ "_about": "Rows of the agent-run smoke package (tools/run_smoke_headless.py). Each row is steps (load a shipped input, tag a layer, call a plugin tool with real arguments) plus machine checks. covers_row names the hand row whose numbers it repeats. No model, no network, no screenshot: a row that needs a person looking at a map is not here. Step kinds: load {file,name}; tag {layer,level}; tool {name,args}. Check kinds: on a tool result {step,path,op,value,tol} or on a layer {layer,field,op,value,tol}.",
+ "rows": [
+  {
+   "id": "H1-rates-crude",
+   "title": "Crude rates: 10, 20 and 30 cases in 1,000, 2,000 and 3,000 people are each 1,000 per 100,000, relative risk 1",
+   "covers_row": "C24-health-rates",
+   "steps": [
+    {"do": "load", "file": "smoke_rates3.geojson", "name": "rates3"},
+    {"do": "tool", "name": "calculate_health_rates", "args": {"layer_name": "rates3", "case_field": "cases", "population_field": "population"}}
+   ],
+   "checks": [
+    {"what": "the tool reports success", "step": 2, "path": "success", "op": "true"},
+    {"what": "overall rate 1000 per 100,000", "step": 2, "path": "overall_rate", "op": "approx", "value": 1000.0},
+    {"what": "every area's rate is 1000", "layer": "rates3_rates", "field": "rate", "op": "all_approx", "value": 1000.0},
+    {"what": "every area's relative risk is 1", "layer": "rates3_rates", "field": "rel_risk", "op": "all_approx", "value": 1.0},
+    {"what": "three areas written", "layer": "rates3_rates", "field": "rate", "op": "count_eq", "value": 3}
+   ]
+  },
+  {
+   "id": "H2-moran-checkerboard",
+   "title": "Moran's I of a 4 x 4 checkerboard of +1 and -1 with rook weights is exactly -1",
+   "covers_row": "C21-spatial-autocorrelation",
+   "steps": [
+    {"do": "load", "file": "smoke_checker4.geojson", "name": "smoke_checker4"},
+    {"do": "tool", "name": "calculate_spatial_autocorrelation", "args": {"layer_name": "smoke_checker4", "field": "v", "weights": "rook", "permutations": 999}}
+   ],
+   "checks": [
+    {"what": "the tool reports success", "step": 2, "path": "success", "op": "true"},
+    {"what": "Moran's I is -1", "step": 2, "path": "moran_i", "op": "approx", "value": -1.0, "tol": 1e-4},
+    {"what": "expected I is -0.0667", "step": 2, "path": "expected_i", "op": "approx", "value": -0.0667, "tol": 1e-4},
+    {"what": "16 areas used", "step": 2, "path": "features", "op": "eq", "value": 16}
+   ]
+  },
+  {
+   "id": "H3-gi-one-high",
+   "title": "Getis-Ord Gi* on a 5 x 5 grid of zeros with one 10 in the middle: z is exactly 2.0 there with rook weights",
+   "covers_row": "C22-hotspots-gi-star",
+   "steps": [
+    {"do": "load", "file": "smoke_one_high5.geojson", "name": "smoke_one_high5"},
+    {"do": "tool", "name": "analyze_hotspots_gi_star", "args": {"layer_name": "smoke_one_high5", "field": "v", "weights": "rook", "fdr": false}}
+   ],
+   "checks": [
+    {"what": "the tool reports success", "step": 2, "path": "success", "op": "true"},
+    {"what": "largest z is 2.0", "layer": "smoke_one_high5_gi_star", "field": "gi_z", "op": "max_approx", "value": 2.0, "tol": 1e-3},
+    {"what": "25 areas written", "layer": "smoke_one_high5_gi_star", "field": "gi_z", "op": "count_eq", "value": 25}
+   ]
+  },
+  {
+   "id": "H4-geocode-protected-refused",
+   "title": "A layer tagged SENSITIVE is refused by geocode_batch before any lookup (no network is used)",
+   "covers_row": "C27-geocode-protected",
+   "steps": [
+    {"do": "load", "file": "smoke_clients.geojson", "name": "clients"},
+    {"do": "tag", "layer": "clients", "level": "SENSITIVE"},
+    {"do": "tool", "name": "geocode_batch", "args": {"location_names": ["Flat 3, 12 Example Street, Crater, Aden", "7 Sample Lane, Khormaksar, Aden"], "source_layer": "clients"}}
+   ],
+   "checks": [
+    {"what": "status is GEOCODING_REFUSED_PROTECTED", "step": 3, "path": "status", "op": "eq", "value": "GEOCODING_REFUSED_PROTECTED"},
+    {"what": "the message names the layer", "step": 3, "path": "layers.0", "op": "eq", "value": "clients"},
+    {"what": "the reply says refused", "step": 3, "path": "error", "op": "contains", "value": "refused"}
+   ]
+  }
+ ]
+}
