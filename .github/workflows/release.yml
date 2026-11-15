@@ -17,20 +17,39 @@ on:
         description: "Mark as pre-release"
         type: boolean
         default: true
+      status_note:
+        description: "Optional sentence added to the release notes, for example what was and was not hand-tested (a release cannot be edited from every session)"
+        type: string
+        default: ""
+      draft:
+        description: "Create as a DRAFT (no email goes out; publish it by hand from the Releases page when ready)"
+        type: boolean
+        default: true
 
 permissions:
   contents: write
 
 jobs:
   release:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           ref: ${{ inputs.ref }}
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
+      # The gate below first ran on 2026-10-15 (rc42) and failed with "No module named 'requests'": the job installed nothing, while the
+      # tests job installs the dependencies from requirements.txt. Same install lines as .github/workflows/tests.yml.
+      - name: Install test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          grep -v -E "^ultralytics|^#|^$" requirements.txt | xargs -r pip install
+          pip install markdown==3.7
+      # Release gate (M0, 2026-10-14): a release is never built from a ref whose offline tests fail. The golden routing tables, the
+      # tool-schema snapshot and the size pins all run here, so a regression cannot ride out in a zip.
+      - name: Release gate - offline test suite
+        run: python -m unittest discover -s tests -t . -p "test_*.py"
       - name: Build the zip
         run: python plugin_upload.py
       - name: Check the zip matches metadata.txt and has the single top-level folder
@@ -42,7 +61,7 @@ jobs:
           import sys, zipfile
           names = zipfile.ZipFile(sys.argv[1]).namelist()
           tops = {n.split("/")[0] for n in names}
-          assert tops == {"cartogen-ai"}, tops
+          assert tops == {"cartogen_ai_plugin"}, tops
           print(len(names), "files; top-level:", tops)
           PY
           sha256sum "$ZIP" | tee dist/SHA256.txt
@@ -57,8 +76,14 @@ jobs:
       - name: Create the release
         env:
           GH_TOKEN: ${{ github.token }}
+          # passed through the environment, never pasted into the script, so a quote or $() in the note cannot run as a command
+          STATUS_NOTE: ${{ inputs.status_note }}
         run: |
           NOTES="Install the attached cartogen_ai_v${VERSION}.zip (Plugins > Install from ZIP), NOT 'Source code (zip)' -- GitHub's source zip folder name contains dots and QGIS cannot load it. Built from ${{ inputs.ref }} by the release workflow. SHA256: $(cut -d' ' -f1 dist/SHA256.txt)"
+          if [ -n "$STATUS_NOTE" ]; then NOTES="$NOTES"$'\n\n'"Status: $STATUS_NOTE"; fi
           FLAGS=""
           if [ "${{ inputs.prerelease }}" = "true" ]; then FLAGS="--prerelease"; fi
+          # A published release emails everyone who watches the repo's releases (the owner reported 2026-10-30 that each update mailed
+          # all watchers). A draft is invisible to them until it is published by hand, so drafting is the default.
+          if [ "${{ inputs.draft }}" = "true" ]; then FLAGS="$FLAGS --draft"; fi
           gh release create "${{ inputs.tag }}" "$ZIP" dist/SHA256.txt --target "${{ inputs.ref }}" --title "v${VERSION}" --notes "$NOTES" $FLAGS

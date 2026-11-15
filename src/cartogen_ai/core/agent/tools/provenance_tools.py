@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Provenance sidecar tools for Cartogen AI -- the agent-facing surface of
 agent/provenance.py (point 17 of
 docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md: a deterministic,
@@ -17,6 +16,7 @@ import json
 import os
 
 from .registry import register_tool
+from ._paths import resolve_output_path
 from .. import provenance as _prov
 
 try:
@@ -70,14 +70,21 @@ def _derive_sidecar_path(layer, output_path):
     "get_provenance_record",
     "Read a layer's machine-readable provenance record without writing anything to disk: "
     "the QGIS version, its full tool-execution lineage (what tool chain produced/modified it, "
-    "see get_layer_lineage-tracked history), and its QA-gate lifecycle status/history/checks "
-    "(see get_dataset_status). Use this to inspect provenance in-conversation; use "
-    "write_provenance_sidecar instead to save it as a real JSON file.",
+    "see get_layer_lineage-tracked history), where fetched data came from (sources), the automatic result "
+    "checks stored after each analysis (result_checks), and the manual lifecycle gate (qa_status: "
+    "status/history/checks, empty unless set with the status tools; see get_dataset_status). The last two "
+    "are different records: an empty qa_status does not mean no checks ran. Use this to inspect provenance "
+    "in-conversation; use write_provenance_sidecar instead to save it as a real JSON file.",
     {
         "type": "object",
         "properties": {"layer_name": {"type": "string"}},
         "required": ["layer_name"],
     },
+
+    keywords=[
+        "where does the data come from", "where does this data come from", "where did this data come from", "source of this layer", "layer's data come from",
+        "who made this data", "where is this layer from",
+    ],
 )
 def get_provenance_record(layer_name):
     if not QGIS_AVAILABLE:
@@ -85,7 +92,7 @@ def get_provenance_record(layer_name):
     layer = _find_layer_by_name(layer_name)
     if layer is None:
         return {"error": f"Layer '{layer_name}' not found"}
-    record = _prov.build_provenance_record(layer)
+    record = _prov.build_provenance_record(layer, _find_layer_by_name)
     if "error" in record:
         return record
     return {"success": True, **record}
@@ -112,12 +119,13 @@ def get_provenance_record(layer_name):
     },
 )
 def write_provenance_sidecar(layer_name, output_path=None):
+    output_path = resolve_output_path(output_path)   # rc22 smoke N3/N8/N9: anchor relative paths to the project (see _paths.py)
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
     layer = _find_layer_by_name(layer_name)
     if layer is None:
         return {"error": f"Layer '{layer_name}' not found"}
-    record = _prov.build_provenance_record(layer)
+    record = _prov.build_provenance_record(layer, _find_layer_by_name)
     if "error" in record:
         return record
 
@@ -136,3 +144,49 @@ def write_provenance_sidecar(layer_name, output_path=None):
             "of beside the source data."
         )
     return result
+
+
+@register_tool(
+    "write_workflow_report",
+    "Write a verified workflow report (Markdown) for one or more result layers, built only from what the plugin recorded: result checks "
+    "(failed ones first), data sources with licence/date/coverage, the steps that made the layers in order with their parameters (a rerun "
+    "recipe), and the assumptions and limitations, including every gap (layers never checked, origin unknown). Pass the layer(s) that hold "
+    "the final answer; upstream layers are followed through lineage. Use it for 'document how this result was made', 'method note' or "
+    "'show the evidence for this map'. It does not prove a rerun gives the same numbers.",
+    {
+        "type": "object",
+        "properties": {
+            "title": {"type": "string"},
+            "layer_names": {"type": "array", "items": {"type": "string"}, "description": "The result layer(s) to document."},
+            "assumptions": {"type": "array", "items": {"type": "string"}, "description": "Optional assumptions or limits the analyst states (one sentence each); added to the report as given."},
+            "output_path": {"type": "string", "description": "Optional file path (.md). Omit for Desktop."},
+        },
+        "required": ["title", "layer_names"],
+    },
+    keywords=["workflow report", "method note", "verified report", "how was this result made", "document the analysis steps", "evidence for this map"],
+)
+def write_workflow_report(title, layer_names, assumptions=None, output_path=None):
+    output_path = resolve_output_path(output_path)
+    if not QGIS_AVAILABLE:
+        return {"error": "QGIS not available"}
+    from .. import workflow_report as _wr
+    names = [n for n in (layer_names or []) if isinstance(n, str) and n.strip()]
+    if not names:
+        return {"error": "Give at least one layer name."}
+    entries = _wr.gather(names, _find_layer_by_name)
+    if not any(e["found"] for e in entries):
+        return {"error": "None of the named layers is in the project."}
+    text = _wr.build_markdown(str(title), entries, assumptions)
+    if not output_path:
+        desktop = os.path.join(os.path.expanduser("~"), "Desktop")
+        if not os.path.isdir(desktop):
+            desktop = os.path.expanduser("~")
+        output_path = os.path.join(desktop, f"{_sanitize_filename(title)}.workflow-report.md")
+    try:
+        with open(output_path, "w", encoding="utf-8") as f:
+            f.write(text)
+    except Exception as e:
+        return {"error": f"Failed to write the report: {e}"}
+    failed = sum(1 for e in entries for run in e["checks"][-1:] for c in run.get("checks", []) if c.get("status") == "fail")
+    return {"success": True, "path": output_path, "layers": len(entries), "steps": len(_wr.steps(entries)), "failed_checks": failed,
+            "limitations": _wr.limitations(entries, assumptions)}

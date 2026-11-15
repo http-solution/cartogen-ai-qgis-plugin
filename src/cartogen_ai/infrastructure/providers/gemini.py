@@ -1,17 +1,14 @@
+import contextlib
+import re
 import json
 from .base import (
     freshen_query,
     ModelChainMixin,
     BaseAiProvider, post_with_retry, get_with_retry, DEFAULT_MAX_TOKENS,
-    extract_openai_style_usage, format_http_error, format_request_exception,
+    extract_openai_style_usage, format_http_error, key_in_use_note, format_request_exception, reply_summary,
     HTTPError,
-    requests,  # noqa: F401 -- not called directly (post_with_retry/get_with_retry do that
-    # inside base.py, against base.py's own `requests` name), but tests patch
-    # cartogen_ai.infrastructure.providers.gemini.requests.get/.post -- that mutates the
-    # single shared `requests` module object's attributes, which base.py's calls also go
-    # through, but ONLY if this module still has its own `requests` name to patch.
 )
-from ...core.agent.model_selector import filter_chat_model_ids
+from ...core.model_selector import filter_chat_model_ids
 from ._search_cache import TTLCache
 
 _SEARCH_CACHE = TTLCache(ttl_seconds=1800)
@@ -126,7 +123,21 @@ def grounded_search(api_key, query, model="gemini-flash-latest"):
 # gate specific model IDs off for newer accounts ahead of removing them from
 # docs. Concrete IDs below are the last-verified-live fallback if the alias
 # itself ever breaks (checked against ai.google.dev/gemini-api/docs/models).
-FALLBACK_MODELS = ["gemini-flash-latest", "gemini-3.6-flash", "gemini-2.5-flash"]
+# gemini-2.5-flash was the last entry until a 2026-10-11 live report: Google answers 404 "This model models/gemini-2.5-flash is no longer
+# available to new users. Please update your code to use models/gemini-3.8-flash", although the model list still shows it. Only models
+# that answered a real request belong here; check the list against a key before adding one.
+FALLBACK_MODELS = ["gemini-flash-latest", "gemini-3.8-flash", "gemini-3.7-flash"]
+
+
+def validate_tool_choice(tool_choice):
+    """The OpenAI-style tool_choice values this client will send: "auto", "none", "required", or a named function
+    {"type": "function", "function": {"name": ...}}. Anything else is a programming error and raises ValueError. Pure."""
+    if tool_choice in ("auto", "none", "required"):
+        return tool_choice
+    if (isinstance(tool_choice, dict) and tool_choice.get("type") == "function"
+            and isinstance(tool_choice.get("function"), dict) and tool_choice["function"].get("name")):
+        return tool_choice
+    raise ValueError(f"unsupported tool_choice: {tool_choice!r}")
 
 
 class GeminiClient(ModelChainMixin, BaseAiProvider):
@@ -146,12 +157,10 @@ class GeminiClient(ModelChainMixin, BaseAiProvider):
 
     def _emit_status(self, text):
         if self._status_callback:
-            try:
+            with contextlib.suppress(Exception):
                 self._status_callback(text)
-            except Exception:
-                pass
 
-    def _post(self, messages, tools, model_id, max_tokens=None):
+    def _post(self, messages, tools, model_id, max_tokens=None, tool_choice=None, extra_body=None):
         headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
@@ -159,21 +168,55 @@ class GeminiClient(ModelChainMixin, BaseAiProvider):
         payload = {"model": model_id, "messages": messages, "max_tokens": max_tokens or DEFAULT_MAX_TOKENS}
         if tools:
             payload["tools"] = tools
+        if tool_choice is not None:
+            payload["tool_choice"] = validate_tool_choice(tool_choice)
+        if extra_body:
+            # Merged into the JSON body exactly as given. The OpenAI Python client's `extra_body=` does the same merge, so the caller
+            # supplies the wire shape; which shape Google's endpoint accepts ({"google": {...}} directly or nested one level more) is
+            # what tools/diagnose_gemini_endpoint.py checks with a real key. Keys already set above cannot be overridden.
+            for key, value in dict(extra_body).items():
+                payload.setdefault(key, value)
         return post_with_retry(self.base_url, headers, json.dumps(payload), timeout=60)
 
-    def complete(self, messages, tools=None, max_tokens=None):
+    def complete(self, messages, tools=None, max_tokens=None, tool_choice=None, extra_body=None):
+        """`tool_choice` and `extra_body` are optional and unused by the agent loop today (the default request is unchanged).
+        tool_choice="none" is meant to force a text-only turn, which is how a loop that keeps asking for "one more tool call" would be
+        stopped; whether this endpoint honours it is NOT confirmed by the project -- run tools/diagnose_gemini_endpoint.py."""
         chain = self._model_chain()
+        refused = []     # models that answered 403: tried, then skipped
+        attempts = []    # (model, one-line summary of its reply) for every model that could not be used
         for idx, model_id in enumerate(chain):
             self._model = model_id
             self._emit_status(f"Using Gemini: {model_id}")
             try:
-                response = self._post(messages, tools, model_id, max_tokens=max_tokens)
+                # The extra keywords are passed only when used, so the default call keeps its original shape (tests and subclasses
+                # that replace _post with the four-argument form keep working).
+                extras = {k: v for k, v in (("tool_choice", tool_choice), ("extra_body", extra_body)) if v is not None}
+                response = self._post(messages, tools, model_id, max_tokens=max_tokens, **extras)
                 if response.status_code == 404:
                     # Model retired, renamed, or gated off this account -- try the next
                     # one in the chain instead of failing outright on a single bad ID.
+                    attempts.append((model_id, reply_summary(response)))
                     next_idx = idx + 1
                     if next_idx < len(chain):
                         self._emit_status(f"Model unavailable, switching to {chain[next_idx]}...")
+                    continue
+                if response.status_code == 403 and idx + 1 < len(chain) and "denied access" not in (getattr(response, "text", "") or ""):
+                    # A 403 can be about the MODEL, not the key: preview and "-latest" models are gated per account or billing tier
+                    # while another one is open, and the model list shows all of them either way. The chain stops
+                    # at a 404 only, which left a user stuck on a refused preview model with working alternatives behind it
+                    # (2026-10-11 report). If every model refuses, the error below says so and the key is the likelier cause.
+                    # "Your project has been denied access" is not about the model: Google refused the whole project, so the chain stops.
+                    refused.append(model_id)
+                    attempts.append((model_id, reply_summary(response)))
+                    self._emit_status(f"{model_id} was refused (403), trying {chain[idx + 1]}...")
+                    continue
+                if response.status_code == 429 and idx + 1 < len(chain) and re.search(r"limit:\s*0\b", getattr(response, "text", "") or ""):
+                    # "limit: 0" is not a rate limit that will pass: the plan has no quota for this model at all (the free tier has none
+                    # for the Pro models; 2026-10-11 report on gemini-3.1-pro). Waiting is pointless, the next model may be open.
+                    refused.append(model_id)
+                    attempts.append((model_id, reply_summary(response)))
+                    self._emit_status(f"{model_id} has no quota on this plan, trying {chain[idx + 1]}...")
                     continue
                 response.raise_for_status()
                 data = response.json()
@@ -190,15 +233,26 @@ class GeminiClient(ModelChainMixin, BaseAiProvider):
                     out["usage"] = usage
                 return out
             except HTTPError as e:
-                return {"error": format_http_error("Gemini API error", e)}
+                message = format_http_error("Gemini API error", e, key_note=key_in_use_note("gemini", self.api_key))
+                if e.response is not None and e.response.status_code in (401, 403):
+                    # Google's own explanation (for example "Your project has been denied access. Please contact support.") is what the
+                    # user needs; reply_summary blanks key-like strings, and Google's auth errors do not echo the key.
+                    message += f" Google says: {reply_summary(e.response)}."
+                if refused:
+                    message += f" Models skipped before this one: [{', '.join(refused)}]."
+                    if e.response is not None and e.response.status_code == 403:
+                        message += " None of them worked, so the key or its project is the likelier cause."
+                return {"error": message}
             except Exception as e:
                 return {"error": format_request_exception("Gemini API request failed", e)}
 
         tried = ", ".join(chain)
+        what_each_said = " | ".join(f"{m}: {why}" for m, why in attempts)
         return {
             "error": (
-                f"No configured Gemini model is currently available (all returned 404). "
-                f"Models tried: [{tried}]. Open Settings and pick a different Gemini model, "
-                "or FALLBACK_MODELS in gemini.py needs updating."
+                f"No configured Gemini model is currently available. Models tried: [{tried}]. "
+                f"What each answered: {what_each_said}. "
+                f"{key_in_use_note('gemini', self.api_key).strip()} "
+                "Open Settings and pick a different Gemini model, or FALLBACK_MODELS in gemini.py needs updating."
             )
         }

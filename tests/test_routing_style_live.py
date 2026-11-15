@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Live-QGIS tests for the routing/reach styling (CI `qgis-live-tests`). Written without a QGIS install: the first CI run
 is their first execution."""
 import os

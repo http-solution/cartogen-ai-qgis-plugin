@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Prompt Refinement Layer for Cartogen AI.
 Optional, opt-in step that rewrites a raw chat message into two better-
@@ -14,7 +13,11 @@ any tool -- it calls client.complete(messages, tools=None, ...), the same
 method every provider client already implements, with no tools passed.
 """
 
+import contextlib
 import json
+
+from .. import personas as _personas
+from ..personas import selection as _selection
 
 try:
     from qgis.core import QgsSettings
@@ -34,8 +37,8 @@ from ..logger import log_warning
 from ...infrastructure.settings_keys import (
     SETTINGS_PROMPT_REFINEMENT_ENABLED as PROMPT_REFINEMENT_ENABLED_KEY,
     SETTINGS_PROMPT_PREVIEW_ENABLED as PROMPT_PREVIEW_ENABLED_KEY,
-    SETTINGS_USER_PROFILE as USER_PROFILE_KEY,
 )
+from ..logger import log_event
 
 # Word-count boundary below which a message is already unambiguous enough
 # that refining it would just add latency and a cheap-model-call cost for no
@@ -44,42 +47,10 @@ from ...infrastructure.settings_keys import (
 # to a different decision (whether to refine at all, not which model to use).
 _MIN_WORDS_TO_REFINE = 6
 
-PROFILE_LABELS = {
-    "general": "GIS Generalist",
-    "humanitarian": "Humanitarian Aid / Crisis Response",
-    "engineering": "Engineering / Infrastructure",
-    "urban_planning": "Urban Planning / Local Government",
-    "logistics": "Logistics / Supply Chain",
-    "agriculture": "Agriculture / Food Security",
-    "environment": "Environment / Natural Resources",
-    "public_health": "Public Health / Epidemiology",
-    "disaster_risk": "Disaster Risk / Climate Resilience",
-    "utilities": "Utilities / Energy / Water",
-    "transport": "Transport / Mobility",
-    "public_safety": "Public Safety / Security",
-    "research": "Research / Academia",
-    "real_estate": "Real Estate / Site Selection",
-    "defense_intel": "Defense / Intelligence",
-}
-DEFAULT_PROFILE = "general"
-
-PROFILE_GUIDANCE = {
-    "general": "Use clear GIS terminology and ask for the target layer, coordinate system, output, and validation steps when they are ambiguous.",
-    "humanitarian": "Prioritize affected populations, administrative levels, 3W/4W presence, needs/severity, protection, do-no-harm handling, data provenance, uncertainty, and decision-ready map outputs.",
-    "engineering": "Prioritize survey accuracy, coordinate reference systems, construction phases, asset condition, constraints, measurements, QA checks, and deliverables suitable for engineering review.",
-    "urban_planning": "Prioritize parcels, zoning, land use, accessibility, service catchments, population, development scenarios, planning constraints, and stakeholder-readable outputs.",
-    "logistics": "Prioritize origins/destinations, network accessibility, travel cost, hub-and-spoke coverage, route constraints, service levels, fleet assumptions, and operational map outputs.",
-    "agriculture": "Prioritize fields, crop/soil conditions, vegetation indices, irrigation, seasonal comparisons, yield proxies, and uncertainty in remote-sensing interpretation.",
-    "environment": "Prioritize habitat, land cover, protected areas, watersheds, pollution/exposure, change detection, conservation constraints, and reproducible evidence.",
-    "public_health": "Prioritize privacy, aggregation, catchment areas, accessibility, exposure, service coverage, temporal trends, and safe handling of sensitive locations.",
-    "disaster_risk": "Prioritize hazard, exposure, vulnerability, scenario assumptions, evacuation/access constraints, time sensitivity, and uncertainty-aware decision products.",
-    "utilities": "Prioritize network assets, service areas, outages, maintenance priority, dependencies, reliability, and field-verifiable asset records.",
-    "transport": "Prioritize network topology, travel time, accessibility, demand locations, mode assumptions, bottlenecks, safety, and route alternatives.",
-    "public_safety": "Prioritize lawful data handling, aggregation, incident trends, response coverage, route safety, uncertainty, and avoidance of sensitive-person identification.",
-    "research": "Prioritize reproducibility, documented methods, source citations, assumptions, parameterization, uncertainty, and exportable analytical outputs.",
-    "real_estate": "Prioritize site constraints, proximity, accessibility, demographics, market context, scenario comparison, and auditable decision criteria.",
-    "defense_intel": "Prioritize provenance, uncertainty, temporal context, access controls, lawful use, and explicit separation of observation from inference.",
-}
+# PLAN-023 R1-2: the persona pack (core/personas/*.json) is the one list of personas; these two dicts are views of it, kept under their old names because the settings dialog and the tests use them.
+PROFILE_LABELS = {pid: persona["label"] for pid, persona in _personas.load_all().items()}
+PROFILE_GUIDANCE = {pid: persona["guidance"] for pid, persona in _personas.load_all().items()}
+DEFAULT_PROFILE = _selection.DEFAULT_PERSONA
 
 _DEFAULT_REFINEMENT_MAX_TOKENS = 400
 
@@ -108,13 +79,35 @@ def is_prompt_preview_enabled() -> bool:
         return True
 
 
-def get_user_profile() -> str:
+def _onboarding_role():
+    """The role key of a finished onboarding, or None. Only used to choose a default persona the first time; never raises."""
+    with contextlib.suppress(Exception):
+        from ..agent.onboarding_profile import load_onboarding_profile
+        profile = load_onboarding_profile()
+        return profile["role"] if profile else None
+    return None
+
+
+def get_persona_selection() -> tuple:
+    """(primary, secondary) persona ids. The first read migrates the old stored choice (or the onboarding role) into persona_primary; see core/personas/selection.py. Reads as the defaults
+    outside QGIS or when the store fails (the failure is logged)."""
     if not QGIS_AVAILABLE:
-        return DEFAULT_PROFILE
+        return DEFAULT_PROFILE, ""
     try:
-        return QgsSettings().value(USER_PROFILE_KEY, DEFAULT_PROFILE) or DEFAULT_PROFILE
-    except Exception:
-        return DEFAULT_PROFILE
+        return _selection.read_selection(QgsSettings(), _onboarding_role())
+    except Exception as e:
+        log_event("persona_selection_failed", tag="Personas", error_class=type(e).__name__, error=True)
+        return DEFAULT_PROFILE, ""
+
+
+def get_user_profile() -> str:
+    """The primary persona id (the refinement persona of old)."""
+    return get_persona_selection()[0]
+
+
+def get_secondary_persona() -> str:
+    """The secondary persona id, or '' for none (R1-4 ranks its tools at half weight)."""
+    return get_persona_selection()[1]
 
 
 def should_refine(query: str, enabled: bool) -> bool:
@@ -151,7 +144,7 @@ def build_refinement_messages(query: str, profile: str) -> list:
     ]
 
 
-def parse_refinement_response(raw_content) -> dict:
+def parse_refinement_response(raw_content) -> dict | None:
     """Defensive parsing matching agent_orchestrator.py's _real_execute_tool pattern
     (json.loads wrapped in try/except, degrading rather than raising).
     Returns None for anything that isn't a complete, well-shaped response --
@@ -186,12 +179,12 @@ def refine(query: str, profile: str, client, max_tokens: int = _DEFAULT_REFINEME
     try:
         result = client.complete(messages, tools=None, max_tokens=max_tokens)
     except Exception as e:
-        print(f"[PromptRefiner] refinement call failed: {e}")
+        log_event("refinement_call_failed", tag="PromptRefiner", error_class=type(e).__name__, error=True)
         return {"error": str(e)}
 
     if not isinstance(result, dict) or "error" in result:
         err = result.get("error") if isinstance(result, dict) else "unexpected response shape"
-        print(f"[PromptRefiner] refinement call returned an error: {err}")
+        log_event("refinement_call_returned_an_error", tag="PromptRefiner", error=True)
         return {"error": err}
 
     message = result.get("message") or {}
@@ -243,8 +236,8 @@ def compose_optimum_prompt(user_message, directive):
     """
     if not directive:
         return user_message
-    return ("Message sent as you:\n%s\n\n"
-            "Added to the system prompt:\n%s" % (user_message, directive))
+    return (f"Message sent as you:\n{user_message}\n\n"
+            f"Added to the system prompt:\n{directive}")
 
 
 def analyze_request(query, context=None, attachments=None):
@@ -280,11 +273,11 @@ def analyze_request(query, context=None, attachments=None):
         from ..agent import task_matcher as tmatch
         from ..agent import task_register as reg_module
     except Exception as e:  # pragma: no cover - diagnostic path
-        print("[PromptRefiner] task register unavailable: %s" % e)
+        log_event("task_register_unavailable", tag="PromptRefiner", error_class=type(e).__name__, error=True)
         return _empty_analysis(query)
 
     try:
-        verdict = tmatch.classify(query)
+        verdict = tmatch.classify(query, personas=get_persona_selection())
         # `ambiguous` means the local match is below the confidence floor, or
         # tied across sections -- the register's own signal that a second
         # (stage-2) opinion is warranted before trusting it. That stage-2 call
@@ -326,9 +319,13 @@ def analyze_request(query, context=None, attachments=None):
                        if (isinstance(context, dict) and "layers" in context)
                        else ([] if isinstance(context, dict) else None))
         missing = tmatch.missing_slots(entry, query, slot_ctx, layer_names)
-        filled = tmatch.defaults(missing, layer_names=layer_names)
+        filled = tmatch.defaults(missing, layer_names=layer_names, entry=entry)
         plan = tmatch.attachment_plan(entry, attachments)
         directive = tmatch.task_directive(entry, filled, query)
+        with contextlib.suppress(Exception):  # a request that names three or more distinct steps is a workflow: one matched task would mislead it
+            from ..agent import capabilities
+            if capabilities.is_multi_step(query):
+                directive = capabilities.workflow_directive(query)
         user_message = tmatch.compose_user_message(query, filled, plan)
         return {
             "task":       entry,
@@ -348,7 +345,7 @@ def analyze_request(query, context=None, attachments=None):
             "expected_output": tmatch.expected_output(entry, query),
         }
     except Exception as e:  # pragma: no cover - never break the send path
-        print("[PromptRefiner] analyze_request failed: %s" % e)
+        log_event("analyze_request_failed", tag="PromptRefiner", error_class=type(e).__name__, error=True)
         return _empty_analysis(query)
 
 
@@ -358,7 +355,7 @@ def build_disambiguation_messages(query, candidates):
     Sends just the shortlisted task ids and labels -- never the register, which
     is ~40 KB and would dwarf every other prompt this plugin sends.
     """
-    listing = "; ".join("%s = %s" % (e["id"], e["text"]) for e, _ in candidates[:5])
+    listing = "; ".join("{} = {}".format(e["id"], e["text"]) for e, _ in candidates[:5])
     system = (
         "Pick which task the user means. Candidates: " + listing + ". "
         'Respond as JSON only: {"task_id": "..."} using exactly one of the ids above, '

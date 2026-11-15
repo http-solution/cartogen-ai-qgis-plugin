@@ -1,24 +1,28 @@
-# -*- coding: utf-8 -*-
 """
 Export & Reporting Tools for Cartogen AI.
 """
 
+import types
 import os
 import json
 import tempfile
 import datetime
+from ... import _chunked as _ck
 from .registry import register_tool
+from ._paths import resolve_output_path, temp_location_note
 from ._qgis_enum_compat import resolve_qgis_enum
 from ...models import sensitivity as _sens
 from .analysis_tools import _parse_date
 from .styling_tools import apply_categorized_style
 from ....infrastructure.settings_keys import PROJECT_PROPERTY_FETCHED_AT
+import contextlib
+from ._layer_checks import require_valid_layer
 
 try:
     from qgis.core import (
         QgsProject, QgsVectorFileWriter, QgsCoordinateTransformContext,
         QgsCoordinateReferenceSystem, QgsCoordinateTransform,
-        QgsVectorLayer, QgsFeature, QgsWkbTypes, QgsApplication,
+        QgsVectorLayer, QgsFeature, QgsWkbTypes, QgsApplication, QgsRasterLayer,
     )
     from qgis.PyQt.QtCore import QVariant
     from qgis.utils import iface
@@ -139,12 +143,11 @@ def _write_vector(layer, output_path, driver_name, layer_options=None, only_sele
         # Rc20 audit A12: a bare GeoJSON export wrote the layer's own CRS (e.g. projected metres) under a legacy "crs" member, which
         # most readers (RFC 7946) ignore, so the file landed in the wrong place. RFC7946=YES makes the OGR driver reproject to WGS84
         # and write standards-compliant output; a caller-supplied RFC7946 option still wins.
-        # RFC 7946 precision optimization: COORDINATE_PRECISION=6 provides ~0.1m ground precision, optimizing payload size.
-        if driver_name == "GeoJSON":
-            if not any(str(o).upper().startswith("RFC7946=") for o in layer_options):
-                layer_options.append("RFC7946=YES")
-            if not any(str(o).upper().startswith("COORDINATE_PRECISION=") for o in layer_options):
-                layer_options.append("COORDINATE_PRECISION=6")
+        # Rc20 audit A12 precision: COORDINATE_PRECISION=6 is about 0.1 m on the ground and keeps the payload small.
+        if driver_name == "GeoJSON" and not any(str(o).upper().startswith("RFC7946=") for o in layer_options):
+            layer_options.append("RFC7946=YES")
+        if driver_name == "GeoJSON" and not any(str(o).upper().startswith("COORDINATE_PRECISION=") for o in layer_options):
+            layer_options.append("COORDINATE_PRECISION=6")
         if layer_options:
             options.layerOptions = layer_options
         has_selection = False
@@ -223,8 +226,8 @@ def _write_vector(layer, output_path, driver_name, layer_options=None, only_sele
 # is a re-run and needs no question; replacing a file that was already on disk, or one edited or swapped since, does. rc17 hand test A6
 # (2026-10-06): "preview before replacing" was ignored and an existing CSV was overwritten silently. The `confirmed` argument is
 # stripped from the model's own arguments by the dispatcher, so only the user's Apply button can set it.
-_WRITTEN_THIS_SESSION = {}
-_DRIVER_EXTENSIONS = (".csv", ".shp", ".gpkg", ".geojson", ".kml")
+_WRITTEN_THIS_SESSION: dict = {}
+_DRIVER_EXTENSIONS = (".csv", ".shp", ".gpkg", ".geojson", ".kml", ".dxf", ".xlsx", ".ods")
 
 
 def _norm_path(path):
@@ -278,11 +281,53 @@ def overwrite_preview(tool_name, arguments, path):
     return None
 
 
-@register_tool("export_layer", "Export vector layer to file format (GeoPackage GPKG recommended, GeoJSON, ESRI Shapefile, KML). GeoPackage is canonical and preserves full field names; Shapefile truncates to 10 chars.", {"type": "object", "properties": {"layer_name": {"type": "string"}, "format": {"type": "string", "description": "Format to export to: 'gpkg' (canonical recommended), 'geojson', 'shp', 'kml'. Defaults to 'gpkg'."}, "output_path": {"type": "string"}, "only_selected": {"type": "boolean"}}, "required": ["layer_name"]})
-def export_layer(layer_name, format="gpkg", output_path=None, only_selected=None, confirmed=False):
+def _export_raster_layer(layer, layer_name, format, output_path, confirmed):  # noqa: A002 -- `format` is the tool's model-facing argument name
+    """GeoTIFF copy of a raster layer (rc22 smoke H4/D5: slope and other results are temporary files and the model, asked to export
+    one, called the vector exporter on it and failed). Only GeoTIFF is offered; other formats get a plain error."""
+    if str(format or "").lower() not in ("tif", "tiff", "geotiff", "gtiff", "gpkg", "geopackage", ""):
+        return {"error": f"Raster layers can be exported as GeoTIFF only, not '{format}'."}
+    if not output_path:
+        output_path = os.path.join(_default_export_dir("exports/geospatial"), f"{_sanitize_filename(layer.name())}.tif")
+    if not output_path.lower().endswith((".tif", ".tiff")):
+        output_path = os.path.splitext(output_path)[0] + ".tif"
+    if not confirmed:
+        preview = overwrite_preview("export_layer", {"layer_name": layer_name, "format": format, "output_path": output_path}, output_path)
+        if preview:
+            return preview
+    try:
+        from osgeo import gdal
+    except ImportError:
+        return {"error": "GDAL's Python bindings are not available in this QGIS, so the raster could not be exported."}
+    source = (layer.source() or "").split("|", 1)[0]
+    if not source or not os.path.isfile(source):
+        return {"error": "This raster has no file on disk to copy (it is a web or in-memory layer)."}
+    try:
+        os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
+        dataset = gdal.Translate(output_path, source, format="GTiff", creationOptions=["COMPRESS=DEFLATE", "TILED=YES"])
+        if dataset is None or not os.path.isfile(output_path):
+            return {"error": f"GDAL did not write '{output_path}'."}
+        dataset = None
+    except Exception as e:
+        return {"error": f"Raster export failed: {e}"}
+    remember_written(output_path)
+    return {"success": True, "output_path": output_path, "format": "GeoTIFF", "layer_name": layer_name}
+
+
+@register_tool("export_layer", "Export a layer to a file: a vector layer to ESRI Shapefile, GeoJSON, GPKG or KML; a raster layer to GeoTIFF (format 'tif'). A relative output_path is anchored to the project folder; the reply's output_path is the real location.", {"type": "object", "properties": {"layer_name": {"type": "string"}, "format": {"type": "string"}, "output_path": {"type": "string"}, "only_selected": {"type": "boolean"}}, "required": ["layer_name", "format"]},
+    keywords=[
+        "to a geopackage", "to a shapefile", "as a geopackage", "as a shapefile", "to a kml", "as a kml", "to a geojson",
+        "as a geojson", "export the layer", "export layer", "save the layer as", "save layer as", "save as shapefile",
+        "save as geojson", "save as geopackage", "export to shapefile", "export to geojson", "export to geopackage",
+        "export to gpkg", "export to kml", "export the selected", "export only the selected", "write the layer to a file",
+    ],
+)
+def export_layer(layer_name, format, output_path=None, only_selected=None, confirmed=False):  # noqa: A002 -- `format` is the tool's model-facing argument name
+    output_path = resolve_output_path(output_path)   # rc22 smoke N3/N8/N9: anchor relative paths to the project (see _paths.py)
     layer = _find_layer_by_name(layer_name)
     if layer is None:
         return {"error": f"Layer '{layer_name}' not found"}
+    if QGIS_AVAILABLE and isinstance(layer, QgsRasterLayer):
+        return _export_raster_layer(layer, layer_name, format, output_path, confirmed)
 
     allowed, block_msg = _sens.check_export_allowed(layer)
     if not allowed:
@@ -299,7 +344,7 @@ def export_layer(layer_name, format="gpkg", output_path=None, only_selected=None
         "kml": ("KML", ".kml", "KML (*.kml)"),
     }
     fmt_key = format.lower()
-    driver, ext, filter_str = fmt_map.get(fmt_key, (format, f".{format.lower()}", f"{format} (*.*)"))
+    driver, ext, _filter_str = fmt_map.get(fmt_key, (format, f".{format.lower()}", f"{format} (*.*)"))
 
     # No blocking QFileDialog here -- this tool is called by the LLM agent's unattended
     # tool-calling loop (agent/agent_orchestrator.py), not only from direct human UI interaction. A
@@ -327,6 +372,157 @@ def export_layer(layer_name, format="gpkg", output_path=None, only_selected=None
     return result
 
 
+_DXF_MAX_LAYERS = 20
+
+
+def _fill_unset_boolean_options(algorithm_id, params):
+    """Set every boolean parameter of the algorithm that `params` leaves out to its declared default, else False, so a boolean added in a
+    later QGIS cannot make the call fail the way EXPORT_LINES_WITH_ZERO_WIDTH did. Best effort: any lookup problem leaves `params` as is."""
+    try:
+        from qgis.core import QgsProcessingParameterBoolean
+        algorithm = QgsApplication.processingRegistry().algorithmById(algorithm_id)
+        for definition in algorithm.parameterDefinitions():
+            if isinstance(definition, QgsProcessingParameterBoolean) and definition.name() not in params:
+                default = definition.defaultValue()
+                params[definition.name()] = bool(default) if default is not None else False
+    except Exception:
+        return
+
+
+
+def _vector_layers_for_export(layer_names, label):
+    """(names, layers, None) for the vector layers a multi-layer export named, else (None, None, {"error": ...}). Shared by the DXF and
+    spreadsheet exports so both refuse the same things: no layer, more than _DXF_MAX_LAYERS, an unknown layer, a raster."""
+    if isinstance(layer_names, str):
+        layer_names = [layer_names]
+    names = [str(n) for n in (layer_names or []) if str(n).strip()]
+    if not names:
+        return None, None, {"error": "Name at least one vector layer to export."}
+    if len(names) > _DXF_MAX_LAYERS:
+        return None, None, {"error": f"A {label} takes at most {_DXF_MAX_LAYERS} layers; {len(names)} were named."}
+    if not QGIS_AVAILABLE:
+        return None, None, {"error": "QGIS not available"}
+    layers = []
+    for name in names:
+        layer = _find_layer_by_name(name)
+        if layer is None:
+            return None, None, {"error": f"Layer '{name}' not found"}
+        if not isinstance(layer, QgsVectorLayer):
+            return None, None, {"error": f"'{name}' is not a vector layer; a {label} takes vector layers and tables only."}
+        layers.append(layer)
+    return names, layers, None
+
+
+@register_tool("export_layers_to_dxf", "Export one or more vector layers to a single DXF file for CAD software (AutoCAD and similar). "
+               "A DXF holds geometry and layer names, not attribute tables or QGIS styling: say so if the user expects either. "
+               "output_path is optional -- omit it to save under the project's data/20_processed folder (or the QGIS profile folder if the "
+               "project is not saved yet); a relative path is anchored to the project folder and the reply's output_path is the real location. "
+               "At most 20 layers per file. Replacing an existing file asks the user first.",
+               {"type": "object", "properties": {"layer_names": {"type": "array", "items": {"type": "string"}}, "output_path": {"type": "string"}}, "required": ["layer_names"]},
+    keywords=[
+        "dxf", "autocad", "cad file", "cad software", "cad format", "for cad", "to cad", "into cad", "civil 3d", "microstation",
+        "draftsman", "engineers can open", "engineer can open",
+    ],
+)
+def export_layers_to_dxf(layer_names, output_path=None, confirmed=False):
+    """native:dxfexport behind the same path anchoring, overwrite preview and sensitivity warning as export_layer.
+
+    Why a dedicated tool and not the generic Processing tool: that one forces every output to a temporary file (PLAN-005 rule R1), but a DXF
+    exists to be handed to someone, so the user's file is the product. No CAD export existed (PLAN-006, coverage row "Import / export DXF").
+    Unverified against a live QGIS session by hand; the live test is CI only."""
+    names, layers, error = _vector_layers_for_export(layer_names, "DXF export")
+    if error:
+        return error
+    output_path = resolve_output_path(output_path)
+    if not output_path:
+        stem = _sanitize_filename(layers[0].name() if len(layers) == 1 else "cartogen_export")
+        output_path = os.path.join(_default_export_dir("exports/geospatial"), f"{stem}.dxf")
+    elif not output_path.lower().endswith(".dxf"):
+        output_path = os.path.splitext(output_path)[0] + ".dxf"
+    if not confirmed:
+        preview = overwrite_preview("export_layers_to_dxf", {"layer_names": names, "output_path": output_path}, output_path)
+        if preview:
+            return preview
+    try:
+        import processing
+        os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
+        params = {
+            "LAYERS": [{"layer": layer.id(), "attributeIndex": -1} for layer in layers],
+            "OUTPUT": output_path,
+            # CI's first live run (2026-10-23) failed with "Incorrect parameter value for EXPORT_LINES_WITH_ZERO_WIDTH": the boolean
+            # options have no usable default when the algorithm is run from Python, so each is stated. No symbology: a DXF for CAD hand-over.
+            "USE_LAYER_TITLE": False, "MTEXT": False, "EXPORT_LINES_WITH_ZERO_WIDTH": False, "FORCE_2D": False, "SYMBOLOGY_MODE": 0,
+        }
+        _fill_unset_boolean_options("native:dxfexport", params)
+        processing.run("native:dxfexport", params)
+    except Exception as e:
+        return {"error": f"DXF export failed: {e}"}
+    if not os.path.isfile(output_path) or os.path.getsize(output_path) == 0:
+        return {"error": f"The DXF export finished but '{output_path}' was not written."}
+    remember_written(output_path)
+    result = {"success": True, "output_path": output_path, "format": "DXF", "layer_names": names,
+              "note": "A DXF carries geometry and layer names only, not attribute tables or QGIS styling."}
+    warnings = [w for w in (_sens.export_warning_for(layer) for layer in layers) if w]
+    if warnings:
+        result["warning"] = " ".join(dict.fromkeys(warnings))
+    return result
+
+
+@register_tool("export_layers_to_spreadsheet", "Export one or more vector layers or tables to a single spreadsheet (Excel .xlsx, or .ods) with one sheet "
+               "per layer, attributes only (no styling). Use it when the user asks for an Excel or spreadsheet file; export_to_csv is for CSV. "
+               "output_path is optional -- omit it to save under the project's data/20_processed folder (or the QGIS profile folder if the "
+               "project is not saved yet); a relative path is anchored to the project folder and the reply's output_path is the real location. "
+               "At most 20 layers per file. Replacing an existing file asks the user first.",
+               {"type": "object", "properties": {"layer_names": {"type": "array", "items": {"type": "string"}}, "output_path": {"type": "string"}}, "required": ["layer_names"]},
+    keywords=[
+        "excel", "xlsx", ".ods", "libreoffice", "open document spreadsheet", "to a spreadsheet", "as a spreadsheet",
+        "into a spreadsheet", "spreadsheet file", "spreadsheet of the", "export to a spreadsheet", "export the table to excel",
+        "one sheet per layer",
+    ],
+)
+def export_layers_to_spreadsheet(layer_names, output_path=None, confirmed=False):
+    """native:exporttospreadsheet behind the same path anchoring, overwrite preview and sensitivity warning as export_layer.
+
+    A dedicated tool, like the DXF export, because the user's file is the product (the generic Processing tool forces temporary outputs).
+    export_to_csv covers CSV only; there was no .xlsx/.ods writer (PLAN-006 package E2c). Unverified by hand; the live test is CI only."""
+    names, layers, error = _vector_layers_for_export(layer_names, "spreadsheet export")
+    if error:
+        return error
+    output_path = resolve_output_path(output_path)
+    if not output_path:
+        stem = _sanitize_filename(layers[0].name() if len(layers) == 1 else "cartogen_export")
+        output_path = os.path.join(_default_export_dir("exports/geospatial"), f"{stem}.xlsx")
+    elif not output_path.lower().endswith((".xlsx", ".ods")):
+        output_path = os.path.splitext(output_path)[0] + ".xlsx"
+    if not confirmed:
+        preview = overwrite_preview("export_layers_to_spreadsheet", {"layer_names": names, "output_path": output_path}, output_path)
+        if preview:
+            return preview
+    try:
+        import processing
+        os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
+        params = {
+            "LAYERS": [layer.id() for layer in layers],
+            "OUTPUT": output_path,
+            # Stated, not left to defaults: the DXF export's first live run showed booleans without a usable default fail from Python.
+            # OVERWRITE is True because an existing target was either absent or already confirmed above.
+            "USE_ALIAS": False, "FORMATTED_VALUES": False, "OVERWRITE": True,
+        }
+        _fill_unset_boolean_options("native:exporttospreadsheet", params)
+        processing.run("native:exporttospreadsheet", params)
+    except Exception as e:
+        return {"error": f"Spreadsheet export failed: {e}"}
+    if not os.path.isfile(output_path) or os.path.getsize(output_path) == 0:
+        return {"error": f"The spreadsheet export finished but '{output_path}' was not written."}
+    remember_written(output_path)
+    result = {"success": True, "output_path": output_path, "format": output_path.rsplit(".", 1)[-1].upper(), "layer_names": names,
+              "note": "One sheet per layer; attributes only, no geometry or styling."}
+    warnings = [w for w in (_sens.export_warning_for(layer) for layer in layers) if w]
+    if warnings:
+        result["warning"] = " ".join(dict.fromkeys(warnings))
+    return result
+
+
 # SEC-002, 2026-09-13 audit: a value beginning with one of these characters is interpreted
 # as a formula by Excel/LibreOffice/Google Sheets when the CSV is opened there -- a classic
 # CSV/"formula" injection vector (OWASP). A layer's string attribute fields can come from
@@ -349,7 +545,7 @@ def _sanitize_csv_formula_injection(csv_path, string_field_names):
     reported as its own error rather than silently leaving unsanitized output in place."""
     import csv
     try:
-        with open(csv_path, "r", newline="", encoding="utf-8-sig") as f:
+        with open(csv_path, newline="", encoding="utf-8-sig") as f:
             rows = list(csv.reader(f))
         if not rows:
             return None
@@ -470,8 +666,14 @@ def _derive_csv_path(layer, output_path):
                "If features are selected on the layer, only selected features are exported by default. "
                "Point layers get X and Y columns (in the layer's CRS) instead of a WKT column unless "
                "wkt_geometry is true; the file is UTF-8 with a BOM so Excel shows non-ASCII names correctly.",
-               {"type": "object", "properties": {"layer_name": {"type": "string"}, "output_path": {"type": "string"}, "only_selected": {"type": "boolean"}, "wkt_geometry": {"type": "boolean", "description": "Point layers only: write a WKT geometry column instead of X/Y columns."}}, "required": ["layer_name"]})
+               {"type": "object", "properties": {"layer_name": {"type": "string"}, "output_path": {"type": "string"}, "only_selected": {"type": "boolean"}, "wkt_geometry": {"type": "boolean", "description": "Point layers only: write a WKT geometry column instead of X/Y columns."}}, "required": ["layer_name"]},
+    keywords=[
+        "export to csv", "export the table", "save as csv", "save to csv", "export the attribute table", "write a csv",
+        "as a csv file",
+    ],
+)
 def export_to_csv(layer_name, output_path=None, only_selected=None, wkt_geometry=False, confirmed=False):
+    output_path = resolve_output_path(output_path)   # rc22 smoke N3/N8/N9: anchor relative paths to the project (see _paths.py)
     layer = _find_layer_by_name(layer_name)
     if layer is None:
         return {"error": f"Layer '{layer_name}' not found"}
@@ -520,8 +722,13 @@ def export_to_csv(layer_name, output_path=None, only_selected=None, wkt_geometry
             }
         },
     },
+
+    keywords=[
+        "image for whatsapp", "map view as an image", "screenshot of the map", "export the map view",
+    ],
 )
 def print_map(output_path=None):
+    output_path = resolve_output_path(output_path)   # rc22 smoke N3/N8/N9: anchor relative paths to the project (see _paths.py)
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
     if iface is None or iface.mapCanvas() is None:
@@ -555,13 +762,15 @@ def print_map(output_path=None):
             h_mm = max(100.0, (c_h / 96.0) * 25.4)
 
             writer = QPdfWriter(output_path)
-            writer.setPageSize(QPageSize(QSizeF(w_mm, h_mm), QPageSize.Millimeter))
+            writer.setPageSize(QPageSize(QSizeF(w_mm, h_mm), QPageSize.Unit.Millimeter))
             writer.setResolution(300)
 
             painter = QPainter(writer)
             try:
                 settings = QgsMapSettings(canvas.mapSettings())
-                paint_rect = writer.layout().paintRectPixels(300)
+                # rc48 hand test A22 (2026-10-24): "QPdfWriter object has no attribute layout" -- QPagedPaintDevice has pageLayout(), not
+                # layout(), so every PDF map export raised here after the file was created, leaving a blank PDF and an error reply.
+                paint_rect = writer.pageLayout().paintRectPixels(300)
                 settings.setOutputSize(paint_rect.size())
                 settings.setOutputDpi(300)
 
@@ -595,14 +804,16 @@ def _layer_provenance_entries(source_layers):
     section at all."""
     if not source_layers:
         return []
+    from .. import source_record
     from ..lineage import get_layer_lineage
     entries = []
     for name in source_layers:
         layer = _find_layer_by_name(name)
         if layer is None:
-            entries.append({"layer": name, "found": False, "history": []})
+            entries.append({"layer": name, "found": False, "history": [], "data_sources": []})
             continue
-        entries.append({"layer": name, "found": True, "history": get_layer_lineage(layer)})
+        entries.append({"layer": name, "found": True, "history": get_layer_lineage(layer),
+                        "data_sources": source_record.collect(layer, _find_layer_by_name)})      # PLAN-044: where fetched data came from, own + inherited
     return entries
 
 
@@ -610,7 +821,9 @@ def _format_lineage_entry(h):
     sources = f" (from: {', '.join(h['sources'])})" if h.get("sources") else ""
     params = h.get("params") or {}
     params_str = f" [{', '.join(f'{k}={v}' for k, v in params.items())}]" if params else ""
-    return f"{h.get('timestamp', 'unknown time')} -- {h.get('tool', 'unknown tool')}{sources}{params_str}"
+    workflow = h.get("workflow") if isinstance(h.get("workflow"), dict) else None
+    from_file = f" [from workflow file '{workflow.get('name', '?')}' sha256 {str(workflow.get('fingerprint', ''))[:12]}]" if workflow else ""
+    return f"{h.get('timestamp', 'unknown time')} -- {h.get('tool', 'unknown tool')}{sources}{params_str}{from_file}"
 
 
 @register_tool(
@@ -638,6 +851,7 @@ def generate_report(title, content, source_layers=None):
         for paragraph in str(content).split("\n\n"):
             doc.add_paragraph(paragraph)
 
+        from .. import source_record
         entries = _layer_provenance_entries(source_layers)
         if entries:
             doc.add_heading("Data Sources & Provenance", level=1)
@@ -650,6 +864,8 @@ def generate_report(title, content, source_layers=None):
                 else:
                     for h in entry["history"]:
                         doc.add_paragraph(_format_lineage_entry(h), style="List Bullet")
+                for record in entry.get("data_sources", []):
+                    doc.add_paragraph("Data source: " + source_record.describe(record), style="List Bullet")
 
         desktop = os.path.join(os.path.expanduser("~"), "Desktop")
         if not os.path.isdir(desktop):
@@ -689,6 +905,7 @@ def generate_report(title, content, source_layers=None):
 def generate_spatial_report(title, insights, source_layers=None):
     report = f"## 📊 Spatial Report: {title}\n\n{insights}"
 
+    from .. import source_record
     entries = _layer_provenance_entries(source_layers)
     if entries:
         lines = ["", "### Data Sources & Provenance"]
@@ -699,8 +916,8 @@ def generate_spatial_report(title, insights, source_layers=None):
                 lines.append(f"- **{entry['layer']}**: no tracked lineage -- loaded directly, not created/modified by an agent tool.")
             else:
                 lines.append(f"- **{entry['layer']}**:")
-                for h in entry["history"]:
-                    lines.append(f"  - {_format_lineage_entry(h)}")
+                lines.extend(f"  - {_format_lineage_entry(h)}" for h in entry["history"])
+            lines.extend(f"  - Data source: {source_record.describe(r)}" for r in entry.get("data_sources", []))
         report += "\n\n" + "\n".join(lines)
 
     return {"message": "Report generated successfully.", "report": report}
@@ -886,11 +1103,18 @@ def _resolve_popup_kwargs(folium_module, name, features, popup_fields, popup_lab
     None if there's nothing to show. Mutates `warnings` in place -- same
     convention every other warning collected while building the map
     already uses."""
+    # Round-2 live run 2026-11-05 (row C1, evidence t12): generate_situation_dashboard handed popup_labels over as a LIST aligned with popup_fields, and the
+    # popup_labels.get(f) below raised "'list' object has no attribute 'get'" for the whole dashboard. A list is read by position against the fields as given
+    # (before any are dropped); anything that is neither a list nor a dict is ignored, so a bad label argument can no longer break the page.
+    if isinstance(popup_labels, (list, tuple)):
+        popup_labels = dict(zip(popup_fields or [], popup_labels, strict=False))        # strict=False on purpose: a short list labels only what it covers
+    elif not isinstance(popup_labels, dict):
+        popup_labels = None
     if popup_fields:
         popup_fields = [f for f in popup_fields if not str(f).startswith("__cartogen_")]
     if not popup_fields and features:
         popup_fields = [
-            k for k in features[0].get("properties", {}).keys()
+            k for k in features[0].get("properties", {})
             if not str(k).startswith("__cartogen_")
         ]
     if popup_fields and len(popup_fields) > _MAX_DASHBOARD_POPUP_FIELDS:
@@ -962,7 +1186,20 @@ CLUSTER_MIN_POINTS = 100
 # folium 0.20 loads Leaflet.markercluster 1.1.0 from cdnjs; the F12 browser check used 1.5.3 (the current cdnjs
 # release, which needs Leaflet >= 1.0). Point the plugin at the tested version instead of an untested one.
 MARKERCLUSTER_VERSION = "1.5.3"
-_MARKERCLUSTER_CDN = "https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/%s/" % MARKERCLUSTER_VERSION
+_MARKERCLUSTER_CDN = f"https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/{MARKERCLUSTER_VERSION}/"
+
+
+def _choropleth_style(colormap, field):
+    """folium style_function colouring a polygon by a numeric property; non-numeric values are grey."""
+    def style_function(feat):
+        val = feat["properties"].get(field)
+        return {
+            "fillColor": colormap(val) if isinstance(val, (int, float)) else "#999999",
+            "color": "black",
+            "weight": 1,
+            "fillOpacity": 0.6,
+        }
+    return style_function
 
 
 def _pinned_marker_cluster():
@@ -1096,14 +1333,7 @@ def _build_dashboard_html(layers, title=None, basemap=None, backdrop=None):
                     ["#1a9850", "#fee08b", "#d73027"], vmin=min(values), vmax=max(values),
                 )
 
-                def style_function(feat, _cmap=colormap, _field=color_field):
-                    val = feat["properties"].get(_field)
-                    return {
-                        "fillColor": _cmap(val) if isinstance(val, (int, float)) else "#999999",
-                        "color": "black",
-                        "weight": 1,
-                        "fillOpacity": 0.6,
-                    }
+                style_function = _choropleth_style(colormap, color_field)
             else:
                 warnings.append(f"'{name}': color_field '{color_field}' has no numeric values -- rendered without choropleth coloring.")
 
@@ -1113,8 +1343,8 @@ def _build_dashboard_html(layers, title=None, basemap=None, backdrop=None):
         if style_function:
             gj_kwargs["style_function"] = style_function
         if _should_cluster(features):
-            MarkerCluster = _pinned_marker_cluster()
-            target = MarkerCluster(name=name).add_to(m)
+            marker_cluster = _pinned_marker_cluster()
+            target = marker_cluster(name=name).add_to(m)
             warnings.append(
                 f"'{name}': {len(features):,} points are drawn as clusters that split as you zoom in "
                 "(the page loads the Leaflet.markercluster library from a CDN)."
@@ -1310,7 +1540,7 @@ def _build_trend_chart_data(layer_chart_inputs):
         if not category_field:
             continue
         any_category_field = True
-        for feat, location_value, start_ms in zip(features, location_values, start_ms_list):
+        for feat, location_value, start_ms in zip(features, location_values, start_ms_list, strict=False):
             if start_ms is None:
                 continue
             category = feat.get("properties", {}).get(category_field)
@@ -1348,6 +1578,104 @@ def _json_for_inline_script(value):
     U+2028/U+2029 JS line-terminator characters that are the other classic
     gotcha here, so nothing extra is needed for those.)"""
     return json.dumps(value).replace("</", "<\\/")
+
+
+def _add_static_overlay(folium, m, layer, popup):
+    """A layer without start_field: an ordinary always-visible overlay (a choropleth when color_field is numeric)."""
+    name = layer["name"]
+    geojson = layer.get("geojson", {})
+    features = geojson.get("features", [])
+    # Static reference layer -- same choropleth-or-plain rendering
+    # _build_dashboard_html uses, inlined here since this is its
+    # only other caller.
+    color_field = layer.get("color_field")
+    style_function = None
+    if color_field and features:
+        values = [
+            f["properties"][color_field] for f in features
+            if isinstance(f.get("properties", {}).get(color_field), (int, float))
+        ]
+        if values:
+            import branca.colormap as branca_cm
+            cmap = branca_cm.LinearColormap(
+                ["#1a9850", "#fee08b", "#d73027"], vmin=min(values), vmax=max(values),
+            )
+
+            style_function = _choropleth_style(cmap, color_field)
+    gj_kwargs = {"name": name}
+    if popup is not None:
+        gj_kwargs["popup"] = popup
+    if style_function:
+        gj_kwargs["style_function"] = style_function
+    folium.GeoJson(geojson, **gj_kwargs).add_to(m)
+
+
+def _add_temporal_overlay(folium, m, layer, popup, warnings, acc):
+    """A layer with start_field: bakes each feature's window, colour and location into its properties and adds it (clustered when large)."""
+    name = layer["name"]
+    geojson = layer.get("geojson", {})
+    features = geojson.get("features", [])
+    start_field = layer.get("start_field")
+    # Temporal layer: bake each feature's window + color + location into
+    # its own properties so the client-side slider JS can restyle/
+    # toggle/filter it without recomputing anything (see module
+    # docstring above on why colors are baked in Python rather than
+    # recolored live in JS).
+    location_field = layer.get("location_field")
+    colors = _resolve_temporal_colors(
+        name, features, layer.get("category_field"), layer.get("color_field"), warnings,
+    )
+    bounds = _resolve_temporal_bounds(features, start_field, layer.get("end_field"), name, warnings)
+    location_values = _resolve_feature_locations(features, location_field)
+
+    new_features = []
+    for feat, color, (start_ms, end_ms), location_value in zip(features, colors, bounds, location_values, strict=False):
+        props = dict(feat.get("properties", {}))
+        props["__cartogen_start_ms"] = start_ms
+        props["__cartogen_end_ms"] = end_ms
+        props["__cartogen_color"] = color
+        props["__cartogen_location"] = None if location_value is None else str(location_value)
+        new_features.append({**feat, "properties": props})
+        if start_ms is not None:
+            acc.all_start_ms.append(start_ms)
+        if end_ms is not None:
+            acc.all_end_ms.append(end_ms)
+        if location_value is not None:
+            acc.all_locations.add(str(location_value))
+    temporal_geojson = {**geojson, "features": new_features}
+
+    acc.chart_inputs.append((features, layer.get("category_field"), location_values, [s for s, _e in bounds]))
+
+    def _cartogen_temporal_style(feat):
+        return {
+            "fillColor": feat["properties"].get("__cartogen_color", "#3388ff"),
+            "color": "#333333", "weight": 1, "fillOpacity": 0.6, "opacity": 1,
+        }
+
+    gj_kwargs = {
+        "name": name, "style_function": _cartogen_temporal_style,
+        "marker": folium.CircleMarker(radius=layer.get("marker_radius") or 6, fill=True),
+    }
+    if popup is not None:
+        gj_kwargs["popup"] = popup
+    gj = folium.GeoJson(temporal_geojson, **gj_kwargs)
+    if _should_cluster(features):
+        # F12: a large animated point layer is clustered too. The slider hides a feature by zeroing
+        # its opacity, which a cluster would still count, so the page script rebuilds this cluster
+        # from only the ACTIVE markers on every frame (see __cartogenUpdateFrame).
+        marker_cluster = _pinned_marker_cluster()
+        cluster = marker_cluster(name=name).add_to(m)
+        gj.add_to(cluster)
+        acc.cluster_js_vars.append(cluster.get_name())
+        warnings.append(
+            f"'{name}': {len(features):,} points are drawn as clusters of the features active at the "
+            "selected date (cluster bubbles use the default colours; individual markers keep their "
+            "category colours once you zoom in)."
+        )
+    else:
+        gj.add_to(m)
+        acc.cluster_js_vars.append("null")
+    acc.temporal_js_vars.append(gj.get_name())
 
 
 def _build_temporal_dashboard_html(layers, title=None, step_days=30, basemap=None, backdrop=None):
@@ -1466,113 +1794,22 @@ def _build_temporal_dashboard_html(layers, title=None, step_days=30, basemap=Non
     if basemap_warning:
         warnings.append(basemap_warning)
 
-    temporal_js_vars = []
-    cluster_js_vars = []     # parallel to temporal_js_vars: a MarkerCluster's JS name, or "null"
-    all_start_ms, all_end_ms = [], []
-    all_locations = set()
-    chart_inputs = []
+    acc = types.SimpleNamespace(
+        temporal_js_vars=[],
+        cluster_js_vars=[],     # parallel to temporal_js_vars: a MarkerCluster's JS name, or "null"
+        all_start_ms=[], all_end_ms=[], all_locations=set(), chart_inputs=[])
 
     for layer in layers:
-        name = layer["name"]
-        geojson = layer.get("geojson", {})
-        features = geojson.get("features", [])
-        start_field = layer.get("start_field")
-
         popup = _resolve_popup_kwargs(
-            folium, name, features, layer.get("popup_fields"), layer.get("popup_labels"), warnings,
+            folium, layer["name"], layer.get("geojson", {}).get("features", []), layer.get("popup_fields"),
+            layer.get("popup_labels"), warnings,
         )
-
-        if not start_field:
-            # Static reference layer -- same choropleth-or-plain rendering
-            # _build_dashboard_html uses, inlined here since this is its
-            # only other caller.
-            color_field = layer.get("color_field")
-            style_function = None
-            if color_field and features:
-                values = [
-                    f["properties"][color_field] for f in features
-                    if isinstance(f.get("properties", {}).get(color_field), (int, float))
-                ]
-                if values:
-                    import branca.colormap as branca_cm
-                    cmap = branca_cm.LinearColormap(
-                        ["#1a9850", "#fee08b", "#d73027"], vmin=min(values), vmax=max(values),
-                    )
-
-                    def style_function(feat, _cmap=cmap, _field=color_field):
-                        val = feat["properties"].get(_field)
-                        return {
-                            "fillColor": _cmap(val) if isinstance(val, (int, float)) else "#999999",
-                            "color": "black", "weight": 1, "fillOpacity": 0.6,
-                        }
-            gj_kwargs = {"name": name}
-            if popup is not None:
-                gj_kwargs["popup"] = popup
-            if style_function:
-                gj_kwargs["style_function"] = style_function
-            folium.GeoJson(geojson, **gj_kwargs).add_to(m)
-            continue
-
-        # Temporal layer: bake each feature's window + color + location into
-        # its own properties so the client-side slider JS can restyle/
-        # toggle/filter it without recomputing anything (see module
-        # docstring above on why colors are baked in Python rather than
-        # recolored live in JS).
-        location_field = layer.get("location_field")
-        colors = _resolve_temporal_colors(
-            name, features, layer.get("category_field"), layer.get("color_field"), warnings,
-        )
-        bounds = _resolve_temporal_bounds(features, start_field, layer.get("end_field"), name, warnings)
-        location_values = _resolve_feature_locations(features, location_field)
-
-        new_features = []
-        for feat, color, (start_ms, end_ms), location_value in zip(features, colors, bounds, location_values):
-            props = dict(feat.get("properties", {}))
-            props["__cartogen_start_ms"] = start_ms
-            props["__cartogen_end_ms"] = end_ms
-            props["__cartogen_color"] = color
-            props["__cartogen_location"] = None if location_value is None else str(location_value)
-            new_features.append({**feat, "properties": props})
-            if start_ms is not None:
-                all_start_ms.append(start_ms)
-            if end_ms is not None:
-                all_end_ms.append(end_ms)
-            if location_value is not None:
-                all_locations.add(str(location_value))
-        temporal_geojson = {**geojson, "features": new_features}
-
-        chart_inputs.append((features, layer.get("category_field"), location_values, [s for s, _e in bounds]))
-
-        def _cartogen_temporal_style(feat):
-            return {
-                "fillColor": feat["properties"].get("__cartogen_color", "#3388ff"),
-                "color": "#333333", "weight": 1, "fillOpacity": 0.6, "opacity": 1,
-            }
-
-        gj_kwargs = {
-            "name": name, "style_function": _cartogen_temporal_style,
-            "marker": folium.CircleMarker(radius=layer.get("marker_radius") or 6, fill=True),
-        }
-        if popup is not None:
-            gj_kwargs["popup"] = popup
-        gj = folium.GeoJson(temporal_geojson, **gj_kwargs)
-        if _should_cluster(features):
-            # F12: a large animated point layer is clustered too. The slider hides a feature by zeroing
-            # its opacity, which a cluster would still count, so the page script rebuilds this cluster
-            # from only the ACTIVE markers on every frame (see __cartogenUpdateFrame).
-            MarkerCluster = _pinned_marker_cluster()
-            cluster = MarkerCluster(name=name).add_to(m)
-            gj.add_to(cluster)
-            cluster_js_vars.append(cluster.get_name())
-            warnings.append(
-                f"'{name}': {len(features):,} points are drawn as clusters of the features active at the "
-                "selected date (cluster bubbles use the default colours; individual markers keep their "
-                "category colours once you zoom in)."
-            )
+        if not layer.get("start_field"):
+            _add_static_overlay(folium, m, layer, popup)
         else:
-            gj.add_to(m)
-            cluster_js_vars.append("null")
-        temporal_js_vars.append(gj.get_name())
+            _add_temporal_overlay(folium, m, layer, popup, warnings, acc)
+    temporal_js_vars, cluster_js_vars = acc.temporal_js_vars, acc.cluster_js_vars
+    all_start_ms, all_end_ms, all_locations, chart_inputs = acc.all_start_ms, acc.all_end_ms, acc.all_locations, acc.chart_inputs
 
     folium.LayerControl().add_to(m)
 
@@ -1912,6 +2149,7 @@ def _build_capped_simplified_layer(layer, max_features, total, tolerance):
         f"{QgsWkbTypes.displayString(layer.wkbType())}?crs={layer.crs().authid()}",
         layer.name(), "memory",
     )
+    require_valid_layer(mem_layer)
     mem_provider = mem_layer.dataProvider()
     mem_provider.addAttributes(layer.fields())
     mem_layer.updateFields()
@@ -2013,7 +2251,7 @@ def _load_backdrop(layer_name, tmp_files, size_warnings):
     write_res = _write_layer_geojson_wgs84(export_layer, tmp_path)
     if "error" in write_res:
         return None, write_res
-    with open(tmp_path, "r", encoding="utf-8") as f:
+    with open(tmp_path, encoding="utf-8") as f:
         return json.load(f), None
 
 
@@ -2059,8 +2297,12 @@ def _load_backdrop(layer_name, tmp_files, size_warnings):
         },
         "required": ["layers"],
     },
+    keywords=[
+        "interactive map", "send to donors", "share with", "web map", "donor briefing", "for stakeholders",
+    ],
 )
 def generate_html_dashboard(layers, title=None, output_path=None, basemap=None, backdrop_layer=None):
+    output_path = resolve_output_path(output_path)   # rc22 smoke N3/N8/N9: anchor relative paths to the project (see _paths.py)
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
     if not layers:
@@ -2089,7 +2331,7 @@ def generate_html_dashboard(layers, title=None, output_path=None, basemap=None, 
             if "error" in write_res:
                 return write_res
 
-            with open(tmp_path, "r", encoding="utf-8") as f:
+            with open(tmp_path, encoding="utf-8") as f:
                 geojson = json.load(f)
 
             prepared.append({
@@ -2114,7 +2356,7 @@ def generate_html_dashboard(layers, title=None, output_path=None, basemap=None, 
 
         out_path = output_path or _dashboard_output_path(title)
         with open(out_path, "w", encoding="utf-8") as f:
-            f.write(_inject_notices(result["html"], size_warnings))
+            f.write(_inject_notices(result["html"], [*size_warnings, DASHBOARD_INTERNET_NOTE]))
 
         response = {
             "success": True,
@@ -2141,10 +2383,8 @@ def generate_html_dashboard(layers, title=None, output_path=None, basemap=None, 
         return {"error": f"generate_html_dashboard failed: {e}"}
     finally:
         for p in tmp_files:
-            try:
+            with contextlib.suppress(OSError):
                 os.remove(p)
-            except OSError:
-                pass
 
 
 def _temp_html_path():
@@ -2175,6 +2415,11 @@ def _dashboard_output_path(title, now=None):
         return path
     except Exception:
         return _temp_html_path()
+
+
+# GitHub #84 (rc48 OI-84): the file said nothing about needing internet; only the chat reply did, so someone opening the shared file offline saw a
+# blank page and no reason. Shown in the file itself, with any cap/simplification notice.
+DASHBOARD_INTERNET_NOTE = "This map needs an internet connection to load its basemap and libraries; offline it may open blank."
 
 
 def _inject_notices(html, notices):
@@ -2256,6 +2501,7 @@ def _inject_notices(html, notices):
     },
 )
 def generate_temporal_dashboard(layers, title=None, output_path=None, step_days=30, basemap=None, backdrop_layer=None):
+    output_path = resolve_output_path(output_path)   # rc22 smoke N3/N8/N9: anchor relative paths to the project (see _paths.py)
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
     if not layers:
@@ -2284,7 +2530,7 @@ def generate_temporal_dashboard(layers, title=None, output_path=None, step_days=
             if "error" in write_res:
                 return write_res
 
-            with open(tmp_path, "r", encoding="utf-8") as f:
+            with open(tmp_path, encoding="utf-8") as f:
                 geojson = json.load(f)
 
             prepared.append({
@@ -2310,7 +2556,7 @@ def generate_temporal_dashboard(layers, title=None, output_path=None, step_days=
 
         out_path = output_path or _dashboard_output_path(title)
         with open(out_path, "w", encoding="utf-8") as f:
-            f.write(_inject_notices(result["html"], size_warnings))
+            f.write(_inject_notices(result["html"], [*size_warnings, DASHBOARD_INTERNET_NOTE]))
 
         response = {
             "success": True,
@@ -2330,10 +2576,8 @@ def generate_temporal_dashboard(layers, title=None, output_path=None, step_days=
         return {"error": f"generate_temporal_dashboard failed: {e}"}
     finally:
         for p in tmp_files:
-            try:
+            with contextlib.suppress(OSError):
                 os.remove(p)
-            except OSError:
-                pass
 
 
 def _compute_animation_frame_epochs(min_ms, max_ms, step_days):
@@ -2367,10 +2611,29 @@ def _temporal_subset_expression(start_field, end_field, frame_date_iso):
     return expr
 
 
+def _resolve_animation_fields(layer, start_field, end_field):
+    """(start_field, end_field, problem). An explicit start_field is used as given. Without one, the layer's own temporal settings are used (what
+    set_layer_temporal recorded), because a model that was just told 'make the layer temporal using the date field' should not have to be asked for the field
+    again (live runs 2026-11-03 and 2026-11-04, row V4: it answered with a how-to instead of calling this tool). With neither, the problem names the layer's
+    date fields. Never raises."""
+    if start_field:
+        return start_field, end_field, None
+    with contextlib.suppress(Exception):          # a layer type without temporal properties just has no settings to read
+        props = layer.temporalProperties()
+        if props.isActive() and props.startField():
+            return props.startField(), end_field or props.endField() or None, None
+    names = [f.name() for f in layer.fields()]
+    dated = [f.name() for f in layer.fields() if "date" in str(f.typeName()).lower() or "time" in str(f.typeName()).lower()]
+    if dated:
+        return None, None, ("Give start_field, or make the layer temporal first with set_layer_temporal. Its date fields: " + ", ".join(f"'{n}'" for n in dated) + ".")
+    return None, None, "The layer has no date or date-time field to animate over. It has: " + ", ".join(names) + "."
+
+
 @register_tool(
     "export_temporal_animation_frames",
-    "Render one PNG frame per time step from a layer with start/end period fields already in the "
-    "project -- e.g. control-area polygons over 2016-2026 -- by filtering the layer to each frame's "
+    "Animate a layer over time: render one PNG frame per time step from a layer with start/end period fields already in the "
+    "project -- e.g. control-area polygons over 2016-2026 -- or from an events layer with a single date field (points that "
+    "stay visible from their date onward, so the map fills up frame by frame), by filtering the layer to each frame's "
     "date and exporting the current map canvas view, so the frames can be assembled into a GIF/video "
     "outside QGIS (e.g. with ffmpeg) for a native, non-HTML animation. This is the QGIS-native "
     "sibling of generate_temporal_dashboard's HTML output -- use this one when a video/GIF file is "
@@ -2378,21 +2641,28 @@ def _temporal_subset_expression(start_field, end_field, frame_date_iso):
     "changed between frames (so the animation doesn't visually jump) -- pan/zoom to the desired "
     "extent yourself before calling this. Optionally applies a categorized style once via "
     "category_field before rendering frames. The layer's filter is restored to what it was before "
-    "the call once done, even on failure.",
+    "the call once done, even on failure. If the layer was already made temporal (set_layer_temporal) leave start_field "
+    "out: its start and end fields are used; for an events layer with a single date field, give that field as start_field.",
     {
         "type": "object",
         "properties": {
             "layer_name": {"type": "string"},
-            "start_field": {"type": "string", "description": "Date/text field holding when each feature's period began."},
+            "start_field": {"type": "string", "description": "Date/text field holding when each feature's period began (the date, for an events layer). Optional when the layer is already temporal."},
             "end_field": {"type": "string", "description": "Optional date/text field holding when the period ended. A feature with no value here stays visible from its start onward."},
             "category_field": {"type": "string", "description": "Optional field to categorize/color the layer by (e.g. controlling faction) before rendering frames -- applied once via apply_categorized_style."},
             "output_dir": {"type": "string", "description": "Directory to write frame_0001.png, frame_0002.png, etc. Defaults to a new temp directory."},
             "step_days": {"type": "integer", "description": "Days between frames. Defaults to 30."},
         },
-        "required": ["layer_name", "start_field"],
+        "required": ["layer_name"],
     },
+    # Integration audit 2026-10-16: this tool had no aliases, so "animate the layer over time" offered it before the temporal tools of package B
+    # existed and stopped offering it once set_layer_temporal / set_project_time_range took the "time" and "layer" word matches.
+    keywords=[
+        "animate", "animation", "animated", "time lapse", "timelapse", "time-lapse", "frames over time", "temporal animation",
+        "over time as frames",
+    ],
 )
-def export_temporal_animation_frames(layer_name, start_field, end_field=None, category_field=None, output_dir=None, step_days=30):
+def export_temporal_animation_frames(layer_name, start_field=None, end_field=None, category_field=None, output_dir=None, step_days=30):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
     if iface is None:
@@ -2401,6 +2671,9 @@ def export_temporal_animation_frames(layer_name, start_field, end_field=None, ca
     layer = _find_layer_by_name(layer_name)
     if layer is None:
         return {"error": f"Layer '{layer_name}' not found"}
+    start_field, end_field, problem = _resolve_animation_fields(layer, start_field, end_field)
+    if problem:
+        return {"error": problem}
     field_names = [f.name() for f in layer.fields()]
     if start_field not in field_names:
         return {"error": f"Field '{start_field}' not found in '{layer_name}'"}
@@ -2408,7 +2681,7 @@ def export_temporal_animation_frames(layer_name, start_field, end_field=None, ca
         return {"error": f"Field '{end_field}' not found in '{layer_name}'"}
 
     dates = []
-    for feat in layer.getFeatures():
+    for feat in _ck.features(layer, "Export: reading features"):
         d = _parse_date(feat[start_field])
         if d is not None:
             dates.append(d)
@@ -2461,6 +2734,7 @@ def export_temporal_animation_frames(layer_name, start_field, end_field=None, ca
                 "them yourself, e.g.: ffmpeg -framerate 4 -i frame_%04d.png -pix_fmt yuv420p "
                 "animation.mp4 (run from output_dir)."
             ),
+            **({"storage_note": temp_location_note(out_dir)} if temp_location_note(out_dir) else {}),
         }
     finally:
         layer.setSubsetString(original_subset)

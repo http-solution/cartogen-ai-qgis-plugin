@@ -39,14 +39,15 @@ this client's request/response shape closest to `openai.py`'s `OpenAIClient` (ra
 `BaseAiProvider` implementation here uses) rather than a provider-specific SDK.
 """
 
+import contextlib
 import json
 from .base import (
     ModelChainMixin,
     BaseAiProvider, post_with_retry, get_with_retry, DEFAULT_MAX_TOKENS,
-    extract_openai_style_usage, format_http_error, format_request_exception,
+    extract_openai_style_usage, format_http_error, key_in_use_note, format_request_exception,
     HTTPError,
 )
-from ...core.agent.model_selector import filter_chat_model_ids
+from ...core.model_selector import filter_chat_model_ids
 
 # Placeholder only -- no gateway is deployed at this or any other real domain today.
 # service/gateway/ only runs locally (see service/README.md). Now overridable via
@@ -124,10 +125,8 @@ class CartogenClient(ModelChainMixin, BaseAiProvider):
 
     def _emit_status(self, text):
         if self._status_callback:
-            try:
+            with contextlib.suppress(Exception):
                 self._status_callback(text)
-            except Exception:
-                pass
 
     def _post(self, messages, tools, model_id, max_tokens=None):
         headers = {
@@ -168,7 +167,7 @@ class CartogenClient(ModelChainMixin, BaseAiProvider):
                     out["usage"] = usage
                 return out
             except HTTPError as e:
-                return {"error": format_http_error("Cartogen gateway API error", e)}
+                return {"error": format_http_error("Cartogen gateway API error", e, key_note=key_in_use_note("cartogen", self.api_key))}
             except Exception as e:
                 return {
                     "error": format_request_exception("Cartogen gateway request failed", e)

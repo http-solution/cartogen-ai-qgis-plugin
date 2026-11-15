@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """A short follow-up keeps the tools the previous turn used (rc17 hand test R6, 2026-10-06)."""
 import unittest
 

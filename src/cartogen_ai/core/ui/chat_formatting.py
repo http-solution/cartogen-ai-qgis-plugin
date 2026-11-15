@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Pure-Python chat presentation logic for the dock widget: markdown-to-HTML
 rendering, relative timestamps, and chat-bubble color derivation.
@@ -48,7 +47,7 @@ def _render_table(rows, text_color, border_color, row_border_color):
             for c in cells
         )
         trs.append(f"<tr>{tds}</tr>")
-    return f'<table style="border-collapse:collapse;margin:6px 0;">' f"<tr>{th}</tr>{''.join(trs)}</table>"
+    return f'<table style="border-collapse:collapse;margin:6px 0;"><tr>{th}</tr>{"".join(trs)}</table>'
 
 
 # Extensions this project's own tools actually produce as output_path results (print
@@ -64,6 +63,23 @@ _OUTPUT_FILE_EXTENSIONS = (
 )
 # The drive letter must not be the tail of a word: in "https://host/x/preview.jpg" the "s:/" of "https://" used to start a "path" that ran
 # to ".jpg", so a STAC thumbnail link became a broken file link (rc18 hand test N4, 2026-10-06).
+_MODEL_CHIP_PREFIXES = ("cartogen://action/", "cartogen://export/", "cartogen://prompt/", "cartogen://zoom/")
+
+
+def _safe_link_url(url):
+    """Makes a URL from model text safe to put inside href="...": a quote, angle bracket or space in it could end the attribute and add
+    its own (style=, or more), which the markdown link pattern allowed. Percent-encoding keeps the link working."""
+    return url.replace('"', "%22").replace("'", "%27").replace("<", "%3C").replace(">", "%3E").replace(" ", "%20")
+
+
+def is_openable_output_file(path):
+    """True for an existing local file whose extension is one a tool writes (the same list the path linkifier uses). The chat opens a
+    file: link with the desktop's default program, so a link the model wrote for a path that is not such a file must do nothing."""
+    import os
+    ext = os.path.splitext(str(path))[1].lstrip(".").lower()
+    return ext in _OUTPUT_FILE_EXTENSIONS and os.path.isfile(path)
+
+
 _OUTPUT_PATH_RE = re.compile(
     r'(?<![A-Za-z0-9])[A-Za-z]:[\\/](?![\\/])(?:[^\s<>"\']+[\\/])*[^\s<>"\']+\.(?:' + "|".join(_OUTPUT_FILE_EXTENSIONS) + r')\b'
 )
@@ -95,6 +111,9 @@ def _linkify_output_paths(text):
 # (a half-converted formula is worse than a raw one), and "$5 and $10" is not math: only $...$ spans that contain
 # a backslash or a caret are touched.
 _LATEX_SPAN = re.compile(r"\$([^$\n]{1,80}?)\$")
+_MODEL_BR = re.compile(r"<br\s*/?>", re.IGNORECASE)
+_MODEL_NBSP = re.compile(r"&nbsp;", re.IGNORECASE)   # 1.18.4 smoke A10: the model wrote "&nbsp;" and the chat showed it as text
+_COMPARISON_SPAN = re.compile(r"^\s*(?:<=|>=|<|>|=)\s*(?:\d[\d.,]*%?)?\s*$")
 _LATEX_SYMBOLS = {
     r"\leq": "\u2264", r"\le": "\u2264", r"\geq": "\u2265", r"\ge": "\u2265", r"\neq": "\u2260",
     r"\times": "\u00d7", r"\cdot": "\u00b7", r"\approx": "\u2248", r"\pm": "\u00b1",
@@ -118,7 +137,7 @@ def _latex_inner(inner):
 
     def _sup(m):
         body = m.group(1) if m.group(1) is not None else m.group(2)
-        return "".join(_SUPERSCRIPTS.get(ch, None) or "\x00" for ch in body)
+        return "".join(_SUPERSCRIPTS.get(ch) or "\x00" for ch in body)
     t = re.sub(r"\^(?:\{([0-9+\-]+)\}|([0-9]))", _sup, t)
     if "\x00" in t or "\\" in t or "^" in t:
         return None
@@ -133,6 +152,10 @@ def simplify_latex(text):
     def _span(m):
         inner = m.group(1)
         if "\\" not in inner and "^" not in inner:
+            # 1.18.2 hand test B6: class text like "$< 0.2$" / "$>=$" showed its dollar signs. A span that is only a comparison
+            # operator, optionally with a number, is math, not prices ("$5 and $10" never starts with an operator).
+            if _COMPARISON_SPAN.match(inner):
+                return inner.strip()
             return m.group(0)
         converted = _latex_inner(inner)
         return m.group(0) if converted is None else converted
@@ -171,8 +194,11 @@ def render_markdown(text, colors=None):
     text = re.sub(r'```(\w*)\n?(.*?)```', _stash_code, text, flags=re.DOTALL)
     text = simplify_latex(text)
 
-    # 2. Escape remaining HTML-sensitive characters.
-    text = text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    # 2. Escape remaining HTML-sensitive characters. A line break the model wrote as <br> (it does so inside table cells and bullets)
+    # is kept as a break: 1.18.2 hand test A4 showed the literal "<br>" in a facility list because escaping turned it into text.
+    text = _MODEL_BR.sub("\x01BR\x01", text)
+    text = _MODEL_NBSP.sub(" ", text)
+    text = text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\x01BR\x01", "<br>")
 
     # 3. Block-level formatting. Index-based (not a plain for-line loop) so
     # multi-line constructs -- a table's header+separator+data rows, a run
@@ -276,10 +302,13 @@ def render_markdown(text, colors=None):
     # the welcome message's starter prompts and Next Steps action chips can link to in-app actions.
     def _style_link(m):
         label, url = m.group(1), m.group(2).strip()
-        if (url.startswith("cartogen://action/") or
-            url.startswith("cartogen://export/") or
-            url.startswith("cartogen://prompt/") or
-            url.startswith("cartogen://zoom/")):
+        url = _safe_link_url(url)
+        if url.startswith("cartogen://") and not url.startswith(_MODEL_CHIP_PREFIXES):
+            # Model text may only produce the four chip kinds. cartogen://confirm|cancel|task|clearplan|steps|refine|starter belong
+            # to cards the app itself draws; a model reply (or a layer attribute it echoed) must not be able to paint a look-alike
+            # "Apply edit" link that resolves a real pending confirmation (2026-10-11 audit).
+            return label
+        if (url.startswith(("cartogen://action/", "cartogen://export/", "cartogen://prompt/", "cartogen://zoom/"))):
             if url.startswith("cartogen://prompt/"):
                 raw_prompt = url[len("cartogen://prompt/"):]
                 import urllib.parse
@@ -700,9 +729,9 @@ def summarize_tool_result(result, limit=400):
         parts.append(str(result["message"]))
     elif result.get("success") is True:
         parts.append("completed")
-    for key in ("layer_name", "layer_created", "output_path", "path", "feature_count", "features_updated"):
-        if result.get(key) not in (None, ""):
-            parts.append(f"{key.replace('_', ' ')}: {result[key]}")
+    parts.extend(f"{key.replace('_', ' ')}: {result[key]}"
+                 for key in ("layer_name", "layer_created", "output_path", "path", "feature_count", "features_updated")
+                 if result.get(key) not in (None, ""))
     if result.get("egress_override_note"):
         parts.append(str(result["egress_override_note"]))
     text = "; ".join(parts) or "completed"
@@ -787,14 +816,13 @@ def render_safety_gate_html(task, colors):
         f'display:inline-block;padding:5px 14px;border:1px solid {subtle_color};'
         f'color:{text_color};font-size:12px;">Cancel</a>'
     )
-    card = (
+    return (
         '<table border="0" cellspacing="0" cellpadding="0" width="100%" '
         f'style="margin:10px 0;background-color:{danger_bg};"><tr>'
         f'<td style="border:1px solid {danger};padding:10px 12px;">'
         f'{heading}{summary_html}{rationale_html}{code_html}{actions}'
         '</td></tr></table>'
     )
-    return card
 
 
 # Braille-dot spinner frames for the one task currently IN_PROGRESS in an in-chat plan
@@ -899,13 +927,12 @@ def render_task_progress_html(plan_data, colors, spinner_frame=0):
         f'<a href="cartogen://clearplan" style="font-size:10px;color:{subtle_color};">Clear plan</a></div>'
     )
 
-    card = (
+    return (
         '<table border="0" cellspacing="0" cellpadding="0" width="100%" style="margin:8px 0;"><tr>'
         f'<td style="border-left:2px solid {border};padding:4px 0 4px 10px;">'
         f'{heading}{"".join(rows)}{footer}'
         '</td></tr></table>'
     )
-    return card
 
 
 def render_tool_steps_toggle_html(steps, block_id, colors, expanded):
@@ -931,9 +958,9 @@ def render_tool_steps_toggle_html(steps, block_id, colors, expanded):
             f'&nbsp;<a href="{href}">Details&nbsp;&#9662;</a></div>'
         )
     lines = [
-        f'<div style="font-size:11px;color:{color};margin:2px 0;">'
+        (f'<div style="font-size:11px;color:{color};margin:2px 0;">'
         f'&#128295;&nbsp;{n} tool call{plural}'
-        f'&nbsp;<a href="{href}">Hide details&nbsp;&#9652;</a></div>'
+        f'&nbsp;<a href="{href}">Hide details&nbsp;&#9652;</a></div>')
     ]
     for s in steps:
         icon = _STEP_STATUS.get(s["status"], _STEP_STATUS["done"])["icon"]
@@ -987,7 +1014,7 @@ def format_send_error(err) -> str:
     def has(*needles):
         for n in needles:
             if isinstance(n, int):
-                if re.search(r"(?<!\d)%d(?!\d)" % n, text):
+                if re.search(rf"(?<!\d){n}(?!\d)", text):
                     return True
             elif n in lower:
                 return True

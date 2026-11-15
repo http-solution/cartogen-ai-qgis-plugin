@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Agent-facing introspection over the READ/CREATE/MODIFY/DELETE/PUBLISH
 taxonomy in agent/tool_operations.py (point 20 of
@@ -8,7 +7,7 @@ QGIS or the live project, hence both are READ themselves.
 """
 
 from .registry import register_tool
-from .. import tool_operations as _ops
+from ... import tool_operations as _ops
 
 
 @register_tool(

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Regression tests for the cloud-data-protection override flow (rc7 smoke test, 2026-09-30,
 findings F02 / F03).
@@ -52,7 +51,7 @@ class TestBlockedCallIsConfirmable(unittest.TestCase):
     def test_a_blocked_call_registers_a_confirmable_pending_task(self):
         agent = _agent()
         ran = []
-        with patch.dict(agent_mod.TOOL_REGISTRY, {"execute_pyqgis_script": lambda script: ran.append(script)}):
+        with patch.dict(agent_mod.TOOL_REGISTRY, {"execute_pyqgis_script": ran.append}):
             res = agent._real_execute_tool("execute_pyqgis_script", '{"script": "x"}')
         self.assertEqual(res["status"], "PREVIEW_REQUIRED")
         self.assertEqual(ran, [], "a blocked call must not execute")
@@ -92,7 +91,7 @@ class TestBlockedCallIsConfirmable(unittest.TestCase):
     def test_the_gate_still_blocks_when_nobody_confirmed(self):
         agent = _agent()
         ran = []
-        with patch.dict(agent_mod.TOOL_REGISTRY, {"execute_pyqgis_script": lambda script: ran.append(script)}):
+        with patch.dict(agent_mod.TOOL_REGISTRY, {"execute_pyqgis_script": ran.append}):
             agent._real_execute_tool("execute_pyqgis_script", '{"script": "x"}')
             agent._real_execute_tool("execute_pyqgis_script", '{"script": "x"}')
         self.assertEqual(ran, [])

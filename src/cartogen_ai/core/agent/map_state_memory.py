@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Map design-state memory: the "what did we draw last time, and how" half of the
 dual-memory ("operational history" + "design state") architecture proposed for

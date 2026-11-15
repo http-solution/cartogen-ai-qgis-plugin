@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Centralized QgsSettings and QgsProject property keys for Cartogen AI.
 Adheres to the standard 'cartogen_ai/' namespace to guarantee isolation
@@ -7,8 +6,53 @@ from other QGIS plugins and ensure consistent settings management.
 
 # Provider and Core Engine
 SETTINGS_PROVIDER = "cartogen_ai/provider"
-SETTINGS_API_KEY = "cartogen_ai/api_key"
+SETTINGS_API_KEY = "cartogen_ai/api_key"  # pragma: allowlist secret (the settings key NAME; keys live in the Auth Manager)
 SETTINGS_ACCOUNT_BASE_URL = "cartogen_ai/account_base_url"
+
+# Providers a build offers. Fixed at release time (change this tuple and publish a new version to
+# widen it). OpenAI and Claude clients stay in the code but are untested, so the plugin-directory
+# build neither lists them in Settings nor runs them; see normalize_provider().
+ENABLED_PROVIDERS = ("openrouter", "gemini", "ollama", "cartogen")
+DEFAULT_PROVIDER = "openrouter"
+
+
+# CLI bridge providers (PLAN-038): a locally installed Claude Code / Codex / Antigravity CLI used as the model on the
+# user's own login. EXPERIMENTAL and UNVERIFIED against a real signed-in CLI, so they are deliberately NOT in
+# ENABLED_PROVIDERS: they appear (Settings, and in normalize_provider below) only when the user switches on
+# SETTINGS_EXPERIMENTAL_CLI, which is off by default.
+CLI_PROVIDERS = ("claude_cli", "codex_cli", "agy_cli")
+SETTINGS_EXPERIMENTAL_CLI = "cartogen_ai/experimental_cli_providers"
+SETTINGS_CLAUDE_CLI_MODEL = "cartogen_ai/claude_cli_model"
+SETTINGS_CODEX_CLI_MODEL = "cartogen_ai/codex_cli_model"
+SETTINGS_AGY_CLI_MODEL = "cartogen_ai/agy_cli_model"
+
+
+def cli_path_setting_key(provider):
+    """Where a CLI provider's executable path is kept. A plain setting, not the credential store: a path is not a secret."""
+    return f"cartogen_ai/{provider}_path"
+
+
+def cli_providers_enabled():
+    """True only when the user has switched on the experimental CLI providers. False outside QGIS and on any error."""
+    try:
+        from qgis.core import QgsSettings
+        value = QgsSettings().value(SETTINGS_EXPERIMENTAL_CLI, False)
+    except Exception:
+        return False
+    return value is True or str(value).strip().lower() in ("true", "1")
+
+
+def normalize_provider(value):
+    """The provider to actually use for a saved setting. A value from an earlier version that
+    is no longer enabled (e.g. "openai") falls back to the default instead of silently running
+    an untested client; the saved setting itself is left alone. The experimental CLI providers
+    count as enabled only while their opt-in switch is on."""
+    if value in ENABLED_PROVIDERS:
+        return value
+    if value in CLI_PROVIDERS and cli_providers_enabled():
+        return value
+    return DEFAULT_PROVIDER
+
 
 # Provider-specific Model Configuration
 SETTINGS_OPENROUTER_MODEL = "cartogen_ai/openrouter_model"
@@ -46,6 +90,9 @@ SETTINGS_PROJECT_INSPECTOR_ENABLED = "cartogen_ai/project_inspector_enabled"
 # always-on: it's a real narrow experiment awaiting live-LLM evaluation, not a settled default.
 SETTINGS_PLAN_VALIDATION_GATE_ENABLED = "cartogen_ai/plan_validation_gate_enabled"
 SETTINGS_USER_PROFILE = "cartogen_ai/user_profile"
+# PLAN-023 R1-2: the persona choice (see core/personas/selection.py). The old key above is kept as a mirror of the primary persona.
+SETTINGS_PERSONA_PRIMARY = "cartogen_ai/persona_primary"
+SETTINGS_PERSONA_SECONDARY = "cartogen_ai/persona_secondary"
 SETTINGS_PROMPT_REFINEMENT_MODEL = "cartogen_ai/prompt_refinement_model"
 
 # Custom Project & Layer Properties (stored via QgsProject/QgsMapLayer custom properties)
@@ -92,6 +139,18 @@ def workflow_run_key(run_id: str) -> str:
 # synchronous behaviour without a new release. See core/agent/tools/_background_processing.py.
 SETTINGS_BACKGROUND_NETWORK_ANALYSIS = "cartogen_ai/network_analysis_in_background"
 
+# How many tool schemas the router offers the model per request (default 28, bounded 12-60). Every model call resends them, so this
+# is the main per-request token cost; 40 -> 28 cut the mean offered-schema size from ~14.3k to ~9.4k tokens with no change on the
+# routing test suites (measured offline 2026-10-18; NOT yet measured against live model answers). Raise it if the model reports a tool
+# missing. See core/services/tool_router.py.
+SETTINGS_TOOL_ROUTER_TOP_K = "cartogen_ai/tool_router_top_k"
+
+# Kill-switch for sending hosted-AI requests (Gemini, OpenAI, Claude, OpenRouter) through QGIS's network stack (default on). Set to
+# false in QGIS's advanced settings to send them with the Python `requests` library instead, as before 1.16.0-rc28. Added after a
+# 2026-10-11 field report of Gemini answering 403 to the QGIS-stack request while the same key worked outside QGIS. See
+# infrastructure/providers/base.py _use_qgis_network.
+SETTINGS_HOSTED_VIA_QGIS_NETWORK = "cartogen_ai/hosted_requests_via_qgis"
+
 # Size in MB above which a Geofabrik extract is offered as a choice instead of downloaded silently
 # (rc7 smoke test F22: a 103 MB extract was fetched with no question). Default 50 (owner decision
 # 2026-09-30; it was a fixed 150 before). Adjustable in QGIS's advanced settings.
@@ -103,9 +162,16 @@ SETTINGS_LOCAL_DATA_ASK_ABOVE_MB = "cartogen_ai/local_data_ask_above_mb"
 SETTINGS_MAX_TOOL_ITERATIONS = "cartogen_ai/max_tool_iterations"
 SETTINGS_MAX_TURN_TOKENS = "cartogen_ai/max_turn_tokens"
 
+# Opt-in per-request evidence folder (arguments, results, timings, created layers, canvas screenshot, output files). Off by default: the
+# folder holds raw arguments and results, which can include coordinates and attribute values, unlike the metadata-only logs.
+SETTINGS_EVIDENCE_ENABLED = "cartogen_ai/evidence_enabled"
+SETTINGS_API_TRACE_ENABLED = "cartogen_ai/api_trace_enabled"   # raw model requests and replies to a local folder; off by default
+
 # Print-layout masthead colour as #rrggbb (rc9: the default slate is the developer's pick and has not been judged on a
 # real basemap; an invalid value falls back to it). Light colours automatically get dark title text.
 SETTINGS_LAYOUT_MASTHEAD_COLOR = "cartogen_ai/layout_masthead_color"
+SETTINGS_LAYOUT_DISCLAIMER_ENABLED = "cartogen_ai/layout_disclaimer_enabled"   # boundary / data-sensitivity line in the layout footer; on by default
+SETTINGS_LAYOUT_DISCLAIMER_TEXT = "cartogen_ai/layout_disclaimer_text"           # empty = the neutral default; the organisation supplies its own wording
 
 # Open the assistant panel automatically when QGIS starts (default on). The dock is created lazily on the first toolbar click, so
 # without this it never reappeared after a restart (rc10 smoke test, 2026-10-01).

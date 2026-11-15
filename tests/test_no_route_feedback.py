@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """rc7 smoke test F15: ~130 'There is no route from start point ... to end point ...' lines were logged at CRITICAL
 for facilities the road network never reaches. They are counted instead (see _CollectingFeedback)."""
 import unittest

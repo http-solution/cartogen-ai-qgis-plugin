@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Theme-reactive SVG icons for Cartogen AI's dock/chat UI.
 

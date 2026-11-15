@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """JIAF 2 analysis support, stage 4b: the intersectoral pattern outputs of Workspace 3C (Reference Table 3C, July 2024 manual, pp.48-49).
 
 SUPPORT FOR PEOPLE WHO RUN THE JIAF 2 PROCESS. NOT the JIAF method, NOT endorsed by OCHA or the IASC. These are the lists and counts the manual asks the
@@ -12,6 +11,8 @@ Severity used here is the FINAL severity where a decision was recorded or the un
 """
 import math
 
+from ... import _background_processing as _bg
+from ... import _chunked as _ck
 from .registry import register_tool
 from ._edit_session import EditError, add_numeric_field, edit_command, set_value
 from .jiaf_engine import run_analysis
@@ -41,7 +42,7 @@ DEFAULTS = {  # (value, where it comes from)
 
 def pearson(xs, ys):
     """Pearson correlation of paired values; None with fewer than 3 pairs or no variance."""
-    pairs = [(x, y) for x, y in zip(xs, ys) if x is not None and y is not None]
+    pairs = [(x, y) for x, y in zip(xs, ys, strict=False) if x is not None and y is not None]
     n = len(pairs)
     if n < 3:
         return None
@@ -225,6 +226,10 @@ def _dist(values):
         },
         "required": ["file_path"],
     },
+    keywords=[
+        "jiaf patterns", "intersectoral patterns", "workspace 3c", "pin correlation between sectors",
+        "sectors driving the needs", "needs patterns and linkages",
+    ],
 )
 def compute_jiaf_patterns(file_path, input_format="auto", sheet_name=None, previous_file_path=None, previous_sheet_name=None,
                           sectors_in_scope=None, zero_severity_as=None, sector_population_share=None, many_sectors_with_large_pin=None, top_units=None, high_pin_share=None, severe_phases=None,
@@ -253,7 +258,9 @@ def compute_jiaf_patterns(file_path, input_format="auto", sheet_name=None, previ
         prev_analysis = analyze(run["previous"], overrides=scope)
     decisions = load_decisions()
     rows, summary = finalize(run["units"], run["analysis"], decisions)
-    res = patterns(run["units"], run["analysis"], rows, prev_analysis, th, group_shares)
+    # Pure statistics over plain dicts (correlations, distributions, group shares): off the GUI thread, Stop honoured.
+    res = _bg.run_callable(lambda: patterns(run["units"], run["analysis"], rows, prev_analysis, th, group_shares),
+                           label="Computing JIAF patterns")
     counts = res.pop("_unit_counts")
     result = {"success": True, "statement": STATEMENT, "validation_blockers": VALIDATION_BLOCKERS, "units": len(rows), "format": run["format"], "decisions_used": {k: len(v) for k, v in decisions.items()},
               "pending_flagged_units": summary["pending_pin_units"], "provisional": summary["provisional"],
@@ -271,7 +278,7 @@ def compute_jiaf_patterns(file_path, input_format="auto", sheet_name=None, previ
     if not layer_key_field or layer.fields().indexOf(layer_key_field) < 0:
         return {"error": f"layer_key_field '{layer_key_field}' not found on '{layer_name}'. Available: {[f.name() for f in layer.fields()]}"}
     pairs, report = plan_join([{"key": key_of(r["admin2_code"], None), "code": r["admin2_code"]} for r in rows],
-                              [(f.id(), key_of(f[layer_key_field], None)) for f in layer.getFeatures()])
+                              [(f.id(), key_of(f[layer_key_field], None)) for f in _ck.features(layer, "Jiaf patterns: reading features")])
     result["join"] = report
     if not write_fields or not pairs:
         return result
@@ -289,7 +296,7 @@ def compute_jiaf_patterns(file_path, input_format="auto", sheet_name=None, previ
         with edit_command(layer, "Cartogen AI: JIAF pattern counts") as owned:
             idx = [add_numeric_field(layer, n) for n in names]
             for fid, rec in pairs:
-                for i, key in zip(idx, ("sectors_above_share", "sectors_in_phase_4_or_5")):
+                for i, key in zip(idx, ("sectors_above_share", "sectors_in_phase_4_or_5"), strict=False):
                     v = counts[key].get(rec["code"])
                     if v is not None:
                         set_value(layer, fid, i, float(v))

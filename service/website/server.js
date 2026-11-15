@@ -90,9 +90,15 @@ async function setKeyBlocked(apiKey, blocked) {
 
 const app = express();
 app.disable('x-powered-by');
-// Inline static pages currently contain small scripts; keep CSP disabled until
-// those scripts are moved to nonce-bearing external assets.
-app.use(helmet({ contentSecurityPolicy: false }));
+// The static pages carry small inline scripts, so script-src must allow 'unsafe-inline'
+// until they move to external assets. Every other directive keeps Helmet's strict defaults
+// (same-origin only, no objects, no framing), which is far tighter than disabling CSP.
+app.use(helmet({
+  contentSecurityPolicy: {
+    useDefaults: true,
+    directives: { 'script-src': ["'self'", "'unsafe-inline'"] },
+  },
+}));
 const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 20, standardHeaders: 'draft-7', legacyHeaders: false });
 const checkoutLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 20, standardHeaders: 'draft-7', legacyHeaders: false });
 app.use('/auth', authLimiter);
@@ -109,8 +115,9 @@ app.post('/webhook', express.raw({ type: 'application/json' }), async (req, res)
     try {
       event = stripe.webhooks.constructEvent(req.body, sig, STRIPE_WEBHOOK_SECRET);
     } catch (err) {
-      console.error('Webhook signature verification failed:', err.message);
-      return res.status(400).send(`Webhook Error: ${err.message}`);
+      console.error('Webhook signature verification failed: %s', err.message);
+      // Fixed text only: echoing the exception message back would reflect attacker-influenced content.
+      return res.status(400).type('text/plain').send('Webhook signature verification failed');
     }
   } else if (NODE_ENV === 'development') {
     // Dev-mode escape hatch: no real Stripe webhook secret configured yet.
@@ -182,7 +189,7 @@ app.post('/webhook', express.raw({ type: 'application/json' }), async (req, res)
     // A DB/LiteLLM error handling a lifecycle event shouldn't surface to Stripe as
     // a webhook failure (Stripe would just retry the same event) -- log it and
     // still 200, same as the pre-existing checkout.session.completed error handling.
-    console.error(`Error handling webhook event ${event.type}:`, err.message);
+    console.error('Error handling webhook event %s:', String(event.type), err.message);
   }
 
   res.json({ received: true });

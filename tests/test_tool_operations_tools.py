@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Tests for agent/tools/tool_operations_tools.py -- the registered-tool
 surface over agent/tool_operations.py (point 20)."""
 import unittest

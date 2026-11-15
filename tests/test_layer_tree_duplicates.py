@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """F07 (rc7 smoke test, 2026-09-30): layerTreeRoot().findLayers() returned 10 nodes for 7 layers.
 
 Root cause found by reading the call sites: calculate_service_area / optimize_delivery_route add

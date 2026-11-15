@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """The network tools (service area, travel-time matrix, delivery route) work in real metres, in real QGIS.
 
 Live-reported 2026-09-24/25 ("Health facilities beyond one hour's travel", Amman) and measured
@@ -34,39 +33,36 @@ try:
 except ImportError:
     QGIS_LIVE_AVAILABLE = False
 
-WGS = None
-_DA = None
-_PROCESSING_READY = None
+_STATE = {"wgs": None, "da": None, "ready": None}   # holder rather than globals (ruff PLW0603)
 
 
 def _boot():
     """One QgsApplication per process (test_chat_widget_live's, when both run in the same process)
     plus an initialised Processing framework. Returns None if ready, else why it isn't."""
-    global WGS, _DA, _PROCESSING_READY
-    if _PROCESSING_READY is not None:
-        return _PROCESSING_READY
+    if _STATE["ready"] is not None:
+        return _STATE["ready"]
     from tests.test_chat_widget_live import _boot_qgis
     _boot_qgis()
     try:
         from processing.core.Processing import Processing
         Processing.initialize()
     except Exception as e:
-        _PROCESSING_READY = "the Processing plugin isn't importable here (%s)" % e
-        return _PROCESSING_READY
+        _STATE["ready"] = f"the Processing plugin isn't importable here ({e})"
+        return _STATE["ready"]
     from cartogen_ai.core.agent.tools import logistics_tools as lt
     if not lt.QGIS_AVAILABLE:
-        _PROCESSING_READY = "logistics_tools was imported before `processing` was importable"
-        return _PROCESSING_READY
-    WGS = QgsCoordinateReferenceSystem("EPSG:4326")
-    _DA = QgsDistanceArea()
-    _DA.setSourceCrs(WGS, QgsProject.instance().transformContext())
-    _DA.setEllipsoid("WGS84")
-    _PROCESSING_READY = ""
-    return _PROCESSING_READY
+        _STATE["ready"] = "logistics_tools was imported before `processing` was importable"
+        return _STATE["ready"]
+    _STATE["wgs"] = QgsCoordinateReferenceSystem("EPSG:4326")
+    _STATE["da"] = QgsDistanceArea()
+    _STATE["da"].setSourceCrs(_STATE["wgs"], QgsProject.instance().transformContext())
+    _STATE["da"].setEllipsoid("WGS84")
+    _STATE["ready"] = ""
+    return _STATE["ready"]
 
 
 def metres_between(lon_a, lat_a, lon_b, lat_b):
-    return _DA.measureLine(QgsPointXY(lon_a, lat_a), QgsPointXY(lon_b, lat_b))
+    return _STATE["da"].measureLine(QgsPointXY(lon_a, lat_a), QgsPointXY(lon_b, lat_b))
 
 
 def lon_offset(lat, metres):
@@ -90,9 +86,9 @@ class _Base(unittest.TestCase):
     def layer(self, kind, crs_id, name, lonlat_pts, project_crs="EPSG:3857"):
         """A memory layer in crs_id built from lon/lat truth points (transformed into that CRS)."""
         crs = QgsCoordinateReferenceSystem(crs_id)
-        xf = QgsCoordinateTransform(WGS, crs, QgsProject.instance())
+        xf = QgsCoordinateTransform(_STATE["wgs"], crs, QgsProject.instance())
         pts = [xf.transform(QgsPointXY(lon, lat)) for lon, lat in lonlat_pts]
-        lyr = QgsVectorLayer("%s?crs=%s&field=name:string" % (kind, crs_id), name, "memory")
+        lyr = QgsVectorLayer(f"{kind}?crs={crs_id}&field=name:string", name, "memory")
         f = QgsFeature(lyr.fields())
         if kind == "LineString":
             f.setGeometry(QgsGeometry.fromPolylineXY(pts))
@@ -103,7 +99,7 @@ class _Base(unittest.TestCase):
             for i, p in enumerate(pts):
                 g = QgsFeature(lyr.fields())
                 g.setGeometry(QgsGeometry.fromPointXY(p))
-                g.setAttributes(["p%d" % i])
+                g.setAttributes([f"p{i}"])
                 feats.append(g)
             lyr.dataProvider().addFeatures(feats)
         QgsProject.instance().addMapLayer(lyr)
@@ -115,17 +111,17 @@ class _Base(unittest.TestCase):
 
     @staticmethod
     def metres_of(layer):
-        xf = QgsCoordinateTransform(layer.crs(), WGS, QgsProject.instance())
+        xf = QgsCoordinateTransform(layer.crs(), _STATE["wgs"], QgsProject.instance())
         total = 0.0
         for feat in layer.getFeatures():
             g = QgsGeometry(feat.geometry())
             g.transform(xf)
-            total += _DA.measureLength(g)
+            total += _STATE["da"].measureLength(g)
         return total
 
     def first_cost(self, matrix_result):
         self.assertIn("matrix", matrix_result, matrix_result)
-        return float(list(list(matrix_result["matrix"].values())[0].values())[0])
+        return float(next(iter(next(iter(matrix_result["matrix"].values())).values())))
 
 
 SITES = [("Amman 32N", 31.95, 35.85), ("Arctic 70N", 70.0, 25.0), ("Far north 80N", 80.0, 25.0)]
@@ -155,7 +151,7 @@ class TestCostsAreRealMetres(_Base):
                         self.assertTrue(sa.get("layers_created"), sa)
                         reached = self.metres_of(QgsProject.instance().mapLayersByName(sa["layers_created"][0])[0])
                         # 1000 m each way along the road = 2000 m of road reached
-                        self.assertAlmostEqual(reached / 2000.0, 1.0, delta=0.01, msg="reached %.0f m" % reached)
+                        self.assertAlmostEqual(reached / 2000.0, 1.0, delta=0.01, msg=f"reached {reached:.0f} m")
                         tm = self.lt.travel_time_matrix("origin", "dest", "roads")
                         self.assertAlmostEqual(self.first_cost(tm) / truth, 1.0, delta=0.003)
                         # the units are also stated in the results, so the model can't misreport them
@@ -174,7 +170,7 @@ class TestCostsAreRealMetres(_Base):
                     # 0.04 h at 50 km/h is 2 km, so it reaches 2 km each way = 4 km of road
                     sa = self.lt.calculate_service_area("origin", "roads", 0.04, strategy="fastest", default_speed=50)
                     reached = self.metres_of(QgsProject.instance().mapLayersByName(sa["layers_created"][0])[0])
-                    self.assertAlmostEqual(reached / 4000.0, 1.0, delta=0.01, msg="reached %.0f m" % reached)
+                    self.assertAlmostEqual(reached / 4000.0, 1.0, delta=0.01, msg=f"reached {reached:.0f} m")
                     self.assertEqual(tm["cost_unit"], "hours")
                     self.assertEqual(sa["travel_cost_unit"], "hours")
 
@@ -206,7 +202,7 @@ class TestOriginInADifferentCrsThanTheNetwork(_Base):
                 sa, tm, truth = self._run(network_crs, point_crs)
                 self.assertTrue(sa.get("layers_created"), sa)
                 reached = self.metres_of(QgsProject.instance().mapLayersByName(sa["layers_created"][0])[0])
-                self.assertAlmostEqual(reached / 2000.0, 1.0, delta=0.01, msg="reached %.0f m" % reached)
+                self.assertAlmostEqual(reached / 2000.0, 1.0, delta=0.01, msg=f"reached {reached:.0f} m")
                 self.assertAlmostEqual(self.first_cost(tm) / truth, 1.0, delta=0.003)
 
 
@@ -250,7 +246,7 @@ class TestAntimeridian(_Base):
                 self.assertAlmostEqual(self.first_cost(tm) / truth, 1.0, delta=0.01)
                 sa = self.lt.calculate_service_area("origin", "roads", 1000)
                 reached = self.metres_of(QgsProject.instance().mapLayersByName(sa["layers_created"][0])[0])
-                self.assertAlmostEqual(reached / 2000.0, 1.0, delta=0.02, msg="reached %.0f m" % reached)
+                self.assertAlmostEqual(reached / 2000.0, 1.0, delta=0.02, msg=f"reached {reached:.0f} m")
 
 
 if __name__ == "__main__":

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Project notes & memory dialog -- Broadsheet redesign Phase 1, mockup state 1o
 ("Project notes & memory ... editable and exportable", the same "← back" dialog
 pattern settings_dialog.py already established for Settings, 1n). Rehouses the old
@@ -13,7 +12,9 @@ from qgis.PyQt.QtWidgets import (
 )
 
 from .chat_formatting import render_markdown
+from .dialog_messages import push_dialog_message
 from .theme import theme_colors
+from ..logger import log_event
 
 
 class CartogenAiMemoryDialog(QDialog):
@@ -68,6 +69,10 @@ class CartogenAiMemoryDialog(QDialog):
         self.memory_search_edit.textChanged.connect(self._on_memory_search_changed)
         layout.addWidget(self.memory_search_edit)
 
+        self.storage_label = QLabel("")
+        self.storage_label.setWordWrap(True)
+        layout.addWidget(self.storage_label)
+
         self.memory_browser = QTextBrowser()
         self.memory_browser.setPlaceholderText("Project Notes and Memory...")
         layout.addWidget(self.memory_browser, stretch=1)
@@ -93,6 +98,8 @@ class CartogenAiMemoryDialog(QDialog):
         settings_dialog.py's own "read live state when opened" pattern), not kept
         continuously synced while the dialog is up (it's a short-lived modal, not a
         permanently docked panel like the old tab was)."""
+        from ..agent.memory import describe_project_memory_storage, is_project_memory_persist_enabled
+        self.storage_label.setText(describe_project_memory_storage(is_project_memory_persist_enabled()))
         agent = self._agent_provider() if self._agent_provider else None
         if agent is None or not hasattr(agent, "memory_manager"):
             # rc7 smoke test, 2026-09-30 (F24): this used to return silently, so an operator saw an
@@ -132,32 +139,32 @@ class CartogenAiMemoryDialog(QDialog):
                 chat_info=chat_persistence.describe_retention(MAX_HISTORY_MESSAGES))
             ok = data_export.write_export_document(document, output_path)
         except Exception as e:
-            QMessageBox.warning(self, "Export My Data", f"Export failed: {e}")
+            push_dialog_message(self, "Export My Data", f"Export failed: {e}", "warning")
             return
         if ok:
-            QMessageBox.information(self, "Export My Data", f"Exported to:\n{output_path}")
+            push_dialog_message(self, "Export My Data", f"Exported to: {output_path}", "success")
         else:
-            QMessageBox.warning(self, "Export My Data", f"Failed to write export file to:\n{output_path}")
+            push_dialog_message(self, "Export My Data", f"Failed to write export file to: {output_path}", "warning")
 
     def _clear_saved_chat_clicked(self):
         from ..agent import chat_persistence
         stored = len(chat_persistence.load_chat_transcript())
         reply = QMessageBox.question(
             self, "Clear Saved Chat",
-            ("Permanently delete the conversation saved in this project's file (%d messages)?\n\n"
+            (f"Permanently delete the conversation saved in this project's file ({stored} messages)?\n\n"
              "The conversation on screen is not affected, and copies of the project file that were already "
-             "shared keep their own copy." % stored),
+             "shared keep their own copy."),
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No,
         )
         if reply != QMessageBox.StandardButton.Yes:
             return
         result = chat_persistence.clear_saved_chat_history()
         if result.get("success"):
-            QMessageBox.information(
+            push_dialog_message(
                 self, "Clear Saved Chat",
-                "Deleted %d saved messages from this project. Save the project to keep the change." % result.get("removed", 0))
+                f"Deleted {result.get('removed', 0)} saved messages from this project. Save the project to keep the change.", "success")
         else:
-            QMessageBox.warning(self, "Clear Saved Chat", "Could not delete the saved conversation.")
+            push_dialog_message(self, "Clear Saved Chat", "Could not delete the saved conversation.", "warning")
 
     def _clear_project_memory_clicked(self):
         agent = self._agent_provider() if self._agent_provider else None
@@ -193,11 +200,11 @@ class CartogenAiMemoryDialog(QDialog):
         try:
             notes = memory_manager.get_global_notes()
         except Exception as e:
-            print(f"[MemoryDialog] Failed to read global notes for learned-items combo: {e}")
+            log_event("failed_to_read_global_notes_for_learned_items_combo", tag="MemoryDialog", error_class=type(e).__name__, error=True)
             return
         learned = {
             k: v for k, v in notes.items()
-            if k.startswith("pref:") or k.startswith("rule:") or k.startswith("usage:")
+            if k.startswith(("pref:", "rule:", "usage:"))
         }
         self.learned_items_combo.blockSignals(True)
         self.learned_items_combo.clear()

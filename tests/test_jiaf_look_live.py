@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """JIAF 2 map looks in real QGIS. Written without a local QGIS: CI's first run is its first execution."""
 import unittest
 

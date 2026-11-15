@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """v1.8.0 workstream 1: recommend_visualization_method -- an advisory tool
 that recommends a styling tool from a layer/field's real geometry/field
 type/cardinality/distribution. Never applies styling itself."""

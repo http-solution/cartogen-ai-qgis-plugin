@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """#130 point 3: when a result layer is replaced by name with one built with DIFFERENT parameters, the tool result says so. The pure helpers run offline;
 the layer behaviour runs only in real QGIS (the `qgis-live-tests` job; written without a local QGIS, so CI's first run is its first execution)."""
 import os

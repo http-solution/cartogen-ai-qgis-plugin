@@ -1,0 +1,114 @@
+{
+ "id": "general",
+ "number": 1,
+ "label": "GIS Generalist",
+ "aliases": [
+  "gis",
+  "generalist",
+  "analyst"
+ ],
+ "summary": "General GIS work: loading, converting, cleaning and checking spatial data, and producing maps and exports.",
+ "guidance": "Use clear GIS terminology and ask for the target layer, coordinate system, output, and validation steps when they are ambiguous.",
+ "workflows": [
+  {
+   "id": "gen.clean",
+   "title": "Load, repair and check a dataset",
+   "tools": [
+    "add_layer_from_path",
+    "fix_geometries",
+    "diagnose_topology",
+    "validate_schema",
+    "write_provenance_sidecar"
+   ]
+  },
+  {
+   "id": "gen.convert",
+   "title": "Convert and reproject",
+   "tools": [
+    "reproject_layer",
+    "merge_layers",
+    "join_by_attribute",
+    "export_layer"
+   ]
+  }
+ ],
+ "tool_priority": [
+  "add_layer_from_path",
+  "export_layer",
+  "reproject_layer",
+  "merge_layers",
+  "join_by_attribute",
+  "fix_geometries",
+  "diagnose_topology",
+  "validate_schema",
+  "write_provenance_sidecar",
+  "load_workflow_preset",
+  "run_processing_model",
+  "execute_pyqgis_script"
+ ],
+ "tool_aliases": {
+  "diagnose_topology": [
+   "check my geometry",
+   "find overlaps and slivers"
+  ],
+  "reproject_layer": [
+   "change the projection",
+   "convert the coordinate system"
+  ]
+ },
+ "task_ids": [],
+ "data_sources": [
+  "hdx",
+  "geocoding"
+ ],
+ "style_profile": "general",
+ "layout_templates": [
+  "standard"
+ ],
+ "readiness": [
+  {
+   "capability": "format conversion, reprojection, merge and join",
+   "state": "CI-checked",
+   "tool": "export_layer"
+  },
+  {
+   "capability": "geometry repair and topology checks for validity, slivers and overlaps",
+   "state": "CI-checked",
+   "tool": "diagnose_topology"
+  },
+  {
+   "capability": "schema contracts and P-code checks",
+   "state": "CI-checked",
+   "tool": "validate_schema"
+  },
+  {
+   "capability": "provenance record beside every product",
+   "state": "CI-checked",
+   "tool": "write_provenance_sidecar"
+  },
+  {
+   "capability": "reusable workflows: presets and saved models",
+   "state": "CI-checked",
+   "tool": "run_processing_model"
+  },
+  {
+   "capability": "topology rules beyond overlaps (gaps, must be covered by)",
+   "state": "not built",
+   "since": "R8 (1.26.0)"
+  },
+  {
+   "capability": "ISO 19115 metadata record",
+   "state": "not built",
+   "since": "R8 (1.26.0)"
+  },
+  {
+   "capability": "generic open-data portals (CKAN, ArcGIS Hub, Socrata)",
+   "state": "not built",
+   "since": "R7 (1.25.0)"
+  }
+ ],
+ "guardrails": [
+  "Say which coordinate system a result is in and what was assumed when the request left it open.",
+  "Never report a repair as complete without reading the topology check back."
+ ]
+}

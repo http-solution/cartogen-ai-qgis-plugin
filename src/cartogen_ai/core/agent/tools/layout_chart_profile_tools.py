@@ -1,0 +1,351 @@
+"""M5 leftovers (gap-closing package): the chart and elevation-profile layout items the probe showed this QGIS has.
+
+add_layout_chart              a bar, line or pie chart of one layer's two fields, as a layout item
+add_layout_elevation_profile  an elevation profile along a straight line, from layers that have elevation turned on (set_layer_elevation)
+
+The 3D map layout item is NOT built: CI's QGIS has no QgsLayoutItem3DMap (docs/QGIS_CAPABILITY_PROBE_2026-10-16.md). Written without a QGIS install:
+tests/test_layout_chart_profile_live.py builds both items on a real layout and reads them back (CI's first run is its first execution); how they
+LOOK when rendered or exported has not been checked."""
+import contextlib
+import math
+
+from .gap_options import check_box, check_chart, check_profile_line, fit_free_box, line_ends
+from .registry import register_tool
+
+try:
+    from qgis.core import (Qgis, QgsBarChartPlot, QgsCoordinateReferenceSystem, QgsDistanceArea, QgsLayoutItemChart, QgsLayoutItemElevationProfile, QgsLineChartPlot,
+                           QgsLineString, QgsPieChartPlot, QgsPointXY, QgsProject, QgsRasterLayer, QgsVectorLayer)
+    from qgis.PyQt.QtCore import QRectF
+    QGIS_AVAILABLE = True
+except ImportError:
+    QGIS_AVAILABLE = False
+
+
+def _layout(name):
+    from ._layout_names import lookup
+    return lookup(QgsProject.instance().layoutManager(), name)
+
+
+def _line_ends_of_layer(name):
+    """Ends of the selected (else first) feature of a line layer, in the project CRS."""
+    found = QgsProject.instance().mapLayersByName(str(name))
+    if not found or not isinstance(found[0], QgsVectorLayer):
+        return None, f"Line layer '{name}' not found."
+    layer = found[0]
+    features = layer.selectedFeatures() or list(layer.getFeatures())[:1]
+    if not features or features[0].geometry() is None or features[0].geometry().isEmpty():
+        return None, f"Layer '{name}' has no line feature."
+    geometry = features[0].geometry()
+    if geometry.type() != Qgis.GeometryType.Line:
+        return None, f"Layer '{name}' is not a line layer."
+    parts = geometry.asMultiPolyline() if geometry.isMultipart() else [geometry.asPolyline()]
+    line = [(p.x(), p.y()) for p in parts[0]] if parts else []
+    ends, problem = line_ends(line)
+    if problem:
+        return None, problem
+    if layer.crs() != QgsProject.instance().crs() and QgsProject.instance().crs().isValid():
+        from qgis.core import QgsCoordinateTransform
+        transform = QgsCoordinateTransform(layer.crs(), QgsProject.instance().crs(), QgsProject.instance())
+        ends = tuple((lambda p: (p.x(), p.y()))(transform.transform(QgsPointXY(*end))) for end in ends)
+    return ends, None
+
+
+def _auto_box(layout, x_mm, y_mm, width_mm, height_mm):
+    """(x_mm, y_mm, width_mm, height_mm, note): the caller's position, or when it gave none a free spot on the first page, shrunk when the asked
+    size does not fit (see gap_options.fit_free_box). note says when the item was made smaller, or when the page had no free spot at all and the
+    default was used."""
+    if x_mm is not None or y_mm is not None:
+        return (10 if x_mm is None else x_mm), (10 if y_mm is None else y_mm), width_mm, height_mm, None
+    try:
+        size = layout.pageCollection().page(0).pageSize()
+        page_w, page_h = size.width(), size.height()
+        taken = []
+        for existing in layout.items():
+            if type(existing).__name__ == "QgsLayoutItemPage" or not hasattr(existing, "positionWithUnits"):
+                continue
+            where = layout.convertToLayoutUnits(existing.positionWithUnits())
+            size = layout.convertToLayoutUnits(existing.sizeWithUnits())
+            taken.append((where.x(), where.y(), size.width(), size.height()))
+        spot = fit_free_box(taken, page_w, page_h, float(width_mm), float(height_mm))
+    except Exception:
+        spot = None
+    if spot is None:
+        none_free = ("No free spot was found on the page even for a small item, so it was placed at 10, 10 and OVERLAPS other items. Tell the user, "
+                     "and move or resize it, or remove something from the layout.")
+        return 10, 10, width_mm, height_mm, none_free
+    x, y, w, h, shrunk = spot
+    note = (f"The page had no free spot of {width_mm:g} x {height_mm:g} mm, so the item was made {w:.0f} x {h:.0f} mm to fit beside the others."
+            if shrunk else None)
+    return x, y, w, h, note
+
+
+def _nice_ceiling(value):
+    """Round a positive number up to 1, 2, 5 or 10 times a power of ten so the axis ends on a readable tick."""
+    if value <= 0:
+        return 1.0
+    magnitude = 10 ** math.floor(math.log10(value))
+    for step in (1, 2, 5, 10):
+        if value <= step * magnitude:
+            return float(step * magnitude)
+    return float(10 * magnitude)
+
+
+def _chart_value_range(layer, y_field):
+    """(low, high) of a numeric field for the chart's Y axis, from 0 up to a nice ceiling. rc48 A12 pictures: a chart's axis stays at its default
+    0..10 unless it is set, so the line chart drew only the one town worth 5 and its line ran off the top, and bars worth 50..500 were clipped."""
+    values = []
+    for f in layer.getFeatures():
+        try:
+            values.append(float(f[y_field]))
+        except (TypeError, ValueError):
+            continue
+    if not values:
+        return None
+    low, high = min(values), max(values)
+    return (-_nice_ceiling(-low) if low < 0 else 0.0), (_nice_ceiling(high) if high > 0 else 0.0)
+
+
+def _elevation_range(layers):
+    """(low, high) elevation of the raster layers to profile, padded 5 %, or None when none is a raster. rc48 A6 picture: the plot stayed at 0..10
+    on both axes, so a real curve was out of range."""
+    lows, highs = [], []
+    for layer in layers:
+        if isinstance(layer, QgsRasterLayer):
+            stats = layer.dataProvider().bandStatistics(1)
+            props = layer.elevationProperties()
+            scale, offset = props.zScale(), props.zOffset()
+            lows.append(stats.minimumValue * scale + offset)
+            highs.append(stats.maximumValue * scale + offset)
+    if not lows:
+        return None
+    low, high = min(lows), max(highs)
+    pad = (high - low) * 0.05 or 1.0
+    return low - pad, high + pad
+
+
+MIN_INK_PIXELS = 100      # the rendered test of tests/test_layout_items_render_live.py: a thin curve is a few hundred coloured pixels at 4 px/mm, an empty plot none
+RENDER_PX_PER_MM = 4
+
+
+MIN_COLOUR_SPREAD = 20      # max(R,G,B) - min(R,G,B) of a pixel that counts as data ink; axes, grid lines and text are neutral (spread 0 to a few)
+
+
+def is_data_ink(red, green, blue):
+    """True for a pixel that is part of the drawn data, False for white and for the neutral greys and black of axes, grid lines and text. Pure.
+
+    DEF-38 (CI run 42558613090): QGIS gives each layer a random profile-line colour, and that run's was a muted green (121, 146, 108), channel spread
+    38, HSV saturation 66. The test's old threshold (spread 40) read the drawn curve as no ink at all, and this tool's old one (saturation 60) would
+    have called a pale line chart (172, 196, 157; saturation 51) empty and warned the user falsely. Neutral pixels have almost no spread, so a low
+    threshold on the spread still separates data from axes whatever colour the layer drew in."""
+    return max(red, green, blue) - min(red, green, blue) >= MIN_COLOUR_SPREAD
+
+
+def ink_verdict(coloured_pixels, minimum=MIN_INK_PIXELS):
+    """The part of the tool result that says whether the item drew anything. Pure. Axes and grid lines are grey, so only coloured pixels count
+    (a plot with axes and no data has none): rc48 A12 and A6 showed empty grids and a profile without its curve, with nothing in the reply saying so."""
+    drew = coloured_pixels >= minimum
+    out = {"drew": drew, "coloured_pixels": int(coloured_pixels), "minimum": minimum}
+    if not drew:
+        out["warning"] = ("The item was added but drew no data when rendered, only axes or nothing. Check that the layer has values in the fields used "
+                          "and, for a profile, that the line crosses the raster and its elevation is turned on, then look at the layout.")
+    return out
+
+
+def _render_check(layout, item):
+    """ink_verdict() for what `item` actually renders as on `layout`, or None when it cannot be rendered here. Never raises."""
+    try:
+        from qgis.core import QgsLayoutExporter
+        from qgis.PyQt.QtCore import QSize
+        rect = item.sceneBoundingRect()
+        size = QSize(max(1, int(rect.width() * RENDER_PX_PER_MM)), max(1, int(rect.height() * RENDER_PX_PER_MM)))
+        image = QgsLayoutExporter(layout).renderRegionToImage(rect, size)
+        if image.isNull():
+            return None
+        step = 2
+        coloured = 0
+        for x in range(0, image.width(), step):
+            for y in range(0, image.height(), step):
+                pixel = image.pixelColor(x, y)
+                if is_data_ink(pixel.red(), pixel.green(), pixel.blue()):
+                    coloured += step * step
+        return ink_verdict(coloured)
+    except Exception:
+        return None
+
+
+def _place(item, layout, box, item_id):
+    if item_id:
+        item.setId(item_id)
+    layout.addLayoutItem(item)
+    item.attemptSetSceneRect(QRectF(box["x_mm"], box["y_mm"], box["width_mm"], box["height_mm"]))
+
+
+def _make_series(name, x_expression, y_expression):
+    """A chart series, or the reason it could not be made. The first live run (QGIS 4.2.2) showed SeriesDetails does not take (name, x, y)
+    as constructor arguments, so a default object is filled through whichever setters or attributes this QGIS exposes."""
+    try:
+        series = QgsLayoutItemChart.SeriesDetails()
+    except TypeError as e:
+        return f"QGIS could not create a chart series: {e}"
+    for value, setter, attribute in ((name, "setName", "name"), (x_expression, "setXExpression", "xExpression"),
+                                     (y_expression, "setYExpression", "yExpression")):
+        if hasattr(series, setter):
+            getattr(series, setter)(value)
+        elif attribute in dir(series) and not callable(getattr(series, attribute)):
+            setattr(series, attribute, value)
+        else:
+            return f"This QGIS chart series has no way to set its {attribute} ({setter} / attribute not found)."
+    return series
+
+
+@register_tool(
+    "add_layout_chart",
+    "Add a chart to a print layout: chart_type 'bar', 'line' or 'pie' of layer_name, with x_field (the categories) and y_field (the values), both "
+    "plain field names. Position and size in millimetres. A chart item draws the layer's own features, so it follows the layer.",
+    {"type": "object", "properties": {
+        "layout_name": {"type": "string"}, "layer_name": {"type": "string"}, "chart_type": {"type": "string"}, "x_field": {"type": "string"},
+        "y_field": {"type": "string"}, "x_mm": {"type": "number"}, "y_mm": {"type": "number"}, "width_mm": {"type": "number"},
+        "height_mm": {"type": "number"}, "item_id": {"type": "string"}},
+     "required": ["layout_name", "layer_name", "x_field", "y_field"]},
+    keywords=[
+        "charts linked to maps", "chart linked to the map", "charts linked to the map", "chart linked to maps",
+        "chart in the layout", "add a chart", "bar chart in the layout", "pie chart in the layout", "line chart in the layout",
+        "chart item", "chart on the layout", "chart to the layout", "chart to the print",
+    ],
+)
+def add_layout_chart(layout_name, layer_name, x_field, y_field, chart_type="bar", x_mm=None, y_mm=None, width_mm=120, height_mm=80, item_id=None):
+    if not QGIS_AVAILABLE:
+        return {"error": "QGIS not available"}
+    options, problem = check_chart(layout_name, chart_type, x_field, y_field, item_id)
+    if problem:
+        return {"error": problem}
+    box, problem = check_box(0 if x_mm is None else x_mm, 0 if y_mm is None else y_mm, width_mm, height_mm)
+    if problem:
+        return {"error": problem}
+    layout = _layout(layout_name)
+    if layout is None:
+        return {"error": f"Layout '{layout_name}' not found. See list_layouts."}
+    box["x_mm"], box["y_mm"], box["width_mm"], box["height_mm"], placement_note = _auto_box(layout, x_mm, y_mm, box["width_mm"], box["height_mm"])
+    found = QgsProject.instance().mapLayersByName(layer_name)
+    layer = found[0] if found and isinstance(found[0], QgsVectorLayer) else None
+    if layer is None:
+        return {"error": f"Vector layer '{layer_name}' not found."}
+    names = {f.name() for f in layer.fields()}
+    missing = [f for f in (options["x_field"], options["y_field"]) if f not in names]
+    if missing:
+        return {"error": f"Layer '{layer_name}' has no field(s) {missing}. Fields: {sorted(names)}."}
+    plots = {"bar": QgsBarChartPlot, "line": QgsLineChartPlot, "pie": QgsPieChartPlot}
+    item = QgsLayoutItemChart(layout)
+    plot = plots[options["chart_type"]]()
+    if options["chart_type"] != "pie":
+        # rc48 A12: bar/line charts drew nothing. The QGIS 4.2 reference says series X values are converted to numbers unless the X axis is
+        # Categorical, so text categories (names) came out empty; the pie reads them as labels, which is why it alone drew.
+        with contextlib.suppress(AttributeError):
+            plot.xAxis().setType(Qgis.PlotAxisType.Categorical)
+        span = _chart_value_range(layer, options["y_field"])
+        if span:
+            plot.setYMinimum(span[0])
+            plot.setYMaximum(span[1])
+    item.setPlot(plot)
+    item.setSourceLayer(layer)
+    series = _make_series(options["y_field"], f'"{options["x_field"]}"', f'"{options["y_field"]}"')
+    if isinstance(series, str):
+        return {"error": series}
+    item.setSeriesList([series])
+    _place(item, layout, box, options["item_id"])
+    from ._sensitivity_notes import protected_layer_notes
+    out = {"success": True, "layout_name": layout_name, "item_id": item.id(), "chart_type": options["chart_type"], "layer_name": layer.name(),
+           "series": len(item.seriesList()), "x_mm": box["x_mm"], "y_mm": box["y_mm"],
+           "note": "The item is on the layout; render_check says whether it drew any data. Look at the layout before exporting."}
+    check = _render_check(layout, item)
+    if check:
+        out["render_check"] = {k: v for k, v in check.items() if k != "warning"}
+        if check.get("warning"):
+            out["render_warning"] = check["warning"]
+    notes = protected_layer_notes([layer], "the chart shows its values and the layout's classification footer was not changed. Check the layout "
+                                           "before exporting. Advisory only, nothing was blocked.")
+    if notes:
+        out["warning"] = " ".join(notes)
+    if placement_note:
+        out["placement_note"] = placement_note
+    return out
+
+
+@register_tool(
+    "add_layout_elevation_profile",
+    "Add an elevation profile to a print layout along a straight line from (start_x, start_y) to (end_x, end_y) in the project CRS. layer_names "
+    "are the layers to profile; each needs elevation turned on first (set_layer_elevation). Give either start/end coordinates or along_layer, the name "
+    "of a LINE layer (a road, a river): the profile then runs from the first to the last vertex of its selected feature, or its first feature. "
+    "Position and size in millimetres.",
+    {"type": "object", "properties": {
+        "layout_name": {"type": "string"}, "layer_names": {"type": "array", "items": {"type": "string"}}, "start_x": {"type": "number"},
+        "start_y": {"type": "number"}, "end_x": {"type": "number"}, "end_y": {"type": "number"}, "x_mm": {"type": "number"},
+        "y_mm": {"type": "number"}, "width_mm": {"type": "number"}, "height_mm": {"type": "number"}, "item_id": {"type": "string"},
+        "along_layer": {"type": "string"}},
+     "required": ["layout_name", "layer_names"]},
+    keywords=[
+        "elevation profile in the layout", "add an elevation profile", "elevation profile to the layout", "profile item",
+        "elevation profile along", "terrain profile in the layout", "cross section in the layout",
+    ],
+)
+def add_layout_elevation_profile(layout_name, layer_names, start_x=None, start_y=None, end_x=None, end_y=None, x_mm=None, y_mm=None, width_mm=180,
+                                 height_mm=70, item_id=None, along_layer=None):
+    if not QGIS_AVAILABLE:
+        return {"error": "QGIS not available"}
+    if along_layer and start_x is None and end_x is None:
+        ends, problem = _line_ends_of_layer(along_layer)
+        if problem:
+            return {"error": problem}
+        (start_x, start_y), (end_x, end_y) = ends
+    elif None in (start_x, start_y, end_x, end_y):
+        return {"error": "Give start_x, start_y, end_x and end_y, or along_layer (the name of a line layer)."}
+    line, problem = check_profile_line(start_x, start_y, end_x, end_y)
+    if problem:
+        return {"error": problem}
+    box, problem = check_box(0 if x_mm is None else x_mm, 0 if y_mm is None else y_mm, width_mm, height_mm)
+    if problem:
+        return {"error": problem}
+    if not isinstance(layer_names, list) or not layer_names:
+        return {"error": "layer_names must list at least one layer."}
+    layout = _layout(layout_name)
+    if layout is None:
+        return {"error": f"Layout '{layout_name}' not found. See list_layouts."}
+    box["x_mm"], box["y_mm"], box["width_mm"], box["height_mm"], placement_note = _auto_box(layout, x_mm, y_mm, box["width_mm"], box["height_mm"])
+    layers, missing = [], []
+    for name in layer_names:
+        found = QgsProject.instance().mapLayersByName(str(name))
+        (layers if found else missing).append(found[0] if found else name)
+    if missing:
+        return {"error": f"Layer(s) not found: {missing}."}
+    # a raster has an elevation switch; a vector layer has none (it always applies), so only rasters can be "off"
+    off = [layer.name() for layer in layers if hasattr(layer.elevationProperties(), "isEnabled") and not layer.elevationProperties().isEnabled()]
+    if off:
+        return {"error": f"Elevation is not turned on for {off}. Use set_layer_elevation (enabled=true) first."}
+    item = QgsLayoutItemElevationProfile(layout)
+    item.setCrs(QgsProject.instance().crs() if QgsProject.instance().crs().isValid() else QgsCoordinateReferenceSystem("EPSG:4326"))
+    item.setProfileCurve(QgsLineString([QgsPointXY(*line[0]), QgsPointXY(*line[1])]))
+    item.setLayers(layers)
+    with contextlib.suppress(Exception):   # a range we cannot work out leaves QGIS's own default; the layout still builds
+        area = QgsDistanceArea()
+        area.setSourceCrs(item.crs(), QgsProject.instance().transformContext())
+        area.setEllipsoid(QgsProject.instance().ellipsoid() or "WGS84")
+        metres = area.measureLine(QgsPointXY(*line[0]), QgsPointXY(*line[1]))
+        plot = item.plot()
+        plot.setXMinimum(0.0)
+        plot.setXMaximum(float(area.convertLengthMeasurement(metres, item.distanceUnit())))
+        elevation = _elevation_range(layers)
+        if elevation:
+            plot.setYMinimum(float(elevation[0]))
+            plot.setYMaximum(float(elevation[1]))
+    _place(item, layout, box, item_id)
+    out = {"success": True, "layout_name": layout_name, "item_id": item.id(), "layers": [layer.name() for layer in layers],
+           "x_mm": box["x_mm"], "y_mm": box["y_mm"],
+           "note": "The item is on the layout; render_check says whether it drew a curve. Look at the layout before exporting."}
+    check = _render_check(layout, item)
+    if check:
+        out["render_check"] = {k: v for k, v in check.items() if k != "warning"}
+        if check.get("warning"):
+            out["render_warning"] = check["warning"]
+    if placement_note:
+        out["placement_note"] = placement_note
+    return out

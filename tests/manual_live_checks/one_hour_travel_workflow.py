@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Manual end-to-end check of "Health facilities beyond one hour's travel 3999682,3756232" with REAL data.
 
 Not part of the automated suite: it downloads the Geofabrik Jordan OpenStreetMap extract (~60 MB, cached
@@ -71,7 +70,7 @@ origin.dataProvider().addFeatures([f])
 QgsProject.instance().addMapLayer(origin)
 wgs = QgsCoordinateReferenceSystem("EPSG:4326")
 olon_lat = QgsCoordinateTransform(WEB_MERCATOR, wgs, QgsProject.instance()).transform(QgsPointXY(ox, oy))
-print("origin = %.5f N, %.5f E (Amman)" % (olon_lat.y(), olon_lat.x()))
+print(f"origin = {olon_lat.y():.5f} N, {olon_lat.x():.5f} E (Amman)")
 
 da = QgsDistanceArea()
 da.setSourceCrs(wgs, QgsProject.instance().transformContext())
@@ -87,7 +86,7 @@ fac = QgsProject.instance().mapLayersByName(fac_name)[0]
 roads_crs = QgsProject.instance().mapLayersByName(roads_name)[0].crs()
 to_wgs = QgsCoordinateTransform(roads_crs, wgs, QgsProject.instance())
 costs, straight = {}, {}
-for key, value in list(tm["matrix"].values())[0].items():
+for key, value in next(iter(tm["matrix"].values())).items():
     # the matrix is keyed by each destination's coordinates in the NETWORK's CRS: "x, y"
     try:
         hours = float(value)
@@ -98,22 +97,22 @@ for key, value in list(tm["matrix"].values())[0].items():
     costs[key] = hours
     straight[key] = da.measureLine(QgsPointXY(olon_lat.x(), olon_lat.y()), QgsPointXY(p.x(), p.y()))
 print("facilities:", fac.featureCount(), "| with a route:", len(costs))
-check("a route cost for most facilities", len(costs) >= 0.5 * fac.featureCount(), "%d of %d" % (len(costs), fac.featureCount()))
+check("a route cost for most facilities", len(costs) >= 0.5 * fac.featureCount(), f"{len(costs)} of {fac.featureCount()}")
 
 # route length implied by hours x 50 km/h, vs the straight line to the same facility
 ratios = sorted(costs[k] * 50000.0 / straight[k] for k in costs if straight[k] > 500)
 if ratios:
-    print("route length / straight line: min %.2f  median %.2f  max %.2f  (n=%d)" % (ratios[0], ratios[len(ratios) // 2], ratios[-1], len(ratios)))
+    print(f"route length / straight line: min {ratios[0]:.2f}  median {ratios[len(ratios) // 2]:.2f}  max {ratios[-1]:.2f}  (n={len(ratios)})")
 check("no route is shorter than the straight line (units are real)", ratios and ratios[0] >= 0.95, "min ratio %.2f" % (ratios[0] if ratios else -1))
 check("typical road/straight-line ratio is plausible (1.0 to 2.5)", ratios and 1.0 <= ratios[len(ratios) // 2] <= 2.5, "median %.2f" % (ratios[len(ratios) // 2] if ratios else -1))
 
 within = sorted(k for k, h in costs.items() if h <= 1.0)
 beyond = sorted(k for k, h in costs.items() if h > 1.0)
-print("within one hour: %d | beyond one hour: %d" % (len(within), len(beyond)))
-check("the one-hour split is meaningful (some inside, some beyond)", within and beyond, "%d inside / %d beyond" % (len(within), len(beyond)))
+print(f"within one hour: {len(within)} | beyond one hour: {len(beyond)}")
+check("the one-hour split is meaningful (some inside, some beyond)", within and beyond, f"{len(within)} inside / {len(beyond)} beyond")
 if beyond:
     far = max(costs[k] for k in beyond)
-    print("farthest facility by road: %.1f hours" % far)
+    print(f"farthest facility by road: {far:.1f} hours")
 
 # --- 2. a one-hour service area around the origin ---------------------------------------------------------
 t = time.time()
@@ -132,5 +131,5 @@ if sa.get("layers_created"):
     # 1 hour at 50 km/h is 50 km of road: the reach must be 10-50 km away in a straight line
     check("1-hour reach extends 10-50 km (50 km of road at 50 km/h)", 10000 <= farthest <= 50500, "%.1f km" % (farthest / 1000))
 
-print("\n%d/%d passed" % (sum(results), len(results)))
+print(f"\n{sum(results)}/{len(results)} passed")
 sys.exit(0 if all(results) else 1)

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Tests for agent/tools/project_tools.py (save_project/load_project), added
 in the QGIS-feature-coverage pass. load_project follows the same
 PREVIEW_REQUIRED destructive-confirmation pattern as vector_tools.remove_layer
@@ -44,9 +43,10 @@ class TestSaveProjectBehavior(unittest.TestCase):
 
         res = save_project("/tmp/out.qgz")
 
-        instance.setFileName.assert_called_once_with("/tmp/out.qgz")
+        # save_project anchors/normalises the path (tools/_paths.py), so on Windows "/tmp/out.qgz" becomes "\\tmp\\out.qgz"
+        instance.setFileName.assert_called_once_with(os.path.normpath("/tmp/out.qgz"))
         self.assertTrue(res["success"])
-        self.assertEqual(res["file_path"], "/tmp/out.qgz")
+        self.assertEqual(res["file_path"], "/tmp/out.qgz")      # the mock project's fileName(), reported as is
 
     @patch("cartogen_ai.core.agent.tools.project_tools.QGIS_AVAILABLE", True)
     @patch("cartogen_ai.core.agent.tools.project_tools.QgsProject", create=True)

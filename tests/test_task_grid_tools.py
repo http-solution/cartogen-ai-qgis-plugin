@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """H2 generate_mapping_task_grid: grid, ranking, GeoJSON and validation are pure; the layer work is in test_task_grid_tools_live.py."""
 import json
 import unittest

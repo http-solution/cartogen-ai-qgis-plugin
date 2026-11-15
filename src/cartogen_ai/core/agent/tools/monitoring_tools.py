@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Recurring monitoring workflows for Cartogen AI.
 
@@ -184,6 +183,10 @@ def _summarize_diffs(preset_name, result):
         },
         "required": ["preset_name"],
     },
+
+    keywords=[
+        "monthly report pack", "report pack", "refresh the incident layer", "update the dashboard and export",
+    ],
 )
 def run_monitoring_workflow(preset_name):
     if not QGIS_AVAILABLE:
@@ -261,11 +264,16 @@ def run_monitoring_workflow(preset_name):
         },
         "required": ["preset_name", "interval_minutes"],
     },
+
+    keywords=[
+        "every week", "each week", "weekly check", "every day", "daily check",
+        "every month", "every hour", "check every",
+    ],
 )
 def schedule_recurring_workflow(preset_name, interval_minutes, max_runs=None):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
-    steps, error = _load_steps(preset_name)
+    _steps, error = _load_steps(preset_name)
     if error:
         return {"error": error}
 
@@ -288,6 +296,11 @@ def schedule_recurring_workflow(preset_name, interval_minutes, max_runs=None):
         "properties": {"preset_name": {"type": "string"}},
         "required": ["preset_name"],
     },
+
+    keywords=[
+        "stop the check", "stop the weekly", "stop the daily", "stop the scheduled", "cancel the scheduled",
+        "stop checking",
+    ],
 )
 def stop_recurring_workflow(preset_name):
     if not QGIS_AVAILABLE:
@@ -302,6 +315,10 @@ def stop_recurring_workflow(preset_name):
     "list_scheduled_workflows",
     "List currently active recurring workflow schedules (session-scoped -- cleared when QGIS closes).",
     {"type": "object", "properties": {}, "required": []},
+
+    keywords=[
+        "scheduled jobs", "scheduled checks", "what is scheduled",
+    ],
 )
 def list_scheduled_workflows():
     if not QGIS_AVAILABLE:

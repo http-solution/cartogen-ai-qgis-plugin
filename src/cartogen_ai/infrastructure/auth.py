@@ -1,8 +1,11 @@
-# -*- coding: utf-8 -*-
 """
 Authentication and Credential Security Manager for Cartogen AI.
-Uses QGIS native QgsAuthManager (encrypted keyring storage) with fallback to QgsSettings.
+Uses QGIS native QgsAuthManager (encrypted keyring storage). When it is unavailable a key is held in this process's memory only for
+the session; a new key is never written to QgsSettings in plaintext (older plaintext keys are only read and migrated, see below).
 """
+
+import hashlib
+from typing import ClassVar
 
 try:
     from qgis.core import QgsApplication, QgsAuthMethodConfig, QgsSettings
@@ -10,9 +13,9 @@ try:
 except ImportError:
     QGIS_AVAILABLE = False
 
-from ..core.logger import log_warning
+from ..core.logger import log_event, log_warning
 from .settings_keys import (
-    SETTINGS_PROVIDER, SETTINGS_API_KEY, fallback_credential_key, auth_id_setting_key,
+    SETTINGS_PROVIDER, SETTINGS_API_KEY, normalize_provider, CLI_PROVIDERS, fallback_credential_key, auth_id_setting_key,
 )
 
 
@@ -34,10 +37,19 @@ def _store_auth_config(auth_mgr, config, had_existing_id):
 
 
 
+def credential_fingerprint(provider, key):
+    """Opaque digest of provider + key, used only to notice that either changed.
+
+    plugin_main used to keep f"{provider}_{key}" -- the raw API key -- in an attribute named `_agent_key`/`agent_hash`, so the
+    secret sat in a second long-lived string (visible in any debugger, repr or crash dump). A SHA-256 hex digest answers the same
+    "did it change?" question without holding the key."""
+    return hashlib.sha256(f"{provider}\0{key or ''}".encode()).hexdigest()
+
+
 class CredentialManager:
     """Manages API keys securely using QgsAuthManager when available."""
 
-    AUTH_KEY_PREFIX = "cartogen_ai_auth_id_"
+    AUTH_KEY_PREFIX = "cartogen_ai_auth_id_"  # pragma: allowlist secret (a settings-key prefix, not a credential)
 
     # P1 fix, 2026-09-20 audit + explicit product policy decision (strict option
     # chosen over an opt-in plaintext-persist path): providers whose key is held
@@ -47,8 +59,8 @@ class CredentialManager:
     # by design, regardless of user consent. See LEGACY_SETTINGS_KEYS/get_credential
     # below for the separate, retained migration path that only READS/REMOVES
     # plaintext keys written by OLDER versions of this file, before this policy.
-    _session_credentials = {}
-    _session_only_providers = set()
+    _session_credentials: ClassVar[dict] = {}
+    _session_only_providers: ClassVar[set] = set()
 
     @classmethod
     def used_session_only_fallback(cls, provider: str) -> bool:
@@ -58,7 +70,7 @@ class CredentialManager:
     # save_credential and get_credential so they can never drift out of sync with each
     # other (a prior version used two separate, mismatched mappings — a saved OpenRouter/
     # Ollama key would silently land somewhere get_credential never looked).
-    LEGACY_SETTINGS_KEYS = {
+    LEGACY_SETTINGS_KEYS: ClassVar[dict] = {
         "openrouter": SETTINGS_API_KEY,
         "gemini": fallback_credential_key("gemini"),
         "ollama": fallback_credential_key("ollama"),
@@ -221,12 +233,12 @@ class CredentialManager:
         if not status.get("disabled"):
             return ""
         lines = [
-            "This isn't something Cartogen AI's own installer can fix -- it only installs "
+            ("This isn't something Cartogen AI's own installer can fix -- it only installs "
             "Python packages (via qpip), never QGIS's native Qt/QCA libraries or its "
-            "settings. Two documented causes:"
+            "settings. Two documented causes:")
         ]
         for i, item in enumerate(status["known_causes"], start=1):
-            lines.append("%d. %s\n   Fix: %s" % (i, item["cause"], item["fix"]))
+            lines.append(f"{i}. {item['cause']}\n   Fix: {item['fix']}")
         return "\n\n".join(lines)
 
     @staticmethod
@@ -269,7 +281,7 @@ class CredentialManager:
             settings.setValue(setting, config.id())
             return True
         except Exception as e:
-            print(f"[CredentialManager] secure account session save failed: {e}")
+            log_event("secure_account_session_save_failed", tag="CredentialManager", error_class=type(e).__name__, error=True)
             return False
 
     @staticmethod
@@ -288,7 +300,7 @@ class CredentialManager:
             if auth_mgr.loadAuthenticationConfig(auth_id, config, True):
                 return config.config("password") or ""
         except Exception as e:
-            print(f"[CredentialManager] secure account session load failed: {e}")
+            log_event("secure_account_session_load_failed", tag="CredentialManager", error_class=type(e).__name__, error=True)
         return ""
 
     @staticmethod
@@ -306,7 +318,7 @@ class CredentialManager:
                     remove_fn(auth_id)
             settings.remove(setting)
         except Exception as e:
-            print(f"[CredentialManager] secure account session delete failed: {e}")
+            log_event("secure_account_session_delete_failed", tag="CredentialManager", error_class=type(e).__name__, error=True)
 
     _MISSING_KEY_MESSAGE = (
         "**No API key configured for the selected provider.** Open **Settings** "
@@ -315,7 +327,7 @@ class CredentialManager:
     )
 
     @classmethod
-    def missing_credential_message(cls, provider: str = None, client=None) -> str:
+    def missing_credential_message(cls, provider: str | None = None, client=None) -> str | None:
         """Returns a friendly, actionable chat message if there's no usable
         credential to send a request with, or None if it's fine to proceed.
         Meant to be checked BEFORE a request goes out, so the user sees this
@@ -348,14 +360,28 @@ class CredentialManager:
         try:
             settings = QgsSettings()
             if provider is None:
-                provider = settings.value(SETTINGS_PROVIDER, "openrouter")
-            if provider == "ollama":
-                return None
+                provider = normalize_provider(settings.value(SETTINGS_PROVIDER, "openrouter"))
+            if provider == "ollama" or provider in CLI_PROVIDERS:
+                return None  # no key to be missing: an endpoint URL with a default, or a local CLI on its own login
             if CredentialManager.get_credential(provider):
                 return None
         except Exception:
             return None
         return cls._MISSING_KEY_MESSAGE
+
+    # provider -> where get_credential last found its key: "auth_store" (QGIS's encrypted store), "session_memory" or "legacy_settings"
+    # (a plaintext value an earlier version wrote). Lets an auth failure say which source was used (a 2026-10-11 report: a refused key
+    # that the user believed was the one just entered).
+    _last_source: ClassVar[dict] = {}
+
+    @staticmethod
+    def last_credential_source(provider: str) -> str:
+        return CredentialManager._last_source.get(provider, "")
+
+    @staticmethod
+    def _found(provider: str, source: str, value):
+        CredentialManager._last_source[provider] = source
+        return value
 
     @staticmethod
     def get_credential(provider: str) -> str:
@@ -375,7 +401,9 @@ class CredentialManager:
                     if auth_mgr.loadAuthenticationConfig(auth_id, config, True):
                         pwd = config.config("password")
                         if pwd:
-                            return pwd
+                            return CredentialManager._found(provider, "auth_store", pwd)
+                    else:
+                        log_warning("QgsAuthManager could not load the saved key (master password not entered?); trying other sources", tag="CredentialManager")
             except Exception as e:
                 log_warning(f"QgsAuthManager load failed: {e}", tag="CredentialManager")
 
@@ -383,7 +411,7 @@ class CredentialManager:
         # path) -- checked before plaintext QgsSettings since it's always the more
         # recently saved value when both exist.
         if provider in CredentialManager._session_credentials:
-            return CredentialManager._session_credentials[provider]
+            return CredentialManager._found(provider, "session_memory", CredentialManager._session_credentials[provider])
 
         # Fallback to QgsSettings — same mapping save_credential writes to.
         fallback_setting = CredentialManager.LEGACY_SETTINGS_KEYS.get(
@@ -391,7 +419,7 @@ class CredentialManager:
         )
         value = settings.value(fallback_setting, "")
         if value:
-            return value
+            return CredentialManager._found(provider, "legacy_settings", value)
 
         # Recovery path: earlier versions of this file wrote OpenRouter/Ollama keys to
         # cartogen_ai/{provider}_key (a name get_credential never read back from), so a
@@ -401,7 +429,7 @@ class CredentialManager:
         if stray_key != fallback_setting:
             value = settings.value(stray_key, "")
             if value:
-                return value
+                return CredentialManager._found(provider, "legacy_settings", value)
 
         # Second recovery path, Ollama-specific: before the settings-centralization pass
         # (LEGACY_SETTINGS_KEYS moved "ollama" from the literal "cartogen_ai/ollama_url"

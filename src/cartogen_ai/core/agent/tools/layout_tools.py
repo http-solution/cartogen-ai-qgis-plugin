@@ -1,12 +1,16 @@
-# -*- coding: utf-8 -*-
 """
 Print Layout Composition Tools for Cartogen AI.
 Generates automated QgsPrintLayout compositions with title, map item, legend, scalebar, and north arrow.
 """
 
+import contextlib
 import math
 import os
+from types import SimpleNamespace
 from .registry import register_tool
+from ._paths import resolve_output_path
+from ._layout_names import layout_name_for
+from ...logger import log_event
 
 try:
     from qgis.core import (
@@ -14,7 +18,7 @@ try:
         QgsLayoutItemScaleBar, QgsLayoutItemLabel, QgsLayoutItemPicture,
         QgsLayoutPoint, QgsLayoutSize, QgsUnitTypes, QgsLayoutExporter,
         QgsApplication, QgsCoordinateTransform, QgsLayoutItemMapGrid,
-        QgsLayoutItemMapOverview, QgsRectangle
+        QgsLayoutItemMapOverview, QgsRectangle, QgsVectorLayer
     )
     from qgis.utils import iface
     try:
@@ -64,6 +68,14 @@ def _text_budget(box_w_mm, box_h_mm):
     return max(20, int(max_lines * box_w_mm * _LABEL_CHARS_PER_MM_WIDTH))
 
 
+def canvas_rotation(canvas):
+    """The map canvas's rotation in degrees (0.0 when there is no canvas or it cannot be read). Pure apart from the call."""
+    try:
+        return float(canvas.rotation()) if canvas else 0.0
+    except Exception:
+        return 0.0
+
+
 def _fit_text_to_box(text, box_w_mm, box_h_mm):
     """Truncates text to what a QgsLayoutItemLabel-sized box can actually
     hold, by whole words, appending an ellipsis if truncated. Exists because
@@ -86,7 +98,8 @@ def _extent_to_canvas_crs(canvas, extent, source_crs):
     CRS -- see the identical helper in vector_tools.py (zoom_to_layer/
     zoom_to_feature) for the full rationale. Duplicated locally rather than
     cross-imported, matching this codebase's existing convention of each
-    tools module keeping its own small _find_layer_by_name-style helpers."""
+    tools module keeping its own small _find_layer_by_name-style helpers.
+    Returns None when the transform fails (audit A13) -- never the untransformed extent."""
     canvas_crs = canvas.mapSettings().destinationCrs()
     if not source_crs.isValid() or source_crs == canvas_crs:
         return extent
@@ -94,7 +107,49 @@ def _extent_to_canvas_crs(canvas, extent, source_crs):
         transform = QgsCoordinateTransform(source_crs, canvas_crs, QgsProject.instance())
         return transform.transformBoundingBox(extent)
     except Exception:
-        return extent
+        return None
+
+
+def pick_layout_extent(canvas, full, vectors, share=0.5, margin=0.05):
+    """(xmin, ymin, xmax, ymax) for the layout's main map, or None to keep the canvas view. Each argument is a bounds tuple or None. Pure.
+
+    GitHub #129, rc48 OI-129 (2026-10-24): after "Zoom Full" the canvas shows the whole project, so a layout that follows it was framed on the
+    DEM (1:20,904) and the road network, which is what the map is about, appeared only in the inset. The layout still follows what the user is
+    looking at; it only steps in when the canvas is showing EVERYTHING (it contains the project's full extent) and the visible vector layers
+    fill less than `share` of it, then it frames those layers with a small margin. A zoomed-in or panned canvas is left alone."""
+    if not canvas or not full or not vectors:
+        return None
+
+    def area(b):
+        return max(b[2] - b[0], 0.0) * max(b[3] - b[1], 0.0)
+
+    tolerance = 1e-9 + 0.001 * max(canvas[2] - canvas[0], canvas[3] - canvas[1])
+    shows_everything = (canvas[0] <= full[0] + tolerance and canvas[1] <= full[1] + tolerance
+                        and canvas[2] >= full[2] - tolerance and canvas[3] >= full[3] - tolerance)
+    if not shows_everything or area(canvas) <= 0 or area(vectors) <= 0 or area(vectors) >= share * area(canvas):
+        return None
+    pad_x, pad_y = (vectors[2] - vectors[0]) * margin, (vectors[3] - vectors[1]) * margin
+    return vectors[0] - pad_x, vectors[1] - pad_y, vectors[2] + pad_x, vectors[3] + pad_y
+
+
+def _visible_vector_bounds(canvas):
+    """Union of the extents of the checked vector layers with features, in the canvas CRS, as a bounds tuple (None when there is none)."""
+    boxes = []
+    root = QgsProject.instance().layerTreeRoot()
+    for layer in root.checkedLayers():
+        if not isinstance(layer, QgsVectorLayer) or not layer.isSpatial() or layer.featureCount() == 0:
+            continue
+        box = _extent_to_canvas_crs(canvas, layer.extent(), layer.crs())
+        if box is not None and not box.isNull():
+            boxes.append((box.xMinimum(), box.yMinimum(), box.xMaximum(), box.yMaximum()))
+    if not boxes:
+        return None
+    return min(b[0] for b in boxes), min(b[1] for b in boxes), max(b[2] for b in boxes), max(b[3] for b in boxes)
+
+
+def _full_project_bounds(canvas):
+    box = canvas.fullExtent()
+    return None if box.isNull() else (box.xMinimum(), box.yMinimum(), box.xMaximum(), box.yMaximum())
 
 
 def padded_extent_bounds(xmin, ymin, xmax, ymax, geographic):
@@ -127,34 +182,26 @@ def _soften_graticule(grid):
     '4880000.000' that ran over the CRS/scale row under the map and off the left and right page edges. Each step is
     best-effort and independent (the API differs a little between QGIS versions): a failed one keeps that default and the
     graticule itself is still added. Not re-run in a real QGIS session from the sandbox."""
-    try:
+    with contextlib.suppress(Exception):
         from qgis.core import QgsLineSymbol
         grid.setLineSymbol(QgsLineSymbol.createSimple({"color": "110,110,110,110", "width": "0.12"}))
-    except Exception:
-        pass
-    try:
+    with contextlib.suppress(Exception):
         grid.setAnnotationPrecision(0)
-    except Exception:
-        pass
     # rc18 hand test N8: the right-hand annotations are drawn outside the map frame, in the gap before the legend panel, and were
     # clipped by it ("3540" cut to "354"). Left and bottom carry the coordinates; the right (and top) copies are only duplicates.
-    try:
+    with contextlib.suppress(Exception):
         from qgis.core import QgsLayoutItemMapGrid as _Grid
         display = getattr(_Grid, "DisplayMode", _Grid)
         side = getattr(_Grid, "BorderSide", _Grid)
         for border in ("Right", "Top"):
             grid.setAnnotationDisplay(display.HideAll, getattr(side, border))
-    except Exception:
-        pass
-    try:
+    with contextlib.suppress(Exception):
         from qgis.core import QgsTextFormat
         fmt = QgsTextFormat()
         fmt.setSize(6)
         from qgis.PyQt.QtGui import QColor
         fmt.setColor(QColor(90, 90, 90))
         grid.setAnnotationTextFormat(fmt)
-    except Exception:
-        pass
 
 
 def _nice_interval(raw):
@@ -182,9 +229,367 @@ def _format_scale_denominator(n):
     try:
         if n is None or n != n or n in (float("inf"), float("-inf")) or n <= 0:
             return "unavailable"
-        return f"1:{int(round(n)):,}"
+        return f"1:{round(n):,}"
     except (TypeError, ValueError, OverflowError):
         return "unavailable"
+
+
+JIAF_FIELD_PREFIXES = ("jf_", "jp_", "js_")
+
+
+def jiaf_layout_note(field_names):
+    """The standing JIAF statement when any field name looks like a JIAF-support result field, else None. Pure."""
+    if any(str(n).lower().startswith(JIAF_FIELD_PREFIXES) for n in field_names or ()):
+        from .jiaf_inputs import STATEMENT
+        return STATEMENT
+    return None
+
+
+def _visible_layer_field_names():
+    """Field names of every visible vector layer in the project (main thread)."""
+    names = []
+    with contextlib.suppress(Exception):
+        root = QgsProject.instance().layerTreeRoot()
+        for node in root.findLayers():
+            layer = node.layer()
+            if layer is not None and node.isVisible() and hasattr(layer, "fields"):
+                names.extend(f.name() for f in layer.fields())
+    return names
+
+
+def _page_geometry(page_orientation):
+    """Item positions in mm for the two-column layout (map left, legend/scalebar/summary column right, or stacked
+    below the map in portrait). Split out of create_print_layout unchanged; the comments record the live checks."""
+    info_row_h = 6
+    info_row_gap = 2
+
+    portrait = str(page_orientation).lower() == "portrait"
+    _page_width, page_height = (210, 297) if portrait else (297, 210)
+    if portrait:
+        map_x, map_y, map_w, map_h = 15, 26, 180, 190 - (info_row_h + info_row_gap)
+        col_x, col_w = 15, 180
+        info_y, info_h = map_y + map_h + 2, info_row_h
+        # legend_h shrunk 45->35 (2026-09-11, BUG-2026-09-11-1) to help
+        # fund a realistic body_h below -- still ample for the handful of
+        # categories a humanitarian export's legend typically carries.
+        legend_y, legend_h = info_y + info_h + 4, 35
+        scalebar_y, scalebar_h = legend_y + legend_h + 4, 10
+        # Footer pinned to a FIXED distance from the page bottom, not
+        # derived from body_y+body_h -- BUG-2026-09-11-1, live-confirmed
+        # (real QgsLayoutExporter.exportToImage PNG, visually inspected):
+        # QgsLayoutItemLabel does not clip content to its own box, so the
+        # old body_h=6 (roughly one line) meant ANY body_text longer than
+        # that silently overflowed down and visually overlapped the
+        # safety-critical disclaimer footer -- exactly the multi-line
+        # "bullets/findings" usage this tool's own schema description
+        # encourages. Pinning the footer here first, then giving body_h
+        # whatever real room remains above it (instead of a tiny
+        # hardcoded constant), fixes both: the footer always sits at the
+        # same predictable page position regardless of body_text length,
+        # and body gets a realistic multi-line budget. Does not fully
+        # eliminate overflow for an extreme body_text (the label still
+        # doesn't clip) -- see BUG-2026-09-11-1 for that residual caveat.
+        footer_h = 8
+        footer_margin = 6
+        footer_y = page_height - footer_h - footer_margin
+        body_y = scalebar_y + scalebar_h + 4
+        body_h = max(6, footer_y - body_y - 4)
+        north_x, north_y = 175, scalebar_y
+        title_w = 180
+    else:
+        map_x, map_y, map_w, map_h = 15, 26, 175, 155 - (info_row_h + info_row_gap)
+        col_x, col_w = 195, 95
+        legend_y, legend_h = map_y, 88
+        # body_h shrunk from 87 to 78 (2026-09-02) to leave room for the
+        # standing disclaimer footer below, without touching any of the
+        # map/legend/scalebar/title numbers confirmed against a live
+        # full-Yemen export.
+        body_y, body_h = legend_y + legend_h + 4, 78
+        info_y, info_h = map_y + map_h + 2, info_row_h
+        scalebar_y, scalebar_h = info_y + info_h + 3, 12
+        north_x, north_y = map_x + map_w - 12, scalebar_y
+        title_w = col_x + col_w - map_x
+        # Landscape's footer position is still derived from body_y+body_h
+        # (unlike portrait's fixed pinning above) -- body_h=78 here is
+        # generous enough that this has been live-confirmed not to
+        # collide (2026-09-05 real chat-driven session), so left as-is
+        # rather than changing a path that's already been verified live.
+        footer_y = body_y + body_h + 2
+        footer_h = max(4, min(8, page_height - footer_y - 2))
+    return SimpleNamespace(
+        map_x=map_x, map_y=map_y, map_w=map_w, map_h=map_h, col_x=col_x, col_w=col_w, title_w=title_w,
+        info_y=info_y, info_h=info_h, legend_y=legend_y, legend_h=legend_h, scalebar_y=scalebar_y,
+        scalebar_h=scalebar_h, body_y=body_y, body_h=body_h, north_x=north_x, north_y=north_y,
+        footer_y=footer_y, footer_h=footer_h)
+
+
+def _add_info_label(layout, map_item, g):
+    """CRS/datum + representative-fraction scale label; returns a warning string or None."""
+    info_warning = None
+    try:
+        map_crs = map_item.crs()
+        crs_text = f"{map_crs.authid()} ({map_crs.description()})" if map_crs and map_crs.isValid() else "CRS unknown"
+        scale_text = _format_scale_denominator(map_item.scale())
+        info_label = QgsLayoutItemLabel(layout)
+        info_label.setText(f"{crs_text}   |   Scale {scale_text}")
+        layout.addLayoutItem(info_label)
+        info_label.setId("MAP_INFO")
+        info_label.attemptMove(QgsLayoutPoint(g.map_x, g.info_y, LAYOUT_MM))
+        info_label.attemptResize(QgsLayoutSize(g.map_w, g.info_h, LAYOUT_MM))
+    except Exception as e:
+        info_warning = f"Could not add the CRS/scale info label to this layout: {e}"
+    return info_warning
+
+
+def _add_graticule(map_item):
+    """Coordinate graticule; best-effort, returns a warning string or None."""
+    grid_warning = None
+    try:
+        grid_extent = map_item.extent()
+        raw_interval = max(grid_extent.width(), grid_extent.height()) / 4.0
+        interval = _nice_interval(raw_interval)
+        grid = QgsLayoutItemMapGrid("Graticule", map_item)
+        grid.setIntervalX(interval)
+        grid.setIntervalY(interval)
+        grid.setEnabled(True)
+        grid.setAnnotationEnabled(True)
+        map_item.grids().addGrid(grid)
+        _soften_graticule(grid)
+    except Exception as e:
+        grid_warning = f"Could not add a coordinate graticule to this layout: {e}"
+    return grid_warning
+
+
+def _add_inset_map(layout, map_item, g):
+    """Locator/inset map; best-effort, returns a warning string or None."""
+    inset_warning = None
+    try:
+        main_extent = map_item.extent()
+        cx, cy = main_extent.center().x(), main_extent.center().y()
+        zoom_factor = 6.0
+        half_w = main_extent.width() * zoom_factor / 2.0
+        half_h = main_extent.height() * zoom_factor / 2.0
+        inset_extent = QgsRectangle(cx - half_w, cy - half_h, cx + half_w, cy + half_h)
+
+        inset_size = 32
+        inset_map = QgsLayoutItemMap(layout)
+        inset_map.setRect(20, 20, 20, 20)
+        inset_map.setExtent(inset_extent)
+        if map_item.crs() and map_item.crs().isValid():
+            inset_map.setCrs(map_item.crs())
+        layout.addLayoutItem(inset_map)
+        inset_map.setId("INSET_MAP")
+        inset_map.attemptMove(QgsLayoutPoint(g.map_x + 2, g.map_y + 2, LAYOUT_MM))
+        inset_map.attemptResize(QgsLayoutSize(inset_size, inset_size, LAYOUT_MM))
+        inset_map.setFrameEnabled(True)
+
+        overview = QgsLayoutItemMapOverview("Locator", inset_map)
+        overview.setLinkedMap(map_item)
+        inset_map.overviews().addOverview(overview)
+    except Exception as e:
+        inset_warning = f"Could not add a locator/inset map to this layout: {e}"
+    return inset_warning
+
+
+def _add_north_arrow(layout, map_item, g):
+    north_arrow = QgsLayoutItemPicture(layout)
+    svg_paths = QgsApplication.svgPaths()
+    default_arrow_path = ""
+    if svg_paths:
+        candidate = os.path.join(svg_paths[0], "arrows", "NorthArrow_02.svg")
+        if os.path.exists(candidate):
+            default_arrow_path = candidate
+
+    if default_arrow_path:
+        # No setMode()/ModeRaster on QgsLayoutItemPicture -- that call
+        # doesn't exist on this class. setPicturePath()'s format arg
+        # defaults to FormatUnknown, which auto-detects SVG vs. raster
+        # from the file extension, so a single-arg call is correct here.
+        north_arrow.setPicturePath(default_arrow_path)
+        layout.addLayoutItem(north_arrow)
+        north_arrow.setId("NORTH_ARROW")
+        north_arrow.attemptMove(QgsLayoutPoint(g.north_x, g.north_y, LAYOUT_MM))
+        north_arrow.attemptResize(QgsLayoutSize(12, 12, LAYOUT_MM))
+        # GitHub #165: an unlinked arrow stays at 0 degrees on a rotated map and points the wrong way. Linking it makes the
+        # picture follow the map's rotation (grid north). Best-effort: a QGIS build without the call keeps the old behaviour.
+        try:
+            north_arrow.setLinkedMap(map_item)
+        except Exception as e:
+            log_event("could_not_link_the_north_arrow_to_the_map", tag="layout_tools", error_class=type(e).__name__, error=True)
+
+
+def _add_report_fields(res_msg, style_report, warnings):
+    if style_report.get("legend_layers") is not None:
+        res_msg["legend_layers"] = style_report.get("legend_layers", [])
+    if style_report.get("classification"):
+        res_msg["classification"] = style_report["classification"]
+    for key in ("footer_check", "legend_check"):
+        if style_report.get(key):
+            res_msg[key] = style_report[key]
+    if style_report.get("warnings"):
+        res_msg["style_warnings"] = style_report["warnings"]
+    for key, text in warnings.items():
+        if text:
+            res_msg[key] = text
+
+
+def _export_layout(layout, output_path, dpi):
+    """Exports by file extension; returns an error dict, or None on success."""
+    ext = os.path.splitext(output_path)[1].lower()
+    exporter = QgsLayoutExporter(layout)
+    if ext == ".pdf":
+        pdf_settings = QgsLayoutExporter.PdfExportSettings()
+        pdf_settings.dpi = dpi
+        result = exporter.exportToPdf(output_path, pdf_settings)
+    elif ext in (".png", ".jpg", ".jpeg"):
+        image_settings = QgsLayoutExporter.ImageExportSettings()
+        image_settings.dpi = dpi
+        result = exporter.exportToImage(output_path, image_settings)
+    else:
+        return {"error": f"Unsupported output_path extension '{ext}' -- use .pdf, .png, .jpg, or .jpeg."}
+    if result != QgsLayoutExporter.ExportResult.Success:
+        return {"error": f"Export to '{output_path}' failed (QgsLayoutExporter result code {result})."}
+    return None
+
+
+def _numeric_columns(max_features=50000):
+    """[[numbers]] - one list per numeric attribute field of every vector layer in the project (up to max_features features each)."""
+    from qgis.core import QgsProject, QgsVectorLayer
+    columns = []
+    for layer in QgsProject.instance().mapLayers().values():
+        if not isinstance(layer, QgsVectorLayer):
+            continue
+        names = [f.name() for f in layer.fields() if f.isNumeric()]
+        cols = {n: [] for n in names}
+        for i, feature in enumerate(layer.getFeatures()):
+            if i >= max_features:
+                break
+            for n in names:
+                value = feature[n]
+                if isinstance(value, (int, float)):
+                    cols[n].append(value)
+        columns.extend(cols.values())
+    return columns
+
+
+def _figures_from_layer(spec):
+    """(key_figures, error) for key_figures_from = {layer_name, label_field, value_field, top_n?, order?}. The numbers come from the layer, so
+    they cannot drift from it (1.18.4 smoke B8: a model typed 120,000 / 85,000 / 45,000 after reading only field names; the layer held
+    94,000 / 76,000 / 52,000)."""
+    from . import layout_style
+    if not isinstance(spec, dict):
+        return None, "key_figures_from must be an object with layer_name, label_field and value_field."
+    layer = _find_layer_by_name(str(spec.get("layer_name") or ""))
+    if layer is None:
+        return None, f"key_figures_from: layer '{spec.get('layer_name')}' not found."
+    names = [f.name() for f in layer.fields()]
+    for key in ("label_field", "value_field"):
+        if spec.get(key) not in names:
+            return None, f"key_figures_from: {key} '{spec.get(key)}' is not a field of '{layer.name()}'. Fields: {', '.join(names)}."
+    if not layer.fields().field(spec["value_field"]).isNumeric():
+        return None, f"key_figures_from: value_field '{spec['value_field']}' is not numeric."
+    rows = [(f[spec["label_field"]], f[spec["value_field"]]) for f in layer.getFeatures()]
+    figures = layout_style.figures_from_rows(rows, spec.get("top_n", 3), spec.get("order", "highest"))
+    if not figures:
+        return None, f"key_figures_from: '{layer.name()}' has no numeric values in '{spec['value_field']}'."
+    source = f"layer {layer.name()}, field {spec['value_field']}"
+    for figure in figures:
+        figure["source"] = source
+    return figures, None
+
+
+def _merge_figures_from_layer(key_figures, key_figures_from):
+    """(key_figures, error): the layer-derived figures first, then any typed ones."""
+    if not key_figures_from:
+        return key_figures, None
+    from_layer, problem = _figures_from_layer(key_figures_from)
+    if problem:
+        return key_figures, problem
+    return from_layer + [f for f in (key_figures or []) if isinstance(f, dict)], None
+
+
+def _prepare_template(template, body_text, zoom_to_layer, key_figures, sources):
+    """Template-specific inputs (sitrep / field_report / change_report / access_map) plus the JIAF disclosure line. field_report and change_report (PLAN-023 R3-6) are built on the sitrep text panel,
+    with their own headings, reading guide and standing note (layout_style.REPORT_KINDS); they do not move the map unless zoom_to_layer is given.
+    Returns (template, body_text, zoom_to_layer, sitrep_args, sitrep_warning)."""
+    from . import layout_style
+    sitrep_warning = None
+    sitrep_args = None
+    if template in layout_style.REPORT_TEMPLATES:
+        # HX1c: a one-page situation report. The text panel is built from what the caller supplies (summary in body_text, key figures,
+        # sources) plus a standing handling note and the preparation date; nothing is written on the caller's behalf.
+        visible = [e["name"] for e in layout_style.visible_layer_entries() if e["visible"]]
+        if template == "sitrep" and not zoom_to_layer:
+            zoom_to_layer = layout_style.access_zoom_layer_name(visible) or ""
+        if not layout_style.sitrep_has_content(body_text, key_figures, sources):
+            sitrep_warning = ("No summary, key figures or sources were supplied, so the report holds only the standing note. "
+                              "Do not fill it with unverified content: pass the figures from the analysis results.")
+        # Built at the point the label box size is known (below), so that a long summary is shortened and the sources and the
+        # handling note are not: plain truncation would cut exactly the end of the text, where they sit.
+        unverified = []
+        try:
+            pool = layout_style.build_number_pool(_numeric_columns())
+            unverified = layout_style.unverified_figure_labels(key_figures, pool)
+        except Exception as exc:   # checking is best-effort; a layout is still made, but the reply says the figures were not checked
+            sitrep_warning = (sitrep_warning + " " if sitrep_warning else "") + f"The key figures could not be checked against the project data ({exc})."
+        if unverified:
+            sitrep_warning = (sitrep_warning + " " if sitrep_warning else "") + (
+                f"These key figures were not found in any project layer and are marked {layout_style.UNVERIFIED_FIGURE_MARK} on the layout: "
+                f"{', '.join(unverified)}. Take figures from the data with key_figures_from, or from a tool result that is also written to a layer field; "
+                "never type a figure from memory.")
+        guide = layout_style.access_reading_guide(visible) if template == "sitrep" else layout_style.REPORT_KINDS[template][2]
+        sitrep_args = (body_text, key_figures, sources, guide, unverified, template)
+        body_text = "sitrep"
+    if template == "access_map":
+        visible = [e["name"] for e in layout_style.visible_layer_entries() if e["visible"]]
+        if not zoom_to_layer:
+            zoom_to_layer = layout_style.access_zoom_layer_name(visible) or ""
+        if not body_text:
+            body_text = layout_style.access_reading_guide(visible)
+    jiaf_note = None
+    if template not in layout_style.REPORT_TEMPLATES:
+        jiaf_note = jiaf_layout_note(_visible_layer_field_names())
+        if jiaf_note and jiaf_note not in (body_text or ""):
+            # rc22 hand test J16 (issue 229): a layout of JIAF-support results left without the statement that this is not the JIAF
+            # method and not endorsed by OCHA or the IASC. Added by the code whenever such a layer is visible, not left to the model.
+            body_text = (body_text + "\n" if body_text else "") + jiaf_note
+    return template, body_text, zoom_to_layer, sitrep_args, sitrep_warning
+
+
+def _early_export_checks(title, output_path, requested_output, confirmed, arguments):
+    """(request, early_result). `request` holds the output path (a folder gets its default file name), the dpi (a preset becomes a number), the
+    page size and orientation and the profile (PLAN-014 phase 2b: explicit arguments beat the profile, the profile beats the defaults). early_result
+    is an error or, for a map that would draw protected layers into a file, the confirm card (PLAN-011 phase B); None when the build may go ahead."""
+    from .layout_options import export_dpi, resolve_export_target
+    from .layout_page_scale import validate_page_size
+    from .map_profiles import load_profile
+    profile, problem = ({}, None) if not arguments.get("profile") else load_profile(arguments["profile"])
+    profile = profile or {}
+    page_size = arguments.get("page_size") or profile.get("page_size") or "A4"
+    orientation = arguments.get("page_orientation") or profile.get("orientation") or "Landscape"
+    preset = arguments.get("preset") or profile.get("export_preset")
+    output_path = resolve_export_target(output_path, title, arguments.get("output_format"), pattern=profile.get("file_name_pattern"))
+    dpi, dpi_problem = export_dpi(preset, arguments.get("dpi"), 300)
+    problem = problem or dpi_problem or validate_page_size(page_size)[1]
+    request = {"output_path": output_path, "dpi": dpi, "page_size": page_size, "page_orientation": orientation, "profile": profile,
+               "profile_name": arguments.get("profile") if profile else None, "preset": preset}
+    if problem:
+        return request, {"error": problem}
+    if not confirmed:
+        from .layout_export_checks import build_time_preview
+        card = {**arguments, "output_path": requested_output, "dpi": dpi, "page_size": page_size, "page_orientation": orientation}
+        return request, build_time_preview("create_print_layout", card, output_path)
+    return request, None
+
+
+def _remember_profile(layout, profile, name=None):
+    """Stores the profile (and its name, PLAN-016) on the layout so later exports and checks use its file name pattern, export preset and
+    required elements. The stored copy keeps the sign-off that was printed in the footer; the name lets an export re-read the file."""
+    if profile:
+        import json
+        layout.setCustomProperty("cartogen_ai/profile_json", json.dumps(profile))
+        if name:
+            layout.setCustomProperty("cartogen_ai/profile_name", str(name))
 
 
 @register_tool(
@@ -221,49 +626,50 @@ def _format_scale_denominator(n):
             "page_orientation": {"type": "string", "description": "'Landscape' (default) or 'Portrait'."},
             "output_path": {"type": "string", "description": "Where to export -- '.pdf' for a vector PDF, '.png'/'.jpg'/'.jpeg' for a raster image. Omit to create the layout in the project without exporting."},
             "dpi": {"type": "integer", "description": "Export resolution in DPI, for both PDF and image export. Defaults to 300 (print quality)."},
+            "profile": {"type": "string", "description": "Name of a saved map profile (a JSON file the organisation keeps in the project's cartogen_profiles folder or the QGIS profile folder) that sets page size, orientation, export preset, file name pattern and required elements. Explicit arguments beat the profile."},
+            "page_size": {"type": "string", "description": "Page size: 'A4' (default), 'A3', 'A2' or 'A1'. The same layout is scaled up, and the map shows the same area larger."},
+            "preset": {"type": "string", "description": "Export purpose instead of a dpi number: 'draft' (96), 'web' (150) or 'print' (300). An explicit dpi wins."},
+            "output_format": {"type": "string", "description": "Only when output_path is a FOLDER: 'pdf' (default), 'png' or 'jpg'. The file is then named <title>_<date>.<format>."},
             "body_text": {"type": "string", "description": "Optional summary/sitrep text shown in a panel on the layout (e.g. priority findings, data sources)."},
             "zoom_to_layer": {"type": "string", "description": "Name of a layer to fit the map to its full extent before capturing it, e.g. the national boundary layer for a full-country sitrep map. Omit to use whatever extent the canvas currently shows."},
-            "template": {"type": "string", "description": "'standard' (default), 'access_map' or 'sitrep'. 'access_map': for the result of a service-area / facility-access analysis. Fits the map to the reach layer when zoom_to_layer is omitted, lists the reach polygon, access points and cost-graded roads first in the legend, and (when body_text is empty) adds a short 'how to read this map' guide for the layers present. 'sitrep': a one-page situation report; body_text is the situation summary, key_figures and sources fill the KEY FIGURES and SOURCES sections, and a standing handling note (estimates, no exact locations of people or sensitive sites) and the preparation date are always added."},
+            "template": {"type": "string", "description": "'standard' (default), 'access_map', 'sitrep', 'field_report', 'change_report' or 'epi_bulletin'. 'access_map': for the result of a service-area / facility-access analysis. Fits the map to the reach layer when zoom_to_layer is omitted, lists the reach polygon, access points and cost-graded roads first in the legend, and (when body_text is empty) adds a short 'how to read this map' guide for the layers present. 'sitrep': a one-page situation report; body_text is the situation summary, key_figures and sources fill the KEY FIGURES and SOURCES sections, and a standing handling note (estimates, no exact locations of people or sensitive sites) and the preparation date are always added. 'field_report' (one field: body_text is the field summary, key_figures the index readings with their dates and units) and 'change_report' (two dates: key_figures the change figures such as hectares lost, gained and stable) use the same panel with a reading guide and a standing note of their own: index values are not a yield or rate recommendation; change classes are a screening, not a survey. They keep the map where it is unless zoom_to_layer is given. 'epi_bulletin' (an epidemic bulletin: body_text is the summary, key_figures the case and rate figures with the date they were reported to, sources the data sources) uses the same panel with a METHOD AND LIMITS note of its own: rates are crude and for areas not individuals, areas under 5 cases are not shown, a cluster is not a cause. It keeps the map where it is unless zoom_to_layer is given."},
             "key_figures": {"type": "array", "items": {"type": "object", "properties": {"label": {"type": "string"}, "value": {"type": "string"}, "source": {"type": "string"}}, "required": ["label", "value"]}, "description": "For template='sitrep': up to 8 headline figures, each copied from a tool result (never estimated or remembered), e.g. {label: 'People within 1 hour of a clinic', value: '412,000 (estimate)', source: 'population_access_gap'}."},
-            "sources": {"type": "array", "items": {"type": "string"}, "description": "For template='sitrep': the data sources behind the figures, e.g. ['OCHA COD-AB 2024', 'WorldPop 2020']."},
+            "key_figures_from": {"type": "object", "properties": {"layer_name": {"type": "string"}, "label_field": {"type": "string"}, "value_field": {"type": "string"}, "top_n": {"type": "integer"}, "order": {"type": "string", "description": "'highest' (default) or 'lowest'"}}, "required": ["layer_name", "label_field", "value_field"], "description": "For template='sitrep': take the headline figures straight from a layer, e.g. {layer_name: 'admin_units', label_field: 'ADM2_EN', value_field: 'people_in_need', top_n: 3}. The numbers are read from the layer, so they cannot be mistyped; prefer this over typing figures. Any typed key_figures whose number is not found in a project layer (a value, or a total, minimum, maximum, mean or count of a numeric field) is marked 'not found in the project data' on the layout and listed in the reply."},
+            "sources": {"type": "array", "items": {"type": "string"}, "description": "For template 'sitrep', 'field_report', 'change_report' or 'epi_bulletin': the data sources behind the figures, e.g. ['OCHA COD-AB 2024', 'WorldPop 2020']."},
             "include_inset_map": {"type": "boolean", "description": "Add a small locator/inset map (zoomed out ~6x from the main map, same center) showing the main map's location within its wider region. Defaults to true."},
         },
         "required": ["title"],
     },
+
+    keywords=[
+        "one page pdf", "one-page pdf", "a4 poster", "a3 layout", "printable poster", "poster of the", "legend on the right", "north arrow and a scale bar",
+        "printable map", "print the map", "printed map", "map for printing", "map with a legend",
+    ],
 )
-def create_print_layout(title: str, page_orientation: str = "Landscape", output_path: str = "", dpi: int = 300, body_text: str = "", zoom_to_layer: str = "", include_inset_map: bool = True, template: str = "standard", key_figures=None, sources=None):
+def create_print_layout(title: str, page_orientation: str | None = None, output_path: str = "", dpi: int | None = None, body_text: str = "", zoom_to_layer: str = "", include_inset_map: bool = True, template: str = "standard", key_figures=None, sources=None, key_figures_from=None, confirmed: bool = False, preset: str | None = None, output_format: str = "pdf", page_size: str | None = None, profile: str | None = None):
+    requested_output = output_path
+    output_path = resolve_output_path(output_path)   # rc22 smoke N3/N8/N9: anchor relative paths to the project (see _paths.py)
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
+    request, early = _early_export_checks(title, output_path, requested_output, confirmed, {
+        "title": title, "page_orientation": page_orientation, "dpi": dpi, "body_text": body_text, "zoom_to_layer": zoom_to_layer,
+        "include_inset_map": include_inset_map, "template": template, "key_figures": key_figures, "sources": sources,
+        "key_figures_from": key_figures_from, "preset": preset, "output_format": output_format, "page_size": page_size, "profile": profile})
+    if early:
+        return early
+    output_path, dpi, page_size, page_orientation = request["output_path"], request["dpi"], request["page_size"], request["page_orientation"]
 
     layout_manager = pending_layout = None
     committed = False
 
     try:
         requested = str(template or "").lower()
-        template = requested if requested in ("access_map", "sitrep") else "standard"
-        sitrep_warning = None
-        sitrep_args = None
-        if template == "sitrep":
-            # HX1c: a one-page situation report. The text panel is built from what the caller supplies (summary in body_text, key figures,
-            # sources) plus a standing handling note and the preparation date; nothing is written on the caller's behalf.
-            from . import layout_style
-            visible = [e["name"] for e in layout_style.visible_layer_entries() if e["visible"]]
-            if not zoom_to_layer:
-                zoom_to_layer = layout_style.access_zoom_layer_name(visible) or ""
-            if not layout_style.sitrep_has_content(body_text, key_figures, sources):
-                sitrep_warning = ("No summary, key figures or sources were supplied, so the report holds only the standing handling note. "
-                                  "Do not fill it with unverified content: pass the figures from the analysis results.")
-            # Built at the point the label box size is known (below), so that a long summary is shortened and the sources and the
-            # handling note are not: plain truncation would cut exactly the end of the text, where they sit.
-            sitrep_args = (body_text, key_figures, sources, layout_style.access_reading_guide(visible))
-            body_text = "sitrep"
-        if template == "access_map":
-            from . import layout_style
-            visible = [e["name"] for e in layout_style.visible_layer_entries() if e["visible"]]
-            if not zoom_to_layer:
-                zoom_to_layer = layout_style.access_zoom_layer_name(visible) or ""
-            if not body_text:
-                body_text = layout_style.access_reading_guide(visible)
+        template = requested if requested in ("access_map", "sitrep", "field_report", "change_report", "epi_bulletin") else "standard"
+        key_figures, problem = _merge_figures_from_layer(key_figures, key_figures_from)
+        if problem:
+            return {"error": problem}
+        template, body_text, zoom_to_layer, sitrep_args, sitrep_warning = _prepare_template(
+            template, body_text, zoom_to_layer, key_figures, sources)
         target_layer = None
         if zoom_to_layer:
             target_layer = _find_layer_by_name(zoom_to_layer)
@@ -271,7 +677,7 @@ def create_print_layout(title: str, page_orientation: str = "Landscape", output_
                 return {"error": f"Layer '{zoom_to_layer}' not found"}
 
         project = QgsProject.instance()
-        layout_name = f"Layout_{title.replace(' ', '_')}"
+        layout_name = layout_name_for(title)
 
         # Audit F28 (#164): the same-name layout used to be removed FIRST, so any later error (a bad output_path, a failed
         # export, an exception while building) lost the user's previous layout. The replacement is now built under a
@@ -297,17 +703,25 @@ def create_print_layout(title: str, page_orientation: str = "Landscape", output_
         map_extent = None
         if target_layer is not None and canvas:
             map_extent = _extent_to_canvas_crs(canvas, target_layer.extent(), target_layer.crs())
-            try:
+            if map_extent is None:
+                return {"error": f"Could not transform '{target_layer.name()}' from {target_layer.crs().authid()} into the map CRS, so the layout was not created."}
+            # best-effort: keep the layer's own extent rather than fail the layout
+            with contextlib.suppress(Exception):
                 _b = (map_extent.xMinimum(), map_extent.yMinimum(), map_extent.xMaximum(), map_extent.yMaximum())
                 _padded = padded_extent_bounds(*_b, canvas.mapSettings().destinationCrs().isGeographic())
                 # A null extent (an empty layer) is all zeros: padding it would centre the map on (0, 0), so it keeps the old
                 # fallback instead. A single point is not null, only zero-size, and is the case padded here.
                 if _padded != _b and not map_extent.isNull():
                     map_extent = QgsRectangle(*_padded)
-            except Exception:
-                pass  # best-effort: keep the layer's own extent rather than fail the layout
             canvas.setExtent(map_extent)
             canvas.refresh()
+        if map_extent is None and canvas:
+            with contextlib.suppress(Exception):    # a layout must still be made if the extent cannot be judged
+                c = canvas.extent()
+                picked = pick_layout_extent((c.xMinimum(), c.yMinimum(), c.xMaximum(), c.yMaximum()), _full_project_bounds(canvas),
+                                            _visible_vector_bounds(canvas))
+                if picked:
+                    map_extent = QgsRectangle(*picked)
         map_item = QgsLayoutItemMap(layout)
         # A freshly constructed QgsLayoutItemMap has a zero-size rect, and
         # setExtent() on a zero-size item produces a degenerate scale --
@@ -320,6 +734,11 @@ def create_print_layout(title: str, page_orientation: str = "Landscape", output_
             map_item.setExtent(map_extent)
         elif canvas:
             map_item.setExtent(canvas.extent())
+        # rc22 smoke F3: the canvas was rotated 30 degrees, but the layout's map (and so the linked north arrow) came out at 0 --
+        # the saved layout held mapRotation 0. The layout map follows the view the user is looking at.
+        rotation = canvas_rotation(canvas)
+        if rotation:
+            map_item.setMapRotation(rotation)
         layout.addLayoutItem(map_item)
         map_item.setId("MAP_MAIN")
 
@@ -336,62 +755,12 @@ def create_print_layout(title: str, page_orientation: str = "Landscape", output_
         # (Phase 3, 2026-09-19) -- carved out of map_h in both orientations rather than
         # touching any already-live-verified footer/body position (BUG-2026-09-11-1's
         # footer-overlap history is exactly the failure mode this avoids repeating).
-        INFO_ROW_H = 6
-        INFO_ROW_GAP = 2
-
-        portrait = page_orientation.lower() == "portrait"
-        page_width, page_height = (210, 297) if portrait else (297, 210)
-        if portrait:
-            map_x, map_y, map_w, map_h = 15, 26, 180, 190 - (INFO_ROW_H + INFO_ROW_GAP)
-            col_x, col_w = 15, 180
-            info_y, info_h = map_y + map_h + 2, INFO_ROW_H
-            # legend_h shrunk 45->35 (2026-09-11, BUG-2026-09-11-1) to help
-            # fund a realistic body_h below -- still ample for the handful of
-            # categories a humanitarian export's legend typically carries.
-            legend_y, legend_h = info_y + info_h + 4, 35
-            scalebar_y, scalebar_h = legend_y + legend_h + 4, 10
-            # Footer pinned to a FIXED distance from the page bottom, not
-            # derived from body_y+body_h -- BUG-2026-09-11-1, live-confirmed
-            # (real QgsLayoutExporter.exportToImage PNG, visually inspected):
-            # QgsLayoutItemLabel does not clip content to its own box, so the
-            # old body_h=6 (roughly one line) meant ANY body_text longer than
-            # that silently overflowed down and visually overlapped the
-            # safety-critical disclaimer footer -- exactly the multi-line
-            # "bullets/findings" usage this tool's own schema description
-            # encourages. Pinning the footer here first, then giving body_h
-            # whatever real room remains above it (instead of a tiny
-            # hardcoded constant), fixes both: the footer always sits at the
-            # same predictable page position regardless of body_text length,
-            # and body gets a realistic multi-line budget. Does not fully
-            # eliminate overflow for an extreme body_text (the label still
-            # doesn't clip) -- see BUG-2026-09-11-1 for that residual caveat.
-            footer_h = 8
-            footer_margin = 6
-            footer_y = page_height - footer_h - footer_margin
-            body_y = scalebar_y + scalebar_h + 4
-            body_h = max(6, footer_y - body_y - 4)
-            north_x, north_y = 175, scalebar_y
-            title_w = 180
-        else:
-            map_x, map_y, map_w, map_h = 15, 26, 175, 155 - (INFO_ROW_H + INFO_ROW_GAP)
-            col_x, col_w = 195, 95
-            legend_y, legend_h = map_y, 88
-            # body_h shrunk from 87 to 78 (2026-09-02) to leave room for the
-            # standing disclaimer footer below, without touching any of the
-            # map/legend/scalebar/title numbers confirmed against a live
-            # full-Yemen export.
-            body_y, body_h = legend_y + legend_h + 4, 78
-            info_y, info_h = map_y + map_h + 2, INFO_ROW_H
-            scalebar_y, scalebar_h = info_y + info_h + 3, 12
-            north_x, north_y = map_x + map_w - 12, scalebar_y
-            title_w = col_x + col_w - map_x
-            # Landscape's footer position is still derived from body_y+body_h
-            # (unlike portrait's fixed pinning above) -- body_h=78 here is
-            # generous enough that this has been live-confirmed not to
-            # collide (2026-09-05 real chat-driven session), so left as-is
-            # rather than changing a path that's already been verified live.
-            footer_y = body_y + body_h + 2
-            footer_h = max(4, min(8, page_height - footer_y - 2))
+        g = _page_geometry(page_orientation)
+        map_x, map_y, map_w, map_h = g.map_x, g.map_y, g.map_w, g.map_h
+        col_x, col_w, title_w = g.col_x, g.col_w, g.title_w
+        legend_y, legend_h = g.legend_y, g.legend_h
+        scalebar_y, scalebar_h, body_y, body_h = g.scalebar_y, g.scalebar_h, g.body_y, g.body_h
+        footer_y, footer_h = g.footer_y, g.footer_h
 
         map_item.attemptMove(QgsLayoutPoint(map_x, map_y, LAYOUT_MM))
         map_item.attemptResize(QgsLayoutSize(map_w, map_h, LAYOUT_MM))
@@ -443,19 +812,7 @@ def create_print_layout(title: str, page_orientation: str = "Landscape", output_
         # scale() (set after setExtent() above, so this reflects the actual rendered
         # extent) rather than the source layer's CRS, since the map item may be
         # reprojecting on render.
-        info_warning = None
-        try:
-            map_crs = map_item.crs()
-            crs_text = f"{map_crs.authid()} ({map_crs.description()})" if map_crs and map_crs.isValid() else "CRS unknown"
-            scale_text = _format_scale_denominator(map_item.scale())
-            info_label = QgsLayoutItemLabel(layout)
-            info_label.setText(f"{crs_text}   |   Scale {scale_text}")
-            layout.addLayoutItem(info_label)
-            info_label.setId("MAP_INFO")
-            info_label.attemptMove(QgsLayoutPoint(map_x, info_y, LAYOUT_MM))
-            info_label.attemptResize(QgsLayoutSize(map_w, info_h, LAYOUT_MM))
-        except Exception as e:
-            info_warning = f"Could not add the CRS/scale info label to this layout: {e}"
+        info_warning = _add_info_label(layout, map_item, g)
 
         # Coordinate graticule -- OCHA/humanitarian map standards call for a coordinate
         # grid for tactical navigation, which the layout previously had no way to show.
@@ -465,20 +822,7 @@ def create_print_layout(title: str, page_orientation: str = "Landscape", output_
         # mismatch on some QGIS version degrades to "no grid" rather than failing the
         # whole layout, consistent with this file's existing method is None guards
         # elsewhere for the same class of cross-version risk.
-        grid_warning = None
-        try:
-            grid_extent = map_item.extent()
-            raw_interval = max(grid_extent.width(), grid_extent.height()) / 4.0
-            interval = _nice_interval(raw_interval)
-            grid = QgsLayoutItemMapGrid("Graticule", map_item)
-            grid.setIntervalX(interval)
-            grid.setIntervalY(interval)
-            grid.setEnabled(True)
-            grid.setAnnotationEnabled(True)
-            map_item.grids().addGrid(grid)
-            _soften_graticule(grid)
-        except Exception as e:
-            grid_warning = f"Could not add a coordinate graticule to this layout: {e}"
+        grid_warning = _add_graticule(map_item)
 
         # Locator/inset map -- shows where the main map sits within a wider surrounding
         # area, an OCHA-standard element the layout previously had no way to show. Zoomed
@@ -487,55 +831,10 @@ def create_print_layout(title: str, page_orientation: str = "Landscape", output_
         # works on any project. Placed in the map's own top-left corner (the north arrow
         # already occupies the top-right in both orientations) via a QgsLayoutItemMapOverview
         # linked back to the main map, which draws the "you are here" outline automatically.
-        inset_warning = None
-        if include_inset_map:
-            try:
-                main_extent = map_item.extent()
-                cx, cy = main_extent.center().x(), main_extent.center().y()
-                zoom_factor = 6.0
-                half_w = main_extent.width() * zoom_factor / 2.0
-                half_h = main_extent.height() * zoom_factor / 2.0
-                inset_extent = QgsRectangle(cx - half_w, cy - half_h, cx + half_w, cy + half_h)
-
-                inset_size = 32
-                inset_map = QgsLayoutItemMap(layout)
-                inset_map.setRect(20, 20, 20, 20)
-                inset_map.setExtent(inset_extent)
-                if map_item.crs() and map_item.crs().isValid():
-                    inset_map.setCrs(map_item.crs())
-                layout.addLayoutItem(inset_map)
-                inset_map.setId("INSET_MAP")
-                inset_map.attemptMove(QgsLayoutPoint(map_x + 2, map_y + 2, LAYOUT_MM))
-                inset_map.attemptResize(QgsLayoutSize(inset_size, inset_size, LAYOUT_MM))
-                inset_map.setFrameEnabled(True)
-
-                overview = QgsLayoutItemMapOverview("Locator", inset_map)
-                overview.setLinkedMap(map_item)
-                inset_map.overviews().addOverview(overview)
-            except Exception as e:
-                inset_warning = f"Could not add a locator/inset map to this layout: {e}"
+        inset_warning = _add_inset_map(layout, map_item, g) if include_inset_map else None
 
         # North Arrow Picture Item
-        north_arrow = QgsLayoutItemPicture(layout)
-        svg_paths = QgsApplication.svgPaths()
-        default_arrow_path = ""
-        if svg_paths:
-            candidate = os.path.join(svg_paths[0], "arrows", "NorthArrow_02.svg")
-            if os.path.exists(candidate):
-                default_arrow_path = candidate
-
-        if default_arrow_path:
-            # No setMode()/ModeRaster on QgsLayoutItemPicture -- that call
-            # doesn't exist on this class. setPicturePath()'s format arg
-            # defaults to FormatUnknown, which auto-detects SVG vs. raster
-            # from the file extension, so a single-arg call is correct here.
-            north_arrow.setPicturePath(default_arrow_path)
-            layout.addLayoutItem(north_arrow)
-            north_arrow.setId("NORTH_ARROW")
-            if hasattr(north_arrow, "setLinkedMap") and map_item is not None:
-                north_arrow.setLinkedMap(map_item)
-            north_arrow.attemptMove(QgsLayoutPoint(north_x, north_y, LAYOUT_MM))
-            north_arrow.attemptResize(QgsLayoutSize(12, 12, LAYOUT_MM))
+        _add_north_arrow(layout, map_item, g)
 
         # Optional summary/sitrep panel -- placed below the legend, same
         # column width, so long lines wrap within the page instead of
@@ -548,7 +847,9 @@ def create_print_layout(title: str, page_orientation: str = "Landscape", output_
             body_label = QgsLayoutItemLabel(layout)
             if sitrep_args is not None:
                 from . import layout_style
-                body_label.setText(layout_style.sitrep_body(*sitrep_args, max_chars=_text_budget(col_w, body_h)))
+                summary, figures, srcs, guide, unverified_labels, report_kind = sitrep_args
+                body_label.setText(layout_style.sitrep_body(summary, figures, srcs, guide, max_chars=_text_budget(col_w, body_h),
+                                                            unverified_labels=unverified_labels, kind=report_kind))
             else:
                 body_label.setText(_fit_text_to_box(body_text, col_w, body_h))
             layout.addLayoutItem(body_label)
@@ -575,25 +876,22 @@ def create_print_layout(title: str, page_orientation: str = "Landscape", output_
         style_report = {}
         try:
             from . import layout_style
-            style_report = layout_style.apply_layout_style(layout, LAYOUT_MM, template="access_map" if template == "access_map" else "standard")
+            style_report = layout_style.apply_layout_style(layout, LAYOUT_MM, template="access_map" if template == "access_map" else "standard", sources=sources,
+                                                         branding=request["profile"], view_known=canvas is not None)
         except Exception as style_error:
             style_report = {"warnings": [f"layout styling failed: {style_error}"]}
 
-        res_msg = {"success": True, "layout_name": layout_name, "orientation": page_orientation, "template": template}
-        if style_report.get("legend_layers") is not None:
-            res_msg["legend_layers"] = style_report.get("legend_layers", [])
-        if style_report.get("classification"):
-            res_msg["classification"] = style_report["classification"]
-        if style_report.get("warnings"):
-            res_msg["style_warnings"] = style_report["warnings"]
-        if sitrep_warning:
-            res_msg["sitrep_warning"] = sitrep_warning
-        if info_warning:
-            res_msg["info_label_warning"] = info_warning
-        if grid_warning:
-            res_msg["grid_warning"] = grid_warning
-        if inset_warning:
-            res_msg["inset_warning"] = inset_warning
+        # PLAN-014 phase 2: a page larger than A4 is the finished A4 layout scaled (layout_page_scale.py); A4 is untouched.
+        from .layout_page_scale import scale_layout, validate_page_size
+        page_warnings = scale_layout(layout, page_size, page_orientation, LAYOUT_MM)
+        _remember_profile(layout, request["profile"], request.get("profile_name"))
+        style_report = {**style_report, "warnings": [*style_report.get("warnings", []), *page_warnings]}
+
+        res_msg = {"success": True, "layout_name": layout_name, "orientation": page_orientation, "template": template,
+                   "page_size": validate_page_size(page_size)[0].upper()}
+        _add_report_fields(res_msg, style_report, {
+            "sitrep_warning": sitrep_warning, "info_label_warning": info_warning,
+            "grid_warning": grid_warning, "inset_warning": inset_warning})
 
         def commit():
             """Swap the finished layout in for any same-name one."""
@@ -603,23 +901,13 @@ def create_print_layout(title: str, page_orientation: str = "Landscape", output_
             layout.setName(layout_name)
 
         if output_path:
-            ext = os.path.splitext(output_path)[1].lower()
-            exporter = QgsLayoutExporter(layout)
-            if ext == ".pdf":
-                pdf_settings = QgsLayoutExporter.PdfExportSettings()
-                pdf_settings.dpi = dpi
-                result = exporter.exportToPdf(output_path, pdf_settings)
-            elif ext in (".png", ".jpg", ".jpeg"):
-                image_settings = QgsLayoutExporter.ImageExportSettings()
-                image_settings.dpi = dpi
-                result = exporter.exportToImage(output_path, image_settings)
-            else:
-                return {"error": f"Unsupported output_path extension '{ext}' -- use .pdf, .png, .jpg, or .jpeg."}
-
-            if result != QgsLayoutExporter.Success:
-                return {"error": f"Export to '{output_path}' failed (QgsLayoutExporter result code {result})."}
+            export_error = _export_layout(layout, output_path, dpi)
+            if export_error:
+                return export_error
             res_msg["output_path"] = output_path
             res_msg["dpi"] = dpi
+            from .layout_export_checks import layout_export_report
+            res_msg.update(layout_export_report(layout))     # PLAN-011 phase A: protected layers drawn, missing mandatory elements
 
         commit()
         committed = True
@@ -628,10 +916,8 @@ def create_print_layout(title: str, page_orientation: str = "Landscape", output_
         return {"error": f"create_print_layout failed: {e}"}
     finally:
         if pending_layout is not None and not committed and layout_manager is not None:
-            try:
+            with contextlib.suppress(Exception):
                 layout_manager.removeLayout(pending_layout)
-            except Exception:
-                pass
 
 
 @register_tool(
@@ -678,10 +964,8 @@ def unique_atlas_file_name(raw_name, used, fallback):
 def _find_layout_by_name(name):
     if not QGIS_AVAILABLE:
         return None
-    for layout in QgsProject.instance().layoutManager().printLayouts():
-        if layout.name() == name:
-            return layout
-    return None
+    from ._layout_names import resolve_layout
+    return resolve_layout(QgsProject.instance().layoutManager().printLayouts(), name)
 
 
 @register_tool(
@@ -696,7 +980,7 @@ def _find_layout_by_name(name):
     "named from filename_field's value on that feature (e.g. a district-name field), sanitized for "
     "use as a filename; a non-unique or empty field value across features will silently overwrite "
     "an earlier output with the same name, so pick a field that's actually unique per feature "
-    "(a P-code, not a display name that repeats).",
+    "(a P-code, not a display name that repeats). A map or coverage layer tagged RESTRICTED or SENSITIVE makes the export wait for the user's confirmation.",
     {
         "type": "object",
         "properties": {
@@ -711,7 +995,7 @@ def _find_layout_by_name(name):
     },
 )
 def export_layout_atlas(layout_name: str, coverage_layer_name: str, output_directory: str,
-                         filename_field: str, output_format: str = "pdf", dpi: int = 300):
+                         filename_field: str, output_format: str = "pdf", dpi: int = 300, confirmed: bool = False):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
 
@@ -739,6 +1023,13 @@ def export_layout_atlas(layout_name: str, coverage_layer_name: str, output_direc
     if output_format not in ("pdf", "png", "jpg", "jpeg"):
         return {"error": f"Unsupported output_format '{output_format}' -- use pdf, png, jpg, or jpeg."}
 
+    from .layout_export_checks import atlas_gate
+    gated = atlas_gate(layout, coverage_layer, {
+        "layout_name": layout_name, "coverage_layer_name": coverage_layer_name, "output_directory": output_directory,
+        "filename_field": filename_field, "output_format": output_format, "dpi": dpi}, confirmed)
+    if gated:
+        return gated
+
     try:
         os.makedirs(output_directory, exist_ok=True)
     except OSError as e:
@@ -749,7 +1040,9 @@ def export_layout_atlas(layout_name: str, coverage_layer_name: str, output_direc
         # The export reconfigures the layout's atlas; remember what it was and put it back afterwards (audit F28, #164).
         previous_atlas = (atlas.enabled(), atlas.coverageLayer(), atlas.filenameExpression(),
                           map_item.atlasDriven() if hasattr(map_item, "atlasDriven") else False)
-        used_names, overwritten, renamed_pages = set(), [], 0
+        used_names: set = set()
+        overwritten: list = []
+        renamed_pages = 0
         atlas.setCoverageLayer(coverage_layer)
         atlas.setEnabled(True)
         # QgsExpression field-reference syntax -- a bare field name in
@@ -775,7 +1068,7 @@ def export_layout_atlas(layout_name: str, coverage_layer_name: str, output_direc
         # BOTH formats identically, confirmed live -- used uniformly here
         # rather than branching between a static atlas-aware call for PDF
         # and a manual loop only for images.
-        output_files = []
+        output_files: list = []
         atlas.beginRender()
         try:
             has_feature = atlas.first()
@@ -794,7 +1087,7 @@ def export_layout_atlas(layout_name: str, coverage_layer_name: str, output_direc
                     result = exporter.exportToPdf(out_path, settings)
                 else:
                     result = exporter.exportToImage(out_path, settings)
-                if result != QgsLayoutExporter.Success:
+                if result != QgsLayoutExporter.ExportResult.Success:
                     return {"error": f"Atlas export failed on feature '{raw_name}' (QgsLayoutExporter result code {result})."}
                 output_files.append(out_path)
                 has_feature = atlas.next()
@@ -817,6 +1110,8 @@ def export_layout_atlas(layout_name: str, coverage_layer_name: str, output_direc
         if overwritten:
             result["overwritten_files"] = overwritten
             result["overwritten_note"] = (f"{len(overwritten)} file(s) from an earlier export with the same name were replaced.")
+        from .layout_export_checks import layout_export_report
+        result.update(layout_export_report(layout, [coverage_layer]))     # PLAN-011 phase D: protected layers drawn, missing elements
         return result
     except Exception as e:
         return {"error": f"export_layout_atlas failed: {e}"}
@@ -826,14 +1121,12 @@ def _restore_atlas(atlas, map_item, previous):
     """Put the layout's atlas settings back as they were before an export. Best effort: a failure leaves the export's
     settings in place rather than failing an export that already succeeded."""
     enabled, layer, expression, driven = previous
-    try:
+    with contextlib.suppress(Exception):
         atlas.setCoverageLayer(layer)
         if expression:
             atlas.setFilenameExpression(expression)
         map_item.setAtlasDriven(driven)
         atlas.setEnabled(enabled)
-    except Exception:
-        pass
 
 
 @register_tool(
@@ -869,10 +1162,8 @@ def list_layout_items(layout_name: str):
             continue
         entry = {"id": item_id, "type": type(item).__name__}
         if hasattr(item, "text"):
-            try:
+            with contextlib.suppress(Exception):
                 entry["text"] = item.text()
-            except Exception:
-                pass
         items.append(entry)
     return {"success": True, "layout_name": layout_name, "items": items}
 

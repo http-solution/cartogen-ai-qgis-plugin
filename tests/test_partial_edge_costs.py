@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Partial-edge costs for the single-tree travel-time matrix (audit F16, #152), offline pure parts.
 The graph work needs QGIS: tests/test_partial_edge_costs_live.py."""
 import unittest

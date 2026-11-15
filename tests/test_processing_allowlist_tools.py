@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Tests for agent/tools/processing_allowlist_tools.py -- the Tier 2
 allow-listed Processing algorithm runner, point 19's "larger question"
 (docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md). Follows this
@@ -161,7 +160,7 @@ class TestParamResolution(unittest.TestCase):
 
         run_allowlisted_processing_algorithm("native:buffer", {"INPUT": "roads", "DISTANCE": 500})
 
-        called_alg, called_params = mock_processing.run.call_args[0]
+        _called_alg, called_params = mock_processing.run.call_args[0]
         self.assertIs(called_params["INPUT"], real_layer)
         self.assertEqual(called_params["DISTANCE"], 500)
 
@@ -243,6 +242,22 @@ if __name__ == "__main__":
     unittest.main()
 
 
+class TestExpressionAlgorithmsAreScreened(unittest.TestCase):
+    """M6d: an expression-taking algorithm refuses env(), file functions and eval() in any string parameter, the same as field_calculator."""
+
+    def test_denied_function_is_refused_before_anything_runs(self):
+        from cartogen_ai.core.agent.tools._processing_allowlist import parameter_violation
+        for alg in ("native:extractbyexpression", "native:geometrybyexpression", "native:orderbyexpression"):
+            self.assertIn("env()", parameter_violation(alg, {"INPUT": "a", "EXPRESSION": "env('HOME') = 'x'"}))
+            self.assertIn("file_exists", parameter_violation(alg, {"INPUT": "a", "EXPRESSION": "file_exists('/etc/passwd')"}))
+
+    def test_ordinary_expression_passes_and_other_algorithms_are_untouched(self):
+        from cartogen_ai.core.agent.tools._processing_allowlist import parameter_violation
+        self.assertIsNone(parameter_violation("native:extractbyexpression", {"INPUT": "a", "EXPRESSION": '"pop" > 1000 AND "name" = \'env\''}))
+        # a denied name inside a string literal is not a call
+        self.assertIsNone(parameter_violation("native:buffer", {"INPUT": "env('x')"}))
+
+
 class TestNoFreeFormCodeSurface(unittest.TestCase):
     """GitHub #137 (audit F01): gdal:rastercalculator's FORMULA is evaluated with Python eval() by gdal_calc."""
 
@@ -259,7 +274,8 @@ class TestNoFreeFormCodeSurface(unittest.TestCase):
     @patch("cartogen_ai.core.agent.tools.processing_allowlist_tools.processing", create=True)
     def test_the_calculator_is_rejected_before_processing_runs(self, mock_processing):
         result = run_allowlisted_processing_algorithm("gdal:rastercalculator", {"FORMULA": "__import__('os').getcwd()"})
-        self.assertIn("not on the allowed algorithm list", result["error"])
+        self.assertIn("not approved", result["error"])
+        self.assertEqual(result["use_tool"], "raster_calculator")      # rc46: point at the screened tool instead of leaving the user stuck
         mock_processing.run.assert_not_called()
 
     @patch("cartogen_ai.core.agent.tools.processing_allowlist_tools.QGIS_AVAILABLE", True)

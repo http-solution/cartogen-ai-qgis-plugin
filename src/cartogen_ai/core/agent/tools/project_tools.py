@@ -1,11 +1,12 @@
-# -*- coding: utf-8 -*-
 """
 QGIS Project File Tools for Cartogen AI.
 """
 
+import contextlib
 import os
 
 from .registry import register_tool
+from ._paths import resolve_output_path
 
 try:
     from qgis.core import QgsProject, QgsLayerTreeModel
@@ -42,10 +43,9 @@ def _temporary_layer_names(project):
     """Names of the project's layers that live only in memory. Best-effort; an unreadable layer is skipped."""
     names = []
     for layer in project.mapLayers().values():
-        try:
+        is_memory = False
+        with contextlib.suppress(Exception):   # an unreadable layer is not counted
             is_memory = layer.providerType() == "memory" or (hasattr(layer, "isTemporary") and layer.isTemporary())
-        except Exception:
-            continue
         if is_memory:
             names.append(layer.name())
     return sorted(names)
@@ -67,8 +67,12 @@ def _temporary_layer_names(project):
         },
         "required": [],
     },
+    keywords=[
+        "save the project", "save project", "save my work", "save the map project",
+    ],
 )
 def save_project(output_path=None):
+    output_path = resolve_output_path(output_path)   # rc22 smoke N3/N8/N9: anchor relative paths to the project (see _paths.py)
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
     project = QgsProject.instance()
@@ -101,6 +105,9 @@ def save_project(output_path=None):
         },
         "required": ["file_path"],
     },
+    keywords=[
+        "open the project", "load the project", "open project", "open a project", "open the qgz", "open the qgs", "load the qgz",
+    ],
 )
 def load_project(file_path: str, confirmed: bool = False):
     if not confirmed:
@@ -144,6 +151,10 @@ def load_project(file_path: str, confirmed: bool = False):
         },
         "required": ["theme_name"],
     },
+
+    keywords=[
+        "save this combination", "save the visible layers", "save current layer visibility", "remember which layers are visible", "save a theme",
+    ],
 )
 def create_map_theme(theme_name: str):
     if not QGIS_AVAILABLE:

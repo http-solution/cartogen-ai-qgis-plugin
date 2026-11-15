@@ -1,7 +1,7 @@
-# -*- coding: utf-8 -*-
 """F19 (rc7 smoke test, 2026-09-30): fetch_worldpop_population downloaded the WHOLE-country raster
 (Yemen, 141 s) for a ~77 x 71 km catchment. With extent_layer/bbox only that window is read through
 GDAL /vsicurl/. Network and GDAL are mocked here; tests/test_worldpop_clip_live.py clips a real raster."""
+import pathlib
 import json
 import os
 import unittest
@@ -87,7 +87,7 @@ class TestNetworkPhaseWithABox(unittest.TestCase):
     @patch.object(ht.urllib.request, "urlopen")
     def test_a_box_reads_only_the_window_and_never_downloads_the_country(self, urlopen, clip, opener):
         urlopen.return_value = _resp(_LISTING)
-        clip.side_effect = lambda src, box, dest: (open(dest, "wb").write(b"x"), {"width": 40, "height": 30})[1]
+        clip.side_effect = lambda src, box, dest: (pathlib.Path(dest).write_bytes(b"x"), {"width": 40, "height": 30})[1]
         res = ht.fetch_worldpop_population_network_phase("YEM", "2020", [43.5, 15.0, 44.5, 16.0])
         try:
             self.assertTrue(res["success"], res)
@@ -188,7 +188,7 @@ class TestNetworkPhaseWithABox(unittest.TestCase):
     @patch.object(ht.urllib.request, "urlopen")
     def test_different_boxes_are_cached_separately(self, urlopen, clip):
         urlopen.return_value = _resp(_LISTING)
-        clip.side_effect = lambda src, box, dest: (open(dest, "wb").write(b"x"), {"width": 1, "height": 1})[1]
+        clip.side_effect = lambda src, box, dest: (pathlib.Path(dest).write_bytes(b"x"), {"width": 1, "height": 1})[1]
         a = ht.fetch_worldpop_population_network_phase("YEM", "2020", [43.5, 15.0, 44.5, 16.0])
         b = ht.fetch_worldpop_population_network_phase("YEM", "2020", [45.5, 15.0, 46.5, 16.0])
         again = ht.fetch_worldpop_population_network_phase("YEM", "2020", [43.5, 15.0, 44.5, 16.0])

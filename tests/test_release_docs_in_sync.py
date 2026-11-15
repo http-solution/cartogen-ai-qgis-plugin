@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Fails when a version bump leaves release-facing text behind: the in-plugin Help, the README "What's new" and humanitarian table, the
 CHANGELOG and the metadata changelog must all describe the same version, and the counts they quote must match the live registries.
 Update core/release_notes.py (checklist: CONTRIBUTING.md, "Releasing") to fix a failure here."""
@@ -47,6 +46,10 @@ class TestReleaseDocsInSync(unittest.TestCase):
         rows = [line for line in self.readme.splitlines() if line.startswith("| **")]
         self.assertEqual(rows, rn.render_readme_table(), "README table differs from core/release_notes.py (run render_readme_table())")
 
+    def test_readme_humanitarian_table_keeps_its_header_row(self):
+        """The rc29 regeneration replaced the table with bare rows and dropped its header and separator, so GitHub showed plain text."""
+        self.assertIn("\n| Workflow | Tools |\n|---|---|\n| **1.", self.readme)
+
     def test_listed_tools_are_registered_and_marks_use_known_versions(self):
         listed = {t for _title, tools in rn.HUMANITARIAN_WORKFLOWS for t in tools}
         self.assertEqual(sorted(t for t in listed if t not in TOOL_REGISTRY), [])
@@ -73,3 +76,15 @@ class TestReleaseDocsInSync(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestHelpNewMarkNote(unittest.TestCase):
+    """rc22 smoke V7: the Help may only explain the (new) marks when some tool carries one."""
+
+    def test_the_note_matches_the_marks(self):
+        from cartogen_ai.core import release_notes
+        from cartogen_ai.core.ui import help_content
+        html = help_content.build_help_html()
+        any_new = any(release_notes.tool_is_new(t) for _title, tools in release_notes.HUMANITARIAN_WORKFLOWS for t in tools)
+        self.assertEqual(any_new, "marks tools added" in html)
+        self.assertEqual(any_new, "<i>(new)</i>" in html.replace("<i>(new)</i> marks", "<i>(new)</i> marks"))

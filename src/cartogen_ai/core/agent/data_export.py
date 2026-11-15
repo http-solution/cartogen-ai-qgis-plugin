@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Consolidated data export for Cartogen AI -- GDPR review findings F7 (no
 structured data export/portability) and F8 (no consolidated "what do you
 know about me" view), docs/GDPR_COMPLIANCE_REVIEW.docx. Deliberately

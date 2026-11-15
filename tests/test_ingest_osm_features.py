@@ -1,8 +1,8 @@
-# -*- coding: utf-8 -*-
 """
 Tests for ingest_osm_features two-phase vector ingestion.
 """
 
+from typing import ClassVar
 import json
 import os
 import unittest
@@ -91,7 +91,7 @@ class TestIngestOsmFeatures(unittest.TestCase):
         self.assertTrue(os.path.exists(res["local_path"]))
 
         # Verify GeoJSON content
-        with open(res["local_path"], "r", encoding="utf-8") as f:
+        with open(res["local_path"], encoding="utf-8") as f:
             data = json.load(f)
             self.assertEqual(data["type"], "FeatureCollection")
             self.assertEqual(len(data["features"]), 2)
@@ -141,7 +141,7 @@ class TestIngestOsmFeatures(unittest.TestCase):
 
         self.assertTrue(res.get("success"), res)
         self.assertEqual(res["feature_count"], 2)
-        with open(res["local_path"], "r", encoding="utf-8") as f:
+        with open(res["local_path"], encoding="utf-8") as f:
             data = json.load(f)
         coords = [tuple(f["geometry"]["coordinates"]) for f in data["features"]]
         self.assertIn((35.0, 0.0), coords)
@@ -288,7 +288,7 @@ class TestOverpassResilience(unittest.TestCase):
     model then burned its 20-call budget geocoding facilities one by one. Measured that evening,
     only 5 of 12 spaced requests to overpass-api.de succeeded, with failures scattered."""
 
-    OK_BODY = {"elements": [{"type": "node", "id": 1, "lat": 31.95, "lon": 35.90,
+    OK_BODY: ClassVar = {"elements": [{"type": "node", "id": 1, "lat": 31.95, "lon": 35.90,
                              "tags": {"amenity": "hospital", "name": "Clinic A"}}]}
 
     def _ok(self):
@@ -317,11 +317,36 @@ class TestOverpassResilience(unittest.TestCase):
         self.assertEqual([c.args[0] for c in mock_sleep.call_args_list], [3.0, 6.0, 9.0])
 
     def test_persistent_overload_tells_the_model_to_stop(self):
-        res, mock_open, _ = self._run([self._http(504)] * 4)
+        with patch("cartogen_ai.core.agent.tools.humanitarian_tools._overpass_mirrors_enabled", return_value=False):
+            res, mock_open, _ = self._run([self._http(504)] * 4)
         self.assertEqual(mock_open.call_count, 4)
         self.assertTrue(res.get("retryable_later"))
         self.assertIn("Don't call ingest_osm_features again in this turn", res["error"])
         self.assertIn("geocoding", res["error"])
+
+    def test_a_mirror_answers_when_the_main_server_is_overloaded(self):
+        """DEF-7: four failures on the main server, then the first mirror succeeds (offline: the mirrors were not reachable from the sandbox)."""
+        with patch("cartogen_ai.core.agent.tools.humanitarian_tools._overpass_mirrors_enabled", return_value=True):
+            res, mock_open, _ = self._run([self._http(504)] * 4 + [self._ok()])
+        self.assertTrue(res.get("success"), res)
+        self.assertEqual(mock_open.call_count, 5)
+        self.assertIn("overpass.kumi.systems", mock_open.call_args_list[4].args[0].full_url)
+
+    def test_every_mirror_failing_still_ends_with_the_stop_message(self):
+        with patch("cartogen_ai.core.agent.tools.humanitarian_tools._overpass_mirrors_enabled", return_value=True):
+            res, mock_open, _ = self._run([self._http(504)] * 6)
+        self.assertEqual(mock_open.call_count, 6)
+        self.assertTrue(res.get("retryable_later"))
+
+    def test_mirrors_off_means_the_main_server_only(self):
+        with patch("cartogen_ai.core.agent.tools.humanitarian_tools._overpass_mirrors_enabled", return_value=False):
+            _res, mock_open, _ = self._run([self._http(504)] * 4)
+        self.assertEqual(mock_open.call_count, 4)
+
+    def test_a_bad_query_does_not_go_to_the_mirrors(self):
+        with patch("cartogen_ai.core.agent.tools.humanitarian_tools._overpass_mirrors_enabled", return_value=True):
+            _res, mock_open, _ = self._run([self._http(400)])
+        self.assertEqual(mock_open.call_count, 1)
 
     def test_a_bad_query_is_not_retried_or_called_overload(self):
         res, mock_open, _ = self._run([self._http(400)])

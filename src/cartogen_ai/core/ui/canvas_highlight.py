@@ -1,4 +1,5 @@
-# -*- coding: utf-8 -*-
+import contextlib
+from ..logger import log_event
 """
 Canvas Highlighting for Cartogen AI.
 Flashes a layer's extent on the map canvas when the AI's reply mentions it,
@@ -27,20 +28,14 @@ def _discard_highlight(highlight):
     or project reload they were drawn again as a solid orange block that no layer toggle removed
     (removing them from the scene in the QGIS console made it vanish). hide() is kept first so a
     failure below still leaves the item invisible."""
-    try:
+    with contextlib.suppress(Exception):
         highlight.hide()
-    except Exception:
-        pass
-    try:
+    with contextlib.suppress(Exception):
         scene = highlight.scene()
         if scene is not None:
             scene.removeItem(highlight)
-    except Exception:
-        pass
-    try:
+    with contextlib.suppress(Exception):
         highlight.deleteLater()
-    except Exception:
-        pass
 
 
 def flash_layer_extent(iface, layer, on_expired=None, duration_ms=HIGHLIGHT_DURATION_MS):
@@ -75,7 +70,7 @@ def flash_layer_extent(iface, layer, on_expired=None, duration_ms=HIGHLIGHT_DURA
         QTimer.singleShot(duration_ms, _expire)
         return highlight
     except Exception as e:
-        print(f"[CanvasHighlight] Failed to highlight layer: {e}")
+        log_event("failed_to_highlight_layer", tag="CanvasHighlight", error_class=type(e).__name__, error=True)
         return None
 
 
@@ -140,7 +135,7 @@ def zoom_to_layers(iface, layers):
         canvas.refresh()
         return True
     except Exception as e:
-        print(f"[CanvasHighlight] Failed to zoom to layer(s): {e}")
+        log_event("failed_to_zoom_to_layer_s", tag="CanvasHighlight", error_class=type(e).__name__, error=True)
         return False
 
 

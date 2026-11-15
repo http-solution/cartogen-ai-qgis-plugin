@@ -1,5 +1,5 @@
-# -*- coding: utf-8 -*-
 """Pure halves of output_style.py and layout_style.py (the QGIS halves are in tests/test_output_style_live.py)."""
+from typing import ClassVar
 import datetime
 import unittest
 import unittest.mock
@@ -72,10 +72,14 @@ class TestAlgorithmMapping(unittest.TestCase):
 
 
 class TestAllowlistExtensions(unittest.TestCase):
-    def test_extensions_are_allowed_and_expression_algorithms_are_not(self):
+    def test_extensions_are_allowed_and_expression_algorithms_are_screened(self):
         from cartogen_ai.core.agent.tools._processing_allowlist import ALLOWED_ALGORITHM_IDS, ANALYSIS_EXTENSIONS
         self.assertTrue(ANALYSIS_EXTENSIONS <= ALLOWED_ALGORITHM_IDS)
-        for risky in ("native:extractbyexpression", "native:aggregate", "native:refactorfields", "native:fieldcalculator"):
+        # M6d (owner decision 2026-10-14): expression algorithms that write a new layer are allowed, but only because every string
+        # parameter goes through the expression screen; the ones below stay off (list-of-objects parameter, or a dedicated tool exists).
+        from cartogen_ai.core.agent.tools._processing_allowlist import EXPRESSION_ALGORITHM_IDS
+        self.assertTrue(EXPRESSION_ALGORITHM_IDS <= ALLOWED_ALGORITHM_IDS)
+        for risky in ("native:aggregate", "native:refactorfields", "native:fieldcalculator", "native:selectbyexpression"):
             self.assertNotIn(risky, ALLOWED_ALGORITHM_IDS)
 
     def test_raster_output_algorithms_are_a_subset_of_the_allowlist(self):
@@ -98,7 +102,7 @@ class TestAllowlistExtensions(unittest.TestCase):
 
 
 class TestLayoutLegendSelection(unittest.TestCase):
-    ENTRIES = [
+    ENTRIES: ClassVar = [
         {"id": "a", "name": "Clinics", "visible": True, "provider": "memory"},
         {"id": "b", "name": "Roads", "visible": False, "provider": "ogr"},
         {"id": "c", "name": "OSM Standard", "visible": True, "provider": "wms"},
@@ -142,7 +146,7 @@ class TestClassificationAndStamps(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    import unittest.mock  # noqa: F401
+    import unittest.mock
     unittest.main()
 
 
@@ -170,7 +174,7 @@ class TestUnitsAndAutoLabels(unittest.TestCase):
 
 
 class TestAccessMapTemplate(unittest.TestCase):
-    NAMES = {"a": "Clinics_roads_by_cost_0", "b": "Clinics_access_30", "c": "Districts", "d": "Clinics_reachable_area"}
+    NAMES: ClassVar = {"a": "Clinics_roads_by_cost_0", "b": "Clinics_access_30", "c": "Districts", "d": "Clinics_reachable_area"}
 
     def test_ranking_puts_the_reach_polygon_first_and_other_layers_last(self):
         self.assertEqual(ls.order_for_access_map(["a", "b", "c", "d"], self.NAMES), ["d", "b", "a", "c"])
@@ -298,3 +302,33 @@ class TestSitrepBody(unittest.TestCase):
         self.assertNotIn("HOW TO READ", text)
         self.assertIn("f0", text)
         self.assertLessEqual(len(text), 330)
+
+
+class TestIntegrationAuditStyling(unittest.TestCase):
+    """2026-10-16 integration audit: the raster, GRASS and mesh outputs added since package D get a look, and every name used is a real
+    allow-listed algorithm (a typo here would silently style nothing)."""
+
+    def test_continuous_grass_and_raster_outputs_are_styled_as_surfaces(self):
+        from cartogen_ai.core.agent.tools import output_style as o
+        for alg in ("grass:r.slope.aspect", "grass:r.cost", "gdal:roughness", "native:tpitopographicpositionindex", "native:meshrasterize",
+                    "gdal:proximity"):
+            self.assertEqual(o.raster_kind_for(alg), "surface", alg)
+
+    def test_categorical_and_shaded_outputs_are_left_alone(self):
+        from cartogen_ai.core.agent.tools import output_style as o
+        for alg in ("grass:r.clump", "grass:r.geomorphon", "grass:r.watershed", "grass:r.stream.extract", "gdal:sieve", "native:hillshade",
+                    "grass:r.viewshed", "native:rasterbooleanand"):
+            self.assertIsNone(o.raster_kind_for(alg), alg)
+
+    def test_grass_vector_outputs_get_the_same_roles_as_their_native_twins(self):
+        from cartogen_ai.core.agent.tools import output_style as o
+        self.assertEqual(o.vector_role_for("grass:v.buffer"), o.vector_role_for("native:buffer"))
+        self.assertEqual(o.vector_role_for("grass:v.overlay"), "selection_overlay")
+
+    def test_every_newly_mapped_name_is_an_allow_listed_algorithm(self):
+        from cartogen_ai.core.agent.tools import output_style as o
+        from cartogen_ai.core.agent.tools._processing_allowlist import FAMILY_NAMES
+        short = {i.split(":", 1)[1] for i in FAMILY_NAMES}
+        for key in set(o.ALGORITHM_RASTER_KINDS) | set(o.ALGORITHM_VECTOR_ROLES):
+            if "." in key and key.split(".")[0] in ("r", "v", "i"):
+                self.assertIn(key, short, key)

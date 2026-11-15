@@ -1,0 +1,61 @@
+id,name,wave,reason
+native:basicstatisticsforfields,Basic statistics for fields,E1-REPORT,statistics: the numbers come back in the result dictionary; the HTML file goes to a temporary file in the export folder; built in wave E1 (2026-10-23)
+native:listuniquevalues,List unique values,E1-REPORT,statistics: the numbers come back in the result dictionary; the HTML file goes to a temporary file in the export folder; built in wave E1 (2026-10-23)
+native:nearestneighbouranalysis,Nearest neighbour analysis,E1-REPORT,statistics: the numbers come back in the result dictionary; the HTML file goes to a temporary file in the export folder; built in wave E1 (2026-10-23)
+native:rasterlayerstatistics,Raster layer statistics,E1-REPORT,fills the coverage row 'Raster histogram and band statistics'; built in wave E1 (2026-10-23)
+native:rasterlayeruniquevaluesreport,Raster layer unique values report,E1-REPORT,fills the coverage row 'Raster histogram and band statistics'; built in wave E1 (2026-10-23)
+native:rastersurfacevolume,Raster surface volume,E1-REPORT,statistics: the numbers come back in the result dictionary; the HTML file goes to a temporary file in the export folder; built in wave E1 (2026-10-23)
+gdal:contour_polygon,Contour Polygons,E1-GDAL-VECTOR,"GDAL vector output: a temporary GeoPackage in the export folder, loaded as a layer (same route as GRASS vector results); built in wave E1 (2026-10-23)"
+gdal:polygonize,Polygonize (raster to vector),E1-GDAL-VECTOR,fills the coverage row 'Raster to points / polygons'; built in wave E1 (2026-10-23)
+gdal:buffervectors,Buffer vectors,COVERED-ELSEWHERE,not added: already available as native:buffer; a second route to the same result only adds ambiguity and tokens (owner agreed 2026-10-23)
+gdal:clipvectorbyextent,Clip vector by extent,COVERED-ELSEWHERE,not added: already available as native:extractbyextent; a second route to the same result only adds ambiguity and tokens (owner agreed 2026-10-23)
+gdal:clipvectorbypolygon,Clip vector by mask layer,COVERED-ELSEWHERE,not added: already available as native:clip; a second route to the same result only adds ambiguity and tokens (owner agreed 2026-10-23)
+gdal:dissolve,Dissolve,COVERED-ELSEWHERE,not added: already available as native:dissolve; a second route to the same result only adds ambiguity and tokens (owner agreed 2026-10-23)
+gdal:offsetcurve,Offset curve,COVERED-ELSEWHERE,not added: already available as native:offsetline; a second route to the same result only adds ambiguity and tokens (owner agreed 2026-10-23)
+gdal:onesidebuffer,One side buffer,COVERED-ELSEWHERE,not added: already available as native:singlesidedbuffer; a second route to the same result only adds ambiguity and tokens (owner agreed 2026-10-23)
+gdal:pointsalonglines,Points along lines,COVERED-ELSEWHERE,not added: already available as native:pointsalonglines; a second route to the same result only adds ambiguity and tokens (owner agreed 2026-10-23)
+gdal:contour,Contour,COVERED-ELSEWHERE,not added: already available as the generate_contours tool; a second route to the same result only adds ambiguity and tokens (owner agreed 2026-10-23)
+gdal:gdalinfo,Raster information,E2-INFO,"built 2026-11-11 (PLAN-023 R11-5): allow-listed after the CI probe; returns a text excerpt (at most 4,000 characters) of its own temporary report file"
+gdal:ogrinfo,Vector information,E2-INFO,"built 2026-11-11 (PLAN-023 R11-5): allow-listed after the CI probe; returns a text excerpt (at most 4,000 characters) of its own temporary report file"
+gdal:ogrinfojson,Vector information (JSON),E2-INFO,"built 2026-11-11 (PLAN-023 R11-5): allow-listed after the CI probe; returns a text excerpt (at most 4,000 characters) of its own temporary report file"
+gdal:dataset_identify,Dataset identification,E2-INFO,declined 2026-11-11 (PLAN-023 R11-5): the CI probe reported 'GDAL 3.13 or later is needed to run this algorithm'; reconsider when the QGIS image carries GDAL 3.13
+qgis:barplot,Bar plot,E2-PLOT,built 2026-11-11 (PLAN-023 R11-5): allow-listed after the CI probe; writes a complete chart page to a temporary HTML file whose path is reported (about 8.6 MB: the plotting library is inside it)
+qgis:boxplot,Box plot,E2-PLOT,built 2026-11-11 (PLAN-023 R11-5): allow-listed after the CI probe; writes a complete chart page to a temporary HTML file whose path is reported (about 8.6 MB: the plotting library is inside it)
+qgis:meanandstandarddeviationplot,Mean and standard deviation plot,E2-PLOT,built 2026-11-11 (PLAN-023 R11-5): allow-listed after the CI probe; writes a complete chart page to a temporary HTML file whose path is reported (about 8.6 MB: the plotting library is inside it)
+qgis:polarplot,Polar plot,E2-PLOT,built 2026-11-11 (PLAN-023 R11-5): allow-listed after the CI probe; writes a complete chart page to a temporary HTML file whose path is reported (about 8.6 MB: the plotting library is inside it)
+qgis:rasterlayerhistogram,Raster layer histogram,E2-PLOT,built 2026-11-11 (PLAN-023 R11-5): allow-listed after the CI probe; writes a complete chart page to a temporary HTML file whose path is reported (about 8.6 MB: the plotting library is inside it)
+qgis:scatter3dplot,Vector layer scatterplot 3D,E2-PLOT,built 2026-11-11 (PLAN-023 R11-5): allow-listed after the CI probe; writes a complete chart page to a temporary HTML file whose path is reported (about 8.6 MB: the plotting library is inside it)
+qgis:vectorlayerhistogram,Vector layer histogram,E2-PLOT,built 2026-11-11 (PLAN-023 R11-5): allow-listed after the CI probe; writes a complete chart page to a temporary HTML file whose path is reported (about 8.6 MB: the plotting library is inside it)
+qgis:vectorlayerscatterplot,Vector layer scatterplot,E2-PLOT,built 2026-11-11 (PLAN-023 R11-5): allow-listed after the CI probe; writes a complete chart page to a temporary HTML file whose path is reported (about 8.6 MB: the plotting library is inside it)
+native:generateelevationprofileimage,Generate elevation profile image,E2-PLOT,"declined 2026-11-11 (PLAN-023 R11-5): it runs when given a line as WKT (CI wrote a 7.8 KB PNG) but dedicated elevation profile tools already exist (elevation_tools, layout_chart_profile_tools); a second route only adds ambiguity"
+native:dxfexport,Export layers to DXF,E2-EXPORT,built 2026-10-23 as the dedicated tool export_layers_to_dxf (PLAN-006 E2c); fills the coverage row 'Import / export DXF'
+native:exporttospreadsheet,Export to spreadsheet,E2-EXPORT,built 2026-10-23 as the dedicated tool export_layers_to_spreadsheet (PLAN-006 E2c); export_to_csv covers CSV only
+native:package,Package layers,E2-EXPORT,"dedicated tool package_layers_offline exists; route to it, do not duplicate"
+native:savefeatures,Save vector features to file,E2-EXPORT,dedicated tools export_layer and save_layer_as exist; route to them
+native:printlayouttopdf,Export print layout as PDF,E2-EXPORT,dedicated tool export_layout exists
+native:printlayouttoimage,Export print layout as image,E2-EXPORT,dedicated tool export_layout exists
+native:atlaslayouttopdf,Export atlas layout as PDF (single file),E2-EXPORT,dedicated tool export_layout_atlas exists
+native:exportlayermetadata,Export layer metadata,E2-EXPORT,"declined 2026-11-11 (PLAN-023 R11-4): writes a metadata file to a path; the layer-metadata tools already read and set it, and a file on disk adds nothing a chat can show"
+native:convertgpsdata,Convert GPS data,E2-EXPORT,declined 2026-11-11 (PLAN-023 R11-4): converts between GPS file formats through external converters on a path the user names; a dedicated GPX import exists and export_layer writes GPX
+native:convertgpxfeaturetype,Convert GPX feature type,E2-EXPORT,"declined 2026-11-11 (PLAN-023 R11-4): rewrites a GPX file into another feature type; niche, and the same layer can be added and exported"
+gdal:convertformat,Convert format,E2-EXPORT,declined 2026-11-11 (PLAN-023 R11-4): export_layer and save_layer_as already convert between the common formats; a second route only adds ambiguity
+native:splitvectorlayer,Split vector layer,E2-EXPORT,"declined 2026-11-11 (PLAN-023 R11-4): writes one file per value into a folder, which cannot be a temporary output; split_features_by_line and the select-and-export route cover the need"
+native:extractbinary,Extract binary field,E2-EXPORT,"declined 2026-11-11 (PLAN-023 R11-4): writes binary files (images, documents) from a field into a folder; no chat use and a folder the model would have to choose"
+native:pointstopath,Points to path,E2-EXPORT,built 2026-11-11 (PLAN-023 R11-4): allow-listed; makes one line layer from ordered points; the text-folder destination is never given a path
+native:hypsometriccurves,Hypsometric curves,E2-EXPORT,declined 2026-11-11 (PLAN-023 R11-4): writes one CSV per polygon into a folder; the raster statistics and elevation tools cover the numbers
+native:relief,Relief,E2-EXPORT,built 2026-11-11 (PLAN-023 R11-4): allow-listed; makes a shaded-relief raster as a temporary file
+native:tinmeshcreation,TIN Mesh Creation,E2-EXPORT,declined 2026-11-11 (PLAN-023 R11-4): writes a mesh file; the mesh family and the TIN interpolation algorithm cover the use
+native:tilesxyzdirectory,Generate XYZ tiles (Directory),E3-NOT-PLANNED,"not planned: tile pyramids, style databases, 3D conversion or modeler helpers; large or niche outputs with no chat use"
+native:tilesxyzmbtiles,Generate XYZ tiles (MBTiles),E3-NOT-PLANNED,"not planned: tile pyramids, style databases, 3D conversion or modeler helpers; large or niche outputs with no chat use"
+native:writevectortiles_mbtiles,Write Vector Tiles (MBTiles),E3-NOT-PLANNED,"not planned: tile pyramids, style databases, 3D conversion or modeler helpers; large or niche outputs with no chat use"
+native:writevectortiles_xyz,Write Vector Tiles (XYZ),E3-NOT-PLANNED,"not planned: tile pyramids, style databases, 3D conversion or modeler helpers; large or niche outputs with no chat use"
+gdal:retile,Retile,E3-NOT-PLANNED,"not planned: tile pyramids, style databases, 3D conversion or modeler helpers; large or niche outputs with no chat use"
+gdal:createcog,Create Cloud Optimized GeoTIFF,E3-NOT-PLANNED,"not planned: tile pyramids, style databases, 3D conversion or modeler helpers; large or niche outputs with no chat use"
+gdal:tileindex,Tile index,E3-NOT-PLANNED,"not planned: tile pyramids, style databases, 3D conversion or modeler helpers; large or niche outputs with no chat use"
+gdal:buildvirtualvector,Build virtual vector,E3-NOT-PLANNED,"not planned: tile pyramids, style databases, 3D conversion or modeler helpers; large or niche outputs with no chat use"
+gdal:gdal2xyz,gdal2xyz,E3-NOT-PLANNED,"not planned: tile pyramids, style databases, 3D conversion or modeler helpers; large or niche outputs with no chat use"
+native:b3dmtogltf,Convert B3DM to GLTF,E3-NOT-PLANNED,"not planned: tile pyramids, style databases, 3D conversion or modeler helpers; large or niche outputs with no chat use"
+native:combinestyles,Combine style databases,E3-NOT-PLANNED,"not planned: tile pyramids, style databases, 3D conversion or modeler helpers; large or niche outputs with no chat use"
+native:stylefromproject,Create style database from project,E3-NOT-PLANNED,"not planned: tile pyramids, style databases, 3D conversion or modeler helpers; large or niche outputs with no chat use"
+native:filterlayersbytype,Filter layers by type,E3-NOT-PLANNED,"not planned: tile pyramids, style databases, 3D conversion or modeler helpers; large or niche outputs with no chat use"
+native:savelog,Save log to file,E3-NOT-PLANNED,"not planned: tile pyramids, style databases, 3D conversion or modeler helpers; large or niche outputs with no chat use"

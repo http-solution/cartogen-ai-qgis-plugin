@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Imagery feature extraction via SAM-family segmentation (FastSAM), for
 Cartogen AI. See docs/archive/SAM_IMAGERY_EXTRACTION_SPEC.md for the full design
@@ -26,6 +25,10 @@ import os
 import re
 import tempfile
 from .registry import register_tool
+from ... import net as _net
+import contextlib
+from ...net import build_request as _net_build_request
+from ._layer_checks import require_valid_layer
 
 try:
     from qgis.core import QgsProject, QgsRasterLayer, QgsVectorLayer, QgsFeature, QgsField, QgsGeometry
@@ -79,7 +82,6 @@ def download_checkpoint(name, dest_dir, opener=None, urls=_CHECKPOINT_URLS, min_
     deleting a partial file did not help, so the first attempt now bypasses it. No Range header is ever sent, so a 416 cannot happen, and a
     file smaller than `min_bytes` is never accepted. Written against the real asset (checked 2026-10-06: FastSAM-s.pt is 23,851,578 bytes at
     the v8.3.0 release; a plain GET returned it complete)."""
-    import urllib.request
     min_bytes = _CHECKPOINT_MIN_BYTES if min_bytes is None else min_bytes
     os.makedirs(dest_dir, exist_ok=True)
     final = os.path.join(dest_dir, name)
@@ -87,8 +89,8 @@ def download_checkpoint(name, dest_dir, opener=None, urls=_CHECKPOINT_URLS, min_
     for template in urls:
         tmp = final + ".partial"
         try:
-            req = urllib.request.Request(template.format(name=name), headers={"User-Agent": "CartogenAI-QGIS"})
-            with (opener or urllib.request.urlopen)(req, timeout=60) as resp, open(tmp, "wb") as fh:
+            req = _net_build_request(template.format(name=name), headers={"User-Agent": "CartogenAI-QGIS"})
+            with (opener or (lambda r, timeout: _net.urlopen(r, timeout=timeout, stream=True)))(req, timeout=60) as resp, open(tmp, "wb") as fh:
                 while True:
                     chunk = resp.read(1 << 20)
                     if not chunk:
@@ -100,11 +102,9 @@ def download_checkpoint(name, dest_dir, opener=None, urls=_CHECKPOINT_URLS, min_
             return final
         except Exception as e:
             last = e
-            try:
+            with contextlib.suppress(OSError):
                 if os.path.isfile(tmp):
                     os.remove(tmp)
-            except OSError:
-                pass
     raise last or RuntimeError("download failed")
 
 
@@ -130,7 +130,7 @@ def ensure_checkpoint(name="FastSAM-s.pt"):
             return {"success": True, "path": download_checkpoint(name, weights_dir)}
         except Exception as e:
             last_error = e        # fall through to ultralytics' own downloader once, then report whichever error is more useful
-    for attempt in (1,) if last_error is not None else (1, 2):
+    for _attempt in (1,) if last_error is not None else (1, 2):
         try:
             path = attempt_download_asset(name)
             if path and os.path.exists(str(path)):
@@ -182,6 +182,46 @@ def _mask_pixel_count(mask, threshold=0.5):
         return int((mask > threshold).sum())
     except (AttributeError, TypeError):
         return sum(1 for row in mask for v in row if v > threshold)
+
+
+def _scaled_geotransform(gt, scale_x, scale_y):
+    """The geotransform of a mask whose pixels are `scale_x` x `scale_y` source pixels wide and tall. A source pixel (col, row) is
+    (c * scale_x, r * scale_y) of the mask, so BOTH terms of each axis scale: gt1 and gt4 by scale_x, gt2 and gt5 by scale_y. The
+    cross terms gt2/gt4 (rotation/shear) used to be left unscaled, which shifted and sheared the footprints of a rotated raster
+    (audit A10). Pure."""
+    return (gt[0], gt[1] * scale_x, gt[2] * scale_y, gt[3], gt[4] * scale_x, gt[5] * scale_y)
+
+
+def _pixel_size(gt):
+    """Length of one pixel's column vector, the simplification tolerance: abs(gt1) for a north-up grid, correct for a rotated one."""
+    import math
+    return math.hypot(gt[1], gt[4])
+
+
+def _polygonize_mask(mask, geotransform, projection, srs):
+    """Polygonize only the FOREGROUND of a 0/1 mask into an in-memory OGR layer; returns (layer, ogr_ds, mem_ds) (audit A01).
+
+    gdal.Polygonize() with no mask band traces every connected region of equal value, background included: a 4x4 object in a
+    10x10 mask came back as a 16-pixel and an 84-pixel polygon, and the 84-pixel background was reported as a detection. The mask
+    band is therefore the mask itself (only non-zero pixels are eligible), and the pixel value is also written to field 0 so any
+    zero-valued region that still slips through is dropped here."""
+    from osgeo import gdal, ogr
+    h, w = mask.shape
+    mem_ds = gdal.GetDriverByName("MEM").Create("", w, h, 1, gdal.GDT_Byte)
+    mem_ds.SetGeoTransform(geotransform)
+    mem_ds.SetProjection(projection)
+    band = mem_ds.GetRasterBand(1)
+    band.WriteArray((mask > 0.5).astype("uint8"))
+    ogr_ds = ogr.GetDriverByName("Memory").CreateDataSource("")
+    ogr_layer = ogr_ds.CreateLayer("mask", srs=srs)
+    ogr_layer.CreateField(ogr.FieldDefn("DN", ogr.OFTInteger))
+    status = gdal.Polygonize(band, band, ogr_layer, 0)
+    if status != 0:
+        raise RuntimeError(f"gdal.Polygonize failed with status {status}")
+    for feat in list(ogr_layer):
+        if feat.GetField("DN") == 0:
+            ogr_layer.DeleteFeature(feat.GetFID())
+    return ogr_layer, ogr_ds, mem_ds       # the datasets must outlive the layer: the caller keeps all three
 
 
 def _finalize_extracted_geometry(qgs_geom, pixel_size, min_area_m2, area_m2=None):
@@ -276,7 +316,7 @@ def extract_features_from_imagery(raster_layer, output_layer_name=None, min_area
         }
 
     try:
-        from osgeo import gdal, ogr, osr
+        from osgeo import gdal, osr
     except ImportError:
         return {"error": "GDAL Python bindings (osgeo) not available in this environment."}
 
@@ -306,23 +346,30 @@ def extract_features_from_imagery(raster_layer, output_layer_name=None, min_area
     if not os.path.exists(png_path):
         return {"error": "Failed to export the raster to an image the model can read."}
 
-    try:
+    def _infer():
+        # No QGIS objects in here (audit A14): CPU inference on a PNG file can take minutes, so it runs off the GUI thread.
         model = FastSAM(model_path or "FastSAM-s.pt")
         results = model(png_path, device="cpu", retina_masks=True, conf=confidence_threshold, verbose=False)
+        if not results or results[0].masks is None:
+            return None
+        boxes = results[0].boxes
+        masks = results[0].masks.data.cpu().numpy()
+        return masks, (boxes.conf.cpu().numpy() if boxes is not None else [1.0] * len(masks))
+
+    try:
+        from ... import _background_processing as _bg
+        inferred = _bg.run_callable(_infer, label="Feature extraction (model)")
+    except _bg.AnalysisCancelledError as e:
+        return {"error": f"Stopped: {e}", "cancelled": True}
     except Exception as e:
         return {"error": describe_model_failure(e)}
     finally:
-        try:
+        with contextlib.suppress(OSError):
             os.remove(png_path)
-        except OSError:
-            pass
 
-    if not results or results[0].masks is None:
+    if inferred is None:
         return {"success": True, "feature_count": 0, "message": "No features detected."}
-
-    masks = results[0].masks.data.cpu().numpy()
-    boxes = results[0].boxes
-    confidences = boxes.conf.cpu().numpy() if boxes is not None else [1.0] * len(masks)
+    masks, confidences = inferred
 
     out_name = output_layer_name or f"{raster_layer}_extracted_features"
     crs = layer.crs().authid()
@@ -332,59 +379,48 @@ def extract_features_from_imagery(raster_layer, output_layer_name=None, min_area
     project_ellipsoid = QgsProject.instance().ellipsoid()
     distance_area.setEllipsoid(project_ellipsoid if project_ellipsoid and project_ellipsoid != "NONE" else "WGS84")
     out_layer = QgsVectorLayer(f"Polygon?crs={crs}", out_name, "memory")
+    require_valid_layer(out_layer)
     provider = out_layer.dataProvider()
     provider.addAttributes([QgsField("confidence", QVariant.Double)])
     out_layer.updateFields()
 
-    mem_driver = gdal.GetDriverByName("MEM")
     srs = osr.SpatialReference()
     srs.ImportFromWkt(projection)
 
-    new_features = []
-    for mask, conf in zip(masks, confidences):
-        conf = float(conf)
-        if conf < confidence_threshold or _mask_pixel_count(mask) == 0:
-            continue
-
-        mask_h, mask_w = mask.shape
-        # FastSAM's mask resolution may differ from the source raster's own
-        # pixel grid (retina_masks=True keeps it close, but not guaranteed
-        # identical) -- scale the mask's own geotransform to match rather
-        # than assuming a 1:1 pixel correspondence with the source.
-        scale_x = width / mask_w
-        scale_y = height / mask_h
-        mask_geotransform = (
-            geotransform[0], geotransform[1] * scale_x, geotransform[2],
-            geotransform[3], geotransform[4], geotransform[5] * scale_y,
-        )
-
-        mem_ds = mem_driver.Create("", mask_w, mask_h, 1, gdal.GDT_Byte)
-        mem_ds.SetGeoTransform(mask_geotransform)
-        mem_ds.SetProjection(projection)
-        band = mem_ds.GetRasterBand(1)
-        band.WriteArray((mask > 0.5).astype("uint8"))
-        band.SetNoDataValue(0)
-
-        ogr_ds = ogr.GetDriverByName("Memory").CreateDataSource("")
-        ogr_layer = ogr_ds.CreateLayer("mask", srs=srs)
-        # maskBand=None (not srcBand) so GDAL uses the band's own nodata
-        # value (0, set above) to skip background pixels automatically --
-        # only the detected (1-valued) region gets polygonized.
-        gdal.Polygonize(band, None, ogr_layer, -1)
-
-        # gdal.Polygonize traces the raw pixel grid, so every boundary is a jagged
-        # "staircase" of right angles at the mask's own pixel resolution -- not a real
-        # cartographic edge. Simplifying by roughly one pixel width (Douglas-Peucker via
-        # QgsGeometry.simplify(), same algorithm/API the OCHA/cartography-guide fixes
-        # elsewhere in this project use) smooths that staircase without losing real shape
-        # detail beyond what the source imagery's own resolution could show anyway.
-        pixel_size = abs(mask_geotransform[1])
-
-        for ogr_feat in ogr_layer:
-            geom = ogr_feat.GetGeometryRef()
-            if geom is None or geom.IsEmpty():
+    def _trace_all():
+        """Pure GDAL/OGR + numpy (no QGIS objects), so it can run off the GUI thread: [(confidence, pixel_size, [wkt, ...])]."""
+        traced = []
+        for mask, raw_conf in zip(masks, confidences, strict=False):
+            conf = float(raw_conf)
+            if conf < confidence_threshold or _mask_pixel_count(mask) == 0:
                 continue
-            qgs_geom = QgsGeometry.fromWkt(geom.ExportToWkt())
+            mask_h, mask_w = mask.shape
+            # FastSAM's mask resolution may differ from the source raster's own pixel grid (retina_masks=True keeps it close,
+            # but not guaranteed identical), so the mask gets its own geotransform: the full affine, see _scaled_geotransform
+            # (audit A10).
+            mask_geotransform = _scaled_geotransform(geotransform, width / mask_w, height / mask_h)
+            ogr_layer, _ogr_ds, _mem_ds = _polygonize_mask(mask, mask_geotransform, projection, srs)
+            wkts = []
+            for ogr_feat in ogr_layer:
+                geom = ogr_feat.GetGeometryRef()
+                if geom is not None and not geom.IsEmpty():
+                    wkts.append(geom.ExportToWkt())
+            traced.append((conf, _pixel_size(mask_geotransform), wkts))
+        return traced
+
+    try:
+        traced_masks = _bg.run_callable(_trace_all, label="Feature extraction (outlines)")
+    except _bg.AnalysisCancelledError as e:
+        return {"error": f"Stopped: {e}", "cancelled": True}
+
+    # gdal.Polygonize traces the raw pixel grid, so every boundary is a jagged "staircase" of right angles at the mask's own
+    # pixel resolution -- not a real cartographic edge. Simplifying by roughly one pixel width (Douglas-Peucker via
+    # QgsGeometry.simplify()) smooths that staircase without losing real shape detail beyond what the source imagery's own
+    # resolution could show anyway. QgsGeometry work stays on the GUI thread.
+    new_features = []
+    for conf, pixel_size, wkts in traced_masks:
+        for wkt in wkts:
+            qgs_geom = QgsGeometry.fromWkt(wkt)
             qgs_geom = _finalize_extracted_geometry(qgs_geom, pixel_size, min_area_m2, distance_area.measureArea)
             if qgs_geom is None:
                 continue

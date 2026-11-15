@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Match a user request to a task in the Humanitarian Mapping Task Register,
 work out what information is still missing, and describe what the answer
 should turn into.
@@ -12,6 +11,7 @@ Nothing here raises. A failure to match is a normal outcome, reported as an
 empty match list, and the caller falls through to today's unmodified
 behaviour.
 """
+import contextlib
 import os
 import re
 
@@ -24,9 +24,7 @@ AMBIGUITY_MARGIN = 0.08
 MAX_CANDIDATES = 5
 
 _WORD = re.compile(r"[a-z][a-z\-]{2,}")
-_STOP = frozenset("""and or the a an of for to in on with by from at into over under across per
-that this these those please can you i we need want show make give help me my our it is are was
-were be been being do does did how what which where when who why all any some""".split())
+_STOP = frozenset(["and", "or", "the", "a", "an", "of", "for", "to", "in", "on", "with", "by", "from", "at", "into", "over", "under", "across", "per", "that", "this", "these", "those", "please", "can", "you", "i", "we", "need", "want", "show", "make", "give", "help", "me", "my", "our", "it", "is", "are", "was", "were", "be", "been", "being", "do", "does", "did", "how", "what", "which", "where", "when", "who", "why", "all", "any", "some"])
 
 # Query words that carry no discriminating power inside this register: nearly
 # every task contains them, so they inflate every score equally.
@@ -67,16 +65,73 @@ def _score(qtokens, entry):
     return round(min(base, 1.0), 4)
 
 
-def match(query, limit=MAX_CANDIDATES):
-    """Return [(entry, score)] best first. Empty when nothing scores."""
+# rc22 live smoke (V1, J5, J16, T2): "Show the severity on the map for smoke_admin" and "Show the INFORM risk on the map" matched
+# "Map drought severity" / "Map extreme-heat risk" on the shared words map + severity/risk, and the task's hazard_type slot then made
+# the agent ask "Which hazard specifically?" about a hazard the user never mentioned. A task that NAMES one specific hazard is only a
+# candidate when the query names that hazard too (or a synonym).
+_SPECIFIC_HAZARDS = {
+    "flood": {"flood", "floods", "flooded", "flooding", "floodwater", "inundation"},
+    "drought": {"drought", "droughts"},
+    "landslide": {"landslide", "landslides", "debris"},
+    "wildfire": {"wildfire", "wildfires", "fire", "fires", "burn"},
+    "earthquake": {"earthquake", "earthquakes", "seismic"},
+    "cyclone": {"cyclone", "cyclones", "hurricane", "hurricanes", "storm", "storms", "typhoon"},
+    "volcano": {"volcano", "volcanic", "volcanoes"},
+    "tsunami": {"tsunami", "tsunamis"},
+    "heat": {"heat", "heatwave"},
+    "cold": {"cold", "frost", "winter"},
+    "avalanche": {"avalanche", "avalanches"},
+    "erosion": {"erosion"},
+}
+_PLAIN_WORD = re.compile(r"[a-z]+")
+
+# Everyday words the register spells differently. rc22 smoke T6: "Cluster smoke_image into four groups" matched "Map vulnerable
+# groups" and the agent then claimed raster clustering was unavailable, although the register's image-classification task lists
+# unsupervised_classification (whose k-means clusters are exactly that).
+_QUERY_SYNONYMS = {"cluster": "classification", "clusters": "classification", "clustering": "classification",
+                   "kmeans": "classification", "unsupervised": "classification", "segment": "classification"}
+
+
+def _names_unmentioned_hazard(query_words, entry):
+    """True when the entry's title names a specific hazard and the query names none of that hazard's words. Pure."""
+    title = set(_PLAIN_WORD.findall(str(entry.get("text", "")).lower()))
+    named = [words for words in _SPECIFIC_HAZARDS.values() if title & words]
+    return bool(named) and not any(query_words & words for words in named)
+
+
+# PLAN-023 R1-5: a task that lists the person's primary persona scores a little higher, the secondary persona half as much. The bonus is
+# added only to a task that already matched something in the request (s > 0), so a persona can never make an unrelated task match, and it
+# is small next to AMBIGUITY_MARGIN (0.08) + CONFIDENT_SCORE (0.34) so it breaks near-ties, not clear differences.
+PERSONA_BONUS = 0.1
+SECONDARY_PERSONA_BONUS = 0.05
+
+
+def _persona_bonus(entry, personas):
+    if not personas:
+        return 0.0
+    listed = entry.get("persona") or ()
+    primary, secondary = (*tuple(personas), None, None)[:2]
+    if primary and primary != "general" and primary in listed:
+        return PERSONA_BONUS
+    if secondary and secondary != "general" and secondary in listed:
+        return SECONDARY_PERSONA_BONUS
+    return 0.0
+
+
+def match(query, limit=MAX_CANDIDATES, personas=None):
+    """Return [(entry, score)] best first. Empty when nothing scores. `personas` is (primary, secondary) persona ids or None."""
     q = _tokens(query)
     if not q:
         return []
+    query_words = set(_PLAIN_WORD.findall((query or "").lower()))
+    q = q | {_QUERY_SYNONYMS[w] for w in q if w in _QUERY_SYNONYMS}
     scored = []
     for e in reg.load():
+        if _names_unmentioned_hazard(query_words, e):
+            continue
         s = _score(q, e)
         if s > 0:
-            scored.append((e, s))
+            scored.append((e, round(min(s + _persona_bonus(e, personas), 1.0), 4)))
     scored.sort(key=lambda x: (-x[1], x[0]["id"]))
     return scored[:limit]
 
@@ -117,7 +172,14 @@ _ACCESS_TIME_LANGUAGE = re.compile(
 _ACTION_WORDS = re.compile(
     r"\b(calculate|compute|create|make|build|show|map|find|list|download|fetch|load|add|remove|delete|export|estimate|"
     r"generate|run|classify|compare|analy[sz]e|draw|plot|clip|buffer|merge|join|style|label|zoom|select|count|"
-    r"summari[sz]e|identify|extract|convert|how|what|which|where|who|when|why|can|could|please)\b"
+    r"summari[sz]e|identify|extract|convert|how|what|which|where|who|when|why|can|could|please|"
+    # rc46 hand test: "Set the project CRS to EPSG:3857." was refused as a fragment (no action word) and only worked on a retype.
+    r"set|change|rename|reproject|hide|turn|switch|open|undo|redo|apply|save|move|use|enable|disable|reset|clear|update|"
+    r"filter|sort|group|ungroup|duplicate|copy|paste|replace|fix|repair|tidy|dissolve|split|simplify|smooth|rotate|scale|"
+    r"produce|animate|prepare|publish|share|package|write|design|plan|assess|evaluate|monitor|track|simulate|overlay|"
+    r"intersect|aggregate|rank|score|prioriti[sz]e|allocate|optimi[sz]e|route|geocode|georeference|mosaic|reclassify|interpolate|"
+    r"assign|go|jump|pan|center|centre|reload|refresh|rebuild|insert|new|start|stop|cancel|abort|zoom|"
+    r"label|rasteri[sz]e|vectori[sz]e|polygoni[sz]e|snap|measure|query|tell|give|read|get|check|display|print|import)\b"
 )
 _FRAGMENT_MAX_WORDS = 4
 
@@ -127,6 +189,21 @@ def _is_non_request_fragment(query):
     if "?" in text or len(_tokens(text)) > _FRAGMENT_MAX_WORDS:
         return False
     return not _ACTION_WORDS.search(text)
+
+
+_FRAGMENT_SHAPE = re.compile(r"[:=]")
+
+
+def is_stray_fragment(query, previous_assistant_text=""):
+    """True for a short pasted fragment shaped like a label or key ("template: access_map") that is not a request and does not
+    answer a question the assistant just asked. GitHub #130: the rc20 hand test showed a real model calling get_layers and
+    create_print_layout for that fragment alone and leaving a layout behind. Deliberately narrow so that natural short replies
+    ("yes", "Sanaa", "EPSG:3857" after "which CRS?") are never caught: it needs no action word, at most four words, a colon or equals sign
+    (the shape of a pasted key: value), and a previous assistant message that did not end in a question. Pure."""
+    text = query or ""
+    if not _is_non_request_fragment(text) or not _FRAGMENT_SHAPE.search(text):
+        return False
+    return "?" not in (previous_assistant_text or "")[-400:]
 
 
 # A request that names a tool ("Use optimal_hub_siting to ...") has already said what to run. rc15 hand test (2026-10-06): that request
@@ -143,20 +220,43 @@ def _known_tool_names():
     names = set()
     for e in reg.load():
         names.update(e.get("tools") or [])
-    try:
+    with contextlib.suppress(Exception):
         from .tools.registry import TOOL_REGISTRY
         names.update(TOOL_REGISTRY)
-    except Exception:
-        pass
     return names
 
 
+# A data source named in plain words has its own fetch tool (1.18.3 hand test A3 and A10): "search HDX for Yemen health facilities
+# datasets" matched the task "Map health facilities" and "conflict events in Yemen from UCDP" matched "Map conflict events", whose tool
+# lists carry neither search_hdx_datasets nor fetch_ucdp_conflict_events, so a confirmation card for the wrong task appeared. Naming the
+# source counts like naming the tool: a task that does not use that tool gives no directive.
+_SOURCE_TOOLS = (
+    (re.compile(r"\bucdp\b"), "fetch_ucdp_conflict_events"),
+    (re.compile(r"\bgdacs\b"), "fetch_gdacs_disaster_alerts"),
+    (re.compile(r"\busgs\b"), "fetch_usgs_earthquakes"),
+    (re.compile(r"\beonet\b"), "fetch_nasa_eonet_events"),
+    (re.compile(r"\bfirms\b"), "fetch_nasa_active_fires"),
+    (re.compile(r"\bfts\b"), "fetch_fts_funding_data"),
+    (re.compile(r"\b(?:search|find|look\s+for|look\s+up)\b.{0,60}\bdatasets?\b"), "search_hdx_datasets"),
+)
+
+
 def named_tools(query):
-    """Tool names the query spells out, e.g. {"optimal_hub_siting"}."""
-    candidates = set(_TOOL_NAME.findall((query or "").lower()))
-    return candidates & _known_tool_names() if candidates else set()
+    """Tool names the query spells out, e.g. {"optimal_hub_siting"}, plus the fetch tool of a data source it names (UCDP, GDACS, USGS...)."""
+    lowered = (query or "").lower()
+    candidates = set(_TOOL_NAME.findall(lowered))
+    found = candidates & _known_tool_names() if candidates else set()
+    known = None
+    for pattern, tool in _SOURCE_TOOLS:
+        if pattern.search(lowered):
+            known = _known_tool_names() if known is None else known
+            if tool in known:
+                found.add(tool)
+    return found
 
 
+_ASKS_FOR_CHART = re.compile(r"\b(chart|charts|graph|graphs|histogram|histograms|plot|plots|scatter\s?plot|pie|bar\s+chart)\b")
+_DIRECTIVE_BUDGET = 495
 _TIE_MIN_COVERAGE = 0.25
 _SINGLE_HIT_MAX_TOKENS = 8
 
@@ -167,8 +267,59 @@ def _coverage(query, entry):
     return len(tokens & set(entry.get("kw") or ())) / len(tokens) if tokens else 0.0
 
 
-def classify(query):
-    """Full local verdict for a query.
+# rc46 hand test: "Show the metadata of towns." matched task 20.04 "Create metadata" and planned provenance/export tools; the user only
+# wanted to read what the layer says about itself (get_layer_metadata). Reading is not creating: no task directive for it.
+_READS_METADATA = re.compile(r"\b(show|display|read|view|see|what(?:'s| is| are)?|get|list|open)\b.{0,30}\b(metadata|abstract)\b")
+_WRITES_METADATA = re.compile(r"\b(creat\w*|writ\w*|produc\w*|generat\w*|export\w*|develop\w*|sidecar|provenance|standard\w*|record)\b")
+
+
+_ASKS_FOR_DASHBOARD = re.compile(r"\bdashboards?\b")
+
+
+def _is_weak_match(query, best, top):
+    """True when the best task must not steer the model, i.e. the verdict is "below confidence floor": no directive, the message goes as typed.
+
+    The guards are tried in the order they used to run inline in classify(); each one that asks another module is wrapped on its own so a
+    failure there skips only that guard, as before."""
+    lowered = (query or "").lower()
+    # An access/drive-time request whose best task is NOT led by calculate_service_area is a wrong match, and a wrong directive is
+    # worse than none (rc10 smoke test: "Calculate a one-hour driving service area from the point ..." matched 21.23 "Calculate
+    # area and density" at 0.42 and the model went on to fetch a population raster, estimate exposure and export a CSV nobody
+    # asked for). Treat it like a below-floor match: no directive, the message is sent as typed.
+    if _ACCESS_TIME_LANGUAGE.search(lowered) and (best.get("tools") or [None])[0] != "calculate_service_area":
+        return True
+    if top < CONFIDENT_SCORE:
+        return True
+    # "Calculate soil erosion risk" matched "Map erosion" (tools: load a file, style it) and "Create thiessen polygons around the health
+    # facilities" matched "Map health facilities": a task that can only show data cannot do a computation an approved Processing
+    # algorithm can (core/agent/algorithm_topics.py). No directive then; the message goes as typed and the router offers the algorithm tools.
+    with contextlib.suppress(Exception):
+        from .algorithm_topics import computation_request
+        if computation_request(query, best.get("tools")):
+            return True
+    # rc48 hand test (#380): a strong algorithm match the task does not carry means the task directive would steer the model away from it
+    # ("Sort the districts by population" matched "Map population distribution"). Same verdict as a below-floor match: no directive.
+    # PLAN-023 R11-5: a request that NAMES a dashboard, matched to a task that builds one, keeps its directive whatever an algorithm scores. Adding 11 chart and information
+    # algorithms to the topic index moved the score of qgis:pointsdisplacement for "build me a dashboard of displacement by district" from 9.98 to 10.03 (the corpus size
+    # shifts every word's weight), across the 10.0 bar, on the one word "displacement" that the request uses for the data and not for the tool: a bar that a one-word coincidence
+    # can sit on either side of must not decide a request that names what it wants built.
+    names_a_dashboard = bool(_ASKS_FOR_DASHBOARD.search(lowered)) and any("dashboard" in t for t in best.get("tools") or ())
+    with contextlib.suppress(Exception):
+        from .algorithm_topics import algorithm_outranks_task
+        if not names_a_dashboard and algorithm_outranks_task(query, best.get("id"), top, best.get("text", "")):
+            return True
+    # rc45 smoke run, check I4: "make a chart of population by district" matched "Map population distribution" (WorldPop fetch, zonal
+    # statistics, styling) and the model was sent after a map nobody asked for. A request that names a chart is answered by the chart tools.
+    if _ASKS_FOR_CHART.search(lowered) and not any("chart" in t or "dashboard" in t for t in best.get("tools") or ()):
+        return True
+    # In a long request one shared word is a coincidence, whatever it scores: a task with a two-word keyword list scores 0.33-0.5 on
+    # a single hit. rc17 hand test R4: a raster colour-ramp request shared one word with a data-standards task. A long request needs
+    # two distinct hits; a short one ("a dashboard of displacement by district") may be matched on one.
+    return len(_tokens(query)) > _SINGLE_HIT_MAX_TOKENS and len(_tokens(query) & set(best.get("kw") or ())) < 2
+
+
+def classify(query, personas=None):
+    """Full local verdict for a query. `personas` is (primary, secondary) persona ids or None (see PERSONA_BONUS).
 
     {"matches": [...], "best": entry|None, "score": float,
      "ambiguous": bool, "reason": str}
@@ -182,7 +333,16 @@ def classify(query):
     if _is_non_request_fragment(query):
         return {"matches": [], "best": None, "score": 0.0,
                 "ambiguous": False, "reason": "too short to be a request"}
-    ms = match(query)
+    lowered = (query or "").lower()
+    if _READS_METADATA.search(lowered) and not _WRITES_METADATA.search(lowered):
+        return {"matches": [], "best": None, "score": 0.0,
+                "ambiguous": False, "reason": "reads layer metadata"}
+    with contextlib.suppress(Exception):
+        from .algorithm_topics import names_algorithm
+        if names_algorithm(query):
+            return {"matches": [], "best": None, "score": 0.0,
+                    "ambiguous": False, "reason": "names a Processing algorithm"}
+    ms = match(query, personas=personas)
     if not ms:
         return {"matches": [], "best": None, "score": 0.0,
                 "ambiguous": False, "reason": "no match"}
@@ -201,20 +361,7 @@ def classify(query):
                 best, top = e, s
                 ms = [(e, s)] + [(m_e, m_s) for m_e, m_s in ms if m_e.get("id") != e.get("id")]
                 break
-    # An access/drive-time request whose best task is NOT led by calculate_service_area is a wrong match, and a wrong directive is
-    # worse than none (rc10 smoke test: "Calculate a one-hour driving service area from the point ..." matched 21.23 "Calculate
-    # area and density" at 0.42 and the model went on to fetch a population raster, estimate exposure and export a CSV nobody
-    # asked for). Treat it like a below-floor match: no directive, the message is sent as typed.
-    if _ACCESS_TIME_LANGUAGE.search((query or "").lower()) and (best.get("tools") or [None])[0] != "calculate_service_area":
-        return {"matches": ms, "best": best, "score": top,
-                "ambiguous": True, "reason": "below confidence floor"}
-    if top < CONFIDENT_SCORE:
-        return {"matches": ms, "best": best, "score": top,
-                "ambiguous": True, "reason": "below confidence floor"}
-    # In a long request one shared word is a coincidence, whatever it scores: a task with a two-word keyword list scores 0.33-0.5 on
-    # a single hit. rc17 hand test R4: a raster colour-ramp request shared one word with a data-standards task. A long request needs
-    # two distinct hits; a short one ("a dashboard of displacement by district") may be matched on one.
-    if len(_tokens(query)) > _SINGLE_HIT_MAX_TOKENS and len(_tokens(query) & set(best.get("kw") or ())) < 2:
+    if _is_weak_match(query, best, top):
         return {"matches": ms, "best": best, "score": top,
                 "ambiguous": True, "reason": "below confidence floor"}
     if len(ms) > 1:
@@ -243,8 +390,8 @@ _OUTPUT_OVERRIDE = [
     # "report" as a NOUN names a deliverable ("write a report", "a situation report", "report on ..."); as a VERB it only asks for the answer
     # ("Report the model used and the detection count", "report each ID"). rc18 hand test R3/N5 (2026-10-06): the verb form forced an
     # MD-file deliverable, and after a failed run a follow-up turn demanded generate_spatial_report that nobody asked for.
-    ("report",    r"\b(?:a|an|the|my|our|this|that|full|short|written|pdf|word|spatial|situation|summary)\s+(?:\w+\s+)?report\b|"
-                  r"\breport\s+(?:on|about)\b|\bsitrep\b|\bwrite[- ]?up\b|\bprofile\b|\b(?:generate|write|produce|prepare|draft|create|make)\s+(?:\w+\s+){0,2}report\b"),
+    ("report",    (r"\b(?:a|an|the|my|our|this|that|full|short|written|pdf|word|spatial|situation|summary)\s+(?:\w+\s+)?report\b|"
+                  r"\breport\s+(?:on|about)\b|\bsitrep\b|\bwrite[- ]?up\b|\bprofile\b|\b(?:generate|write|produce|prepare|draft|create|make)\s+(?:\w+\s+){0,2}report\b")),
     ("layout",    r"\bprint layout\b|\bmap book\b|\batlas\b|\bprintable\b|\bpdf map\b|\bposter\b"),
     # "download" is deliberately NOT here: "download the whole Yemen population raster and then estimate ..." names the INPUT to
     # fetch, not a file to produce. Matching it forced a GPKG+CSV deliverable and a follow-up call that wrote four unrequested
@@ -360,29 +507,46 @@ def clarify_question(entry, missing, layer_names=None):
     """
     if not entry or not missing:
         return ""
-    lines = ["To do this well I need a bit more: **%s**" % entry["text"], ""]
-    for s in missing:
-        lines.append("- %s" % reg.SLOT_QUESTIONS.get(s, s))
+    lines = ["To do this well I need a bit more: **{}**".format(entry["text"]), ""]
+    lines.extend(f"- {reg.SLOT_QUESTIONS.get(s, s)}" for s in missing)
     lines.append("")
-    stated = defaults(missing, layer_names=layer_names)
+    stated = defaults(missing, layer_names=layer_names, entry=entry)
     if stated:
         lines.append("If you'd rather I just proceed, I'll use: "
-                     + "; ".join("%s = %s" % (k, v) for k, v in stated.items()) + ".")
+                     + "; ".join(f"{k} = {v}" for k, v in stated.items()) + ".")
     return "\n".join(lines)
 
 
-def defaults(missing, layer_names=None):
+# Tool-name fragments that actually consume a slot with a default. A default is stated to the model as "Given: slot = value", so
+# it is only injected for a task whose tool chain can use it (#304, rc40 hand test: a hub ranking was told "threshold = 5 km", a
+# classification of a loaded raster "imagery = most recent low-cloud scene"). Slots not listed here keep the old behaviour.
+_SLOT_CONSUMERS = {
+    "threshold": ("service_area", "access", "travel_time", "buffer", "nearest", "isochron", "coverage", "catchment", "route"),
+    "imagery": ("ndvi", "ndwi", "ndre", "imagery", "sentinel", "landsat", "stac", "satellite", "change_detection"),
+    "population_src": ("popul", "worldpop", "exposure", "need", "demand", "coverage", "catchment"),
+}
+
+
+def _chain_uses(entry, slot):
+    fragments = _SLOT_CONSUMERS.get(slot)
+    if fragments is None or not entry:
+        return True
+    return any(f in str(t).lower() for t in (entry.get("tools") or []) for f in fragments)
+
+
+def defaults(missing, layer_names=None, entry=None):
     """{slot: value} for the missing slots that have a safe default.
 
     Slots whose default is None are deliberately excluded -- guessing a hazard
-    type or a sector produces confidently wrong humanitarian output.
+    type or a sector produces confidently wrong humanitarian output. With `entry`, a default is also left out when none of the
+    task's tools can use the slot (see _SLOT_CONSUMERS).
     """
     out = {}
     for s in missing:
         if s == "aoi" and (layer_names is not None and len(layer_names) == 0):
             continue
         val, kind = reg.SLOT_DEFAULTS.get(s, (None, "ask"))
-        if val is not None and kind != "ask":
+        if val is not None and kind != "ask" and _chain_uses(entry, s):
             out[s] = val
     return out
 
@@ -411,9 +575,9 @@ def task_directive(entry, filled=None, query=None):
     if not entry:
         return ""
     parts = [
-        "Recognised task %s (%s): %s." % (entry["id"], entry["cname"], entry["text"]),
-        "Deliver: %s." % reg.OUTPUT_INTENT.get(output_override(query) or entry["out"],
-                                              entry["out"]),
+        "Recognised task {} ({}): {}.".format(entry["id"], entry["cname"], entry["text"]),
+        "Deliver: {}.".format(reg.OUTPUT_INTENT.get(output_override(query) or entry["out"],
+                                              entry["out"])),
     ]
     tools = list(entry.get("tools") or [])
     # A tool the user named leads the chain: "Run extract_features_from_imagery on loaded raster smoke_image" matched a task whose chain starts
@@ -421,6 +585,11 @@ def task_directive(entry, filled=None, query=None):
     named = [t for t in tools if t in named_tools(query or "")]
     if named:
         tools = named + [t for t in tools if t not in named]
+    # A data source the request names (OpenStreetMap/Overpass, HDX) leads the chain and a local-file loader goes last unless a file is
+    # named: 6.02 "Map hospitals and clinics" otherwise opened with add_layer_from_path for an Overpass request (2026-10-09).
+    with contextlib.suppress(Exception):
+        from .capabilities import lead_tools_for_task
+        tools = lead_tools_for_task(tools, query)
     # When the user overrides the output ("...as a dashboard"), the task's own
     # chain ends in the wrong renderer. Append the one the requested output
     # actually needs, or the model is told to deliver an HTML dashboard while
@@ -429,9 +598,24 @@ def task_directive(entry, filled=None, query=None):
         if t not in tools:
             tools.append(t)
     if tools:
-        parts.append("Prefer these tools, in order: %s." % ", ".join(tools))
+        parts.append("Prefer these tools, in order: {}.".format(", ".join(tools)))
     if filled:
-        parts.append("Given: " + "; ".join("%s = %s" % (k, v) for k, v in filled.items()) + ".")
+        parts.append("Given: " + "; ".join(f"{k} = {v}" for k, v in filled.items()) + ".")
+    with contextlib.suppress(Exception):
+        from .algorithm_topics import algorithms_for_task
+        algorithms = algorithms_for_task(entry.get("id"))
+        if algorithms:
+            # The directive rides beside the system prompt and has a character budget (tests/test_task_register.py): add algorithm ids
+            # only while they fit; the model can always search for more with find_processing_algorithm.
+            head = "Algorithms (find_processing_algorithm, then run_allowlisted_processing_algorithm): "
+            used = len(" ".join(parts)) + 1 + len(head) + 1
+            chosen = []
+            for alg_id in algorithms[:3]:
+                if used + len(alg_id) + 2 <= _DIRECTIVE_BUDGET:
+                    chosen.append(alg_id)
+                    used += len(alg_id) + 2
+            if chosen:
+                parts.append(head + ", ".join(chosen) + ".")
     return " ".join(parts)
 
 
@@ -446,7 +630,7 @@ def output_contract(entry, query=None):
         return None
     explicit = output_override(query)
     kind = explicit or entry["out"]
-    RENDER = {
+    render_tools = {
         "layer":     ["apply_categorized_style", "zoom_to_layer"],
         "layout":    ["create_print_layout", "print_map"],
         "dashboard": ["generate_html_dashboard"],
@@ -464,8 +648,8 @@ def output_contract(entry, query=None):
         # not a request for one (rc7 smoke test F10: an unrequested CSV export was forced).
         "explicit": explicit is not None,
         "intent": reg.OUTPUT_INTENT.get(kind, kind),
-        "render": [t for t in RENDER.get(kind, []) if t in entry.get("tools", [])]
-                  or RENDER.get(kind, []),
+        "render": [t for t in render_tools.get(kind, []) if t in entry.get("tools", [])]
+                  or render_tools.get(kind, []),
     }
 
 
@@ -491,8 +675,7 @@ def attachment_plan(entry, attachments):
             "name": os.path.basename(path or ""),
             "kind": kind,
             "tool": file_io.reader_for(kind, (entry or {}).get("text", "")) if kind else None,
-            "line": line or "%s -- unrecognised file type, sent as plain text"
-                            % os.path.basename(path or ""),
+            "line": line or "{} -- unrecognised file type, sent as plain text".format(os.path.basename(path or "")),
             "accepted": bool(kind) and (not acc or kind in acc),
         })
     return out
@@ -508,12 +691,11 @@ def compose_user_message(query, filled=None, plan=None):
     """
     parts = [(query or "").strip()]
     if filled:
-        parts.append("Given: " + "; ".join("%s = %s" % (k, v)
+        parts.append("Given: " + "; ".join(f"{k} = {v}"
                                            for k, v in sorted(filled.items())) + ".")
     if plan:
         lines = ["Attached files:"]
-        for p in plan:
-            lines.append("- " + p["line"])
+        lines.extend("- " + p["line"] for p in plan)
         parts.append("\n".join(lines))
     return "\n\n".join(p for p in parts if p)
 
@@ -538,25 +720,30 @@ def reasoning(entry, score, filled, plan, query=None):
     if not entry:
         return ["No register task matched -- sending the request unchanged."]
     lines = [
-        "Matched task %s in section %s (%s), confidence %.2f."
-        % (entry["id"], entry["cat"], entry["cname"], score),
+        "Matched task {} in section {} ({}), confidence {:.2f}.".format(entry["id"], entry["cat"], entry["cname"], score),
     ]
     over = output_override(query)
     if over and over != entry["out"]:
-        lines.append("You asked for %s %s, so that overrides the task's usual %s output."
-                     % (_indefinite_article(over), over, entry["out"]))
-    lines.append("Deliverable: %s." % expected_output(entry, query))
+        lines.append("You asked for {} {}, so that overrides the task's usual {} output.".format(_indefinite_article(over), over, entry["out"]))
+    lines.append(f"Deliverable: {expected_output(entry, query)}.")
     if filled:
         lines.append("Assumed, because you did not specify: "
-                     + "; ".join("%s = %s" % (k, v) for k, v in sorted(filled.items())) + ".")
+                     + "; ".join(f"{k} = {v}" for k, v in sorted(filled.items())) + ".")
     for p in plan or []:
         if p["accepted"]:
-            lines.append("Attachment %s will be read as %s." % (p["name"], p["kind"]))
+            lines.append("Attachment {} will be read as {}.".format(p["name"], p["kind"]))
         else:
-            lines.append("Attachment %s is not a file type this task uses -- "
-                         "it will be passed as plain text." % p["name"])
+            lines.append("Attachment {} is not a file type this task uses -- "
+                         "it will be passed as plain text.".format(p["name"]))
     if entry.get("tools"):
-        lines.append("Tool order suggested to the model: %s." % ", ".join(entry["tools"]))
+        lines.append("Tool order suggested to the model: {}.".format(", ".join(entry["tools"])))
+    with contextlib.suppress(Exception):
+        from .algorithm_topics import algorithms_for_task
+        algorithms = algorithms_for_task(entry.get("id"))
+        if algorithms:
+            lines.append("Approved Processing algorithms that fit this task (find_processing_algorithm gives each one's parameters, "
+                         "run_allowlisted_processing_algorithm runs it; use one only when a listed tool does not cover the step): {}."
+                         .format(", ".join(algorithms)))
     return lines
 
 
@@ -581,7 +768,7 @@ def slot_context_from_map(map_context):
         active = map_context.get("active_layer")
         # map_context reports the string "None" when nothing is active.
         if active and active != "None":
-            ctx["aoi"] = "the current canvas extent (active layer: %s)" % active
+            ctx["aoi"] = f"the current canvas extent (active layer: {active})"
         else:
             ctx["aoi"] = "the current canvas extent"
     return ctx

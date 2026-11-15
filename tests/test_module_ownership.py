@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Scoped module eviction on plugin load (audit F31, #167). Offline; the real unload (translator, isolation worker) needs QGIS."""
 import importlib.util
 import os
@@ -10,7 +9,7 @@ _SPEC = importlib.util.spec_from_file_location(
 own = importlib.util.module_from_spec(_SPEC)
 _SPEC.loader.exec_module(own)
 
-OURS = os.path.join(os.sep, "plugins", "cartogen-ai", "src", "cartogen_ai")
+OURS = os.path.join(os.sep, "plugins", "cartogen_ai_plugin", "src", "cartogen_ai")
 OTHER = os.path.join(os.sep, "site-packages", "cartogen_ai")
 
 
@@ -48,5 +47,40 @@ class TestOwnedModuleNames(unittest.TestCase):
         self.assertEqual(own.owned_module_names({"cartogen_ai.odd": _module()}, OURS), [])
 
 
+class TestClaimedModuleNames(unittest.TestCase):
+    """Audit A18: the last-resort eviction takes our namespace's modules by name, never another distribution's children."""
+
+    def test_foreign_children_survive_but_stale_copies_of_ours_go(self):
+        import tempfile
+        pkg = tempfile.mkdtemp()
+        os.makedirs(os.path.join(pkg, "core"))
+        os.makedirs(os.path.join(pkg, "infrastructure"))
+        mods = {"cartogen_ai": _module(), "cartogen_ai.core": _module(file="/stale/core/__init__.py"),
+                "cartogen_ai.core.agent": _module(file="/stale/core/agent.py"),
+                "cartogen_ai.infrastructure.auth": _module(file="/stale/auth.py"),
+                "cartogen_ai.pro.licensing": _module(file="/other/pro/licensing.py"), "os": _module()}
+        claimed = set(own.claimed_module_names(mods, pkg))
+        self.assertEqual(claimed, {"cartogen_ai", "cartogen_ai.core", "cartogen_ai.core.agent", "cartogen_ai.infrastructure.auth"})
+
+    def test_unreadable_package_dir_claims_only_the_bare_namespace(self):
+        mods = {"cartogen_ai": _module(), "cartogen_ai.core": _module(file="/x.py")}
+        self.assertEqual(own.claimed_module_names(mods, "/nonexistent/dir"), ["cartogen_ai"])
+
+
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestLegacyCopies(unittest.TestCase):
+    def test_finds_an_old_named_sibling_with_metadata_only(self):
+        import tempfile
+        legacy_copies = own.legacy_copies
+        with tempfile.TemporaryDirectory() as root:
+            new = os.path.join(root, "cartogen_ai_plugin")
+            old = os.path.join(root, "cartogen-ai")
+            os.makedirs(new)
+            os.makedirs(old)
+            self.assertEqual(legacy_copies(new), [])            # no metadata.txt: a leftover empty folder is not a copy
+            open(os.path.join(old, "metadata.txt"), "w").close()
+            self.assertEqual(legacy_copies(new), [old])
+            self.assertEqual(legacy_copies(old), [])            # the old folder itself is not "another" copy

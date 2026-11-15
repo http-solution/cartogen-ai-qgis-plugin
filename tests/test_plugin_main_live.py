@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Live QGIS test of plugin_main.CartogenAi's load/unload lifecycle.
 
 P1 finding, 2026-09-20 audit: initGui() parents its QActions to
@@ -27,16 +26,15 @@ try:
 except ImportError:
     QGIS_LIVE_AVAILABLE = False
 
-_APP = None
+_APP_HOLDER = {"app": None}   # holder rather than a global (ruff PLW0603)
 
 
 def _boot_qgis():
-    global _APP
-    if _APP is None:
-        _APP = QgsApplication([b"plugintest"], False)
+    if _APP_HOLDER["app"] is None:
+        _APP_HOLDER["app"] = QgsApplication([b"plugintest"], False)
         QgsApplication.setPrefixPath("/usr", True)
-        _APP.initQgis()
-    return _APP
+        _APP_HOLDER["app"].initQgis()
+    return _APP_HOLDER["app"]
 
 
 def _pump(ms=200):
@@ -155,7 +153,7 @@ class TestPluginMainLifecycleLive(unittest.TestCase):
     def test_unload_disconnects_action_signals(self):
         plugin = self._make_plugin()
         actions = list(plugin.actions)
-        self.assertEqual(len(actions), 2, "expected the toolbar action + Help action")
+        self.assertEqual(len(actions), 5, "expected the toolbar action + Connections + Help + MCP server + Open workflow file")
 
         for action in actions:
             # A freshly-connected signal has exactly one receiver (initGui's own

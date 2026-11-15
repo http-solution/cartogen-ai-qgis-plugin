@@ -1,5 +1,5 @@
-# -*- coding: utf-8 -*-
 """A request that names a tool must not be steered to a task that does not use it (rc15 hand test D01, 2026-10-06)."""
+from typing import ClassVar
 import unittest
 
 from cartogen_ai.core.agent import task_matcher as tm
@@ -54,7 +54,8 @@ class TestWeakTiesAreNotTrusted(unittest.TestCase):
         for query in (self.SEVERITY, self.PLAN):
             a = analyze_request(query)
             self.assertIsNone(a["task"], query)
-            self.assertEqual(a["directive"], "")
+            # no wrong TASK directive; a request that names three or more steps may carry the capability workflow directive instead
+            self.assertNotIn("Recognised task", a["directive"])
             self.assertEqual(a["user_message"], query.strip())
 
     def test_a_short_request_the_task_describes_still_matches(self):
@@ -106,7 +107,7 @@ class TestSlotsAnsweredByOwnData(unittest.TestCase):
 class TestSingleSharedWord(unittest.TestCase):
     """rc17 hand test R4: one shared word is a coincidence in a long request, however high it scores."""
 
-    ENTRY = {"id": "x.01", "cat": "c", "cname": "Data standards", "kw": ["raster", "schema"], "tools": ["validate_schema"], "text": "t",
+    ENTRY: ClassVar = {"id": "x.01", "cat": "c", "cname": "Data standards", "kw": ["raster", "schema"], "tools": ["validate_schema"], "text": "t",
              "slots": []}
 
     def _classify(self, query):
@@ -151,5 +152,69 @@ class TestRegisterCorpusIsNotWorse(unittest.TestCase):
         self.assertGreaterEqual(directive, 466)
 
 
+class TestDashboardRequestKeepsItsTask(unittest.TestCase):
+    """PLAN-023 R11-5: the algorithm topic index grew by 11 entries and a one-word algorithm score crossed the outranking bar; a request that names a dashboard, matched to a
+    task that builds one, must keep its directive whatever any algorithm scores."""
+
+    def test_even_a_top_scoring_algorithm_does_not_take_a_dashboard_request_from_its_task(self):
+        from unittest import mock
+        q = "build me a dashboard of displacement by district"
+        with mock.patch("cartogen_ai.core.agent.algorithm_topics.algorithm_outranks_task", return_value=True):
+            verdict = tm.classify(q)
+        self.assertEqual(verdict["reason"], "tie across sections")
+        self.assertIn("dashboard", " ".join(verdict["best"]["tools"]))
+
+
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestHazardTasksNeedTheHazardNamed(unittest.TestCase):
+    """rc22 live smoke V1/J5/J16/T2: a generic 'severity'/'risk' map request must not become a drought/heat task."""
+
+    def _ids(self, query):
+        from cartogen_ai.core.agent import task_matcher as tm
+        return [e["id"] for e, _s in tm.match(query, limit=10)]
+
+    def test_generic_severity_request_does_not_match_drought(self):
+        self.assertNotIn("14.05", self._ids("Show the severity on the map for smoke_admin"))
+        self.assertNotIn("14.05", self._ids("Make a map of the JIAF severity for the report"))
+
+    def test_generic_risk_request_does_not_match_a_specific_hazard(self):
+        ids = self._ids("Show the INFORM risk on the map using inf_risk")
+        self.assertNotIn("14.12", ids)
+        self.assertNotIn("14.14", ids)
+
+    def test_naming_the_hazard_still_finds_its_task(self):
+        self.assertIn("14.05", self._ids("Map drought severity"))
+        self.assertIn("14.02", self._ids("Map flood extent"))
+        self.assertIn("14.12", self._ids("Map extreme heat risk"))
+
+
+class TestClusteringFindsImageClassification(unittest.TestCase):
+    def test_cluster_a_raster_into_groups_finds_image_classification(self):
+        from cartogen_ai.core.agent import task_matcher as tm
+        top = [e["id"] for e, _s in tm.match("Cluster smoke_image into four groups", limit=3)]
+        self.assertIn("16.21", top)
+
+
+class TestNamedDataSourceGivesNoTaskDirective(unittest.TestCase):
+    """1.18.3 hand test A3 and A10: a request naming a data source (UCDP, GDACS, ...) or searching HDX datasets matched a "Map ..."
+    task whose tools do not include that source's fetch tool, and a confirmation card for the wrong task appeared."""
+
+    def test_source_requests_are_not_matched_to_a_map_task(self):
+        for query in ("search HDX for Yemen health facilities datasets",
+                      "conflict events in Yemen for last year from UCDP",
+                      "show current disaster alerts for Yemen from GDACS"):
+            verdict = tm.classify(query)
+            if query.endswith("GDACS") and verdict["best"] is not None:
+                # R1-5 added task 45.01 (check current hazard alerts), whose tools DO include fetch_gdacs_disaster_alerts: a GDACS request matching
+                # it is the right task, not the wrong "Map ..." one this test guards against. Any other task must still be refused.
+                self.assertEqual(verdict["best"]["id"], "45.01", query)
+                self.assertIn("fetch_gdacs_disaster_alerts", verdict["best"]["tools"], query)
+                continue
+            self.assertIsNone(verdict["best"], query)
+            self.assertEqual(verdict["reason"], "names a tool the matched task does not use", query)
+
+    def test_a_plain_map_request_still_matches(self):
+        self.assertIsNotNone(tm.classify("Map health facilities in Aden")["best"])

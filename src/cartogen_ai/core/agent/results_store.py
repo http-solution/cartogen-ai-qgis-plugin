@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """A per-project GeoPackage that keeps analysis outputs across Save and Reopen (rc7 smoke test F06).
 
 Cartogen's analysis tools produce QGIS MEMORY layers. QGIS writes a memory layer's definition into the project file
@@ -117,6 +116,18 @@ def _drop_stale_tables(path, base, keep, project):
 def is_persistable(layer):
     return bool(QGIS_AVAILABLE and layer is not None and hasattr(layer, "providerType")
                 and layer.providerType() == "memory" and layer.isValid())
+
+
+def temporary_note(outcome):
+    """The sentence that tells the user a layer is only temporary, or "" when it was kept. `outcome` is what persist_layer returned. Pure.
+
+    #120 (rc11 smoke): the origin point layer a tool added was a memory layer and nothing said it would be lost when the project closed,
+    while the service-area results next to it were kept. A layer is either kept in the project's results GeoPackage or the reply says it is not."""
+    if isinstance(outcome, dict) and outcome.get("persisted"):
+        return ""
+    reason = str((outcome or {}).get("reason") or "it could not be saved") if isinstance(outcome, dict) else "it could not be saved"
+    return (f"This layer is temporary: it is not saved with the project ({reason}). "
+            "Save the project and ask me to keep it, or export it with export_layer, or it is lost when the project closes.")
 
 
 def provenance_abstract(tool, sources, now=None):

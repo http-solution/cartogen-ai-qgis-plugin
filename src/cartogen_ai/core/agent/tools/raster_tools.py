@@ -1,20 +1,24 @@
-# -*- coding: utf-8 -*-
 """
 Raster & Remote Sensing Processing Tools for Cartogen AI.
 """
 
+import contextlib
 import math
 import os
 import re
 import tempfile
+from ... import _chunked as _ck
 from .registry import register_tool
+from ._paths import resolve_output_path
 from ._qgis_enum_compat import resolve_qgis_enum
+from ... import _background_processing as _bg
 from ...logger import log_warning, log_error
+from ._layer_checks import require_valid_layer
 
 
 try:
     from qgis.core import (
-        QgsApplication, QgsProject, QgsRasterLayer, QgsWkbTypes, QgsSingleBandGrayRenderer,
+        QgsApplication, QgsMapLayer, QgsProject, QgsRasterLayer, QgsVectorLayer, QgsWkbTypes, QgsSingleBandGrayRenderer,
         QgsSingleBandPseudoColorRenderer, QgsContrastEnhancement, QgsRasterShader,
         QgsColorRampShader, QgsRasterBandStats, QgsStyle,
     )
@@ -63,6 +67,62 @@ def _find_layer_by_name(name):
     if not layers:
         return None
     return layers[0]
+
+
+def _norm_path(path):
+    return os.path.normcase(os.path.normpath(str(path).split("|")[0]))
+
+
+def resolve_raster_reference(value, find_by_name, loaded_layers, load_file):
+    """(layer, note) for what a raster argument names, or (None, None).
+
+    DEF-11 (1.18.4 hand run D6, "load before_fixture.asc and after_fixture.asc from <F>, then show the change"): the model passed the FILE
+    PATHS straight to a tool that only looked up layer names, so nothing was found and the rasters were never loaded. Tried in order: a loaded
+    layer of that name; a loaded layer whose source is that file; an existing raster file, loaded now (the note says so, so the reply can tell
+    the user); a loaded layer named like the file without its extension. `find_by_name(text)`, `loaded_layers()` and `load_file(path)` are
+    injected so this is testable without QGIS."""
+    text = os.path.expandvars(os.path.expanduser(str(value or "").strip().strip("\"'").strip()))
+    if not text:
+        return None, None
+    layer = find_by_name(text)
+    if layer is not None:
+        return layer, None
+    is_path = any(sep in text for sep in ("/", "\\")) or bool(os.path.splitext(text)[1])
+    if is_path:
+        target = _norm_path(text)
+        for candidate in loaded_layers():
+            with contextlib.suppress(Exception):
+                if _norm_path(candidate.source()) == target:
+                    return candidate, None
+        if os.path.isfile(text):
+            loaded = load_file(text)
+            if loaded is not None:
+                return loaded, f"'{text}' was not in the project, so it was loaded as layer '{loaded.name()}'."
+        stem = os.path.splitext(os.path.basename(text))[0]
+        if stem and stem != text:
+            layer = find_by_name(stem)
+            if layer is not None:
+                return layer, None
+    return None, None
+
+
+def _load_raster_file(path):
+    """Adds a raster file to the project and returns its layer, or None when it is not a readable raster."""
+    from .vector_tools import RASTER_EXTENSIONS
+    if os.path.splitext(path)[1].lower() not in RASTER_EXTENSIONS:
+        return None
+    layer = QgsRasterLayer(path, os.path.splitext(os.path.basename(path))[0] or "raster")
+    if not layer.isValid():
+        return None
+    QgsProject.instance().addMapLayer(layer)
+    return layer
+
+
+def _find_raster_argument(value):
+    """The raster layer a tool argument refers to (name, loaded file path, or a raster file to load), as (layer, note)."""
+    if not QGIS_AVAILABLE:
+        return None, None
+    return resolve_raster_reference(value, _find_layer_by_name, lambda: list(QgsProject.instance().mapLayers().values()), _load_raster_file)
 
 
 def _temp_raster_path(suffix=".tif"):
@@ -175,6 +235,12 @@ def align_layers_to_first(layers, resampling="bilinear"):
 
 def _grid_or_error(layers, align_to_first=False, resampling="bilinear"):
     """(layers_to_use, error, alignment_note). On one common grid: the layers unchanged. Otherwise: align when asked, else the refusal."""
+    # tests/test_every_tool_live.py (first CI run, 2026-10-26): a vector layer named as a band raised AttributeError 'width' in
+    # calculate_ndvi / ndwi / ndre instead of saying the layer is not a raster.
+    not_rasters = [layer.name() for layer in layers if not hasattr(layer, "rasterUnitsPerPixelX")]
+    if not_rasters:
+        return None, ("These layers are not rasters: " + ", ".join(repr(n) for n in not_rasters)
+                      + ". The index needs raster band layers."), None
     problem = _common_grid_error(layers)
     if not problem:
         return layers, None, None
@@ -197,13 +263,57 @@ def _index_expression():
     return "numpy.where((A.astype(float)+B)==0, 0, (A.astype(float)-B)/(A.astype(float)+B))"
 
 
+def _run_in_background(alg, params):
+    """processing.run(alg, params) without freezing QGIS (rc20 audit A14, #221).
+
+    A raster operation on a large grid ran on the GUI thread and showed "Not Responding" with no way to stop. A Processing
+    native algorithm is thread-safe in QGIS's own task runner, so it goes through _background_processing.run_algorithm, which keeps
+    the window alive and honours Stop. The raster tools mostly use gdal: algorithms, which are Python-implemented and crashed CI when
+    run on a worker thread (see is_thread_safe_algorithm), so those stay synchronous. Outside a real GUI thread (tests, the kill-switch
+    setting) it is exactly processing.run."""
+    if not _bg.is_thread_safe_algorithm(alg):
+        return processing.run(alg, params)
+    context = None
+    if _bg.can_run_in_background():
+        from qgis.core import QgsProcessingContext
+        context = QgsProcessingContext()
+        context.setProject(QgsProject.instance())
+    return _bg.run_algorithm(alg, params, context, fallback=lambda a, p, context=None: processing.run(a, p),
+                             label=alg.split(":")[-1])
+
+
+def _wrong_layer_kind(alg, params):
+    """A message when a layer in `params` is not the kind the algorithm's parameter asks for (a vector layer where it wants a raster, or
+    the reverse), else None. Why: tests/test_every_tool_live.py, hostile pass, 2026-10-26: aspect_analysis given a vector layer made
+    native:aspect run for more than two minutes with no result (a user sees "still running" until the time limit). Checked before the run."""
+    if "QgsMapLayer" not in globals():      # the offline tests switch QGIS_AVAILABLE on with fakes and no QGIS classes
+        return None
+    registry = QgsApplication.processingRegistry()
+    algorithm = registry.algorithmById(alg)
+    if algorithm is None:
+        return None
+    for key, value in params.items():
+        if not isinstance(value, QgsMapLayer):
+            continue
+        definition = algorithm.parameterDefinition(key)
+        kind = definition.type() if definition is not None else ""
+        if kind == "raster" and not isinstance(value, QgsRasterLayer):
+            return f"'{value.name()}' is not a raster layer, and {algorithm.displayName()} needs a raster."
+        if kind in ("source", "vector") and not isinstance(value, QgsVectorLayer):
+            return f"'{value.name()}' is not a vector layer, and {algorithm.displayName()} needs a vector layer."
+    return None
+
+
 def _run_raster_and_add(alg, params, new_name, output_key="OUTPUT"):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
+    wrong = _wrong_layer_kind(alg, params)
+    if wrong:
+        return {"error": wrong}
     try:
         out_path = _temp_raster_path()
         params[output_key] = out_path
-        processing.run(alg, params)
+        _run_in_background(alg, params)
         if not os.path.exists(out_path):
             return {"error": f"{alg} failed to produce output at {out_path}"}
         new_layer = QgsRasterLayer(out_path, new_name)
@@ -211,6 +321,8 @@ def _run_raster_and_add(alg, params, new_name, output_key="OUTPUT"):
             return {"error": f"Generated raster layer is invalid: {out_path}"}
         QgsProject.instance().addMapLayer(new_layer)
         return {"success": True, "layer_name": new_name}
+    except _bg.AnalysisCancelledError:
+        return {"error": "Stopped before the raster operation finished. Nothing was added to the project.", "cancelled": True}
     except Exception as e:
         return {"error": f"{alg} failed: {e}"}
 
@@ -226,6 +338,9 @@ def _run_raster_and_add(alg, params, new_name, output_key="OUTPUT"):
     "up with apply_raster_stretch(layer_name='NDVI') to apply a readable diverging color ramp "
     "(auto-selected for NDVI-named layers) instead of leaving it flat/unstretched.",
     {"type": "object", "properties": {"red_layer": {"type": "string"}, "nir_layer": {"type": "string"}, **_ALIGN_PARAMS}, "required": ["red_layer", "nir_layer"]},
+    keywords=[
+        "vegetation", "vegetation health", "how green", "greenness", "crop health", "plant health", "vegetation index",
+    ],
 )
 def calculate_ndvi(red_layer, nir_layer, align_to_first=False, resampling="bilinear"):
     if not QGIS_AVAILABLE:
@@ -267,6 +382,9 @@ def calculate_ndvi(red_layer, nir_layer, align_to_first=False, resampling="bilin
     "apply_raster_stretch(layer_name='NDWI') to apply a readable diverging color ramp (auto-selected "
     "for NDWI-named layers) instead of leaving it flat/unstretched.",
     {"type": "object", "properties": {"green_layer": {"type": "string"}, "nir_layer": {"type": "string"}, **_ALIGN_PARAMS}, "required": ["green_layer", "nir_layer"]},
+    keywords=[
+        "surface water", "how much water", "water extent", "is there flooding", "flood mapping", "water index",
+    ],
 )
 def calculate_ndwi(green_layer, nir_layer, align_to_first=False, resampling="bilinear"):
     if not QGIS_AVAILABLE:
@@ -361,7 +479,7 @@ def weighted_overlay_analysis(raster_layers, weights, align_to_first=False, resa
 
     params = {"NO_DATA": None, "RTYPE": 5}
     formula_terms = []
-    for letter, layer, w in zip(_OVERLAY_LETTERS, layers, normalized):
+    for letter, layer, w in zip(_OVERLAY_LETTERS, layers, normalized, strict=False):
         params[f"INPUT_{letter}"] = layer
         params[f"BAND_{letter}"] = 1
         formula_terms.append(f"{letter}.astype(float)*{w}")
@@ -369,15 +487,13 @@ def weighted_overlay_analysis(raster_layers, weights, align_to_first=False, resa
 
     res = _with_alignment_note(_run_raster_and_add("gdal:rastercalculator", params, "weighted_overlay"), align_note)
     if isinstance(res, dict) and res.get("success"):
-        res["normalized_weights"] = dict(zip(raster_layers, [round(w, 4) for w in normalized]))
+        res["normalized_weights"] = dict(zip(raster_layers, [round(w, 4) for w in normalized], strict=False))
         # HX1b: an ordered, opaque low-to-high surface under the vectors instead of QGIS's grey stretch (best effort)
-        try:
+        with contextlib.suppress(Exception):
             from .output_style import style_continuous_raster
             made = QgsProject.instance().mapLayersByName("weighted_overlay")
             if made:
                 res["styled"] = style_continuous_raster(made[-1], "surface")
-        except Exception:
-            pass
     return res
 
 
@@ -393,6 +509,9 @@ def weighted_overlay_analysis(raster_layers, weights, align_to_first=False, resa
     "apply_raster_stretch(layer_name='NDRE') to apply a readable diverging color ramp (auto-selected "
     "for NDRE-named layers) instead of leaving it flat/unstretched.",
     {"type": "object", "properties": {"red_edge_layer": {"type": "string"}, "nir_layer": {"type": "string"}, **_ALIGN_PARAMS}, "required": ["red_edge_layer", "nir_layer"]},
+    keywords=[
+        "chlorophyll", "nitrogen stress", "crop nitrogen", "precision agriculture", "precision ag",
+    ],
 )
 def calculate_ndre(red_edge_layer, nir_layer, align_to_first=False, resampling="bilinear"):
     if not QGIS_AVAILABLE:
@@ -434,8 +553,18 @@ def _geographic_z_factor(dem):
     hardcoded 1."""
     try:
         crs = dem.crs()
-        if crs is None or not crs.isGeographic():
+        if crs is None:
             return 1
+        if not crs.isGeographic():
+            # Rc20 audit A11: "projected" is not "metres" -- a US-foot State Plane DEM has horizontal units of feet, so a metre
+            # elevation needs 1/0.3048 to match them (returning 1 understated slope by ~3.28x). Convert metres into the CRS's own
+            # map units; an unreadable unit keeps the old 1 rather than failing the tool.
+            try:
+                from qgis.core import Qgis, QgsUnitTypes
+                factor = QgsUnitTypes.fromUnitToUnitFactor(Qgis.DistanceUnit.Meters, crs.mapUnits())
+                return float(factor) if factor and factor > 0 else 1
+            except Exception:
+                return 1
         center_lat = dem.extent().center().y()
         return 1.0 / (111320.0 * math.cos(math.radians(center_lat)))
     except Exception:
@@ -577,7 +706,12 @@ def slope_analysis(dem_layer, dem_vertical_unit="m"):
     return result
 
 
-@register_tool("aspect_analysis", "Calculate aspect map from DEM layer.", {"type": "object", "properties": {"dem_layer": {"type": "string"}}, "required": ["dem_layer"]})
+@register_tool("aspect_analysis", "Calculate aspect map from DEM layer.", {"type": "object", "properties": {"dem_layer": {"type": "string"}}, "required": ["dem_layer"]},
+    keywords=[
+        "which way do the slopes face", "slopes face", "slope direction", "direction of the slope", "facing direction",
+        "north-facing", "south-facing",
+    ],
+)
 def aspect_analysis(dem_layer):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
@@ -591,7 +725,67 @@ def aspect_analysis(dem_layer):
     )
 
 
-@register_tool("zonal_statistics", "Compute zonal statistics of raster over vector polygons.", {"type": "object", "properties": {"raster_layer": {"type": "string"}, "vector_layer": {"type": "string"}}, "required": ["raster_layer", "vector_layer"]})
+_ZONAL_FIELDS = ("zs_mean", "zs_median", "zs_stdev")
+
+
+def _zonal_stats_into_layer(raster, polygon_layer):
+    """Mean/median/stdev of `raster` per polygon, written into `polygon_layer` as zs_mean / zs_median / zs_stdev.
+
+    Rc20 audit A14: the statistics (the slow part) are computed by native:zonalstatisticsfb on a geometry-only memory copy
+    through the background runner, so QGIS stays responsive and Stop works; the old qgis:zonalstatistics edited the live layer
+    in place on the GUI thread and cannot run on a worker. The values are then written into the real layer on the GUI thread as
+    one undoable edit command. An existing zs_ field is overwritten rather than duplicated. Raises on failure."""
+    from qgis.core import QgsFeature, QgsField, QgsProcessingContext, QgsVectorLayer
+    from qgis.PyQt.QtCore import QVariant
+    from ... import _background_processing as _bg
+    from ._edit_session import edit_command
+
+    scratch = QgsVectorLayer(f"{QgsWkbTypes.displayString(polygon_layer.wkbType()) or 'Polygon'}?crs={polygon_layer.crs().authid()}"
+                             "&field=src_fid:integer", "zonal_input", "memory")
+    require_valid_layer(scratch)
+    copies = []
+    for feat in _ck.features(polygon_layer, "Raster: reading features"):
+        copy = QgsFeature(scratch.fields())
+        copy.setGeometry(feat.geometry())
+        copy.setAttributes([int(feat.id())])
+        copies.append(copy)
+    scratch.dataProvider().addFeatures(copies)
+
+    context = QgsProcessingContext()
+    context.setProject(QgsProject.instance())
+    params = {"INPUT": scratch, "INPUT_RASTER": raster, "RASTER_BAND": 1, "COLUMN_PREFIX": "zs_",
+              "STATISTICS": [2, 3, 4], "OUTPUT": "memory:"}
+    results = _bg.run_algorithm("native:zonalstatisticsfb", params, context,
+                                fallback=lambda alg, prm, context=None: processing.run(alg, prm, context=context),
+                                label="Zonal statistics", use_background=len(copies) >= 200)
+    out_layer = results["OUTPUT"]
+    values = {}
+    for out_feat in _ck.features(out_layer, "Raster: reading features"):
+        values[int(out_feat["src_fid"])] = [out_feat[name] if out_layer.fields().indexOf(name) >= 0 else None
+                                            for name in _ZONAL_FIELDS]
+
+    with edit_command(polygon_layer, "Zonal statistics"):
+        for name in _ZONAL_FIELDS:
+            if polygon_layer.fields().indexOf(name) < 0 and not polygon_layer.addAttribute(QgsField(name, QVariant.Double)):
+                raise RuntimeError(f"could not add the field {name}")
+        polygon_layer.updateFields()
+        indexes = [polygon_layer.fields().indexOf(name) for name in _ZONAL_FIELDS]
+        for fid, stats in values.items():
+            for index, value in zip(indexes, stats, strict=False):
+                if not polygon_layer.changeAttributeValue(fid, index, None if value is None or value != value else float(value)):
+                    raise RuntimeError("a statistic could not be written to the layer")
+
+
+
+@register_tool("zonal_statistics", "Compute zonal statistics of raster over vector polygons.", {"type": "object", "properties": {"raster_layer": {"type": "string"}, "vector_layer": {"type": "string"}}, "required": ["raster_layer", "vector_layer"]},
+    keywords=[
+        "total population of each district", "population of each district", "average rainfall per district", "average per district", "population in each catchment", "sum per district from the raster", "share of the population living in", "statistics of the raster per",
+        "average elevation per", "mean elevation per", "average of the raster per", "raster values per district", "statistics for each district",
+        "per district from the raster",
+        "average rainfall for each", "average for each district", "mean for each district", "average per district", "how much of each class",
+        "area of each class",
+    ],
+)
 def zonal_statistics(raster_layer, vector_layer):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
@@ -603,23 +797,18 @@ def zonal_statistics(raster_layer, vector_layer):
         return {"error": f"Layer '{vector_layer}' not found"}
 
     try:
-        params = {
-            "INPUT_RASTER": ras,
-            "RASTER_BAND": 1,
-            "INPUT_VECTOR": vec,
-            "COLUMN_PREFIX": "zs_",
-            "STATISTICS": [2, 3, 4],
-        }
-        processing.run("qgis:zonalstatistics", params)
+        _zonal_stats_into_layer(ras, vec)
         result = {"success": True, "message": f"Zonal statistics added to '{vector_layer}' (fields prefixed zs_)."}
-        try:
+        # the hint is a convenience; the statistics are already written
+        with contextlib.suppress(Exception):
             if vec.fields().indexOf("zs_mean") >= 0:
                 from .humanitarian_style import measure_hint
                 result["map_looks"] = [measure_hint(vector_layer, "zs_mean", "The mean raster value per area")]
-        except Exception:
-            pass  # the hint is a convenience; the statistics are already written
         return result
     except Exception as e:
+        from ... import _background_processing as _bg
+        if isinstance(e, _bg.AnalysisCancelledError):
+            return {"error": f"Stopped: {e}", "cancelled": True}
         return {"error": f"zonal_statistics failed: {e}"}
 
 
@@ -657,7 +846,10 @@ def raster_clip(raster_layer, mask_layer):
     )
 
 
-@register_tool("unsupervised_classification", "Unsupervised K-Means raster classification of up to the first 8 bands into num_classes spectral classes (1..num_classes; 0 = no data). Classes are statistical clusters of pixel values, NOT land-cover categories: label them yourself. Reproducible with a seed; refuses rasters over 25 million cells (clip first).", {"type": "object", "properties": {"layer_name": {"type": "string"}, "num_classes": {"type": "integer", "description": "Number of clusters, 2 to 50."}, "seed": {"type": "integer", "description": "Random seed (default 0)."}}, "required": ["layer_name", "num_classes"]})
+_BACKGROUND_MIN_CELLS = 250_000          # below this the classification takes well under a second: no worker thread, no nested event loop
+
+
+@register_tool("unsupervised_classification", "Unsupervised K-Means raster classification of up to the first 8 bands into num_classes spectral classes (1..num_classes; 0 = no data). Classes are statistical clusters of pixel values, NOT land-cover categories: label them yourself. Reproducible with a seed; works through the raster in blocks, so memory is not the limit, and on a large raster it runs in the background so QGIS stays responsive and Stop works; a raster over 400 million cells is refused (clip it first).", {"type": "object", "properties": {"layer_name": {"type": "string"}, "num_classes": {"type": "integer", "description": "Number of clusters, 2 to 50."}, "seed": {"type": "integer", "description": "Random seed (default 0)."}}, "required": ["layer_name", "num_classes"]})
 def unsupervised_classification(layer_name, num_classes, seed=0):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
@@ -672,14 +864,12 @@ def unsupervised_classification(layer_name, num_classes, seed=0):
         return {"error": problem}
     k = int(num_classes)
     try:
-        values, valid, info = raster_numpy.read_bands(ras.source())
-        pixels = values[valid]
-        if len(pixels) < k:
-            return {"error": f"Only {len(pixels)} valid cells, fewer than the {k} classes requested."}
-        labels, _centres = raster_numpy.kmeans(pixels, k, seed=int(seed))
-        classified = raster_numpy._np().zeros(valid.shape, dtype="uint8")
-        classified[valid] = (labels + 1).astype("uint8")
-        path = raster_numpy.write_single_band(classified, info, nodata=0)
+        # GitHub #222 (audit A15): rows are read and classified a block at a time, so memory no longer limits the raster size.
+        # Audit A14 / master list AR-4: the work is GDAL and numpy only, so it runs on a worker thread while QGIS stays responsive and Stop works. It is given
+        # the source PATH, never the layer (QgsMapLayer objects are only safe on the GUI thread). A raster too small to be felt (under 250,000 cells) is run in place.
+        source, cells = ras.source(), int(ras.width()) * int(ras.height())
+        path, info, valid_cells = _bg.run_callable(lambda: raster_numpy.classify_raster_file(source, k, seed=int(seed)),
+                                                   label="Unsupervised classification", use_background=cells >= _BACKGROUND_MIN_CELLS)
         new_layer = QgsRasterLayer(path, f"{layer_name}_classified")
         if not new_layer.isValid():
             return {"error": "The classified raster could not be loaded."}
@@ -687,8 +877,10 @@ def unsupervised_classification(layer_name, num_classes, seed=0):
         from .humanitarian_style import style_classified_raster
         styled = style_classified_raster(new_layer, k)
         return {"success": True, "layer_name": f"{layer_name}_classified", "classes": k, "styled": styled, "bands_used": info["bands_used"],
-                "valid_cells": int(valid.sum()), "seed": int(seed),
+                "valid_cells": int(valid_cells), "seed": int(seed),
                 "note": "Classes are statistical clusters of the band values, not land-cover categories; name them from knowledge of the area."}
+    except _bg.AnalysisCancelledError as e:
+        return {"error": f"Stopped: {e}", "cancelled": True}
     except ValueError as e:
         return {"error": f"unsupervised_classification: {e}"}
     except ImportError:
@@ -697,7 +889,11 @@ def unsupervised_classification(layer_name, num_classes, seed=0):
         return {"error": f"unsupervised_classification failed: {e}"}
 
 
-@register_tool("supervised_classification", "Supervised classification using training polygons.", {"type": "object", "properties": {"layer_name": {"type": "string"}, "training_layer": {"type": "string"}}, "required": ["layer_name", "training_layer"]})
+@register_tool("supervised_classification", "Supervised classification using training polygons.", {"type": "object", "properties": {"layer_name": {"type": "string"}, "training_layer": {"type": "string"}}, "required": ["layer_name", "training_layer"]},
+    keywords=[
+        "training polygons", "training areas", "training samples", "classify the sentinel image", "classify the image into",
+    ],
+)
 def supervised_classification(layer_name, training_layer):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
@@ -773,7 +969,12 @@ def mosaic_rasters(raster_layers_list):
     )
 
 
-@register_tool("band_composite", "Create RGB band composite from single band rasters.", {"type": "object", "properties": {"layer_name": {"type": "string"}, "red_band": {"type": "string"}, "green_band": {"type": "string"}, "blue_band": {"type": "string"}}, "required": ["layer_name", "red_band", "green_band", "blue_band"]})
+@register_tool("band_composite", "Create RGB band composite from single band rasters.", {"type": "object", "properties": {"layer_name": {"type": "string"}, "red_band": {"type": "string"}, "green_band": {"type": "string"}, "blue_band": {"type": "string"}}, "required": ["layer_name", "red_band", "green_band", "blue_band"]},
+    keywords=[
+        "combine bands", "combine the bands", "colour image from bands", "color image from bands", "false colour",
+        "false color", "rgb composite",
+    ],
+)
 def band_composite(layer_name, red_band, green_band, blue_band):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
@@ -846,6 +1047,11 @@ def interpolate_surface(point_layer, field, method="idw", cell_size=None):
     resolved_cell_size = cell_size or max(extent.width(), extent.height()) / 250
     if resolved_cell_size <= 0:
         return {"error": "cell_size must be positive."}
+    if cell_size:
+        from ._layer_checks import degrees_value_problem
+        problem = degrees_value_problem(layer, cell_size, "the cell size")
+        if problem:
+            return {"error": problem}
 
     try:
         # qgis:idwinterpolation / qgis:tininterpolation both take their input as
@@ -875,11 +1081,9 @@ def interpolate_surface(point_layer, field, method="idw", cell_size=None):
         if not raster_layer.isValid():
             return {"error": "Generated interpolation raster is invalid."}
         QgsProject.instance().addMapLayer(raster_layer)
-        try:
+        with contextlib.suppress(Exception):
             from .output_style import style_continuous_raster
             style_continuous_raster(raster_layer, "surface")
-        except Exception:
-            pass
         return {"success": True, "layer_name": result_name, "method": method, "cell_size": resolved_cell_size}
     except Exception as e:
         return {"error": f"interpolate_surface failed: {e}"}
@@ -1155,6 +1359,7 @@ def _fit_helmert_transform(control_points):
     },
 )
 def georeference_image(image_path, control_points, output_path, target_crs="EPSG:4326", transform_type="tps"):
+    output_path = resolve_output_path(output_path)   # rc22 smoke N3/N8/N9: anchor relative paths to the project (see _paths.py)
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
     if not os.path.exists(image_path):
@@ -1312,6 +1517,9 @@ def _cell_area_km2(raster):
         },
         "required": ["population_raster_layer", "area_layer"],
     },
+    keywords=[
+        "who lives near", "people living near", "how many people live", "people near the", "population near the",
+    ],
 )
 def estimate_population_exposure(population_raster_layer, area_layer, output_layer_name=None, raster_unit="people_per_cell"):
     if not QGIS_AVAILABLE:
@@ -1346,7 +1554,7 @@ def estimate_population_exposure(population_raster_layer, area_layer, output_lay
 
         name_field = vector.fields()[0].name() if vector.fields().count() > 0 else None
         zones = []
-        for feat in vector.getFeatures():
+        for feat in _ck.features(vector, "Raster: reading features"):
             label = feat.attribute(name_field) if name_field else None
             zones.append({"feature_id": feat.id(), "label": None if label in (None, "") else str(label),
                           "population": zone_sums.get(feat.id())})
@@ -1417,13 +1625,14 @@ def _add_exposure_layer(vector, zones, keys, layer_name):
                 n += 1
             name = f"{name} ({n})"
         layer = QgsVectorLayer(f"Polygon?crs={vector.crs().authid()}", name, "memory")
+        require_valid_layer(layer)
         provider = layer.dataProvider()
         provider.addAttributes([QgsField("zone", QVariant.String), QgsField("feature_id", QVariant.LongLong),
                                 QgsField("pop_estimate", QVariant.Double)])
         layer.updateFields()
         by_id = {z["feature_id"]: z for z in zones}
         feats = []
-        for src in vector.getFeatures():
+        for src in _ck.features(vector, "Raster: reading features"):
             z = by_id.get(src.id())
             if z is None:
                 continue
@@ -1477,7 +1686,7 @@ def _zonal_sums_detached(raster, polygon_layer):
     if not scratch.isValid():
         return None
     original_ids, copies = [], []
-    for feat in polygon_layer.getFeatures():
+    for feat in _ck.features(polygon_layer, "Raster: reading features"):
         copy = QgsFeature()
         copy.setGeometry(feat.geometry())
         copies.append(copy)
@@ -1488,7 +1697,7 @@ def _zonal_sums_detached(raster, polygon_layer):
         return None
     # A memory layer numbers its features in insertion order, which is how the originals are matched back.
     values = [f.attribute("pop_sum") for f in sorted(scratch.getFeatures(), key=lambda f: f.id())]
-    return {fid: (None if v is None or v != v else v) for fid, v in zip(original_ids, values)}
+    return {fid: (None if v is None or v != v else v) for fid, v in zip(original_ids, values, strict=False)}
 
 
 def _zonal_population_total(raster, polygon_layer):
@@ -1505,7 +1714,7 @@ def _overlapping_zone_count(polygon_layer, limit=2000):
     not checked. Needs QGIS."""
     try:
         from qgis.core import QgsSpatialIndex
-        feats = {f.id(): f for f in polygon_layer.getFeatures()}
+        feats = {f.id(): f for f in _ck.features(polygon_layer, "Raster: reading features")}
         if len(feats) > limit:
             return 0
         index = QgsSpatialIndex(polygon_layer.getFeatures())
@@ -1667,6 +1876,13 @@ def _auto_raster_style(layer_name, mode):
         },
         "required": ["layer_name"],
     },
+    keywords=[
+        "raster looks washed out", "raster looks flat", "fix the raster colors", "raster color ramp", "raster contrast",
+        "stretch the raster", "raster looks grey", "raster looks gray", "colorize the raster", "colour ramp", "color ramp",
+        "colour scheme", "color scheme", "green to red", "red to green", "blue to red", "style the raster", "style the dem",
+        "style the slope", "style the result with", "pseudocolor", "contrast stretch", "raster colours", "raster colors",
+        "population ramp",
+    ],
 )
 def apply_raster_stretch(layer_name, mode="auto", color_ramp=None, band=1, min_value=None, max_value=None,
                          keep_population_ramp=True):

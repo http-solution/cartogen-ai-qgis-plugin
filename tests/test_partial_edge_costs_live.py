@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """The travel-time matrix charges partial-edge costs on both sides of the single-tree threshold (audit F16, #152).
 
 Acceptance from the issue: on a 1,000 m road, points at 490 m and 510 m cost about 490 m and 510 m, and the single-tree path
@@ -58,7 +57,7 @@ class TestPartialEdgeCosts(_Base):
             res = self.lt.travel_time_matrix("origin", "dest", "roads", **kw)
         self.assertTrue(res.get("success"), res)
         self.assertEqual(res.get("method") == "single_shortest_path_tree", single_tree, res.get("method"))
-        row = list(res["matrix"].values())[0]
+        row = next(iter(res["matrix"].values()))
         layer = QgsProject.instance().mapLayersByName("dest")[0]
         ids = {f["name"]: str(f.id()) for f in layer.getFeatures()}
         return [row.get(ids[f"p{i}"]) for i in range(len(dest_m))]
@@ -67,7 +66,7 @@ class TestPartialEdgeCosts(_Base):
         for single_tree in (False, True):
             with self.subTest(single_tree=single_tree):
                 costs = self._costs(0.0, [490.0, 510.0, 1000.0], single_tree)
-                for got, want in zip(costs, (490.0, 510.0, 1000.0)):
+                for got, want in zip(costs, (490.0, 510.0, 1000.0), strict=False):
                     self.assertIsNotNone(got)
                     self.assertAlmostEqual(float(got), want, delta=8)
 
@@ -79,7 +78,7 @@ class TestPartialEdgeCosts(_Base):
 
     def test_a_one_way_road_cannot_be_driven_backwards_on_either_path(self):
         # oneway 'F' = forward only (the digitised direction runs east): the point behind the origin is unreachable
-        kw = dict(direction_field="oneway", value_forward="F", value_backward="T", value_both="B", oneway="F")
+        kw = {"direction_field": "oneway", "value_forward": "F", "value_backward": "T", "value_both": "B", "oneway": "F"}
         for single_tree in (False, True):
             with self.subTest(single_tree=single_tree):
                 ahead, behind = self._costs(300.0, [600.0, 100.0], single_tree, **dict(kw))

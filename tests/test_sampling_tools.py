@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """H3 design_sampling_frame: sample-size statistics and the reproducible draw are pure; layer work is in test_sampling_tools_live.py."""
 import unittest
 

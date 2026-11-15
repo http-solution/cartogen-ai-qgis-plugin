@@ -21,8 +21,9 @@ step, no compiled artifacts beyond the release zip.
   - `core/services/`, `core/models/`, `core/validators/`, `core/representation/` — prompt
     refiner/router/task runner, transaction/confidence models, schema/P-code validation, and the
     map-representation planner.
+  - `core/*.py` leaf modules (`net.py`, `logger.py`, `cancel_signal.py`, `model_selector.py`, `tool_operations.py`, `_background_processing.py`, `_chunked.py`) sit below the agent and must not import it, the tools or the UI. The old `core/agent/{cancel_signal,model_selector,tool_operations}.py` and `core/agent/tools/{_background_processing,_chunked}.py` paths are aliases to the same module objects. `tests/test_import_architecture.py` enforces the import direction and bans import cycles; its allowlist of lazy-cycle modules may only shrink (the layering allowlist is now empty) (PLAN-040).
   - `core/logger.py` — structured, metadata-only logging (`log_event`); never log raw prompts,
-    responses, tool arguments/results, or coordinates. `core/exceptions.py` — exception hierarchy.
+    responses, tool arguments/results, or coordinates.
   - `infrastructure/` — `auth.py` (credentials: QGIS Auth Manager or session memory ONLY, never
     plaintext `QgsSettings`), `deps.py`, `settings_keys.py`, and `providers/` (the 5 LLM clients:
     OpenRouter, Gemini, OpenAI, Claude, Ollama, plus a `cartogen.py` stub for a planned hosted
@@ -52,6 +53,14 @@ step, no compiled artifacts beyond the release zip.
 - `metadata.txt` — QGIS plugin manifest, including an embedded `changelog=` field. Its historical
   entries are frozen (see below) — only ever prepend a new entry, never edit an old one.
 
+## Working agreement (added 2026-10-23, binding for any agent or person)
+
+Finished work must not be broken again, and progress must be on record. Before you change behaviour: find the feature in `docs/FEATURE_LEDGER.json` (the source files and guard tests listed there are the contract), open or update its plan in `docs/plans/`, and make the change with a regression test. Before you push: `python tools/ledger_guard.py` and `tools/local_ci.sh --offline`. After you merge: update the plan's status log, the ledger, and the open-issue status table. CONTRIBUTING.md section 10 has the full list; `docs/SELF_AUDIT_2026-10-23.md` records the gaps this agreement closes. Never close an issue without a hand-verified pass or an owner decision.
+
+Master task list: `docs/MASTER_TASK_LIST_*.md` (+ `.csv`) is the single follow-up list. Keep it current whenever work closes, opens or changes status, using `python tools/master_list.py set ROW "Status" "note"` (never edit only one of the two files); `python tools/master_list.py check` must say "in step".
+
+Tooling note for cloud sandboxes: graphify (see the section at the end of this file) is not installed there, so "run `graphify update .`" cannot be done in a cloud session; do it on a machine that has it and do not claim it was done.
+
 ## Before you touch anything: read CONTRIBUTING.md
 
 It's short and specific to this codebase, not a generic PR-process doc. The two rules that matter
@@ -71,6 +80,10 @@ written — including old identifier names after a rebrand. If something in one 
 a new entry/doc that supersedes it; don't rewrite history. (These 3 files, plus
 `docs/archive/DOCUMENTATION.md` and `docs/archive/LICENSE_AUDIT.md`, moved from the repo root
 into `docs/archive/` in a 2026-09-12 repo-organization pass — content unchanged, only location.)
+
+## QGIS development rules
+
+Before writing or changing code that touches QGIS, Qt, networking, credentials, background work, Processing or packaging, read `CONTRIBUTING.md` §9. It turns the PyQGIS Developer Cookbook and the plugins.qgis.org requirements into rules for this repo (target is QGIS 4.2.x / Qt6 only, not the 3.44 cookbook line). It cites the QGIS 4.2 cookbook source (`qgis/QGIS-Documentation`, branch `release_4.2`); the rules marked "our own" are not from it. The docs site is blocked in the cloud sandbox, so read the cookbook with a shallow sparse clone of that branch.
 
 ## Running things
 
@@ -94,9 +107,17 @@ layer rendering, print layouts) needs manual verification; see `docs/RELEASE_SMO
 
 ## Editions
 
-> **CORRECTION (2026-09-14, verified via `git remote -v` + authenticated `gh repo view`,
+> **UPDATE (2026-10-09, verified via the GitHub API: `visibility: public`, GPL-2.0):** this repository is
+> now PUBLIC at `http-solution/cartogen-ai-qgis-plugin`. That supersedes the 2026-09-14 note below, which
+> described the older `cartogenai-glitch/CARTOGEN-AI` remote (then private) and is kept only as history.
+> Because the repo and its full history are public: never commit credentials, API keys, personal email
+> addresses or personal data (the secret and PII scan on 2026-10-09 found none in the tree or history);
+> the earlier "no public repo exists" statements in older docs are out of date. GitHub Actions minutes
+> are free on a public repo; the `tests` workflow runs on every push and pull request.
+>
+> *Superseded -- historical note, 2026-09-14:* (2026-09-14, verified via `git remote -v` + authenticated `gh repo view`,
 > resolving a real conflict an external audit flagged between this section and
-> `docs/MASTER_TASK_REGISTRY.md`):** the GitHub remote this checkout's `origin` actually points
+> `docs/MASTER_TASK_REGISTRY.md`) the GitHub remote this checkout's `origin` actually points
 > to (`cartogenai-glitch/CARTOGEN-AI`) is **PRIVATE**, not public — confirmed with an
 > authenticated API call, not guessed. The separate repo `docs/MASTER_TASK_REGISTRY.md` names
 > as the intended public Community-facing repo (`cartogenai-glitch/cartogen_ai_community`) is

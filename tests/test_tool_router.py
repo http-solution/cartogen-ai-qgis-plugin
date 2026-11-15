@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+from typing import ClassVar
 import ast
 import inspect
 import unittest
@@ -21,9 +21,8 @@ class TestToolAliasesNoDuplicateKeys(unittest.TestCase):
         source = inspect.getsource(tool_router_module)
         tree = ast.parse(source)
         for node in ast.walk(tree):
-            if isinstance(node, ast.Assign) and any(
-                isinstance(t, ast.Name) and t.id == "_TOOL_ALIASES" for t in node.targets
-            ):
+            targets = node.targets if isinstance(node, ast.Assign) else [node.target] if isinstance(node, ast.AnnAssign) else []
+            if any(isinstance(t, ast.Name) and t.id == "_TOOL_ALIASES" for t in targets):
                 keys = [k.value for k in node.value.keys]
                 duplicates = {k for k in keys if keys.count(k) > 1}
                 self.assertEqual(duplicates, set(), f"Duplicate _TOOL_ALIASES key(s): {duplicates}")
@@ -35,7 +34,7 @@ class TestToolRouter(unittest.TestCase):
     def test_router_filtering(self):
         router = ToolRouter(TOOLS_SCHEMA)
         filtered = router.filter_relevant_tools("Calculate NDVI on Sentinel image", top_k=15)
-        self.assertLessEqual(len(filtered), 15)
+        self.assertLessEqual(len(filtered), 15 + 1)   # +1: find_tools rides on top of top_k (PLAN-042 step 4)
         tool_names = [t.get("function", {}).get("name") for t in filtered]
         self.assertIn("calculate_ndvi", tool_names)
         self.assertIn("get_layers", tool_names)  # Always included core tool
@@ -115,7 +114,7 @@ class TestNoSignalQueryStaysSmall(unittest.TestCase):
         expected = {
             "get_layers", "get_attributes", "create_plan", "update_task",
             "set_task_preview", "store_project_memory", "store_global_memory",
-            "generate_spatial_report", "execute_pyqgis_script",
+            "generate_spatial_report", "execute_pyqgis_script", "find_tools",   # find_tools is always offered (PLAN-042 step 4)
         }
         self.assertEqual(names, expected)
 
@@ -134,7 +133,7 @@ class TestNoSignalQueryStaysSmall(unittest.TestCase):
         filtered = self.router.filter_relevant_tools("buffer this layer", top_k=40)
         names = [t.get("function", {}).get("name") for t in filtered]
         self.assertIn("buffer_analysis", names)
-        self.assertEqual(len(filtered), 40)
+        self.assertEqual(len(filtered), 40 + 1)   # +1: find_tools rides on top of top_k (PLAN-042 step 4)
 
     def test_partial_signal_query_also_drops_zero_score_filler(self):
         # 2026-09-19 follow-up: a query with SOME real signal (not the all-zero "hi" case
@@ -320,7 +319,7 @@ class TestToolRouterRecallRegression(unittest.TestCase):
     silently regress recall on a query that happened to already be passing.
     Uses top_k=40, the value agent_orchestrator.py's real dispatch actually passes."""
 
-    QUERY_TO_EXPECTED_TOOL = [
+    QUERY_TO_EXPECTED_TOOL: ClassVar = [
         ("which districts are underserved and need more funding", "calculate_presence_gap"),
         ("rank the districts by how bad the situation is", "calculate_severity_index"),
         ("how many people cannot reach a hospital within an hour", "population_access_gap"),
@@ -366,3 +365,19 @@ class TestToolRouterTieBreak(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestBoundaryToolsAreOfferedForAdmCodes(unittest.TestCase):
+    """rc41 hand test: 'create layer for Jordan ADM1' offered neither boundary tool, and the model said none was active."""
+
+    def test_adm_code_requests_get_both_boundary_tools(self):
+        router = ToolRouter(TOOLS_SCHEMA)
+        for query in ("create layer for Jordan ADM1", "Jordan ADM2 districts", "show me the governorates of Jordan"):
+            names = {t["function"]["name"] for t in router.filter_relevant_tools(query)}
+            self.assertIn("fetch_geoboundaries", names, query)
+            self.assertIn("fetch_hdx_admin_boundaries", names, query)
+
+    def test_unrelated_requests_do_not_get_them(self):
+        router = ToolRouter(TOOLS_SCHEMA)
+        names = {t["function"]["name"] for t in router.filter_relevant_tools("buffer 500 m around smoke_points")}
+        self.assertNotIn("fetch_geoboundaries", names)

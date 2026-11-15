@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Tests for the geoprocessing/selection tools added to vector_tools.py in the
 QGIS-feature-coverage pass (difference, convex hull/Voronoi/Delaunay, nearest-
 feature join, singlepart/simplify, field statistics, select-by-location).
@@ -207,7 +206,7 @@ class TestExtentToCanvasCrs(unittest.TestCase):
 
     @patch("cartogen_ai.core.agent.tools.vector_tools.QgsProject", create=True)
     @patch("cartogen_ai.core.agent.tools.vector_tools.QgsCoordinateTransform", create=True)
-    def test_transform_failure_falls_back_to_original_extent(self, mock_transform_cls, mock_project):
+    def test_transform_failure_returns_none_not_the_original_extent(self, mock_transform_cls, mock_project):
         source_crs = MagicMock()
         source_crs.isValid.return_value = True
         canvas = self._fake_canvas(MagicMock())
@@ -216,7 +215,7 @@ class TestExtentToCanvasCrs(unittest.TestCase):
 
         result = _extent_to_canvas_crs(canvas, extent, source_crs)
 
-        self.assertIs(result, extent)
+        self.assertIsNone(result)   # audit A13: a failed transform must not masquerade as a good extent
 
 
 class TestZoomToolsDegradeOutsideQgis(unittest.TestCase):
@@ -926,7 +925,7 @@ class TestDiagnoseTopologyExtended(unittest.TestCase):
                        is_valid=True, is_empty=False, geom_type=2, bbox="bbox"):
         geom = MagicMock()
         geom.isEmpty.return_value = is_empty
-        geom.isGeomValid.return_value = is_valid
+        geom.isGeosValid.return_value = is_valid
         geom.type.return_value = geom_type
         geom.area.return_value = area
         geom.asWkt.return_value = wkt
@@ -1385,7 +1384,7 @@ class TestIntersectAndUnionLayers(unittest.TestCase):
         res = union_layers("a", "b")
 
         self.assertTrue(res["success"])
-        alg, params, new_name = mock_run.call_args[0]
+        alg, params, _new_name = mock_run.call_args[0]
         self.assertEqual(alg, "native:union")
         self.assertIs(params["INPUT"], a)
         self.assertIs(params["OVERLAY"], b)
@@ -1414,7 +1413,7 @@ class TestDissolveAndMergeLayers(unittest.TestCase):
         res = dissolve_layer("layer")
 
         self.assertTrue(res["success"])
-        alg, params, new_name = mock_run.call_args[0]
+        alg, params, _new_name = mock_run.call_args[0]
         self.assertEqual(alg, "native:dissolve")
         self.assertEqual(params["FIELD"], [])
         self.assertIs(params["INPUT"], layer)
@@ -1456,7 +1455,7 @@ class TestDissolveAndMergeLayers(unittest.TestCase):
         res = merge_layers(["a", "b", "c"])
 
         self.assertTrue(res["success"])
-        alg, params, new_name = mock_run.call_args[0]
+        alg, params, _new_name = mock_run.call_args[0]
         self.assertEqual(alg, "native:mergevectorlayers")
         self.assertEqual(params["LAYERS"], [a, b, c])
 

@@ -1,10 +1,10 @@
-# -*- coding: utf-8 -*-
 """
 Spatial Memory Manager for Cartogen AI.
 Provides project-bound long-term spatial memory, sidecar SQLite database persistence,
 and global user memory (via QgsSettings).
 """
 
+import contextlib
 import os
 import json
 import sqlite3
@@ -22,6 +22,19 @@ from ...infrastructure.settings_keys import (
     SETTINGS_PERSIST_PROJECT_MEMORY as PERSIST_PROJECT_MEMORY_KEY,
 )
 from ..logger import log_warning, log_error, log_event
+
+
+def describe_project_memory_storage(persist_enabled) -> str:
+    """One line for the Memory dialog saying where the notes below live. rc40 hand test OI-95: the dialog listed notes the tester
+    never asked for (layer styling remembered for the next similar map) with no sign of whether they were written to the project
+    file, so it read as saved without consent. Notes are always kept in memory for the session; they reach the project file and
+    its sidecar only when the persist setting is on."""
+    if persist_enabled:
+        return ("Saved with the project: ON. These notes are written to the project file and its sidecar database. "
+                "The default is OFF, so this was switched on in this QGIS profile: to keep notes for this session only, untick "
+                "'Save project notes/memory in the project file and sidecar database' in Settings.")
+    return ("Saved with the project: OFF. These notes exist only in this session and are gone when QGIS closes. "
+            "Nothing below is written to the project file.")
 
 
 def is_project_memory_persist_enabled() -> bool:
@@ -53,6 +66,18 @@ def _safe_int(value, default=0):
         return int(value)
     except (TypeError, ValueError):
         return default
+
+
+def _stable_details(details):
+    """The same operation arguments always render the same text: a stringified dict is re-rendered with its keys sorted. The captured
+    prompts differed between runs only in the key order of {'output_name': ..., 'distance': ...}, which breaks a cached prompt prefix.
+    Anything that is not a plain dict literal is returned unchanged."""
+    with contextlib.suppress(Exception):
+        import ast
+        value = ast.literal_eval(details) if isinstance(details, str) else details
+        if isinstance(value, dict):
+            return "{" + ", ".join(f"{k!r}: {value[k]!r}" for k in sorted(value, key=str)) + "}"
+    return details
 
 
 class SpatialMemoryManager:
@@ -104,7 +129,7 @@ class SpatialMemoryManager:
             conn.commit()
             conn.close()
         except Exception as e:
-            print(f"[MemoryManager] SQLite init failed: {e}")
+            log_event("sqlite_init_failed", tag="MemoryManager", error_class=type(e).__name__, error=True)
 
     def store_project_note(self, key: str, value: str) -> dict:
         """Stores a note in the active project scope. Always kept in the
@@ -128,7 +153,7 @@ class SpatialMemoryManager:
             conn.commit()
             conn.close()
         except Exception as e:
-            print(f"[MemoryManager] SQLite store failed: {e}")
+            log_event("sqlite_store_failed", tag="MemoryManager", error_class=type(e).__name__, error=True)
 
         if QGIS_AVAILABLE:
             try:
@@ -137,7 +162,7 @@ class SpatialMemoryManager:
                 notes[key] = value
                 set_project_custom_property(proj, PROJECT_MEMORY_KEY, json.dumps(notes))
             except Exception as e:
-                print(f"[MemoryManager] Failed to persist project note: {e}")
+                log_event("failed_to_persist_project_note", tag="MemoryManager", error_class=type(e).__name__, error=True)
 
         return {"success": True, "key": key, "value": value, "scope": "project", "db_path": self._db_path, "persisted": True}
 
@@ -155,13 +180,13 @@ class SpatialMemoryManager:
             conn.commit()
             conn.close()
         except Exception as e:
-            print(f"[MemoryManager] SQLite clear failed: {e}")
+            log_event("sqlite_clear_failed", tag="MemoryManager", error_class=type(e).__name__, error=True)
 
         if QGIS_AVAILABLE:
             try:
                 set_project_custom_property(QgsProject.instance(), PROJECT_MEMORY_KEY, json.dumps({}))
             except Exception as e:
-                print(f"[MemoryManager] Failed to clear project note property: {e}")
+                log_event("failed_to_clear_project_note_property", tag="MemoryManager", error_class=type(e).__name__, error=True)
 
         return {"success": True, "scope": "project"}
 
@@ -290,7 +315,7 @@ class SpatialMemoryManager:
     def get_action_history(self) -> list:
         return list(self._in_memory_actions)
 
-    def get_formatted_memory_context(self) -> str:
+    def get_formatted_memory_context(self, for_model=False) -> str:
         """Formats active memory into a markdown block for agent system prompt injection.
 
         Global notes are bucketed by key prefix (pref:/rule:/usage:) rather than
@@ -311,7 +336,7 @@ class SpatialMemoryManager:
         usage = {k[len("usage:"):]: v for k, v in glob_notes.items() if k.startswith("usage:")}
         other_notes = {
             k: v for k, v in glob_notes.items()
-            if not (k.startswith("pref:") or k.startswith("rule:") or k.startswith("usage:"))
+            if not (k.startswith(("pref:", "rule:", "usage:")))
         }
 
         lines = ["## \U0001f9e0 SPATIAL MEMORY CONTEXT"]
@@ -323,7 +348,11 @@ class SpatialMemoryManager:
         else:
             lines.append("### Project Notes: (None stored)")
 
-        if preferences:
+        # for_model=True (the system prompt) leaves out what the Memory panel shows for the person but the model cannot use. The captured
+        # 2026-10-10 requests showed "preferred_provider: gemini (used in 36/37 recent sessions)" and "tool:update_task: used 68 times" in
+        # the prompt: both change on almost every run, so two otherwise identical requests never shared a prompt prefix (cache misses), and
+        # neither affects any decision the model makes. Project notes, correction rules and recent operations stay.
+        if preferences and not for_model:
             lines.append("### Learned Preferences (auto-detected -- treat as a soft default, not a hard rule):")
             for k, v in preferences.items():
                 lines.append(f"- **{k}**: {v}")
@@ -333,10 +362,9 @@ class SpatialMemoryManager:
             # Sorted so the most recently added rule (highest index) reads last,
             # i.e. most-recent-and-most-likely-relevant ends up closest to the
             # rest of the prompt the model attends to most.
-            for k in sorted(rules, key=lambda rk: (len(rk), rk)):
-                lines.append(f"- {rules[k]}")
+            lines.extend(f"- {rules[k]}" for k in sorted(rules, key=lambda rk: (len(rk), rk)))
 
-        if usage:
+        if usage and not for_model:
             lines.append("### Usage Patterns (most-used first, for context only -- not an instruction to keep using them):")
             top_usage = sorted(usage.items(), key=lambda kv: _safe_int(kv[1]), reverse=True)[:5]
             for k, v in top_usage:
@@ -349,7 +377,7 @@ class SpatialMemoryManager:
 
         if actions:
             lines.append("### Recent Spatial Operations Executed:")
-            for act in actions:
-                lines.append(f"- `{act['action']}`: {act['details']}")
+            lines.extend(f"- `{act['action']}`: {_stable_details(act['details']) if for_model else act['details']}"
+                         for act in actions)
 
         return "\n".join(lines)

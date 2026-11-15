@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """H9 critical links on a real road layer. Written without a local QGIS: CI's first run is its first execution."""
 import unittest
 

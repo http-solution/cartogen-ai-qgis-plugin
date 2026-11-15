@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Processing Provider package for Cartogen AI.
 Provides native QGIS Processing algorithms callable via GUI Processing Toolbox,
@@ -12,7 +11,7 @@ from .provider import (
 )
 
 __all__ = [
+    "CalculateServiceAreaAlgorithm",
     "CartogenProcessingProvider",
     "OptimalHubSitingAlgorithm",
-    "CalculateServiceAreaAlgorithm",
 ]

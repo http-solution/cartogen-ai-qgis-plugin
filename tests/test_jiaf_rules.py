@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """The OCHA worksheet rules profile (`ocha_worksheet_2026`), offline: ties, zero denominators, all-zero and all-blank rows, exact threshold boundaries, the
 worksheet's rounding and its 'severity above 2' PiN gate. Every expectation below is read off the formulas in OCHA's official Worksheet 3A/3B example/template
 workbook (see the jiaf_rules docstring); tests/test_jiaf_worksheet_adapter.py checks the same rules against that workbook's cached values when it is available
@@ -44,7 +43,7 @@ class TestRanksAreOfDistinctValues(unittest.TestCase):
         self.assertEqual(jr.distinct_ranks([5, 5, 5]), (5, None, None))
 
     def test_a_tie_for_the_highest_makes_the_next_value_second_not_the_tied_sector(self):
-        f, x = jr.pin_flags(vals(health=100, wash=100, shelter=40, nutrition=10), 1000, S, None)
+        _f, x = jr.pin_flags(vals(health=100, wash=100, shelter=40, nutrition=10), 1000, S, None)
         self.assertEqual((x["highest"], x["second"], x["third"]), (100, 40, 10))
         self.assertEqual(sorted(x["highest_sectors"]), ["health", "wash"])
 
@@ -96,7 +95,7 @@ class TestZeroDenominatorsAndBlankRows(unittest.TestCase):
             self.assertIsNone(flags(vals(wash=95), pop=pop)[5]["fired"])
 
     def test_all_zero_row(self):
-        f = flags(vals(**{s: 0 for s in SEC}))
+        f = flags(vals(**dict.fromkeys(SEC, 0)))
         self.assertIsNone(f[1]["fired"])  # the worksheet leaves flag 1 blank when the sectors sum to 0
         self.assertIsNone(f[2]["fired"])
         self.assertIsNone(f[3]["fired"])
@@ -118,7 +117,7 @@ class TestZeroDenominatorsAndBlankRows(unittest.TestCase):
 
 class TestExactThresholdBoundaries(unittest.TestCase):
     def test_flag_1_fires_at_exactly_the_threshold(self):
-        base = {s: 10 for s in SEC}
+        base = dict.fromkeys(SEC, 10)
         one = dict(base, cccm=0)
         two = dict(base, cccm=0, education=0)
         self.assertIs(flags(one)[1]["fired"], False)
@@ -151,7 +150,7 @@ class TestExactThresholdBoundaries(unittest.TestCase):
         self.assertTrue(flags(vals(education=500, wash=100))[4]["fired"])
         self.assertIs(flags(vals(education=100, wash=500))[4]["fired"], False)
         self.assertTrue(flags(vals(nutrition=500, wash=100), f4_subpopulation_sectors=["nutrition"])[4]["fired"])
-        self.assertIsNone(flags(vals(**{s: 0 for s in SEC}))[4]["fired"])  # highest PiN 0: blank
+        self.assertIsNone(flags(vals(**dict.fromkeys(SEC, 0)))[4]["fired"])  # highest PiN 0: blank
 
     def test_the_worksheets_rounding_is_half_away_from_zero_on_fifteen_digits(self):
         self.assertEqual(jr.excel_round(0.95), 1.0)
@@ -252,14 +251,14 @@ class TestEngineUsesTheProfile(unittest.TestCase):
         return u
 
     def test_a_severity_2_unit_gets_a_worksheet_preliminary_pin_of_zero_and_keeps_the_highest(self):
-        u = self.unit({s: 100 for s in SEC}, {s: 2 for s in SEC})
+        u = self.unit(dict.fromkeys(SEC, 100), dict.fromkeys(SEC, 2))
         row = je.analyze([u])["rows"][0]
         self.assertEqual(row["preliminary_severity"], 2)
         self.assertEqual(row["preliminary_pin"], 100)  # the Mosaic highest PiN
         self.assertEqual(row["worksheet"]["preliminary_pin"], 0.0)  # OCHA's gate
 
     def test_incomplete_severity_coverage_has_no_worksheet_pin_but_shows_what_the_worksheet_would(self):
-        u = self.unit({s: 100 for s in SEC}, {"wash": 3, "health": 3, "shelter": 3, "nutrition": 3})
+        u = self.unit(dict.fromkeys(SEC, 100), {"wash": 3, "health": 3, "shelter": 3, "nutrition": 3})
         row = je.analyze([u])["rows"][0]
         self.assertIsNone(row["preliminary_severity"])
         self.assertIsNone(row["worksheet"]["preliminary_pin"])

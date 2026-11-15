@@ -1,0 +1,132 @@
+{
+ "id": "public_safety",
+ "number": 12,
+ "label": "Public Safety / Security",
+ "aliases": [
+  "security",
+  "policing",
+  "emergency services"
+ ],
+ "summary": "Incident patterns and response coverage with lawful, aggregated handling of sensitive locations.",
+ "guidance": "Prioritize lawful data handling, aggregation, incident trends, response coverage, route safety, uncertainty, and avoidance of sensitive-person identification.",
+ "workflows": [
+  {
+   "id": "saf.incidents",
+   "title": "Incident patterns",
+   "tools": [
+    "find_incident_reports",
+    "analyze_incident_trend",
+    "hotspot_analysis",
+    "analyze_hotspots_gi_star",
+    "detect_spatial_clusters",
+    "apply_heatmap_style",
+    "obfuscate_sensitive_points"
+   ]
+  },
+  {
+   "id": "saf.response",
+   "title": "Response coverage and route safety",
+   "tools": [
+    "calculate_service_area",
+    "score_route_incident_risk",
+    "apply_network_barriers"
+   ]
+  }
+ ],
+ "tool_priority": [
+  "hotspot_analysis",
+  "apply_heatmap_style",
+  "score_route_incident_risk",
+  "apply_network_barriers",
+  "obfuscate_sensitive_points",
+  "analyze_incident_trend",
+  "calculate_service_area",
+  "set_layer_sensitivity",
+  "calculate_spatial_autocorrelation",
+  "analyze_hotspots_gi_star",
+  "detect_spatial_clusters",
+  "calculate_health_rates"
+ ],
+ "tool_aliases": {
+  "hotspot_analysis": [
+   "crime density",
+   "where do incidents cluster"
+  ],
+  "obfuscate_sensitive_points": [
+   "generalise locations",
+   "hide exact addresses"
+  ],
+  "analyze_hotspots_gi_star": [
+   "hotspot test",
+   "statistically significant hot spots"
+  ],
+  "detect_spatial_clusters": [
+   "clustering of incidents",
+   "is this cluster real"
+  ],
+  "calculate_health_rates": [
+   "crime rate per",
+   "incidents per 100,000"
+  ]
+ },
+ "task_ids": [
+  "48.01",
+  "48.02",
+  "48.03",
+  "48.04",
+  "48.05"
+ ],
+ "data_sources": [
+  "ucdp",
+  "osm"
+ ],
+ "style_profile": "public_safety",
+ "layout_templates": [],
+ "readiness": [
+  {
+   "capability": "incident density surface and trends",
+   "state": "CI-checked",
+   "tool": "hotspot_analysis"
+  },
+  {
+   "capability": "route incident risk and barriers",
+   "state": "CI-checked",
+   "tool": "score_route_incident_risk"
+  },
+  {
+   "capability": "sensitive location obfuscation",
+   "state": "CI-checked",
+   "tool": "obfuscate_sensitive_points"
+  },
+  {
+   "capability": "Getis-Ord Gi* hotspot test",
+   "state": "CI-checked",
+   "tool": "analyze_hotspots_gi_star"
+  },
+  {
+   "capability": "scan statistic",
+   "state": "CI-checked",
+   "tool": "detect_spatial_clusters"
+  },
+  {
+   "capability": "viewshed",
+   "state": "not built",
+   "since": "R4 (1.22.0)"
+  },
+  {
+   "capability": "patrol brief layout",
+   "state": "not built",
+   "since": "after the profile packages"
+  },
+  {
+   "capability": "3D blast radius",
+   "state": "out of scope",
+   "reason": "the plugin has 2D buffers only"
+  }
+ ],
+ "guardrails": [
+  "Never identify a person; aggregate or generalise locations and say how.",
+  "A density surface shows where incidents were recorded, not where crime is.",
+  "State the bandwidth used in a density map."
+ ]
+}

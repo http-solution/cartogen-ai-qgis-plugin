@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """#151: execute_read_only_sql against a real PostGIS server. Skipped unless CARTOGEN_TEST_PG_HOST is set (the CI live job starts a
 postgis service container and sets it). Written without a local QGIS or database: CI's first run is its first execution, and what it
 shows about the read-only enforcement is the point of the test, not an assumption."""
@@ -49,8 +48,8 @@ class TestExecuteReadOnlySqlOnPostgis(unittest.TestCase):
             f"DROP SCHEMA IF EXISTS {SCHEMA} CASCADE",
             f"CREATE SCHEMA {SCHEMA}",
             f"CREATE TABLE {SCHEMA}.places (id integer PRIMARY KEY, name text, geom geometry(Point, 4326))",
-            f"INSERT INTO {SCHEMA}.places VALUES (1,'a',ST_SetSRID(ST_MakePoint(44.0,15.0),4326)),"
-            f"(2,'b',ST_SetSRID(ST_MakePoint(44.1,15.1),4326)),(3,'c',ST_SetSRID(ST_MakePoint(44.2,15.2),4326))",
+            (f"INSERT INTO {SCHEMA}.places VALUES (1,'a',ST_SetSRID(ST_MakePoint(44.0,15.0),4326)),"
+            f"(2,'b',ST_SetSRID(ST_MakePoint(44.1,15.1),4326)),(3,'c',ST_SetSRID(ST_MakePoint(44.2,15.2),4326))"),
             f"CREATE TABLE {SCHEMA}.facts (id integer PRIMARY KEY, label text)",
             f"INSERT INTO {SCHEMA}.facts VALUES (1,'x'),(2,'y')",
             f"CREATE SEQUENCE {SCHEMA}.seq1",
@@ -80,6 +79,13 @@ class TestExecuteReadOnlySqlOnPostgis(unittest.TestCase):
         out = self._run(f"SELECT id, label FROM {SCHEMA}.facts")
         self.assertTrue(out.get("success"), out)
         self.assertEqual(out["feature_count"], 2)
+
+    def test_the_result_layer_cannot_be_edited(self):
+        """#151: the result is a query view; it must refuse editing instead of writing back through a writable connection."""
+        out = self._run(f"SELECT id, label FROM {SCHEMA}.facts")
+        layer = QgsProject.instance().mapLayersByName(out["layer_name"])[0]
+        self.assertTrue(layer.readOnly())
+        self.assertFalse(layer.startEditing())
 
     def test_the_tool_leaves_the_users_connection_writable(self):
         """The first CI run showed the read-only setting staying on a pooled connection that everything else shares."""

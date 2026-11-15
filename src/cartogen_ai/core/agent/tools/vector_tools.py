@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Vector Geoprocessing & Spatial Tool implementations for Cartogen AI.
 """
@@ -7,15 +6,16 @@ import difflib
 import math
 import os
 import random
+from ... import _chunked as _ck
 from .registry import register_tool
 
 try:
     from qgis.core import (
-        QgsProject, QgsExpression, QgsRasterLayer, QgsVectorLayer,
+        QgsProject, QgsExpression, QgsMeshLayer, QgsRasterLayer, QgsVectorLayer,
         QgsCoordinateReferenceSystem, QgsCoordinateTransform, QgsFeature, QgsFeatureRequest, QgsGeometry,
         QgsPalLayerSettings, QgsTextFormat, QgsTextBufferSettings, QgsVectorLayerSimpleLabeling, QgsWkbTypes,
         QgsField, QgsPointXY, QgsSpatialIndex, QgsUnitTypes, QgsLabelObstacleSettings,
-        QgsProcessingFeatureSourceDefinition
+        QgsProcessingFeatureSourceDefinition, QgsDistanceArea, Qgis
     )
     from qgis.PyQt.QtCore import QVariant, Qt
     from qgis.PyQt.QtGui import QColor, QFont
@@ -43,7 +43,11 @@ except ImportError:
     iface = None
 
 from ._qgis_enum_compat import resolve_qgis_enum
+from ...validators.expression_screen import screen_expression
 from ...logger import log_event
+import contextlib
+from ...net import build_request as _net_build_request
+from ._layer_checks import degrees_value_problem, require_valid_layer
 
 
 def _find_layer_by_name(name):
@@ -146,6 +150,13 @@ def bbox_orders(west, south, east, north):
     "bbox_west_south_east_north for the STAC search. Pass layer_name='canvas' for the current map view.",
     {"type": "object", "properties": {"layer_name": {"type": "string", "description": "A layer name, or 'canvas' for the current map view."}},
      "required": ["layer_name"]},
+    # Plain-language styling requests share no words with the style tools' names ("make the clinics stand out",
+    # "colour the districts by how many people live there"); measured before this entry: several got no style tool at all.
+    keywords=[
+        "extent", "bounding box", "bbox", "wgs84", "in degrees", "lat/lon", "search_stac_satellite_imagery",
+        "fetch_building_footprints", "fetch_osm_features", "fetch_worldpop_population", "sentinel", "satellite scenes",
+        "building footprints", "inside it",
+    ],
 )
 def get_layer_extent(layer_name):
     if not QGIS_AVAILABLE:
@@ -172,11 +183,10 @@ def get_layer_extent(layer_name):
         wgs = _Xf(crs, _Crs("EPSG:4326"), QgsProject.instance()).transformBoundingBox(rect)
     except Exception as e:
         return {"error": f"Could not transform the extent of {label} to WGS84: {e}"}
-    result = {"success": True, "source": label, "source_crs": crs.authid(),
+    return {"success": True, "source": label, "source_crs": crs.authid(),
               "native_extent": {"xmin": rect.xMinimum(), "ymin": rect.yMinimum(), "xmax": rect.xMaximum(), "ymax": rect.yMaximum()},
               "wgs84": bbox_orders(wgs.xMinimum(), wgs.yMinimum(), wgs.xMaximum(), wgs.yMaximum()),
               "note": "Use the bbox that matches the tool's order. Degrees; the box is the transformed rectangle, slightly larger than a rotated area needs."}
-    return result
 
 
 def _model_view_entry(entry, layer):
@@ -189,7 +199,12 @@ def _model_view_entry(entry, layer):
         return entry
 
 
-@register_tool("get_attributes", "Get list of field/attribute names for a layer.", {"type": "object", "properties": {"layer_name": {"type": "string"}}, "required": ["layer_name"]})
+@register_tool("get_attributes", "Get list of field/attribute names for a layer.", {"type": "object", "properties": {"layer_name": {"type": "string"}}, "required": ["layer_name"]},
+    keywords=[
+        "list the fields", "what fields", "show the fields", "field names", "column names", "list the columns", "which columns",
+        "what attributes", "list the attributes",
+    ],
+)
 def get_attributes(layer_name):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
@@ -201,7 +216,12 @@ def get_attributes(layer_name):
     return list(layer.fields().names())
 
 
-@register_tool("run_query", "Filter layer features using a QGIS expression.", {"type": "object", "properties": {"layer_name": {"type": "string"}, "expression": {"type": "string"}}, "required": ["layer_name", "expression"]})
+@register_tool("run_query", "Filter layer features using a QGIS expression.", {"type": "object", "properties": {"layer_name": {"type": "string"}, "expression": {"type": "string"}}, "required": ["layer_name", "expression"]},
+    keywords=[
+        "filter the layer", "filter layer", "filter by expression", "show only the features", "show only features",
+        "only the features where", "subset of the layer",
+    ],
+)
 def run_query(layer_name, expression):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
@@ -209,6 +229,9 @@ def run_query(layer_name, expression):
     if layer is None:
         return {"error": f"Layer '{layer_name}' not found"}
 
+    blocked = screen_expression(expression)
+    if blocked:
+        return {"error": blocked}
     expr = QgsExpression(expression)
     if expr.hasParserError():
         return {"error": f"Invalid expression: {expr.parserErrorString()}"}
@@ -251,6 +274,12 @@ def run_query(layer_name, expression):
         },
         "required": ["layer_name", "distance"],
     },
+    keywords=[
+        "buffer", "buffers", "distance around", "within a distance of", "area around", "zone around", "radius around",
+        "ring around",
+        "shrink the", "grow the", "expand the polygons", "negative buffer", "metres around",
+        "meters around",
+    ],
 )
 def buffer_analysis(layer_name, distance, only_selected=False, output_name=None):
     if not QGIS_AVAILABLE:
@@ -336,7 +365,14 @@ def buffer_analysis(layer_name, distance, only_selected=False, output_name=None)
         return {"error": f"Buffer analysis failed: {e}"}
 
 
-@register_tool("highlight_features", "Select features in a layer matching expression.", {"type": "object", "properties": {"layer_name": {"type": "string"}, "expression": {"type": "string"}}, "required": ["layer_name", "expression"]})
+@register_tool("highlight_features", "Select features in a layer matching expression.", {"type": "object", "properties": {"layer_name": {"type": "string"}, "expression": {"type": "string"}}, "required": ["layer_name", "expression"]},
+    keywords=[
+        "select by expression", "select features where", "select the features where", "select all features where",
+        "select where", "districts where", "points where", "roads where", "features where", "records where", " is over ",
+        " is greater than ", " is less than ", " is more than ", " is above ", " is below ", "highlight the features",
+        "highlight features",
+    ],
+)
 def highlight_features(layer_name, expression):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
@@ -344,6 +380,9 @@ def highlight_features(layer_name, expression):
     if layer is None:
         return {"error": f"Layer '{layer_name}' not found"}
 
+    blocked = screen_expression(expression)
+    if blocked:
+        return {"error": blocked}
     expr = QgsExpression(expression)
     if expr.hasParserError():
         return {"error": f"Invalid expression: {expr.parserErrorString()}"}
@@ -353,7 +392,12 @@ def highlight_features(layer_name, expression):
     return {"success": True, "count": count}
 
 
-@register_tool("remove_layer", "Remove layer from QGIS project. Destructive action requiring UI confirmation.", {"type": "object", "properties": {"layer_name": {"type": "string"}}, "required": ["layer_name"]})
+@register_tool("remove_layer", "Remove layer from QGIS project. Destructive action requiring UI confirmation.", {"type": "object", "properties": {"layer_name": {"type": "string"}}, "required": ["layer_name"]},
+    keywords=[
+        "remove the layer", "delete the layer", "remove layer", "delete layer", "drop the layer", "get rid of the layer",
+        "take the layer off", "close the layer",
+    ],
+)
 def remove_layer(layer_name: str, confirmed: bool = False):
     if not confirmed:
         return {
@@ -377,7 +421,11 @@ def remove_layer(layer_name: str, confirmed: bool = False):
     return {"success": True, "message": f"Removed layer '{layer_name}'"}
 
 
-@register_tool("rename_layer", "Rename layer in QGIS project.", {"type": "object", "properties": {"old_name": {"type": "string"}, "new_name": {"type": "string"}}, "required": ["old_name", "new_name"]})
+@register_tool("rename_layer", "Rename layer in QGIS project.", {"type": "object", "properties": {"old_name": {"type": "string"}, "new_name": {"type": "string"}}, "required": ["old_name", "new_name"]},
+    keywords=[
+        "rename the layer", "rename layer", "change the name of the layer", "call the layer", "name the layer",
+    ],
+)
 def rename_layer(old_name, new_name):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
@@ -400,8 +448,10 @@ def _extent_to_canvas_crs(canvas, extent, source_crs):
     Mercator meters lands the canvas near the map's coordinate origin
     instead of the actual layer -- confirmed as the cause of exactly this
     symptom in live use. Returns the extent unchanged if source_crs already
-    matches the canvas CRS, or if the transform itself fails (better to zoom
-    to a possibly-off result than crash the tool call outright)."""
+    matches the canvas CRS. If the transform itself fails it returns None
+    (rc20 audit A13: it used to hand back the untransformed extent, which is
+    exactly the wrong-place zoom described above, reported as success), so
+    callers must report an error instead of zooming."""
     canvas_crs = canvas.mapSettings().destinationCrs()
     if not source_crs.isValid() or source_crs == canvas_crs:
         return extent
@@ -409,10 +459,15 @@ def _extent_to_canvas_crs(canvas, extent, source_crs):
         transform = QgsCoordinateTransform(source_crs, canvas_crs, QgsProject.instance())
         return transform.transformBoundingBox(extent)
     except Exception:
-        return extent
+        return None
 
 
-@register_tool("zoom_to_layer", "Zoom canvas to extent of layer.", {"type": "object", "properties": {"layer_name": {"type": "string"}}, "required": ["layer_name"]})
+@register_tool("zoom_to_layer", "Zoom canvas to extent of layer.", {"type": "object", "properties": {"layer_name": {"type": "string"}}, "required": ["layer_name"]},
+    keywords=[
+        "zoom to the layer", "zoom to layer", "zoom to the extent of", "zoom in on the layer", "show me the layer",
+        "center the map on the layer", "fit the map to", "zoom to all",
+    ],
+)
 def zoom_to_layer(layer_name):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
@@ -423,12 +478,22 @@ def zoom_to_layer(layer_name):
         return {"error": "QGIS interface not available"}
     canvas = iface.mapCanvas()
     extent = _extent_to_canvas_crs(canvas, layer.extent(), layer.crs())
+    if extent is None:
+        return {"error": f"Could not transform '{layer_name}' from {layer.crs().authid()} into the map CRS, so the view was not changed."}
     canvas.setExtent(extent)
     canvas.refresh()
     return {"success": True, "message": f"Zoomed to '{layer_name}'"}
 
 
-@register_tool("toggle_visibility", "Show or hide a layer in layer tree.", {"type": "object", "properties": {"layer_name": {"type": "string"}, "visible": {"type": "boolean"}}, "required": ["layer_name"]})
+@register_tool("toggle_visibility", "Show or hide a layer in layer tree.", {"type": "object", "properties": {"layer_name": {"type": "string"}, "visible": {"type": "boolean"}}, "required": ["layer_name"]},
+    keywords=[
+        "hide the layer", "show the layer", "turn off the layer", "turn on the layer", "make the layer visible",
+        "make the layer invisible", "switch off the layer", "switch on the layer", "untick the layer", "tick the layer",
+        "hide it", "unhide",
+        "hide the ", "hide layer", "hide a layer", "turn off the ", "turn on the ",
+        "switch off the ", "switch on the ", "layer again", "make it visible", "make the layer visible",
+    ],
+)
 def toggle_visibility(layer_name, visible=True):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
@@ -479,31 +544,23 @@ def _is_safe_url(file_path):
 _MAX_DOWNLOAD_BYTES = 200 * 1024 * 1024  # 200MB -- generous for GeoJSON/small rasters, not unbounded
 
 
-class _SafeRedirectHandler:
-    """Re-validates every redirect target against _is_safe_url before
-    following it. Confirmed live (a local redirect server) that Python's
-    default HTTPRedirectHandler follows a 3xx unconditionally: a URL that
-    passed _is_safe_url at call time can 302 to a completely different,
-    unvalidated address (e.g. the cloud metadata endpoint) and urlopen()
-    fetches it anyway -- validating file_path once, before the request, is
-    not sufficient on its own. Mixed into a real HTTPRedirectHandler at
-    build time (see _build_safe_opener) rather than subclassed directly, so
-    this stays a plain, import-light class."""
-    def redirect_request(self, req, fp, code, msg, headers, newurl):
-        import urllib.error
-        unsafe_reason = _is_safe_url(newurl)
-        if unsafe_reason:
-            raise urllib.error.URLError(f"Redirect blocked: {unsafe_reason}")
-        return super().redirect_request(req, fp, code, msg, headers, newurl)
+class _SafeOpener:
+    """What `_build_safe_opener().open(req, timeout=...)` returns callers: a streaming GET through QGIS's network stack (proxy,
+    authentication and SSL settings apply) that re-validates every redirect target with _is_safe_url before requesting it.
+
+    Why the check is per hop (confirmed live earlier with a local redirect server): a client that follows a 3xx on its own fetches
+    whatever it points at, so a URL that passed _is_safe_url at call time could 302 to the cloud metadata endpoint. Redirects are
+    therefore followed by net.stream_following, one vetted hop at a time. Replaced the urllib build_opener/HTTPRedirectHandler pair
+    (QGIS directory recommendation, tracker task 71). Limit: only the first request of a download uses QGIS's stack; a redirected hop
+    uses urllib after its target is vetted (see net._stream_open_once). Not verified against a real QGIS session: the CI live job covers net.py."""
+
+    def open(self, req, timeout=60):
+        from ... import net as _net
+        return _net.stream_following(req, timeout=timeout, check_url=_is_safe_url)
 
 
 def _build_safe_opener():
-    import urllib.request
-
-    class _Handler(_SafeRedirectHandler, urllib.request.HTTPRedirectHandler):
-        pass
-
-    return urllib.request.build_opener(_Handler)
+    return _SafeOpener()
 
 
 def _prefetch_url_to_temp(file_path):
@@ -520,7 +577,7 @@ def _prefetch_url_to_temp(file_path):
     read() in one shot -- file_path is LLM-controlled, so neither the final
     destination nor the response size can be trusted just because the
     initial URL passed _is_safe_url."""
-    if not (file_path.startswith("http://") or file_path.startswith("https://")):
+    if not (file_path.startswith(("http://", "https://"))):
         return file_path, False
 
     unsafe_reason = _is_safe_url(file_path)
@@ -529,35 +586,30 @@ def _prefetch_url_to_temp(file_path):
 
     import os
     import tempfile
-    import urllib.request
 
     clean = file_path.split("?")[0]
     ext = os.path.splitext(clean)[1] or ""
-    req = urllib.request.Request(file_path, headers={"User-Agent": "QGIS-AI-Assistant"})
+    req = _net_build_request(file_path, headers={"User-Agent": "QGIS-AI-Assistant"})
     opener = _build_safe_opener()
     fd, tmp_path = tempfile.mkstemp(suffix=ext)
     try:
-        # os.fdopen wraps the fd first, before the network call -- if
-        # opener.open() raised inside a combined `with a, b:` instead, the
-        # raw fd from mkstemp would never get closed on that path.
-        with os.fdopen(fd, "wb") as f:
-            with opener.open(req, timeout=60) as response:
-                total = 0
-                while True:
-                    chunk = response.read(65536)
-                    if not chunk:
-                        break
-                    total += len(chunk)
-                    if total > _MAX_DOWNLOAD_BYTES:
-                        raise ValueError(
-                            f"Download exceeded the {_MAX_DOWNLOAD_BYTES // (1024 * 1024)}MB size limit -- refusing to continue."
-                        )
-                    f.write(chunk)
+        # os.fdopen wraps the fd first, before the network call, so the raw fd from mkstemp is closed even
+        # when opener.open() raises: a combined `with` enters (and on error exits) its items in this order.
+        with os.fdopen(fd, "wb") as f, opener.open(req, timeout=60) as response:
+            total = 0
+            while True:
+                chunk = response.read(65536)
+                if not chunk:
+                    break
+                total += len(chunk)
+                if total > _MAX_DOWNLOAD_BYTES:
+                    raise ValueError(
+                        f"Download exceeded the {_MAX_DOWNLOAD_BYTES // (1024 * 1024)}MB size limit -- refusing to continue."
+                    )
+                f.write(chunk)
     except Exception:
-        try:
+        with contextlib.suppress(OSError):
             os.remove(tmp_path)
-        except OSError:
-            pass
         raise
     return tmp_path, True
 
@@ -642,14 +694,14 @@ def _describe_unreadable_download(path):
     if text.startswith(b"pk\x03\x04"):
         return ("The download is a zip archive, not a single geodata file. Load a direct link "
                 "to the file inside it, or a URL that serves the file itself.")
-    if text.startswith(b"<!doctype html") or text.startswith(b"<html") or b"<html" in text[:512]:
+    if text.startswith((b"<!doctype html", b"<html")) or b"<html" in text[:512]:
         return ("The URL returned an HTML web page, not geodata. For GitHub, use the "
                 "raw.githubusercontent.com link (the 'Raw' button), not the /blob/ page URL. "
                 "For other sites, use the direct download link.")
-    if text.startswith(b"<?xml") or text.startswith(b"<"):
+    if text.startswith((b"<?xml", b"<")):
         return ("The URL returned XML that GDAL could not read as a layer. It may be a "
                 "server error/exception report rather than data.")
-    if text.startswith(b"{") or text.startswith(b"["):
+    if text.startswith((b"{", b"[")):
         if size > 5 * 1024 * 1024:
             return None
         try:
@@ -670,8 +722,55 @@ def _describe_unreadable_download(path):
     return None
 
 
-@register_tool("add_layer_from_path", "Load vector or raster file from a local path or remote URL (e.g. a GeoJSON download link).", {"type": "object", "properties": {"file_path": {"type": "string"}, "layer_name": {"type": "string"}}, "required": ["file_path"]})
-def add_layer_from_path(file_path, layer_name=None, source_label=None):
+# Raster file types opened with QgsRasterLayer. rc42 added .vrt .hgt .bil .dem .grd (previously only the first nine, so a VRT or an
+# SRTM .hgt was tried as a vector and reported "Invalid layer"). Additive: every earlier extension is still here.
+RASTER_EXTENSIONS = (".tif", ".tiff", ".geotiff", ".img", ".asc", ".jp2", ".png", ".jpg", ".jpeg", ".vrt", ".hgt", ".bil", ".dem", ".grd",
+                     # Package C: formats GDAL reads as rasters when the build has the driver (ECW and MrSID often do not; then the layer is
+                     # reported invalid as before). NetCDF and GRIB can also be meshes: see MESH_EXTENSIONS.
+                     ".ecw", ".sid", ".nc", ".grb", ".grb2", ".grib", ".grib2", ".hdf", ".h5")
+# Tried with the MDAL mesh provider when the file has no raster bands (a NetCDF/GRIB holding an unstructured mesh) or is a mesh-only format.
+MESH_EXTENSIONS = (".nc", ".grb", ".grb2", ".grib", ".grib2", ".2dm", ".slf")
+
+
+def archive_source(local_path, ext):
+    """OGR source string for a file: a .zip is read in place through GDAL's /vsizip/ (a zipped shapefile or GeoPackage opens without
+    unzipping to disk, read-only, so a hostile archive cannot write anywhere); a .kmz is tried as itself first because the KML
+    drivers read it directly. Everything else is the path unchanged. Added rc42 (coverage audit 2026-10-14, 'open a zipped
+    shapefile'); before it a .zip was sent to the vector reader as a plain file and reported invalid. Pure string logic."""
+    if ext == ".zip" and not str(local_path).startswith("/vsi"):
+        return "/vsizip/" + str(local_path).replace("\\", "/")
+    return local_path
+
+
+def _other_sublayers_note(layer):
+    """When a vector file holds several layers, say so: the first was opened and the user may have meant another (coverage audit
+    2026-10-14, 'choose one layer inside a multi-layer container'). Never raises; None when there is nothing to add."""
+    try:
+        subs = layer.dataProvider().subLayers() if layer.isValid() else []
+        names = [str(s).split("!!::!!")[1] for s in subs if len(str(s).split("!!::!!")) > 1]
+    except Exception:
+        return None
+    if len(names) < 2:
+        return None
+    return (f"This file holds {len(names)} layers ({', '.join(names[:12])}{', ...' if len(names) > 12 else ''}); "
+            f"the first was opened. Ask for another by name (sublayer=...) if you meant a different one.")
+
+
+@register_tool("add_layer_from_path", "Load vector or raster file from a local path or remote URL (e.g. a GeoJSON download link).", {"type": "object", "properties": {"file_path": {"type": "string"}, "layer_name": {"type": "string"}, "sublayer": {"type": "string", "description": "name of ONE layer/table inside a multi-layer file (GeoPackage, FileGDB, KML, GPX, SpatiaLite); omit to open the first and be told what else the file holds"}}, "required": ["file_path"]},
+    # QGIS-vocabulary audit 2026-10-14 (docs/QGIS_COVERAGE_GAP_ANALYSIS_2026-10-14.md): the foundation tools had NO alias at all and were found
+    # only through accidental word overlap with their names and descriptions, which is what broke in rc23. Plain phrases, as people say them.
+    keywords=[
+        "add the shapefile", "add a shapefile", "add the geopackage", "import the gpx", "import the kml", "import the geojson",
+        "import the file", "import the shapefile", "open the file", "load the file", "open the shapefile", "load the shapefile",
+        "add the raster", "load the raster", "add the dem", "open the geotiff", "load the geojson", "add the geojson",
+        "add the gpx", "add the kml", "add this file", "load this file", ".shp", ".gpkg", ".geojson", ".tif", ".kml", ".gpx",
+        "from this url", "from the url", "download link", "create layer for", "add a layer", "add layer", "load a layer",
+        "load layer", "open a layer", "zipped shapefile", "zip file", "zipped file", "open the zip", "load the zip", ".zip",
+        ".kmz", "kmz file", "table from the geopackage", "table of the geopackage", "layer from the geopackage",
+        "layer inside the geopackage", "one layer of the file",
+    ],
+)
+def add_layer_from_path(file_path, layer_name=None, source_label=None, sublayer=None):
     """source_label is the original URL when agent_orchestrator.py has already downloaded
     it and file_path is the local temp copy. Without it, the default layer name and
     error messages came from the temp file ("tmp_2kgn_72") instead of the URL the model
@@ -698,13 +797,25 @@ def add_layer_from_path(file_path, layer_name=None, source_label=None):
         clean_path = label.split("?")[0]
         name = layer_name or os.path.splitext(os.path.basename(clean_path.rstrip("/")))[0] or "layer"
         ext = os.path.splitext(clean_path)[1].lower()
-        raster_exts = {".tif", ".tiff", ".geotiff", ".img", ".asc", ".jp2", ".png", ".jpg", ".jpeg"}
+        raster_exts = set(RASTER_EXTENSIONS)
 
         encoding_note = None
-        if ext in raster_exts:
-            layer = QgsRasterLayer(local_path, name)
+        sublayer_note = None
+        if ext in raster_exts or ext in MESH_EXTENSIONS:
+            layer = QgsRasterLayer(local_path, name) if ext in raster_exts else None
+            if ext in MESH_EXTENSIONS and (layer is None or not layer.isValid() or layer.bandCount() == 0):
+                mesh = QgsMeshLayer(local_path, name, "mdal")
+                if mesh.isValid() or layer is None:
+                    layer = mesh
         else:
-            layer = QgsVectorLayer(local_path, name, "ogr")
+            source = archive_source(local_path, ext)
+            layer = QgsVectorLayer(source, name, "ogr")
+            if layer_name is None and source != local_path and layer.isValid():
+                layer.setName(os.path.splitext(os.path.basename(clean_path.rstrip("/")))[0] or "layer")
+            if sublayer:
+                layer = QgsVectorLayer(f"{source}|layername={sublayer}", layer_name or str(sublayer), "ogr")
+            else:
+                sublayer_note = _other_sublayers_note(layer)
             if ext == ".shp":
                 encoding_note = _ensure_shapefile_encoding(layer, local_path)
 
@@ -719,6 +830,8 @@ def add_layer_from_path(file_path, layer_name=None, source_label=None):
         result = {"success": True, "layer_name": layer.name()}
         if encoding_note:
             result["encoding_note"] = encoding_note
+        if sublayer_note:
+            result["sublayer_note"] = sublayer_note
         if ext in _SPATIALITE_EXTS:
             spatial_index_note = _ensure_spatialite_index(layer)
             if spatial_index_note:
@@ -726,10 +839,8 @@ def add_layer_from_path(file_path, layer_name=None, source_label=None):
         return result
     finally:
         if is_temp:
-            try:
+            with contextlib.suppress(OSError):
                 os.remove(local_path)
-            except OSError:
-                pass
 
 
 # Ordered by confidence -- checked in this order, first exact (case-insensitive)
@@ -747,7 +858,7 @@ def _sniff_csv_header(file_path, delimiter=","):
     dependency isn't installed, or when the CSV wasn't attached through the
     chat UI at all (e.g. the user just names a path in a message)."""
     import csv
-    with open(file_path, "r", encoding="utf-8-sig", errors="ignore", newline="") as f:
+    with open(file_path, encoding="utf-8-sig", errors="ignore", newline="") as f:
         reader = csv.reader(f, delimiter=delimiter)
         return next(reader, [])
 
@@ -796,7 +907,7 @@ def _validate_wgs84_coordinates(x_values, y_values):
     other CRS since valid ranges vary."""
     if not x_values or not y_values:
         return None
-    pairs = list(zip(x_values, y_values))
+    pairs = list(zip(x_values, y_values, strict=False))
     bad = [(x, y) for x, y in pairs if not (-180 <= x <= 180 and -90 <= y <= 90)]
     if len(bad) > len(pairs) / 2:
         return (
@@ -819,7 +930,7 @@ def _sample_xy_values(file_path, ext, x_field, y_field, delimiter, sheet_name, l
     try:
         if ext == ".csv":
             import csv
-            with open(file_path, "r", encoding="utf-8-sig", errors="ignore", newline="") as f:
+            with open(file_path, encoding="utf-8-sig", errors="ignore", newline="") as f:
                 reader = csv.DictReader(f, delimiter=delimiter)
                 for i, row in enumerate(reader):
                     if i >= limit:
@@ -960,8 +1071,9 @@ def _load_excel_as_geometry_layer(file_path, name, sheet_name, x_field, y_field,
     "x_field/y_field or wkt_field to create a real point/geometry layer; if omitted, this tool "
     "tries to auto-detect common column names on its own (for both CSV and Excel) and reports what "
     "it used -- if it can't confidently guess, it returns FIELD_SUGGESTION with the real column "
-    "names instead of guessing wrong. Omit all three (or call again after a FIELD_SUGGESTION with "
-    "none set) to load it as a plain non-spatial attribute table.",
+    "names instead of guessing wrong. A file with no coordinate columns (a forecast, survey or 3W table) is "
+    "loaded as a plain non-spatial attribute table by passing as_table=true; omitting the coordinate arguments "
+    "alone just returns the suggestion again.",
     {
         "type": "object",
         "properties": {
@@ -973,11 +1085,17 @@ def _load_excel_as_geometry_layer(file_path, name, sheet_name, x_field, y_field,
             "sheet_name": {"type": "string", "description": "Sheet name for Excel files with multiple sheets. Defaults to the first sheet."},
             "crs": {"type": "string", "description": "CRS of x_field/y_field coordinates. Defaults to EPSG:4326."},
             "delimiter": {"type": "string", "description": "CSV field delimiter. Defaults to ','."},
+            "as_table": {"type": "boolean", "description": "true: load as a plain attribute table with no geometry (a forecast, survey or 3W file). Skips coordinate detection."},
         },
         "required": ["file_path"],
     },
+
+    keywords=[
+        "survey results in", "load the csv", "import the csv", "the csv with the", "results in smoke", "spreadsheet of",
+    ],
 )
-def load_tabular_data_as_layer(file_path, layer_name=None, x_field=None, y_field=None, wkt_field=None, sheet_name=None, crs="EPSG:4326", delimiter=","):
+def load_tabular_data_as_layer(file_path, layer_name=None, x_field=None, y_field=None, wkt_field=None, sheet_name=None, crs="EPSG:4326", delimiter=",",
+                               as_table=False):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
 
@@ -992,7 +1110,7 @@ def load_tabular_data_as_layer(file_path, layer_name=None, x_field=None, y_field
     name = layer_name or os.path.splitext(os.path.basename(file_path))[0] or "layer"
     auto_detected = None
 
-    if not (x_field or y_field or wkt_field):
+    if not (x_field or y_field or wkt_field or as_table):
         try:
             header = _sniff_csv_header(file_path, delimiter) if ext == ".csv" else _sniff_excel_header(file_path, sheet_name)
         except ImportError:
@@ -1011,7 +1129,7 @@ def load_tabular_data_as_layer(file_path, layer_name=None, x_field=None, y_field
                 "message": (
                     "Couldn't confidently auto-detect coordinate columns for a point layer. Call "
                     "again with x_field/y_field (or wkt_field) set to one of the columns below to "
-                    "create a point layer, or call again with all three omitted to load the FULL "
+                    "create a point layer, or call again with as_table=true to load the FULL "
                     "file as a non-spatial attribute table instead."
                 ),
                 "columns": header,
@@ -1052,16 +1170,28 @@ def load_tabular_data_as_layer(file_path, layer_name=None, x_field=None, y_field
         if not layer.isValid():
             return {"error": f"Could not load '{file_path}' as a layer -- check the file and field names are correct."}
 
+        # 1.18.2 hand test D5 (2026-10-26): the same CSV was loaded three times in one turn until the loop guard stopped it. Each call
+        # silently added another copy and said "success", so the model never learned the table was already there. A second identical
+        # load now adds nothing and says so.
+        for existing in QgsProject.instance().mapLayersByName(layer.name()):
+            if existing.source() == layer.source():
+                return {
+                    "success": True,
+                    "already_loaded": True,
+                    "layer_name": existing.name(),
+                    "feature_count": existing.featureCount(),
+                    "is_spatial": existing.isSpatial(),
+                    "note": f"'{existing.name()}' is already in the project from this file; nothing was added. Use that layer.",
+                }
+
         QgsProject.instance().addMapLayer(layer)
         if layer.isSpatial():
-            try:
+            with contextlib.suppress(Exception):
                 from .output_style import style_points_default
                 if layer.geometryType() == QgsWkbTypes.GeometryType.PointGeometry:
                     style_points_default(layer)   # one consistent point look instead of a random default colour
                     from .output_style import style_auto_labels
                     style_auto_labels(layer)      # facility names when the layer is small enough to read
-            except Exception:
-                pass
         result = {
             "success": True,
             "layer_name": layer.name(),
@@ -1096,6 +1226,11 @@ def load_tabular_data_as_layer(file_path, layer_name=None, x_field=None, y_field
         },
         "required": ["layer_name"],
     },
+    keywords=[
+        "with their names", "as labels", "with the names as labels", "label of the minutes", "with a label", "with the camp names", "with the town names",
+        "put the names", "show the names", "names on the map", "write the names", "name next to", "label each",
+        "show the name of each",
+    ],
 )
 def apply_labels(layer_name, target_field=None, expression=None, font_size=10, priority=5):
     if not QGIS_AVAILABLE:
@@ -1114,6 +1249,9 @@ def apply_labels(layer_name, target_field=None, expression=None, font_size=10, p
     # bad expression/missing field returns cleanly without partially building (and
     # discarding) a QgsPalLayerSettings/QgsTextFormat pair.
     if expression:
+        blocked = screen_expression(expression)
+        if blocked:
+            return {"error": blocked}
         parsed = QgsExpression(expression)
         if parsed.hasParserError():
             return {"error": f"Invalid expression: {parsed.parserErrorString()}"}
@@ -1127,10 +1265,8 @@ def apply_labels(layer_name, target_field=None, expression=None, font_size=10, p
     settings = QgsPalLayerSettings()
     text_format = QgsTextFormat()
     if QFont is not None:
-        try:
+        with contextlib.suppress(Exception):
             text_format.setFont(QFont("Source Sans 3", int(font_size)))
-        except Exception:
-            pass
     text_format.setColor(QColor("#1C1C1E"))
     text_format.setSize(font_size)
 
@@ -1140,9 +1276,9 @@ def apply_labels(layer_name, target_field=None, expression=None, font_size=10, p
     buffer_settings = QgsTextBufferSettings()
     buffer_settings.setEnabled(True)
     buffer_settings.setSize(0.8)
-    buffer_settings.setSizeUnit(QgsUnitTypes.RenderMillimeters)
+    buffer_settings.setSizeUnit(QgsUnitTypes.RenderUnit.RenderMillimeters)
     buffer_settings.setColor(QColor(255, 255, 255, 204))
-    buffer_settings.setJoinStyle(Qt.PenJoinStyle.RoundJoin if hasattr(Qt, "PenJoinStyle") else Qt.RoundJoin)
+    buffer_settings.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
     text_format.setBuffer(buffer_settings)
     settings.setFormat(text_format)
 
@@ -1195,7 +1331,13 @@ def apply_labels(layer_name, target_field=None, expression=None, font_size=10, p
     }
 
 
-@register_tool("clip_layer", "Clip vector layer by mask layer.", {"type": "object", "properties": {"input_layer": {"type": "string"}, "mask_layer": {"type": "string"}}, "required": ["input_layer", "mask_layer"]})
+@register_tool("clip_layer", "Clip vector layer by mask layer.", {"type": "object", "properties": {"input_layer": {"type": "string"}, "mask_layer": {"type": "string"}}, "required": ["input_layer", "mask_layer"]},
+    keywords=[
+        "clip the", "clip layer", "cut the layer to", "crop the layer", "clip to the boundary", "clip by the boundary",
+        "cut the ", "cut out", "trim the ", "crop the", "crop to",
+        "cut to the",
+    ],
+)
 def clip_layer(input_layer, mask_layer):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
@@ -1217,7 +1359,12 @@ def clip_layer(input_layer, mask_layer):
     return res
 
 
-@register_tool("intersect_layers", "Intersection of two vector layers.", {"type": "object", "properties": {"layer1": {"type": "string"}, "layer2": {"type": "string"}}, "required": ["layer1", "layer2"]})
+@register_tool("intersect_layers", "Intersection of two vector layers.", {"type": "object", "properties": {"layer1": {"type": "string"}, "layer2": {"type": "string"}}, "required": ["layer1", "layer2"]},
+    keywords=[
+        "intersect the", "intersection of", "where the two layers overlap", "overlap of the", "common area of",
+        "inside the flood", "that are inside the", "overlap between", "where the layers overlap",
+    ],
+)
 def intersect_layers(layer1, layer2):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
@@ -1239,7 +1386,11 @@ def intersect_layers(layer1, layer2):
     return res
 
 
-@register_tool("union_layers", "Geometric union of two vector layers.", {"type": "object", "properties": {"layer1": {"type": "string"}, "layer2": {"type": "string"}}, "required": ["layer1", "layer2"]})
+@register_tool("union_layers", "Geometric union of two vector layers.", {"type": "object", "properties": {"layer1": {"type": "string"}, "layer2": {"type": "string"}}, "required": ["layer1", "layer2"]},
+    keywords=[
+        "union of", "union the", "overlay union",
+    ],
+)
 def union_layers(layer1, layer2):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
@@ -1275,6 +1426,10 @@ def union_layers(layer1, layer2):
         },
         "required": ["input_layer", "overlay_layer"],
     },
+    keywords=[
+        "difference of", "difference between the layers", "erase the", "cut out the", "subtract the", "everything outside",
+        "remove the lake area", "cut out the area of", "take away the area",
+    ],
 )
 def difference_layers(input_layer, overlay_layer, symmetric=False):
     if not QGIS_AVAILABLE:
@@ -1305,6 +1460,9 @@ def difference_layers(input_layer, overlay_layer, symmetric=False):
     "polygon containing all of them. Useful for catchment/coverage-area style analysis (e.g. the "
     "outer boundary of a set of service points).",
     {"type": "object", "properties": {"layer_name": {"type": "string"}}, "required": ["layer_name"]},
+    keywords=[
+        "convex hull", "smallest polygon around", "outline around the points", "hull of the",
+    ],
 )
 def convex_hull(layer_name):
     if not QGIS_AVAILABLE:
@@ -1373,8 +1531,9 @@ def delaunay_triangulation(layer_name):
 @register_tool(
     "find_nearest_features",
     "For each feature in input_layer, find the nearest feature(s) in near_layer and join it "
-    "(distance in meters, plus the nearest feature's attributes) -- e.g. 'nearest hospital to "
-    "each village'. Creates a new layer; input_layer and near_layer are unchanged.",
+    "(plus the nearest feature's attributes) -- e.g. 'nearest hospital to each village'. The 'distance' field is in the "
+    "layer's own CRS units; distance_m is added in real metres (ellipsoidal) whenever those units are not metres, so use "
+    "distance_m when the layers are in latitude/longitude. Creates a new layer; input_layer and near_layer are unchanged.",
     {
         "type": "object",
         "properties": {
@@ -1384,6 +1543,11 @@ def delaunay_triangulation(layer_name):
         },
         "required": ["input_layer", "near_layer"],
     },
+
+    keywords=[
+        "closest health centre", "closest health center", "closest clinic", "nearest clinic", "closest hospital",
+        "nearest hospital", "nearest health", "closest to each", "nearest to each",
+    ],
 )
 def find_nearest_features(input_layer, near_layer, neighbors=1):
     if not QGIS_AVAILABLE:
@@ -1412,7 +1576,44 @@ def find_nearest_features(input_layer, near_layer, neighbors=1):
     )
     if isinstance(res, dict) and crs_info.get("warning"):
         res["crs_warning"] = crs_info["warning"]
+    if isinstance(res, dict) and res.get("success"):
+        # Self-audit round 2 (2026-10-26), the same class as the route-risk buffer in degrees: native:joinbynearest writes 'distance' in
+        # the input layer's CRS units, so on an EPSG:4326 layer "distance in meters" was a number of degrees.
+        res.update(_add_metre_distance(res.get("layer_name"), a))
     return res
+
+
+def _add_metre_distance(result_name, source_layer):
+    """Adds distance_m (ellipsoidal metres between each feature and its nearest match) to a joinbynearest result when the source CRS is
+    not metric. Returns the keys to merge into the tool result (a note, or a warning when it could not be added). Never raises."""
+    try:
+        layer = _find_layer_by_name(result_name) if result_name else None
+        if layer is None:
+            return {}
+        crs = source_layer.crs()
+        if crs.isValid() and not crs.isGeographic() and crs.mapUnits() == Qgis.DistanceUnit.Meters:
+            return {}
+        names = [f.name() for f in layer.fields()]
+        needed = ("feature_x", "feature_y", "nearest_x", "nearest_y")
+        if any(n not in names for n in needed):
+            return {"distance_warning": "'distance' is in the layer's CRS units (degrees for latitude/longitude); distance_m could not be added."}
+        area = QgsDistanceArea()
+        area.setSourceCrs(crs, QgsProject.instance().transformContext())
+        ellipsoid = QgsProject.instance().ellipsoid()
+        area.setEllipsoid(ellipsoid if ellipsoid and ellipsoid != "NONE" else "WGS84")
+        from ._edit_session import add_numeric_field, edit_command
+        with edit_command(layer, "Cartogen: distance in metres"):
+            idx = add_numeric_field(layer, "distance_m")
+            for feat in layer.getFeatures():
+                values = [feat[n] for n in needed]
+                if any(v is None for v in values):
+                    continue
+                metres = area.measureLine(QgsPointXY(values[0], values[1]), QgsPointXY(values[2], values[3]))
+                layer.changeAttributeValue(feat.id(), idx, round(float(metres), 2))
+        return {"distance_note": f"distance_m holds real metres; 'distance' is in the CRS units of {crs.authid()}."}
+    except Exception as e:
+        log_event("swallowed_exception", tag="Tools", tool="nearest_distance_m", error_class=type(e).__name__, error=True)
+        return {"distance_warning": "'distance' is in the layer's CRS units (degrees for latitude/longitude); distance_m could not be added."}
 
 
 @register_tool(
@@ -1448,6 +1649,10 @@ def convert_to_singlepart(layer_name):
         },
         "required": ["layer_name", "tolerance"],
     },
+    keywords=[
+        "simplify", "generalize", "generalise", "reduce the vertices", "reduce the number of vertices", "reduce detail",
+        "less detailed", "make the boundaries simpler", "generalise the", "generalize the", "simplify the",
+    ],
 )
 def simplify_geometry(layer_name, tolerance):
     if not QGIS_AVAILABLE:
@@ -1457,6 +1662,9 @@ def simplify_geometry(layer_name, tolerance):
     layer = _find_layer_by_name(layer_name)
     if layer is None:
         return {"error": f"Layer '{layer_name}' not found"}
+    problem = degrees_value_problem(layer, tolerance, "the tolerance")
+    if problem:
+        return {"error": problem}
     return _run_and_add(
         "native:simplifygeometries",
         {"INPUT": layer, "METHOD": 0, "TOLERANCE": tolerance, "OUTPUT": "memory:"},
@@ -1505,6 +1713,13 @@ def _compute_field_statistics(values):
         },
         "required": ["layer_name", "field"],
     },
+    keywords=[
+        "count the people with the population column", "sum of the population column", "total of the pop column",
+        "statistics of the", "statistics for the", "summary statistics", "basic statistics", "mean of the", "average of the",
+        "sum of the", "minimum of", "maximum of", "unique values", "how many unique", "min and max",
+        "average values of", "average of each column", "mean of each column", "summary of the columns", "column statistics",
+        "statistics of each column", "min and max of",
+    ],
 )
 def field_statistics(layer_name, field):
     if not QGIS_AVAILABLE:
@@ -1515,7 +1730,7 @@ def field_statistics(layer_name, field):
     if field not in [f.name() for f in layer.fields()]:
         return {"error": f"Field '{field}' not found in '{layer_name}'"}
 
-    values = [float(feat[field]) for feat in layer.getFeatures() if isinstance(feat[field], (int, float))]
+    values = [float(feat[field]) for feat in _ck.features(layer, "Vector: reading features") if isinstance(feat[field], (int, float))]
     stats = _compute_field_statistics(values)
     if stats is None:
         return {"error": f"No numeric values found in field '{field}'."}
@@ -1554,6 +1769,13 @@ _SELECT_METHODS = {"new": 0, "add": 1, "remove": 2, "intersect": 3}
         },
         "required": ["target_layer", "reference_layer"],
     },
+    keywords=[
+        "fall inside", "fall within", "which towns fall", "inside the flood extent", "are inside the flood", "select the villages inside", "those circles",
+        "select by location", "select the points inside", "select points inside", "select features inside",
+        "select features within", "select the features within", "select the features that intersect",
+        "select features that intersect", "select the ones inside", "intersecting the",
+        "that are over water", "that fall inside the", "that touch the", "that intersect the",
+    ],
 )
 def select_by_location(target_layer, reference_layer, predicate="intersects", method="new"):
     if not QGIS_AVAILABLE:
@@ -1587,6 +1809,10 @@ def select_by_location(target_layer, reference_layer, predicate="intersects", me
     "Invert the current feature selection on a layer -- previously unselected features become "
     "selected and vice versa.",
     {"type": "object", "properties": {"layer_name": {"type": "string"}}, "required": ["layer_name"]},
+    keywords=[
+        "invert the selection", "invert selection", "reverse the selection", "select the opposite", "select everything else",
+        "select the rest",
+    ],
 )
 def invert_selection(layer_name):
     if not QGIS_AVAILABLE:
@@ -1601,7 +1827,12 @@ def invert_selection(layer_name):
         return {"error": f"invert_selection failed: {e}"}
 
 
-@register_tool("dissolve_layer", "Dissolve vector features optionally grouped by field.", {"type": "object", "properties": {"layer_name": {"type": "string"}, "field": {"type": "string"}}, "required": ["layer_name"]})
+@register_tool("dissolve_layer", "Dissolve vector features optionally grouped by field.", {"type": "object", "properties": {"layer_name": {"type": "string"}, "field": {"type": "string"}}, "required": ["layer_name"]},
+    keywords=[
+        "into one study area", "one study area polygon", "merge them into one polygon", "into a single polygon", "into one polygon",
+        "dissolve", "merge the polygons by", "aggregate the polygons", "combine the polygons by",
+    ],
+)
 def dissolve_layer(layer_name, field=None):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
@@ -1616,7 +1847,12 @@ def dissolve_layer(layer_name, field=None):
     return _run_and_add("native:dissolve", params, f"{layer_name}_dissolved")
 
 
-@register_tool("merge_layers", "Merge multiple vector layers into one.", {"type": "object", "properties": {"layer_names_list": {"type": "array", "items": {"type": "string"}}}, "required": ["layer_names_list"]})
+@register_tool("merge_layers", "Merge multiple vector layers into one.", {"type": "object", "properties": {"layer_names_list": {"type": "array", "items": {"type": "string"}}}, "required": ["layer_names_list"]},
+    keywords=[
+        "merge the", "merge layers", "merge these layers", "combine the layers", "combine layers", "append the layers",
+        "put the layers together",
+    ],
+)
 def merge_layers(layer_names_list):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
@@ -1635,7 +1871,15 @@ def merge_layers(layer_names_list):
     )
 
 
-@register_tool("spatial_join", "Join attributes from one layer to another by spatial location.", {"type": "object", "properties": {"target_layer": {"type": "string"}, "join_layer": {"type": "string"}}, "required": ["target_layer", "join_layer"]})
+@register_tool("spatial_join", "Join attributes from one layer to another by spatial location.", {"type": "object", "properties": {"target_layer": {"type": "string"}, "join_layer": {"type": "string"}}, "required": ["target_layer", "join_layer"]},
+    keywords=[
+        "count them per district", "count them in each", "how many in each district", "number of facilities per district", "facilities each district has", "facilities per district",
+        "spatial join", "join by location", "join based on location", "join the attributes by location",
+        "which polygon each point", "assign the district to each", "tag each point with",
+        "attach the name", "attach the district", "add the district name to each", "which district each point is in", "copy the attributes from",
+        "transfer the attributes",
+    ],
+)
 def spatial_join(target_layer, join_layer):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
@@ -1683,6 +1927,10 @@ def spatial_join(target_layer, join_layer):
         },
         "required": ["target_layer", "join_layer"],
     },
+    keywords=[
+        "join the table", "join a table", "join the csv", "join by field", "join by attribute", "attribute join", "join on the",
+        "join the spreadsheet", "add the columns from", "table join",
+    ],
 )
 def join_by_attribute(target_layer, join_layer, target_field=None, join_field=None):
     if not QGIS_AVAILABLE:
@@ -1724,7 +1972,8 @@ def join_by_attribute(target_layer, join_layer, target_field=None, join_field=No
     # Cardinality check: if the join field isn't unique on the join-layer side, the join will
     # duplicate features on the target side -- warn rather than silently producing surprise duplicates.
     cardinality_warning = None
-    try:
+    # best-effort; don't block the join if the cardinality check itself fails
+    with contextlib.suppress(Exception):
         join_idx = b.fields().indexOf(join_field)
         total_features = b.featureCount()
         unique_count = len(b.uniqueValues(join_idx))
@@ -1734,8 +1983,6 @@ def join_by_attribute(target_layer, join_layer, target_field=None, join_field=No
                 f"values across {total_features} features) -- this join may duplicate features on "
                 f"'{target_layer}' (1-to-many), not a clean 1-to-1 join."
             )
-    except Exception:
-        pass  # best-effort; don't block the join if the cardinality check itself fails
 
     res = _run_and_add(
         "native:joinattributestable",
@@ -1775,6 +2022,9 @@ def _add_calculated_field(layer, field_name, expression_text=None, value_fn=None
         expression = None
         context = None
         if value_fn is None:
+            blocked = screen_expression(expression_text)
+            if blocked:
+                return {"error": blocked}
             expression = QgsExpression(expression_text)
             if expression.hasParserError():
                 return {"error": f"Invalid expression: {expression.parserErrorString()}"}
@@ -1785,7 +2035,7 @@ def _add_calculated_field(layer, field_name, expression_text=None, value_fn=None
         written = 0
         with edit_command(layer, "Cartogen AI: write field " + field_name) as owned:
             field_idx = add_numeric_field(layer, field_name)
-            for feature in layer.getFeatures():
+            for feature in _ck.features(layer, "Vector: reading features"):
                 if value_fn is not None:
                     value = value_fn(feature)
                 else:
@@ -1862,7 +2112,12 @@ def calculate_area(layer_name, confirmed: bool = False):
 @register_tool("calculate_length", "Calculate line length in meters and write it into a new "
     "'length_m' field on the layer. Destructive action requiring UI confirmation -- same underlying "
     "operation as field_calculator (in-place attribute mutation on the live layer).",
-    {"type": "object", "properties": {"layer_name": {"type": "string"}}, "required": ["layer_name"]})
+    {"type": "object", "properties": {"layer_name": {"type": "string"}}, "required": ["layer_name"]},
+    keywords=[
+        "how long is each", "length of each", "length of the roads", "total length", "length in kilometres",
+        "length in meters",
+    ],
+)
 def calculate_length(layer_name, confirmed: bool = False):
     if not confirmed:
         return {
@@ -1881,7 +2136,11 @@ def calculate_length(layer_name, confirmed: bool = False):
     return _add_calculated_field(layer, "length_m", value_fn=_si_measure_fn(layer, "length"))
 
 
-@register_tool("centroid", "Generate centroid points for polygon layer.", {"type": "object", "properties": {"layer_name": {"type": "string"}}, "required": ["layer_name"]})
+@register_tool("centroid", "Generate centroid points for polygon layer.", {"type": "object", "properties": {"layer_name": {"type": "string"}}, "required": ["layer_name"]},
+    keywords=[
+        "centroid", "centroids", "center point of", "centre point of", "middle point of",
+    ],
+)
 def centroid(layer_name):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
@@ -1895,7 +2154,14 @@ def centroid(layer_name):
     )
 
 
-@register_tool("reproject_layer", "Reproject layer to target CRS code (e.g. 'EPSG:4326').", {"type": "object", "properties": {"layer_name": {"type": "string"}, "crs_code": {"type": "string"}}, "required": ["layer_name", "crs_code"]})
+@register_tool("reproject_layer", "Reproject layer to target CRS code (e.g. 'EPSG:4326').", {"type": "object", "properties": {"layer_name": {"type": "string"}, "crs_code": {"type": "string"}}, "required": ["layer_name", "crs_code"]},
+    keywords=[
+        "reproject", "re-project", "change the projection", "transform the layer to", "convert the layer to epsg", "to utm",
+        "to epsg", "change the crs of the layer to", "convert to utm",
+        "different coordinate system", "another coordinate system", "other coordinate system", "convert to another crs", "switch the crs",
+        "change the crs",
+    ],
+)
 def reproject_layer(layer_name, crs_code):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
@@ -1912,7 +2178,13 @@ def reproject_layer(layer_name, crs_code):
     )
 
 
-@register_tool("fix_geometries", "Fix invalid geometries in vector layer.", {"type": "object", "properties": {"layer_name": {"type": "string"}}, "required": ["layer_name"]})
+@register_tool("fix_geometries", "Fix invalid geometries in vector layer.", {"type": "object", "properties": {"layer_name": {"type": "string"}}, "required": ["layer_name"]},
+    keywords=[
+        "fix geometries", "fix invalid", "repair the geometries", "repair invalid", "invalid geometries",
+        "make the geometries valid", "fix the geometry errors",
+        "repair the broken", "fix the broken", "invalid polygons", "repair geometry",
+    ],
+)
 def fix_geometries(layer_name):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
@@ -1926,7 +2198,12 @@ def fix_geometries(layer_name):
     )
 
 
-@register_tool("select_by_attribute", "Select features matching specific field value.", {"type": "object", "properties": {"layer_name": {"type": "string"}, "field": {"type": "string"}, "value": {"type": "string"}}, "required": ["layer_name", "field", "value"]})
+@register_tool("select_by_attribute", "Select features matching specific field value.", {"type": "object", "properties": {"layer_name": {"type": "string"}, "field": {"type": "string"}, "value": {"type": "string"}}, "required": ["layer_name", "field", "value"]},
+    keywords=[
+        "select the features named", "select features named", "select the district named", "select by name",
+        "select by attribute", "select the feature with", "select the districts named",
+    ],
+)
 def select_by_attribute(layer_name, field, value):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
@@ -1943,7 +2220,14 @@ def select_by_attribute(layer_name, field, value):
     return {"success": True, "count": layer.selectedFeatureCount(), "layer_name": layer_name, "expression": expr}
 
 
-@register_tool("field_calculator", "Calculate or add field using QGIS expression. Destructive action requiring UI confirmation.", {"type": "object", "properties": {"layer_name": {"type": "string"}, "new_field": {"type": "string"}, "expression": {"type": "string"}}, "required": ["layer_name", "new_field", "expression"]})
+@register_tool("field_calculator", "Calculate or add field using QGIS expression. Destructive action requiring UI confirmation.", {"type": "object", "properties": {"layer_name": {"type": "string"}, "new_field": {"type": "string"}, "expression": {"type": "string"}}, "required": ["layer_name", "new_field", "expression"]},
+    keywords=[
+        "calculate a field", "calculate the field", "add a field", "new field", "field calculator", "update the field",
+        "fill the field", "set the field", "calculate a new field", "with an expression", "using an expression",
+        "from an expression", "compute a field", "add a column", "new column",
+        "number them", "unique id", "unique number", "sequential number", "number each",
+    ],
+)
 def field_calculator(layer_name, new_field, expression, confirmed: bool = False):
     if not confirmed:
         return {
@@ -1964,7 +2248,11 @@ def field_calculator(layer_name, new_field, expression, confirmed: bool = False)
     return _add_calculated_field(layer, new_field, expression)
 
 
-@register_tool("get_feature_count", "Get total feature count in a layer.", {"type": "object", "properties": {"layer_name": {"type": "string"}}, "required": ["layer_name"]})
+@register_tool("get_feature_count", "Get total feature count in a layer.", {"type": "object", "properties": {"layer_name": {"type": "string"}}, "required": ["layer_name"]},
+    keywords=[
+        "how many features", "feature count", "count the features", "number of features", "how many records", "how many rows",
+    ],
+)
 def get_feature_count(layer_name):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
@@ -1974,7 +2262,11 @@ def get_feature_count(layer_name):
     return {"layer_name": layer_name, "feature_count": layer.featureCount()}
 
 
-@register_tool("open_attribute_table", "Open attribute table GUI for layer.", {"type": "object", "properties": {"layer_name": {"type": "string"}}, "required": ["layer_name"]})
+@register_tool("open_attribute_table", "Open attribute table GUI for layer.", {"type": "object", "properties": {"layer_name": {"type": "string"}}, "required": ["layer_name"]},
+    keywords=[
+        "open the attribute table", "show the attribute table", "attribute table of", "open the table",
+    ],
+)
 def open_attribute_table(layer_name):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
@@ -2002,10 +2294,19 @@ def open_attribute_table(layer_name):
         },
         "required": ["layer_name"],
     },
+    keywords=[
+        "zoom to the feature", "zoom to feature", "zoom to the district", "zoom to the selected", "zoom to selection",
+        "zoom to the selection", "zoom to where", "zoom to the city of",
+    ],
 )
 def zoom_to_feature(layer_name, feature_id=None, expression=None):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
+    # Screen first: the live CI run of the expression-screen test found this tool reporting "interface not available" for a denied
+    # expression, i.e. the safety check sat behind an unrelated precondition. A refusal must not depend on what else is missing.
+    blocked = screen_expression(expression) if expression else None
+    if blocked:
+        return {"error": blocked}
     if iface is None:
         return {"error": "QGIS interface not available"}
     layer = _find_layer_by_name(layer_name)
@@ -2018,6 +2319,9 @@ def zoom_to_feature(layer_name, feature_id=None, expression=None):
         return {"error": "Provide only one of feature_id or expression, not both."}
 
     if expression:
+        blocked = screen_expression(expression)
+        if blocked:
+            return {"error": blocked}
         expr = QgsExpression(expression)
         if expr.hasParserError():
             return {"error": f"Invalid expression: {expr.parserErrorString()}"}
@@ -2042,13 +2346,20 @@ def zoom_to_feature(layer_name, feature_id=None, expression=None):
         return {"error": "Feature has no geometry"}
     canvas = iface.mapCanvas()
     extent = _extent_to_canvas_crs(canvas, geom.boundingBox(), layer.crs())
+    if extent is None:
+        return {"error": f"Could not transform the feature from {layer.crs().authid()} into the map CRS, so the view was not changed."}
     canvas.setExtent(extent)
     canvas.refresh()
     layer.selectByIds([fid])
     return {"success": True, "layer_name": layer_name, "feature_id": fid}
 
 
-@register_tool("get_crs", "Get CRS authid, description, and units for layer.", {"type": "object", "properties": {"layer_name": {"type": "string"}}, "required": ["layer_name"]})
+@register_tool("get_crs", "Get CRS authid, description, and units for layer.", {"type": "object", "properties": {"layer_name": {"type": "string"}}, "required": ["layer_name"]},
+    keywords=[
+        "what crs", "which crs", "what is the crs", "what projection", "which projection", "what coordinate system",
+        "which coordinate system", "crs of the layer",
+    ],
+)
 def get_crs(layer_name):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
@@ -2088,6 +2399,10 @@ def get_crs(layer_name):
         },
         "required": ["layer_name"],
     },
+
+    keywords=[
+        "overlaps and gaps", "check the topology", "topology errors", "gaps and overlaps", "slivers",
+    ],
 )
 def diagnose_topology(layer_name, min_area=None):
     if not QGIS_AVAILABLE:
@@ -2105,12 +2420,14 @@ def diagnose_topology(layer_name, min_area=None):
     wkt_to_fids = {}
     polygon_geoms_by_fid = {}
 
-    for feature in layer.getFeatures():
+    for feature in _ck.features(layer, "Vector: reading features"):
         geom = feature.geometry()
         if geom is None or geom.isEmpty():
             invalid_count += 1
             continue
-        if not geom.isGeomValid():
+        # QgsGeometry has isGeosValid(); isGeomValid() does not exist (found 2026-10-16 by checking the call against the QGIS 4.2 API
+        # reference: the unit test used a MagicMock, which accepts any method name, so it never noticed)
+        if not geom.isGeosValid():
             invalid_count += 1
         if geom.type() == 2 and geom.area() == 0:  # Polygon geometry with zero area
             zero_area_count += 1
@@ -2178,7 +2495,12 @@ def diagnose_topology(layer_name, min_area=None):
     return result
 
 
-@register_tool("verify_crs_compatibility", "Check if two layers share compatible Coordinate Reference Systems.", {"type": "object", "properties": {"layer1": {"type": "string"}, "layer2": {"type": "string"}}, "required": ["layer1", "layer2"]})
+@register_tool("verify_crs_compatibility", "Check if two layers share compatible Coordinate Reference Systems.", {"type": "object", "properties": {"layer1": {"type": "string"}, "layer2": {"type": "string"}}, "required": ["layer1", "layer2"]},
+    keywords=[
+        "line up", "same projection", "same coordinate system", "compatible projections", "crs match",
+        "do the layers match",
+    ],
+)
 def verify_crs_compatibility(layer1, layer2):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
@@ -2232,6 +2554,44 @@ def _grid_snap(x, y, cell_size):
     return (cell_x + 0.5) * cell_size, (cell_y + 0.5) * cell_size
 
 
+def _geometry_points(geom):
+    """The points of a Point or MultiPoint geometry as [QgsPointXY], one per part. A point feature has one."""
+    return list(geom.asMultiPoint()) if geom.isMultipart() else [geom.asPoint()]
+
+
+def _admin_unit_centroid(geom, index, admin_features_by_id, to_admin, to_layer):
+    """The centroid (in the point layer's CRS) of the admin polygon containing `geom`, or None when no polygon matches or the CRS transform
+    fails. The match runs in the admin layer's CRS (`to_admin` moves the point there, `to_layer` brings the centroid back; both None when the
+    two layers share a CRS), because the spatial index and polygons are in that CRS (PLAN-010)."""
+    probe = QgsGeometry(geom)
+    try:
+        if to_admin is not None:
+            probe.transform(to_admin)
+    except Exception:    # QgsCsException: the point cannot be expressed in the admin CRS, so it cannot be matched
+        return None
+    for fid in index.intersects(probe.boundingBox()):
+        candidate = admin_features_by_id[fid].geometry()
+        if candidate.contains(probe) or candidate.intersects(probe):
+            centroid = candidate.centroid().asPoint()
+            point = QgsPointXY(centroid.x(), centroid.y())
+            if to_layer is None:
+                return point
+            try:
+                return to_layer.transform(point)
+            except Exception:
+                return None
+    return None
+
+
+def _obfuscation_size_problem(layer, method, radius, cell_size):
+    """Degrees-versus-metres refusal for the blur size of a jitter or grid_snap run on a latitude/longitude layer, else None."""
+    if method == "jitter" and radius:
+        return degrees_value_problem(layer, radius, "the radius")
+    if method == "grid_snap" and cell_size:
+        return degrees_value_problem(layer, cell_size, "the cell size")
+    return None
+
+
 @register_tool(
     "obfuscate_sensitive_points",
     "Displace or aggregate sensitive point locations (e.g. GBV survivors, individual IDP "
@@ -2248,7 +2608,8 @@ def _grid_snap(x, y, cell_size):
     "individual-point identity rather than just displacing it; cell_size is also in the layer's "
     "own CRS units), or 'admin_unit_snap' (moves each point to the centroid of the admin-boundary "
     "polygon it falls within, from a separate polygon layer). The method and its parameter are "
-    "always included in the output so they're disclosable in any report alongside the map.",
+    "always included in the output so they're disclosable in any report alongside the map. A MultiPoint feature is "
+    "obfuscated part by part and written as one output point per part, with the same attributes.",
     {
         "type": "object",
         "properties": {
@@ -2275,8 +2636,15 @@ def obfuscate_sensitive_points(layer_name, method, radius=None, cell_size=None, 
     if layer is None:
         return {"error": f"Layer '{layer_name}' not found"}
     if QgsWkbTypes.geometryType(layer.wkbType()) != QgsWkbTypes.GeometryType.PointGeometry:
+        if not layer.isSpatial():
+            # 1.18.3 hand test D8: a CSV loaded as a plain table has no geometry; say how to get points instead of "not a point layer".
+            return {"error": f"'{layer_name}' has no geometry (it is a plain table). Load the file again with its longitude and latitude "
+                             "columns as x_field and y_field to get a point layer, then run obfuscate_sensitive_points on that."}
         return {"error": f"'{layer_name}' is not a point layer -- obfuscate_sensitive_points only handles point geometries."}
 
+    problem = _obfuscation_size_problem(layer, method, radius, cell_size)
+    if problem:
+        return {"error": problem}
     admin_layer = None
     if method == "jitter":
         if not radius or radius <= 0:
@@ -2296,49 +2664,51 @@ def obfuscate_sensitive_points(layer_name, method, radius=None, cell_size=None, 
     out_name = output_layer_name or f"{layer_name}_obfuscated"
     crs = layer.crs().authid()
     new_layer = QgsVectorLayer(f"Point?crs={crs}", out_name, "memory")
+    require_valid_layer(new_layer)
     provider = new_layer.dataProvider()
     provider.addAttributes(layer.fields())
     new_layer.updateFields()
 
     index = None
     admin_features_by_id = None
+    to_admin = to_layer = None
     if method == "admin_unit_snap":
         index = QgsSpatialIndex(admin_layer.getFeatures())
-        admin_features_by_id = {f.id(): f for f in admin_layer.getFeatures()}
+        admin_features_by_id = {f.id(): f for f in _ck.features(admin_layer, "Vector: reading features")}
+        # PLAN-010: the polygons are indexed and matched in THEIR CRS, so a point in another CRS was tested against the wrong coordinates (no
+        # match, or the wrong unit) and the centroid was written into the point layer's CRS untransformed. Match in the admin CRS, write back
+        # in the point layer's CRS.
+        if admin_layer.crs() != layer.crs():
+            to_admin = QgsCoordinateTransform(layer.crs(), admin_layer.crs(), QgsProject.instance())
+            to_layer = QgsCoordinateTransform(admin_layer.crs(), layer.crs(), QgsProject.instance())
 
-    rng = random.Random(seed)
+    rng = random.Random(seed)  # noqa: S311  # nosec B311 (seeded sampling for reproducibility, not security)
     new_features = []
     unmatched_count = 0
 
-    for feat in layer.getFeatures():
+    for feat in _ck.features(layer, "Vector: reading features"):
         geom = feat.geometry()
         if geom is None or geom.isEmpty():
             continue
-        pt = geom.asPoint()
+        # PLAN-012 item 1: a MultiPoint feature has several points; asPoint() raises on it (QGIS 4.2 live CI: "MultiPoint geometry cannot be
+        # converted to a point"). Each part is obfuscated on its own and written as its own feature with the same attributes.
+        for pt in _geometry_points(geom):
+            if method == "jitter":
+                dx, dy = _uniform_disk_offset(radius, rng)
+                new_pt = QgsPointXY(pt.x() + dx, pt.y() + dy)
+            elif method == "grid_snap":
+                nx, ny = _grid_snap(pt.x(), pt.y(), cell_size)
+                new_pt = QgsPointXY(nx, ny)
+            else:  # admin_unit_snap
+                new_pt = _admin_unit_centroid(QgsGeometry.fromPointXY(pt), index, admin_features_by_id, to_admin, to_layer)
+                if new_pt is None:
+                    unmatched_count += 1
+                    continue
 
-        if method == "jitter":
-            dx, dy = _uniform_disk_offset(radius, rng)
-            new_pt = QgsPointXY(pt.x() + dx, pt.y() + dy)
-        elif method == "grid_snap":
-            nx, ny = _grid_snap(pt.x(), pt.y(), cell_size)
-            new_pt = QgsPointXY(nx, ny)
-        else:  # admin_unit_snap
-            matched_geom = None
-            for fid in index.intersects(geom.boundingBox()):
-                candidate_geom = admin_features_by_id[fid].geometry()
-                if candidate_geom.contains(geom) or candidate_geom.intersects(geom):
-                    matched_geom = candidate_geom
-                    break
-            if matched_geom is None:
-                unmatched_count += 1
-                continue
-            centroid = matched_geom.centroid().asPoint()
-            new_pt = QgsPointXY(centroid.x(), centroid.y())
-
-        new_feat = QgsFeature(new_layer.fields())
-        new_feat.setGeometry(QgsGeometry.fromPointXY(new_pt))
-        new_feat.setAttributes(feat.attributes())
-        new_features.append(new_feat)
+            new_feat = QgsFeature(new_layer.fields())
+            new_feat.setGeometry(QgsGeometry.fromPointXY(new_pt))
+            new_feat.setAttributes(feat.attributes())
+            new_features.append(new_feat)
 
     provider.addFeatures(new_features)
     new_layer.updateExtents()
@@ -2362,3 +2732,10 @@ def obfuscate_sensitive_points(layer_name, method, radius=None, cell_size=None, 
         if unmatched_count:
             result["unmatched_points_skipped"] = unmatched_count
     return result
+
+
+# Supplies the geometry_validity check to the dataset status model, which may not import the tools (PLAN-040). The lambda looks
+# diagnose_topology up when called so tests that patch it here still work.
+from ...models import dataset_status as _dataset_status  # noqa: E402
+
+_dataset_status.register_check_runner("geometry_validity", lambda layer_name: diagnose_topology(layer_name))  # noqa: PLW0108 (late lookup so patches apply)

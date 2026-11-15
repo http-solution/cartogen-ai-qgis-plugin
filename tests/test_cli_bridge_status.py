@@ -1,0 +1,272 @@
+"""PLAN-039: what Settings shows about a CLI provider (program found, version, signed in, how to sign in). Uses the Python interpreter as a
+stand-in program for the real subprocess paths and mocks the model call; no vendor CLI is involved (CI-only evidence)."""
+import sys
+import types
+import unittest
+from unittest.mock import MagicMock, patch
+
+from cartogen_ai.infrastructure.providers import cli_bridge as cb
+from cartogen_ai.infrastructure.providers import cli_bridge_status as st
+
+
+class TestDetect(unittest.TestCase):
+    def test_finds_a_program_and_reads_its_version(self):
+        info = st.detect("claude_cli", sys.executable)
+        self.assertTrue(info["found"], info)
+        self.assertTrue(info["version"].startswith("Python"), info)
+        self.assertEqual(info["problem"], "")
+
+    def test_missing_program_says_how_to_install(self):
+        info = st.detect("codex_cli", "/no/such/program-xyz")
+        self.assertFalse(info["found"])
+        self.assertIn("codex login", info["problem"])
+
+    def test_blank_setting_uses_the_default_program_name(self):
+        for p, name in st.DEFAULT_PROGRAM.items():
+            self.assertEqual(st.program_for(p, "  "), name)
+            self.assertEqual(st.program_for(p, "/x/y"), "/x/y")
+
+    def test_a_program_that_fails_to_run_is_reported_not_raised(self):
+        with patch.object(cb, "find_executable", return_value="/bin/x"), \
+             patch.object(cb, "run_cli", side_effect=cb.CliBridgeError("timed out")):
+            info = st.detect("codex_cli")
+        self.assertTrue(info["found"])
+        self.assertEqual(info["problem"], "timed out")
+
+
+class TestSigninStatus(unittest.TestCase):
+    """Detecting a signed-in CLI without asking a model anything (no tokens). run_cli is mocked, so nothing real is started."""
+
+    def _status(self, provider, code, out="", err=""):
+        with patch.object(cb, "run_cli", return_value=(code, out, err)) as run:
+            return st.signin_status(provider, "/bin/x"), run
+
+    def test_codex_logged_in_reads_the_owners_real_wording(self):
+        result, run = self._status("codex_cli", 0, "Logged in using ChatGPT\n")
+        self.assertEqual(result["state"], "yes")
+        self.assertEqual(run.call_args.args[0], ["/bin/x", "login", "status"])
+
+    def test_codex_not_logged_in(self):
+        self.assertEqual(self._status("codex_cli", 1, "Not logged in\n")[0]["state"], "no")
+
+    def test_codex_unreadable_output_is_unknown_not_a_guess(self):
+        self.assertEqual(self._status("codex_cli", 2, "something else")[0]["state"], "unknown")
+
+    def test_claude_reads_the_logged_in_flag(self):
+        yes, run = self._status("claude_cli", 0, '{"loggedIn": true, "authMethod": "claude.ai", "email": "a@b.c"}')
+        self.assertEqual(yes["state"], "yes")
+        self.assertEqual(run.call_args.args[0], ["/bin/x", "auth", "status"])
+        self.assertNotIn("a@b.c", yes["note"], "the account e-mail must not be copied into the window")
+        self.assertEqual(self._status("claude_cli", 1, '{"loggedIn": false}')[0]["state"], "no")
+
+    def test_claude_with_no_status_command_is_unknown(self):
+        self.assertEqual(self._status("claude_cli", 1, "", "error: unknown command 'auth'")[0]["state"], "unknown")
+
+    def test_gemini_cli_is_gone_from_the_detected_set(self):
+        self.assertEqual(list(st.DEFAULT_PROGRAM), ["claude_cli", "codex_cli", "agy_cli"])
+        self.assertEqual(st.signin_status("gemini_cli", "/bin/x")["state"], "unknown", "an unknown provider is never a guess")
+
+    def test_a_program_that_fails_to_run_is_unknown_not_raised(self):
+        with patch.object(cb, "run_cli", side_effect=cb.CliBridgeError("timed out")):
+            self.assertEqual(st.signin_status("codex_cli", "/bin/x")["state"], "unknown")
+
+
+class TestDetectAll(unittest.TestCase):
+    def test_reports_every_cli_in_a_fixed_order_with_missing_ones_marked(self):
+        def fake_detect(provider, configured=""):
+            if provider == "codex_cli":
+                return {"found": True, "path": "/bin/codex", "version": "codex-cli 0.165.0", "problem": ""}
+            return {"found": False, "path": "", "version": "", "problem": "not found"}
+        with patch.object(st, "detect", side_effect=fake_detect), \
+             patch.object(st, "signin_status", return_value={"state": "yes", "note": "Logged in using ChatGPT"}):
+            result = st.detect_all({})
+        self.assertEqual([e["provider"] for e in result], ["claude_cli", "codex_cli", "agy_cli"])
+        by = {e["provider"]: e for e in result}
+        self.assertEqual(by["claude_cli"]["state"], "missing")
+        self.assertEqual(by["codex_cli"]["state"], "yes")
+        self.assertEqual(st.describe(by["codex_cli"]), "Codex CLI: found, codex-cli 0.165.0, signed in")
+        self.assertEqual(st.describe(by["claude_cli"]), "Claude Code CLI: not found on this computer")
+        self.assertEqual(st.describe(by["codex_cli"], short=True), "Found codex-cli 0.165.0 \u00b7 signed in")
+        self.assertTrue(st.describe(by["claude_cli"], short=True).startswith("Not found on this computer"))
+
+    def test_a_saved_path_that_no_longer_exists_falls_back_to_the_usual_name(self):
+        calls = []
+
+        def fake_detect(provider, configured=""):
+            calls.append((provider, configured))
+            if provider == "codex_cli" and not configured:
+                return {"found": True, "path": "/bin/codex", "version": "v", "problem": ""}
+            return {"found": False, "path": "", "version": "", "problem": "not found"}
+        with patch.object(st, "detect", side_effect=fake_detect), \
+             patch.object(st, "signin_status", return_value={"state": "yes", "note": ""}):
+            result = {e["provider"]: e for e in st.detect_all({"codex_cli": "C:\\old\\codex.exe"})}
+        self.assertTrue(result["codex_cli"]["found"])
+        self.assertEqual(result["codex_cli"]["tried"], "C:\\old\\codex.exe")
+        self.assertIn(("codex_cli", ""), calls)
+        self.assertFalse(result["claude_cli"]["found"])
+
+    def test_no_model_is_asked_anything_while_detecting(self):
+        with patch.object(st, "detect", return_value={"found": True, "path": "/bin/x", "version": "v", "problem": ""}), \
+             patch.object(st, "signin_status", return_value={"state": "unknown", "note": ""}), \
+             patch.object(cb.ClaudeCliClient, "complete") as claude, patch.object(cb.CodexCliClient, "complete") as codex:
+            st.detect_all({})
+        for client in (claude, codex):
+            client.assert_not_called()
+
+    def test_only_a_signed_in_cli_is_offered_for_use(self):
+        base = {"label": "X", "found": True, "path": "/p", "version": "", "problem": "", "note": ""}
+        for state, expected in (("yes", True), ("likely", True), ("no", False), ("unknown", False), ("missing", False)):
+            self.assertEqual(st.usable({**base, "state": state}), expected, state)
+        self.assertFalse(st.usable({**base, "found": False, "state": "yes"}))
+
+
+class TestGuidedSetup(unittest.TestCase):
+    BASE = types.MappingProxyType({"provider": "codex_cli", "label": "Codex CLI", "found": True, "path": "/x", "version": "v", "problem": "",
+                                   "note": ""})
+
+    def step(self, **kw):
+        verified = kw.pop("verified", False)
+        active = kw.pop("active", False)
+        return st.setup_step({**self.BASE, **kw}, verified=verified, active=active)
+
+    def test_each_state_has_its_next_step(self):
+        self.assertEqual(st.setup_step(None)["kind"], "looking")
+        self.assertEqual(self.step(found=False, state="missing")["kind"], "install")
+        self.assertEqual(self.step(state="no")["kind"], "signin")
+        self.assertEqual(self.step(state="yes")["kind"], "verify")
+        self.assertEqual(self.step(state="likely")["kind"], "verify")
+        self.assertEqual(self.step(state="unknown")["kind"], "verify")
+        self.assertEqual(self.step(state="yes", verified=True)["kind"], "ready")
+        self.assertEqual(self.step(state="yes", verified=True, active=True)["kind"], "in_use")
+
+    def test_the_install_step_gives_a_command_for_each_os_and_never_runs_it(self):
+        for provider in ("claude_cli", "codex_cli"):
+            for platform in ("win32", "darwin", "linux"):
+                commands = st.install_commands(provider, platform)
+                self.assertTrue(commands and all(isinstance(c, str) and c for c in commands), (provider, platform))
+        self.assertIn("install.ps1", st.install_commands("claude_cli", "win32")[0])
+        self.assertEqual(st.install_commands("codex_cli", "darwin")[0], "brew install --cask codex")
+        step = st.setup_step({**self.BASE, "found": False, "state": "missing"}, platform="linux")
+        self.assertEqual(step["command"], "npm install -g @openai/codex")
+        self.assertIn(step["command"], step["detail"])
+
+    def test_the_consent_text_names_the_vendor_and_says_the_conversation_leaves_the_machine(self):
+        text = st.consent_text("claude_cli")
+        self.assertIn("Anthropic", text)
+        self.assertIn("conversation", text)
+        self.assertIn("never sees or stores your login", text)
+        self.assertIn("OpenAI", st.consent_text("codex_cli"))
+
+    def test_claude_signs_in_with_its_own_auth_login(self):
+        self.assertEqual(st.signin_command("claude_cli", configured="claude"), "claude auth login")
+        self.assertEqual(st.terminal_command("claude_cli", "/usr/bin/claude", "linux", which={"xterm": "/usr/bin/xterm"}.get),
+                         ["/usr/bin/xterm", "-e", "/usr/bin/claude", "auth", "login"])
+
+
+class TestStage(unittest.TestCase):
+    def test_which_step_failed(self):
+        self.assertEqual(st.stage_of("Claude Code CLI not found. Install it"), "install")
+        self.assertEqual(st.stage_of("Could not start the CLI (OSError). Check the executable path in Settings."), "install")
+        self.assertEqual(st.stage_of("The Codex CLI exited with status 1. Is it signed in (`codex login`)?"), "signin")
+        self.assertEqual(st.stage_of("Is it signed in (`claude` once, then /login)?"), "signin")
+        self.assertEqual(st.stage_of("The Codex CLI reported an error: Reconnecting... 2/5 (unexpected status 401 Unauthorized: "
+                                     "Missing bearer or basic authentication in header, url: wss://api.openai.com/v1/responses)"), "signin")
+        self.assertEqual(st.stage_of("The CLI did not answer within 180 seconds."), "other")
+        self.assertEqual(st.stage_of(""), "other")
+
+
+class TestCheckConnection(unittest.TestCase):
+    def _check(self, client_result, found=True):
+        client = MagicMock()
+        client.complete.return_value = client_result
+        ctor = MagicMock(return_value=client)
+        info = {"found": found, "path": "/bin/claude", "version": "2.1.0", "problem": "" if found else "Program 'claude' was not found."}
+        with patch.object(st, "detect", return_value=info), patch.dict(st._SPECS, {"claude_cli": (ctor, [], "hint")}):
+            return st.check_connection("claude_cli", "claude", "sonnet"), ctor, client
+
+    def test_ready_when_the_model_answers(self):
+        result, ctor, client = self._check({"message": {"content": "ok"}})
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["stage"], "ready")
+        self.assertEqual(result["version"], "2.1.0")
+        ctor.assert_called_once_with(executable="/bin/claude", model="sonnet", timeout=120)
+        self.assertEqual(client.complete.call_args.args[0][0]["content"], st.CHECK_PROMPT)
+
+    def test_an_error_keeps_its_stage(self):
+        result, _, _ = self._check({"error": "The Claude CLI exited with status 1. Is it signed in (`claude` once, then /login)?"})
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["stage"], "signin")
+
+    def test_a_missing_program_is_the_install_stage_and_no_model_call_is_made(self):
+        result, ctor, _ = self._check({"message": {"content": "ok"}}, found=False)
+        self.assertEqual((result["ok"], result["stage"]), (False, "install"))
+        ctor.assert_not_called()
+
+
+class TestTerminalCommand(unittest.TestCase):
+    def test_windows(self):
+        self.assertEqual(st.terminal_command("codex_cli", "C:\\npm\\codex.cmd", "win32"),
+                         ["cmd.exe", "/c", "start", "", "cmd.exe", "/k", "C:\\npm\\codex.cmd", "login"])
+
+    def test_macos(self):
+        argv = st.terminal_command("claude_cli", "/usr/local/bin/claude", "darwin")
+        self.assertEqual(argv[:2], ["osascript", "-e"])
+        self.assertIn('do script "/usr/local/bin/claude auth login"', argv[2])
+
+    def test_linux_uses_the_first_terminal_found(self):
+        which = {"konsole": "/usr/bin/konsole", "xterm": "/usr/bin/xterm"}.get
+        self.assertEqual(st.terminal_command("codex_cli", "/usr/bin/codex", "linux", which=which),
+                         ["/usr/bin/konsole", "-e", "/usr/bin/codex", "login"])
+
+    def test_linux_without_a_terminal_gives_none(self):
+        self.assertIsNone(st.terminal_command("claude_cli", "/usr/bin/claude", "linux", which=lambda _n: None))
+
+    def test_unsafe_paths_are_never_handed_to_a_launcher(self):
+        for bad in ("/opt/my tools/claude", '/x/"y', "/x/y;rm", "/x/$(id)", "", "/x/y&z"):
+            for platform in ("win32", "darwin", "linux"):
+                self.assertIsNone(st.terminal_command("claude_cli", bad, platform, which=lambda n: "/usr/bin/" + n), (bad, platform))
+
+
+class TestOpenSignin(unittest.TestCase):
+    def test_launches_with_a_scrubbed_environment_and_no_shell(self):
+        with patch.object(cb, "find_executable", return_value="/usr/bin/codex"), \
+             patch.object(st, "terminal_command", return_value=["/usr/bin/xterm", "-e", "/usr/bin/codex", "login"]), \
+             patch.object(st.subprocess, "Popen") as popen:
+            out = st.open_signin_terminal("codex_cli")
+        self.assertTrue(out["launched"])
+        self.assertEqual(out["command"], "/usr/bin/codex login")
+        kwargs = popen.call_args.kwargs
+        self.assertNotIn("shell", kwargs)
+        self.assertNotIn("ANTHROPIC_API_KEY", kwargs["env"])
+
+    def test_without_a_terminal_it_shows_the_command(self):
+        with patch.object(cb, "find_executable", return_value="/usr/bin/codex"), patch.object(st, "terminal_command", return_value=None):
+            out = st.open_signin_terminal("codex_cli")
+        self.assertFalse(out["launched"])
+        self.assertIn("/usr/bin/codex login", out["message"])
+
+    def test_missing_program(self):
+        with patch.object(cb, "find_executable", return_value=None):
+            out = st.open_signin_terminal("claude_cli", "nope")
+        self.assertFalse(out["launched"])
+        self.assertIn("was not found", out["message"])
+
+    def test_a_launch_failure_never_raises(self):
+        with patch.object(cb, "find_executable", return_value="/usr/bin/codex"), \
+             patch.object(st, "terminal_command", return_value=["/x"]), patch.object(st.subprocess, "Popen", side_effect=OSError("no")):
+            out = st.open_signin_terminal("codex_cli")
+        self.assertFalse(out["launched"])
+        self.assertIn("Run:", out["message"])
+
+
+class TestSigninCommandText(unittest.TestCase):
+    def test_text(self):
+        self.assertEqual(st.signin_command("codex_cli", configured="codex"), "codex login")
+        self.assertEqual(st.signin_command("claude_cli", "/x/claude"), "/x/claude auth login")
+        self.assertTrue(st.known("codex_cli"))
+        self.assertFalse(st.known("gemini_cli"))
+        self.assertFalse(st.known("openrouter"))
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """GitHub #151 (audit F15): the DB-level read-only layer fails closed, and a SELECT becomes a proper query-layer table. Driven with
 fake provider objects; nothing here contacts PostGIS."""
 import unittest

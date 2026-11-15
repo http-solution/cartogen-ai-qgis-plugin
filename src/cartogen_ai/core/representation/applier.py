@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Representation Applier for Cartogen AI.
 
@@ -6,7 +5,7 @@ Applies recommended representation candidates directly to QGIS layers using nati
 renderers (Cluster, Displacement, Heatmap, Graduated, Categorized, Proportional).
 """
 
-from typing import Any, Dict
+from typing import Any
 from .models import RepresentationCandidate
 
 try:
@@ -28,15 +27,12 @@ def _find_layer_by_name(name: str):
     return layers[0] if layers else None
 
 
-def apply_representation(layer_or_name: Any, candidate: RepresentationCandidate) -> Dict[str, Any]:
+def apply_representation(layer_or_name: Any, candidate: RepresentationCandidate) -> dict[str, Any]:
     """Applies the specified candidate representation to the layer."""
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
 
-    if isinstance(layer_or_name, str):
-        layer = _find_layer_by_name(layer_or_name)
-    else:
-        layer = layer_or_name
+    layer = _find_layer_by_name(layer_or_name) if isinstance(layer_or_name, str) else layer_or_name
 
     if layer is None or not layer.isValid():
         return {"error": f"Layer '{layer_or_name}' not found or invalid"}
@@ -80,7 +76,7 @@ def apply_representation(layer_or_name: Any, candidate: RepresentationCandidate)
                 "size": "3.5",
             })
             disp_renderer.setEmbeddedRenderer(QgsSingleSymbolRenderer(base_sym))
-            disp_renderer.setCircleRadiusSymbol(None)
+            # (a call to setCircleRadiusSymbol(None) was here: that method does not exist in QGIS and raised AttributeError for this renderer)
             layer.setRenderer(disp_renderer)
             layer.triggerRepaint()
             return {"success": True, "applied": "point_displacement", "layer_name": layer.name()}
@@ -91,7 +87,7 @@ def apply_representation(layer_or_name: Any, candidate: RepresentationCandidate)
             from qgis.PyQt.QtGui import QColor
             heatmap_renderer = QgsHeatmapRenderer()
             heatmap_renderer.setRadius(12.0)
-            heatmap_renderer.setRadiusUnit(QgsUnitTypes.RenderMillimeters)
+            heatmap_renderer.setRadiusUnit(QgsUnitTypes.RenderUnit.RenderMillimeters)
 
             # CRITICAL: Stop 0.0 MUST have alpha = 0 (100% transparent) so
             # zero-density areas do not blot out the basemap with solid dark purple!

@@ -1,0 +1,247 @@
+"""Golden basics: everyday short requests must be offered the tools that do them, in every release.
+
+Why this exists (owner report 2026-10-14: "this was working in the previous version ... every release breaks previous work"): the rc23
+cost work discounted generic words ("layer", "add", "export", "create") for EVERY request instead of only long ones. From then on
+"create layer for Jordan ADM1", "zoom to the layer X", "remove the layer X" and "export X to CSV" were offered alphabetical filler
+(apply_*, calculate_*) instead of add_layer_from_path, zoom_to_layer, remove_layer, export_layer. Nothing failed: the model simply
+never saw the tool. The check was found by replaying 40 plain requests against all 43 releases from rc12 to 1.16.2 and diffing what
+was offered. Add a row here for every plain request a user has ever relied on; a router change that drops one must fail the build."""
+import unittest
+
+from cartogen_ai.core.agent.tools import TOOLS_SCHEMA
+from cartogen_ai.core.services.tool_router import ToolRouter
+
+# request -> tools that must be among those offered
+GOLDEN = {
+    "create layer for Jordan ADM1": {"fetch_geoboundaries", "fetch_hdx_admin_boundaries", "add_layer_from_path"},
+    "Jordan ADM2 districts": {"fetch_geoboundaries", "fetch_hdx_admin_boundaries"},
+    "load the administrative boundaries for Yemen": {"fetch_geoboundaries", "fetch_hdx_admin_boundaries"},
+    "zoom to the layer smoke_zones": {"zoom_to_layer", "get_layer_extent"},
+    "remove the layer smoke_zones": {"remove_layer"},
+    # PLAN-006 package E2c: plain export requests that missed their tool before (measured offline on origin/main, 2026-10-23).
+    "send me the map as a pdf": {"export_layout"},
+    "bundle the project data for sharing": {"package_layers_offline"},
+    "save the roads layer to a geopackage": {"export_layer"},
+    "export the roads to dxf": {"export_layers_to_dxf"},
+    "give me a cad file of the roads": {"export_layers_to_dxf"},
+    "save the layers as autocad dxf": {"export_layers_to_dxf"},
+    "export the clinics to excel": {"export_layers_to_spreadsheet"},
+    "put the attribute table into an excel file": {"export_layers_to_spreadsheet"},
+    "save the clinics layer as a csv file": {"export_to_csv"},
+    "export the atlas as a single pdf": {"export_layout_atlas"},
+    "rename the layer smoke_zones to zones": {"rename_layer"},
+    "export smoke_points to CSV": {"export_layer"},
+    "reproject smoke_points to EPSG:4326": {"reproject_layer"},
+    "clip smoke_points to smoke_boundary": {"clip_layer"},
+    "merge smoke_points and smoke_hubs": {"merge_layers"},
+    "dissolve smoke_admin by name": {"dissolve_layer"},
+    "union of smoke_zones": {"union_layers"},
+    "add a point at 15.3694, 44.1910": {"add_point_layer"},
+    "buffer smoke_points by 500 m": {"buffer_analysis"},
+    "label smoke_points by name": {"apply_labels"},
+    "raster calculator: dem minus dem_old": {"raster_calculator"},
+    "make the outline of smoke_zones thinner and dashed": {"set_layer_symbol"},
+    "add a logo to the layout": {"add_layout_item"},
+    "change the page size of the layout to A3": {"set_layout_page"},
+    "set the layout map scale to 1:250000": {"set_layout_map"},
+    "save the layout as a template": {"save_layout_template"},
+    "export the layout as SVG": {"export_layout"},
+    "give the smoke_points labels a white halo": {"set_label_style"},
+    "show the land cover raster with one colour per value": {"set_raster_style"},
+    "make a mask of the cells above 100 in the dem": {"raster_calculator"},
+    "set a definition query on smoke_points": {"set_layer_filter"},
+    "move the selected features 100 m east": {"transform_features"},
+    "merge the selected features into one": {"merge_features"},
+    "split the polygon with a line": {"split_features_by_line"},
+    "undo my last edit on smoke_zones": {"undo_manual_edit"},
+    "redo my last edit on smoke_zones": {"redo_manual_edit"},
+    "show the metadata of the layer smoke_zones": {"get_layer_metadata"},
+    "list the relations in this project": {"list_relations"},
+    "set the project time range from january to march": {"set_project_time_range"},
+    "remove all annotations from the map": {"remove_annotations"},
+    "apply the saved symbol hospital to smoke_points": {"apply_saved_symbol"},
+    "what symbols do i have in my library": {"list_saved_symbols"},
+    "add an overview map to the layout": {"add_overview_map"},
+    "add a guide at 20 mm in the layout": {"set_layout_guides_grid"},
+    "set up an atlas with one page per district": {"set_layout_atlas"},
+    "change the field type of pop to integer": {"change_field_type"},
+    "save the edits on smoke_points": {"set_layer_editing"},
+    "add the postgis table roads to the map": {"add_postgis_layer"},
+    "create a virtual layer joining smoke_points and smoke_zones with sql": {"create_virtual_layer"},
+    # integration audit 2026-10-16: old tools that overlap a new one must still be offered for their own wording
+    "undo the last operation": {"undo_last_operation"},
+    "label the roads by name": {"apply_labels"},
+    "style the labels with a halo": {"set_label_style"},
+    "show the elevation profile along the road": {"elevation_profile"},
+    "make a chart of population by district": {"generate_chart"},
+    "add an inset locator map to the layout": {"create_print_layout"},
+    "merge the two layers into one": {"merge_layers"},
+    "split the roads by the zones": {"split_lines_by_zones"},
+    "set the symbol of the layer to a red star": {"set_layer_symbol"},
+    "select roads where type is primary": {"select_by_expression"},
+    "go back to the previous view": {"zoom_history"},
+    "animate the layer over time": {"export_temporal_animation_frames"},
+    "turn on elevation for the layer dem": {"set_layer_elevation"},
+    "use the dem as the project terrain": {"set_project_terrain"},
+    "add a bar chart of population by district to the layout": {"add_layout_chart"},
+    "add an elevation profile to the layout along the road": {"add_layout_elevation_profile"},
+    "load the point cloud survey.laz": {"add_point_cloud_layer"},
+    "add the vector tile layer from this url": {"add_vector_tile_layer"},
+    "add the 3d tiles tileset": {"add_3d_tiles_layer"},
+    "load the qlr file styles.qlr": {"load_layer_definition"},
+    "save smoke_points as a qlr file": {"save_layer_definition"},
+    "package the project layers into one geopackage for offline use": {"package_layers_offline"},
+    "rename the group Transport to Roads": {"rename_layer_group"},
+    "zoom to the previous extent": {"zoom_history"},
+    "set the abstract and license of smoke_zones": {"set_layer_metadata"},
+    "turn on snapping to vertices": {"set_snapping_options"},
+    "create a relation between districts and schools": {"create_relation"},
+    "make the layer temporal using the date field": {"set_layer_temporal"},
+    "add a text annotation on the map": {"add_text_annotation"},
+    "label the big camps in bold and the small ones only when zoomed in": {"set_rule_based_labels"},
+    "add callouts to the labels": {"set_label_callout"},
+    "use an svg icon for the camps": {"set_point_marker"},
+    "draw a pie chart on each district with male and female": {"set_layer_diagram"},
+    "show the dem as a hillshade": {"set_raster_relief"},
+    "save this symbol to my library": {"save_symbol_to_library"},
+    "change the colour of smoke_zones": {"change_layer_color"},
+    "make the layer smoke_zones 50 percent transparent": {"set_layer_transparency"},
+    "save the style of the layer smoke_zones": {"save_layer_style"},
+    "what layers are in this project": {"get_layers"},
+    "load this csv as a layer": {"load_tabular_data_as_layer"},
+    "add the shapefile roads.shp to the map": {"add_layer_from_path"},
+    "move the layer smoke_zones above smoke_points": {"set_layer_order"},
+    "calculate a 1500 m service area around Hub_A on smoke_roads": {"calculate_service_area"},
+    "make a print layout with the title Test and export a PDF": {"create_print_layout"},
+    "make an HTML dashboard of smoke_facilities": {"generate_html_dashboard"},
+    "slope of smoke_dem": {"slope_analysis"},
+    "earthquakes in Turkey in the last 14 days": {"fetch_usgs_earthquakes"},
+    "has this claim been fact-checked": {"search_fact_checks"},
+    "create an empty polygon layer with fields name and population": {"create_empty_layer"},
+    "add an openstreetmap basemap": {"add_basemap"},
+    "add the wms layer from this url": {"add_web_layer"},
+    "look at the map": {"inspect_canvas_visually"},
+    "find the information from the internet and provide the source": {"web_research"},
+    "check the internet for major incidents from the news in Jordan this week and put them on the map": {"find_incident_reports"},
+    # PLAN-023 R9-6: the geometry-editing and identify tools are offered for the plain request (measured offline on 2026-11-10).
+    "delete the third vertex of feature 4 in smoke_zones": {"edit_vertices"},
+    "add a hole to the polygon": {"edit_parts_and_rings"},
+    "reshape the polygon with this line": {"reshape_geometry"},
+    "reverse the direction of the line": {"reverse_line"},
+    "offset the roads by 20 m": {"offset_curve"},
+    "copy the selected features into the other layer": {"copy_features_between_layers"},
+    "what is at this location": {"identify_at_point"},
+}
+
+
+# Requests of more than 25 words. They use the stricter long-request rules (generic words discounted, a minimum score), so they are guarded separately.
+GOLDEN_LONG = {
+    'I have a layer of health facilities called smoke_facilities and a road network smoke_roads. Please work out which of the facilities can be reached within one hour of Hub_A by road, show the reachable ones in green and the others in red, and tell me how many are in each group.': {'classify_facilities_by_access'},
+    'Create a map of Yemen ADM1 governorate boundaries with labels, download them if they are not already in the project, style them with a pale fill and a grey outline, and add a title and scale bar in a print layout I can export as a PDF.': {'apply_labels', 'create_print_layout', 'fetch_geoboundaries', 'fetch_hdx_admin_boundaries', ('change_layer_color', 'apply_categorized_style')},
+    'Download the OpenStreetMap hospitals and clinics for the area covered by smoke_boundary, buffer them by two kilometres, dissolve the buffers into a single polygon and calculate the area of the result in square kilometres.': {'buffer_analysis', 'calculate_area', 'dissolve_layer', 'fetch_osm_features'},
+    'Take the population raster yem_ppp_2020 and the 1500 m service area around Hub_A and estimate how many people live inside it, giving me the three labelled figures and saying which one is an upper bound.': {'estimate_population_exposure'},
+    'Check the internet for recent incidents, disasters or conflict events reported near Amman in Jordan during the last thirty days from named reliable sources and put whatever you find on the map with the source and the date for each record.': {'find_incident_reports'},
+    'Compute the slope of smoke_dem in degrees, classify it into five classes, style the result with a green to red colour ramp and make a print layout of it with a legend and a title that I can export.': {'apply_raster_stretch', 'create_print_layout', 'slope_analysis'},
+    'Rank the three candidate hub locations in smoke_hubs by their average distance to the points in smoke_points and tell me which hub serves the points best and by how much it beats the other two candidates.': {'optimal_hub_siting'},
+    'Remove the layer smoke_zones from the project, then rename the layer smoke_admin to districts, reproject it to EPSG:4326 and export it as a GeoPackage in the project folder under the name districts_4326.': {'export_layer', 'remove_layer', 'rename_layer', 'reproject_layer'},
+    'Make an interactive HTML dashboard of the health facilities in smoke_facilities with a basemap, a layer control and a popup that shows the facility name, and save it in the project folder so that I can send it to the donors.': {'generate_html_dashboard'},
+    'I need a delivery route that starts at Hub_A and visits each of the five points in smoke_points in the shortest order using the road network smoke_roads, and I want the route drawn as a line above the roads with the total distance reported.': {'optimize_delivery_route'},
+    'Has the claim that a video of Houthi fighters in Dhale was filmed recently been fact-checked by any of the outlets, and if so what did they conclude, please answer in English and mention the outlet and the date.': {'search_fact_checks'},
+    'Geocode this list of towns: Amman, Irbid, Zarqa, Aqaba, Madaba, Salt, Jerash, Karak, Tafilah and Maan, put them on the map as points labelled with the town names, and then zoom the map to the new layer.': {'apply_labels', 'geocode_batch', 'zoom_to_layer'},
+    'Load the earthquakes with a magnitude of 4.5 or more from the last thirty days within a box around Turkey, classify the points by magnitude band, label the largest events and tell me how many events fall in each band.': {'fetch_usgs_earthquakes'},
+    'Calculate a severity index for smoke_admin_dup from population and need using the name field admin_name, write the score to a field called sev and make a map where the worst affected districts stand out clearly.': {'calculate_severity_index'},
+    'Clip smoke_points to the boundary smoke_boundary, merge the result with smoke_hubs, add a field with the distance to the nearest hub and export the final layer to CSV with the coordinates included.': {'clip_layer', 'export_layer', 'merge_layers'},
+    'Find all schools within two kilometres of the flooded area in the GDACS alert layer, show them on the map, count how many there are in each district of smoke_admin and give me a table I can paste into a situation report.': {"fetch_gdacs_disaster_alerts", ("fetch_osm_features", "ingest_osm_features")},
+}
+
+
+class TestPlainRequestsAreOfferedTheirTools(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.router = ToolRouter(TOOLS_SCHEMA)
+
+    def test_golden_requests(self):
+        problems = []
+        for query, needed in GOLDEN.items():
+            offered = {t["function"]["name"] for t in self.router.filter_relevant_tools(query)}
+            missing = sorted(needed - offered)
+            if missing:
+                problems.append(f"{query!r}: not offered {missing}")
+        self.assertEqual(problems, [], "\n".join(problems))
+
+    def test_golden_long_requests(self):
+        """A tuple in the set means any one of its tools is enough."""
+        problems = []
+        for query, needed in GOLDEN_LONG.items():
+            self.assertGreater(len(query.split()), 25, query)
+            offered = {t["function"]["name"] for t in self.router.filter_relevant_tools(query)}
+            missing = [n for n in needed if (not (set(n) & offered) if isinstance(n, tuple) else n not in offered)]
+            if missing:
+                problems.append(f"{query[:70]!r}: not offered {missing}")
+        self.assertEqual(problems, [], chr(10).join(problems))
+
+    def test_every_golden_tool_is_a_registered_tool(self):
+        registered = {t["function"]["name"] for t in TOOLS_SCHEMA}
+        for query, needed in list(GOLDEN.items()) + list(GOLDEN_LONG.items()):
+            flat = {x for n in needed for x in (n if isinstance(n, tuple) else (n,))}
+            self.assertTrue(flat <= registered, f"{query!r} names an unknown tool: {sorted(flat - registered)}")
+
+    def test_a_short_layer_request_is_not_filled_with_alphabetical_noise(self):
+        offered = [t["function"]["name"] for t in self.router.filter_relevant_tools("remove the layer smoke_zones")]
+        layer_tools = [n for n in offered if "layer" in n]
+        self.assertGreaterEqual(len(layer_tools), 8, offered)
+
+
+if __name__ == "__main__":
+    unittest.main()
+
+
+class TestEveryAliasStillOffersItsOwnTool(unittest.TestCase):
+    """Integration audit 2026-10-16. A curated phrase is the strongest routing signal, so the tool it belongs to must be among those offered
+    for exactly that phrase. Replayed against the router before the roadmap packages, 0 of 1565 phrases lost their owner; this keeps it true as
+    tools and aliases keep arriving."""
+
+    def test_each_alias_phrase_offers_the_tool_it_belongs_to(self):
+        from cartogen_ai.core.services import tool_router
+        router = ToolRouter(TOOLS_SCHEMA)
+        known = {t["function"]["name"] for t in TOOLS_SCHEMA}
+        lost = []
+        checked = 0
+        for tool in tool_router.routing_phrase_tools():
+            if tool not in known:
+                continue
+            phrases = tool_router.routing_phrases(tool)
+            checked += len(phrases)
+            lost.extend(f"{tool}: {phrase!r}" for phrase in phrases
+                        if tool not in {t["function"]["name"] for t in router.filter_relevant_tools(phrase)})
+        self.assertGreater(checked, 1500, "the phrase set shrank or is not being read")   # 2105 when the aliases moved into the tools
+        self.assertEqual(lost, [], "\n".join(lost))
+
+
+class TestMedicalWordingOffersTheFacilityTools(unittest.TestCase):
+    """The owner's chat (2026-10-30): "list medical service in Al Maharah" was answered "the available tools cannot retrieve health-facility
+    listings", because ingest_osm_features and the geocoders were not among the tools offered for that wording (only "hospital", "clinic" and
+    "health facilities" routed to them). The model told the truth about the tools it was given."""
+
+    PHRASES = ("list medical service in Al Maharah", "medical services in Al Maharah", "healthcare centres near Mukalla",
+               "show health centers in Taiz", "dispensaries in Taiz", "where are the pharmacies in Sana'a")
+
+    def test_each_wording_offers_the_osm_tool(self):
+        router = ToolRouter(TOOLS_SCHEMA)
+        for phrase in self.PHRASES:
+            names = {t["function"]["name"] for t in router.filter_relevant_tools(phrase)}
+            self.assertIn("ingest_osm_features", names, phrase)
+
+    def test_the_geocoders_are_offered_for_a_medical_service_request(self):
+        names = {t["function"]["name"] for t in ToolRouter(TOOLS_SCHEMA).filter_relevant_tools("list medical service in Al Maharah")}
+        self.assertTrue({"geocode_and_enrich", "geocode_batch"} <= names)
+
+
+class TestConfiguredTopK(unittest.TestCase):
+    def test_default_outside_qgis_and_pie_chart_still_routed(self):
+        from cartogen_ai.core.services.tool_router import DEFAULT_TOP_K, configured_top_k
+        from cartogen_ai.core.agent.tools.registry import TOOLS_SCHEMA
+        self.assertEqual(configured_top_k(), DEFAULT_TOP_K)
+        # Regression guard for the 40 -> 28 default: this request lost set_layer_diagram at 36 until its aliases were widened.
+        names = {t["function"]["name"] for t in ToolRouter(TOOLS_SCHEMA).filter_relevant_tools("add pie charts of the categories")}
+        self.assertIn("set_layer_diagram", names)

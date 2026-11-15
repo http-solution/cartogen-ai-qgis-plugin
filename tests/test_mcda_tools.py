@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """H5 calculate_mcda_ranking: scaling, ranking, weight-stability and validation are pure; layer work is in test_mcda_tools_live.py."""
 import unittest
 

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """CI-only test runner, added 2026-09-20/21 per external review: runs the same live-QGIS
 test modules `python3 -m unittest tests.test_chat_widget_live tests.test_plugin_main_live
 tests.test_network_units_live

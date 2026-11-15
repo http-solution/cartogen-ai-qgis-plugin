@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Live-QGIS tests for H2 generate_mapping_task_grid. Written without a QGIS install: CI's first run is their first execution."""
 import json
 import os
@@ -48,6 +47,24 @@ class TestGenerateMappingTaskGrid(unittest.TestCase):
         self.addCleanup(QgsProject.instance().clear)
         QgsProject.instance().addMapLayer(_aoi())
 
+    def test_aoi_where_limits_the_area_without_filtering_the_source_layer(self):
+        # 1.18.2 hand test B1 (2026-10-26): "grid over Aden only" left a subset filter on the admin layer. aoi_where does it in the tool.
+        from cartogen_ai.core.agent.tools.task_grid_tools import generate_mapping_task_grid
+        aoi = QgsProject.instance().mapLayersByName("aoi")[0]
+        f = QgsFeature(aoi.fields())
+        f.setGeometry(QgsGeometry.fromWkt("POLYGON((44.30 15.30, 44.34 15.30, 44.34 15.32, 44.30 15.32, 44.30 15.30))"))
+        f.setAttributes(["other"])
+        aoi.dataProvider().addFeatures([f])
+        both = generate_mapping_task_grid("aoi", cell_size_m=1000, output_layer_name="both")
+        one = generate_mapping_task_grid("aoi", cell_size_m=1000, output_layer_name="one", aoi_where="\"name\" = 'other'")
+        self.assertTrue(one.get("success"), one)
+        self.assertLess(one["task_count"], both["task_count"])
+        self.assertEqual(aoi.subsetString(), "")
+        bad = generate_mapping_task_grid("aoi", cell_size_m=1000, aoi_where="\"name\" = 'nothing'")
+        self.assertIn("matching", bad["error"])
+        broken = generate_mapping_task_grid("aoi", cell_size_m=1000, aoi_where="name = = 1")
+        self.assertIn("expression", broken["error"])
+
     def test_builds_a_grid_that_covers_the_area_once(self):
         from cartogen_ai.core.agent.tools.task_grid_tools import generate_mapping_task_grid
         res = generate_mapping_task_grid("aoi", cell_size_m=1000)
@@ -82,6 +99,26 @@ class TestGenerateMappingTaskGrid(unittest.TestCase):
         self.assertIn("error", generate_mapping_task_grid("aoi", cell_size_m=50))
         QgsProject.instance().addMapLayer(_points(["POINT(44.2 15.3)"]))
         self.assertIn("error", generate_mapping_task_grid("damage"))       # not a polygon layer
+
+    def test_a_grid_above_the_limit_is_refused_with_a_size_that_works_and_that_size_then_works(self):
+        # DEF-6 (2026-11-03): a nationwide grid at 1 km was refused with only "use a larger cell_size_m". Written without a QGIS install.
+        from cartogen_ai.core.agent.tools.task_grid_tools import MAX_TASKS, generate_mapping_task_grid
+        big = QgsVectorLayer("Polygon?crs=EPSG:4326&field=name:string", "country", "memory")
+        f = QgsFeature(big.fields())
+        f.setGeometry(QgsGeometry.fromWkt("POLYGON((42.0 13.0, 47.0 13.0, 47.0 16.0, 42.0 16.0, 42.0 13.0))"))
+        big.dataProvider().addFeatures([f])
+        big.updateExtents()
+        QgsProject.instance().addMapLayer(big)
+        refused = generate_mapping_task_grid("country", cell_size_m=1000)
+        self.assertIn("error", refused)
+        self.assertIn("No grid was made", refused["error"])
+        self.assertIn("aoi_where", refused["error"])
+        size = refused["suggested_cell_size_m"]
+        self.assertGreater(size, 1000)
+        self.assertEqual(len(QgsProject.instance().mapLayersByName("mapping_tasks")), 0, "a refusal must not leave a layer behind")
+        worked = generate_mapping_task_grid("country", cell_size_m=size)
+        self.assertTrue(worked.get("success"), worked)
+        self.assertLessEqual(worked["task_count"], MAX_TASKS)
 
 
 if __name__ == "__main__":

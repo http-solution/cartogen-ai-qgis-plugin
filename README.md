@@ -20,37 +20,30 @@
   <a href="https://cartogenai.com"><img src="https://img.shields.io/badge/website-cartogenai.com-0b6efd" alt="Website"></a>
 </p>
 
-**Community edition · Version 1.16.0-rc20 (pre-release) · GNU GPL v2 · QGIS 4.2–4.99 · [cartogenai.com](https://cartogenai.com)**
+**Community edition · Version 1.18.5 · GNU GPL v2 · QGIS 4.2–4.99 · [cartogenai.com](https://cartogenai.com)**
 
 Cartogen AI is built for GIS analysts, humanitarian teams, researchers, and anyone who
 needs to move from a question to a reproducible spatial result without leaving QGIS.
 The agent exposes its plan, tool calls, progress, and errors instead of returning a
 black-box answer.
 
-> **Project status (2026-10-06):** active Community edition, currently at the **1.16.0-rc20 pre-release** build (rc19 is the last published pre-release until rc20 is uploaded; rc20 adds the audit fixes and CI coverage made after it).
-> - **Tests:** 3,570 automated tests, 0 failures in the offline run; the live-QGIS tests (and any needing optional libraries) are skipped there and
->   the QGIS ones run in CI (the `qgis-live-tests` job, QGIS 4.2.2).
-> - **Architectural audit:** an external audit of rc12 raised 32 findings, filed as issues #137-#168 (tracking issue #169). The 15
->   highest-severity findings (#137-#151) are fixed in code and CI-verified where a live test exists, except #151 (PostGIS), which needs a
->   database and is untouched. The other 17 (#152-#168) were addressed in work packages 1-6 (merged, CI-verified); some have parts still
->   open (raster auto-alignment, DEM vertical unit, raster-unit validation, running-task invalidation at unload). All 32 issues remain open
->   because none of the fixes has been hand-verified yet; the per-issue hand checks are in
->   [docs/ISSUE_VERIFICATION_CHECKLIST_2026-10-05.md](docs/ISSUE_VERIFICATION_CHECKLIST_2026-10-05.md).
-> - **Not yet verified:** a complete hands-on smoke test of rc12 to rc20 in a desktop QGIS session (rc18 was partly hand-tested: rows R1-R7 and N1-N9 ran, rows V, T, J and P did not). A clean-profile install and an in-place upgrade
->   were verified on an earlier release candidate (rc6); the rc20 zip has passed CI packaging and the release workflow's zip checks only.
-> - Details: [the release smoke test](docs/RELEASE_SMOKE_TEST.md), [the implementation tracker](docs/IMPLEMENTATION_TRACKER.md),
->   [the rc12 live-test and audit plan (still applies to rc20)](docs/RC12_LIVE_TEST_AND_AUDIT_PLAN_2026-10-04.md).
+> **Project status (2026-10-26):** active Community edition, currently at **1.18.5**, a patch on 1.18.4, 1.18.3, 1.18.2, 1.18.1 and 1.18.0 (the sum of the 1.17.0 release candidates 42 to 52 since 1.16.3). Neither has passed a full hand test; see the hand-testing line below.
+> - **Tests:** 5,062 automated tests run offline, 0 failures (767 skipped there: the live-QGIS tests and those needing optional libraries). The QGIS ones run in CI (the `qgis-live-tests` job, QGIS 4.2.2) together with ruff, mypy and a release-zip check.
+> - **Hand testing:** rc44 to rc46 were hand-tested in desktop QGIS 4.2.3 (tool sweep: 65 of 83 rows Pass, 1 Fail, the rest Partial or Skip; 21 of 21 priority algorithms Pass); the plain-language algorithm test (385 prompts) has **not** been run. rc48 was hand-tested on 2026-10-24 (52 of 87 rows Pass, 18 Partial, 16 Fail, 1 Skip; results in [docs/HAND_TEST_RESULTS_rc48_2026-10-24.md](docs/HAND_TEST_RESULTS_rc48_2026-10-24.md)); the changes from rc49 to 1.18.0 are CI-checked only (a partial rc50 run covered 20 of its 87 rows) until the v2 hand test (a layout check script that costs no API money, plus nine rows; [docs/LEAN_HAND_TEST_PROTOCOL.md](docs/LEAN_HAND_TEST_PROTOCOL.md)) is run.
+> - **Open issues (2):** #362 and #380. Their code is merged and green in CI; they stay open for hand rows that depend on what the model answers. Everything else from the audit and smoke-test lists is closed, each with its evidence in a comment (several on CI evidence only, which the comment says). Per-issue status: [docs/OPEN_ISSUES_STATUS_2026-10-25_v2.md](docs/OPEN_ISSUES_STATUS_2026-10-25_v2.md).
+> - **Not yet verified:** a clean-profile install and an in-place upgrade on a recent release candidate (last done on rc6), and the 28-tool default of rc47 against live model answers.
+> - Details: [the release smoke test](docs/RELEASE_SMOKE_TEST.md), [the implementation tracker](docs/IMPLEMENTATION_TRACKER.md), [done versus tested](docs/STATUS_DONE_VS_TESTED_2026-10-16.md).
 
 ## What it does
 
-- **Multi-provider**: OpenRouter, Google Gemini, OpenAI, Anthropic Claude, or a local
+- **Multi-provider**: OpenRouter, Google Gemini, or a local
   Ollama server — switch anytime, bring your own API key (OpenRouter has a free tier;
   Ollama is free and fully local).
 - **Native QGIS Processing Provider**: Registered under `QgsApplication.processingRegistry()`
   (`cartogen_ai.processing`), exposing native algorithms (e.g. `OptimalHubSitingAlgorithm`,
   `CalculateServiceAreaAlgorithm`) directly to the QGIS Processing Toolbox, Graphical Model Designer,
   batch processing, and headless `qgis_process` CLI execution.
-- **203 tools** covering vector and raster geoprocessing, OGC SLD 1.1.0/1.0.0 export, point cluster
+- **335 tools** covering vector and raster geoprocessing, OGC SLD 1.1.0/1.0.0 export, point cluster
   and displacement renderers, styling and labeling (with text halos and obstacle avoidance), print
   layouts with coordinate graticules and inset locator maps, exports, humanitarian data (HDX /
   OpenStreetMap / geoBoundaries / building footprints), satellite imagery search, database queries,
@@ -61,7 +54,7 @@ black-box answer.
   badges, ellipsoidal geodetic distance measurement (`QgsDistanceArea`), geoprivacy obfuscation for
   sensitive point data (Do No Harm), and workflow presets — see
   [docs/TOOLS_REFERENCE.md](docs/TOOLS_REFERENCE.md) for the full, auto-generated list.
-- **Guided by a 792-task Humanitarian Mapping Task Register**: a request that
+- **Guided by a 857-task Task Register (the Humanitarian Mapping Task Register plus a section of tasks for each of 13 personas)**: a request that
   matches a task shows the exact prompt about to be sent, with the reasoning behind it, before
   it's sent; stops to ask only when a detail genuinely can't be safely guessed (e.g. hazard or
   facility type); and checks the response against what the task promised, with one automatic,
@@ -78,7 +71,7 @@ black-box answer.
 - **File attachments**: PDF, Word, CSV, Excel, and images. CSV/Excel attachments can be
   loaded as full real layers (not just a preview) with automatic point-geometry
   detection for coordinate columns.
-- **Native web search grounding** on Gemini and OpenAI, with automatic model fallback
+- **Native web search grounding** on Gemini, with automatic model fallback
   if a configured model is retired.
 - **Stop button**: cancel an in-progress request instead of waiting it out.
 - **Security-conscious by design** — see [SECURITY.md](SECURITY.md) for the full
@@ -86,6 +79,432 @@ black-box answer.
   a restricted execution sandbox for model-generated PyQGIS scripts, fail-closed
   read-only SQL enforcement, an SSRF guard on fetched URLs, and a destructive-action
   confirmation gate the model cannot self-approve.
+
+## What's new in 1.18.5
+
+Built on 1.18.4. Offline tests and the QGIS 4.2.2 live checks in CI pass; **not hand-tested** in desktop QGIS unless an item says so. Full list: the `v1.18.5` block in [metadata.txt](metadata.txt) and [CHANGELOG.md](CHANGELOG.md).
+
+- GDACS alerts are limited to the country you name: fetch_gdacs_disaster_alerts has filtered by country since September, but the agent's own call path never passed the country on, so a request for Yemen fetched 86 alerts from around the world (1.18.4 smoke N7c and A7). The country is now passed. A new test reads the agent code and fails if any two-phase fetch call leaves out an argument the tool declares.
+- Windows paths with single backslashes work: A model that writes C:\data\fixtures\before.asc with single backslashes lost the characters after \f and \b to JSON decoding, so the tool looked for a file that does not exist and the reply told the user to add the raster by hand (1.18.4 smoke D6). Control characters in a drive path are turned back into backslash and letter before any tool runs.
+- A geocoded place brings its bounding box: geocode_and_enrich and geocode_batch now return the place's own extent in both coordinate orders. The model had a point for Aden but no area, then asked the user for a bounding box or searched for boundary layers instead of calling the satellite-scene and building tools (1.18.4 smoke A5, A6 and A13).
+- update_task without an id: update_task with a missing id updated nothing and printed "Task ID 'None' not found" after a good fetch. It now updates the one open task, says plainly that there is no plan, or asks for the id when several are open.
+- Evidence collector for hand tests: tools/collect_evidence.py is now in the repository: after each row it saves the log, screenshots, layer table and the plugin's own evidence folders and lists the tools called. In the first real run the log files were empty; that is not yet explained and the change that tries to fix it is not verified in QGIS.
+- Known and open: The model typed key figures into a print layout that are not in the layer (B8); the elevation-profile print item sometimes renders empty in CI (#379); the cause of a script-worker crash (B7), a changed population figure between identical runs (C5) and an empty severity in the JIAF preliminary (E2) is not found because the matching evidence was missing.
+- Not hand-tested: Everything above is checked by the offline suite and, for the QGIS parts, by CI on QGIS 4.2.2; none of it has been hand-tested in desktop QGIS.
+
+## What's new in 1.18.4
+
+Built on 1.18.3. Offline tests and the QGIS 4.2.2 live checks in CI pass; **not hand-tested** in desktop QGIS unless an item says so. Full list: the `v1.18.4` block in [metadata.txt](metadata.txt) and [CHANGELOG.md](CHANGELOG.md).
+
+- Damage score ranks the most damaged district first: calculate_damage_exposure_severity took the average of the SIGNED change (after minus before), so a district that lost value had the lowest number and scored 0 while unchanged districts scored 1. It now averages the size of the change. A second run on the same layer also read the first run's old column (QGIS wrote the new one as chg_mean_2); each run now reads the column it just made.
+- Distances in degrees are caught: find_nearest_features said its distance was in metres but wrote degrees for a latitude/longitude layer; it now also adds distance_m in real metres. The blur tool (radius, grid cell), hotspot_analysis, simplify_geometry and interpolate_surface accepted 1000 on such a layer and used it as 1000 degrees; a value of 1 degree or more is now refused with the conversion (0.01 is about 1.1 km).
+- A named data source gets its own tool: A request such as 'search HDX for health facilities datasets' or 'conflict events from UCDP' matched a 'Map health facilities' or 'Map conflict events' task whose tools could not do it, and a confirmation card for the wrong task appeared. Naming UCDP, GDACS, USGS, EONET, FIRMS or FTS, or searching datasets, now gives no task directive.
+- IPC import names the area: import_humanitarian_table reported problem rows by number only; each issue now carries the area (P-code or name), and admin1_name, admin2_name, adm1_name and adm2_name columns are recognised as the area name.
+- Clearer errors: obfuscate_sensitive_points given a plain table says it has no geometry and how to load points. A GDACS HTTP 400 is retried once with the documented query parameters, and any GDACS failure names the site and the kind of failure without quoting the raw error.
+- Known and open: The elevation-profile print item sometimes renders empty in CI (#379); the cause is not found. In the 1.18.3 hand run the model did not call the survey tool (D3), exported instead of writing the field (D4) and planned an analysis instead of refusing a trigger with no threshold (S5); the tool router already offers those tools, so these are model choices. The change-layer legend (D6) needs a screenshot. Issues #362 and #380 stay open for their hand rows.
+- Not hand-tested: Everything above is checked by the offline suite and, for the QGIS parts, by CI on QGIS 4.2.2; none of it has been hand-tested in desktop QGIS.
+
+## What's new in 1.18.3
+
+Built on 1.18.2. Offline tests and the QGIS 4.2.2 live checks in CI pass; **not hand-tested** in desktop QGIS unless an item says so. Full list: the `v1.18.3` block in [metadata.txt](metadata.txt) and [CHANGELOG.md](CHANGELOG.md).
+
+- Forecast triggers accept a percent column: evaluate_forecast_trigger has a probability_scale option: 'percent' reads the probability column and min_probability as 0-100 (70 means 70 percent) and prints the rule with a percent sign; a column outside the chosen scale is warned about. The default 'fraction' (0-1) is unchanged.
+- Satellite search can be limited by cloud cover: search_stac_satellite_imagery takes max_cloud_cover (percent) and asks the service to apply it, returns the newest scenes first, echoes the filters and says plainly when nothing matches. Before, 'under 20 percent cloud' had no parameter, so unfiltered scenes came back and the table was padded from the model's memory.
+- Route risk uses real metres: score_route_incident_risk applied its buffer distance in degrees on a route in a latitude/longitude CRS, so 500 meant 500 degrees and every incident counted as near. It now buffers in the local UTM zone and returns the polygon in the route's own CRS.
+- A table with no coordinates now loads: load_tabular_data_as_layer could never load a CSV without coordinate columns: it told the model to omit the coordinate arguments, which only returned the field suggestion again, so the call repeated until the loop guard stopped the turn. The new as_table option loads it as a plain table, and loading the same file twice adds no second layer and says so.
+- Task grid for one area without a filter: generate_mapping_task_grid takes aoi_where, a QGIS expression that limits the area to matching features, so a grid over one governorate no longer needs a filter set on the source boundary layer.
+- Clearer chat text and write previews: A line break the model writes as <br> stays a line break instead of showing as text, and class text such as $< 0.2$ loses its dollar signs (prices are untouched). The confirmation preview for severity, presence-gap, population-in-need and damage-exposure now names the field and layer it writes instead of showing a comment.
+- Known and open: Hand-verified on 2026-10-26 with the 1.18.2 build (QGIS 4.2.3, Gemini): borders between provinces visible, HDX Yemen ADM1 download, recolour at 25 percent keeping borders. Not yet explained: confirmation clicks on a search request and a UCDP download, layers added that were not asked for, one labels report (C5). Issues #362 and #380 stay open for their hand rows.
+- Not hand-tested: The fixes above are checked by the offline suite and, for the QGIS parts, by CI on QGIS 4.2.2; none of them has been hand-tested in desktop QGIS.
+
+## What's new in 1.18.2
+
+Built on 1.18.1. Offline tests and the QGIS 4.2.2 live checks in CI pass; **not hand-tested** in desktop QGIS unless an item says so. Full list: the `v1.18.2` block in [metadata.txt](metadata.txt) and [CHANGELOG.md](CHANGELOG.md).
+
+- Every tool is called in real QGIS by a test: A test now calls each of the 296 tools once in a real QGIS 4.2.2 in CI with layers that are missing, of the wrong kind or empty, and with data services that are unreachable, answer with an error page, or return JSON of the wrong shape. A tool may refuse with a message; it may not raise or hang. It found the problems listed below. It proves a tool does not crash; it does not prove the result is right.
+- Wrong kind of layer: Naming a raster where a vector layer is needed (or the reverse) used to end in a bare failure in 28 tools. The tool registry now turns that error into a message that says what kind of layer the tool works on, and the raster tools check the layer kind before they run.
+- A hang and a crash fixed: aspect_analysis given a vector layer ran for minutes with no result; it now refuses at once. score_route_incident_risk raised an error while styling its route overlay under QGIS 4's Qt 6; it now uses the Qt 6 value. NDVI, NDWI and NDRE named a vector layer as a band and failed with an attribute error; they now say the layer is not a raster.
+- Downloads that redirect to another site: Two causes of a failed boundary download are fixed. (1) When a download link redirected to another site, the first request's Host header was copied onto the second request. HDX redirects to a signed Amazon S3 link, S3 took the bucket from that Host header and answered 403 SignatureDoesNotMatch; the same link downloaded with curl. Reproduced with the plugin's own download code and fixed: the download now returns the 4.98 MB HDX file. (2) A redirected step answered with 403, 407 or a 5xx status by a proxy or gateway is retried once through QGIS's own network settings (system or PAC proxy, proxy login, certificates). The geoBoundaries download of Yemen ADM1 worked on the owner's machine after (2); the HDX download has not yet been retried with (1). A failed boundary download now tells the user which site refused or could not be reached, what kind of failure it was and what to try, and no longer prints the signed link (it carried an access key and token).
+- Boundary layers keep their borders: A boundary layer (ADM1, ADM2) now draws light grey areas with thin white borders between them, and recolouring it or making it transparent fades the fill only, so the borders between provinces stay visible. Before, 25 percent opacity applied to the whole layer including its outline and the borders disappeared.
+- Known and open: Issues #362 and #380 stay open for their hand rows. The 1.18.1 hand-test results have not come back, so none of the 1.18.1 changes is hand-verified. The Yemen ADM1 download has not been retried on the machine where it failed. Not changed: undo of rename_field and delete_field, and temporary layers from tools other than add_point_layer.
+- Not hand-tested: Everything above is checked by the offline suite and, for the QGIS parts, by CI on QGIS 4.2.2; none of it has been hand-tested in desktop QGIS.
+
+## What's new in 1.18.1
+
+Built on 1.18.0. Offline tests and the QGIS 4.2.2 live checks in CI pass; **not hand-tested** in desktop QGIS unless an item says so. Full list: the `v1.18.1` block in [metadata.txt](metadata.txt) and [CHANGELOG.md](CHANGELOG.md).
+
+- Legend and footer on print layouts: The legend no longer has an entry cut in half: its text and symbols shrink in steps, then the layers drawn underneath are left out and the legend title says how many. The footer check accepts a shortfall no bigger than its own padding, which removed a 'may not fit' warning on a footer that fit, and the result now reports the footer's needed and available height so a wrong warning on your fonts can be read from the evidence folder. A layout keeps the name you ask for (Big Map stays Big Map; the old Layout_ spelling still finds it).
+- Charts and profiles say whether they drew: Adding a chart or an elevation profile to a layout now renders that item once and tells you whether it drew data or only axes, and what to check when it drew nothing. A test renders the profile five times in CI to catch a flaky render; it has not shown one.
+- One Log Messages tab: The plugin logged under about 27 tags, so QGIS opened about 27 tabs, one of them spelled CartogenAi beside CartogenAI, and the model_call lines the cost table needs were not in the tab the README tells you to save. Everything is now in the single CartogenAI tab, with the component name at the start of the line.
+- Fewer wrong plans: A plain operation request is not answered with a mapping task plan any more (a replay of 385 plain prompts: 34 wrong before the first fix, 7 after it, 2 now, both right). 'Draw contour lines of the dem every 100' no longer starts a DEM download and a workflow plan when a DEM layer is already loaded. A listing tool that repeats now stops with a message naming the next tool.
+- Undo of a new field: Undoing add_field removes the new field while it is empty; once it holds values, undo refuses, says so and changes nothing. Deleting a filled field stays a deliberate step that asks.
+- Point layers are kept or called temporary: A point layer the assistant adds is kept in the project's results GeoPackage when the project is saved, so it is there after reopen; in an unsaved project the reply says it is temporary and why. Other tools that write temporary layers (incident, hazard and event layers) are not changed.
+- A hand test that costs no API money: The hand-test bundle now has a script that you run once in the QGIS Python console: it builds its own project, makes about a dozen layouts, measures the legend, footer, names, presets, profile, logo and sign-off, and exports the pages. A checker reads what you send back. The remaining rows need a person and a model and each starts from its own stated state.
+- Known and open: Issues #362 and #380 stay open for their hand rows (animate, elevation profile, linked charts, merge, raster conversion), because they depend on what the model answers. Not changed: undo of rename_field and delete_field, and temporary layers from tools other than add_point_layer. A clean-profile install and an in-place upgrade have not been run on this line since rc6.
+- Not hand-tested: Everything above is checked by the offline suite and, for the QGIS parts, by CI on QGIS 4.2.2; none of it has been hand-tested in desktop QGIS. How the legend and footer look on your own fonts is exactly what the new layout script measures on your machine.
+
+## What's new in 1.18.0
+
+Built on 1.17.0-rc51. Offline tests and the QGIS 4.2.2 live checks in CI pass; **not hand-tested** in desktop QGIS unless an item says so. Full list: the `v1.18.0` block in [metadata.txt](metadata.txt) and [CHANGELOG.md](CHANGELOG.md).
+
+- What this release is: 1.18.0 is the sum of the 1.17.0 release candidates 42 to 52 since the last stable build, 1.16.3. Unlike earlier stable builds it is not an rc that passed its own hand test: rc44 to rc46 and rc48 were hand-tested in desktop QGIS (in part), rc50 for 20 of its 87 rows, and everything else is checked by the offline suite and by CI on QGIS 4.2.2 only.
+- Many more QGIS actions by plain request: About 296 tools and about 435 approved Processing algorithms: editing, data sources, symbology and labels, print-layout charts, atlas and elevation profile, point cloud, vector tile and 3D tiles layers, raster calculator, layer groups, project CRS, bookmarks and selections, a watershed tool, sourced web research, Excel and CAD export, statistics and raster to polygons. Describe the job without naming the algorithm and the assistant finds it.
+- Cheaper and steadier requests: About a third fewer tool definitions are sent with each request, requests are no longer answered by an unrelated task plan, undo reaches back a few messages, long runs are bounded, and four calls to QGIS methods that do not exist were fixed and a test now blocks any new one.
+- Sensitive layers and exports: An export or atlas whose map draws a RESTRICTED or SENSITIVE layer, including a layer made from one by merge or rename, waits for your confirmation. A publication export is refused until the layout has a title, legend, scale bar and north arrow, has no protected layer without a stated reason, and, when the profile requires it, a named and dated review.
+- Print layouts: Footer with sources, credits, the profile's own lines and a reviewer sign-off line; a No data class for graduated maps; page sizes A4, A3, A2 and A1; export presets (draft 96, web 150, print 300 dpi) and file names from the title and the date; layout checks for overflow, overlap and items off the page; the footer is sized from the font actually used.
+- Map profiles: A small JSON file holds what your team repeats on every map: page size, orientation, preset, file name pattern, required elements, your logo (PNG or JPG), masthead colours, font, footer lines, sign-off, and a COD flag with your own credit wording. Changes to the file apply to layouts you already made. No organisation's template or mark ships.
+- Disclaimer: The footer of every print layout carries the full disclaimer wording supplied by the owner (replaceable in Settings), and the Help and user guide have a Disclaimer and terms of use section. The wording is the owner's own and has not been reviewed by a lawyer.
+- Known and open: The elevation profile in a layout rendered empty once in CI and has not been explained. Open issues are listed in docs/OPEN_ISSUES_STATUS_2026-10-25.md; none is closed without a hand-verified pass or an owner decision. A clean-profile install and an in-place upgrade have not been run on this line since rc6.
+- Not hand-tested: The longer footer, page sizes A3 to A1, profiles with logo and sign-off, the lineage check on exports, and the contour routing have not been looked at by a person in desktop QGIS. A hand-test file for exactly these points is delivered with this build.
+
+## What's new in 1.17.0-rc51
+
+Built on 1.17.0-rc50. Offline tests and the QGIS 4.2.2 live checks in CI pass; **not hand-tested** in desktop QGIS unless an item says so. Full list: the `v1.17.0-rc51` block in [metadata.txt](metadata.txt) and [CHANGELOG.md](CHANGELOG.md).
+
+- Profile changes apply to layouts you already made: An export re-reads the layout's profile file, so a requirement you add later, such as require_sign_off, now applies; before, the layout kept the copy of the profile it was built with and a publication export went ahead. What the map itself prints is fixed when it is built: a review you add to sign_off later needs the layout rebuilt. If the profile file is gone or invalid, the stored copy is used and the export says so.
+- Maps made from sensitive layers ask before they export: A layer made from a RESTRICTED or SENSITIVE layer (a merge, a rename, further steps; the source renamed too) is protected through lineage, as it already was for cloud AI requests. A map that draws it now asks for confirmation before export, a publication export lists it as a problem, the footer carries the source's classification and the QA checklist names the source. An explicit PUBLIC or INTERNAL tag on the derived layer still releases it. The Sensitivity dialog says 'protected through lineage from X' instead of 'untagged'.
+- Footer sized from the real font: The print layout footer is now sized from its text measured in the font actually used, not from a character count, and the layout check uses the same measure. On Windows fonts the old estimate called the footer shorter than it was. CI uses Linux fonts and never showed it, so this is checked on your machine only.
+- Contour lines: 'Draw contour lines of the DEM every 100' should now make a contour line layer instead of restyling the DEM: the two tool descriptions state the difference. Which tool the model picks cannot be tested offline.
+- Known and open: The elevation profile in a layout rendered empty once in CI and has not been explained. OI-128 still waits for its evidence re-run. OI-150 needs a hand pass of the new check: a cloud question about the renamed merge result.
+- Not hand-tested: Everything above is checked by the offline suite and, for the QGIS parts, by CI on QGIS 4.2.2. None of it has been hand-tested in desktop QGIS. Build differences since rc50 are these four changes only; the rc50 rows that have not been run are still in the bundle.
+
+## What's new in 1.17.0-rc50
+
+Built on 1.17.0-rc49. Offline tests and the QGIS 4.2.2 live checks in CI pass; **not hand-tested** in desktop QGIS unless an item says so. Full list: the `v1.17.0-rc50` block in [metadata.txt](metadata.txt) and [CHANGELOG.md](CHANGELOG.md).
+
+- Credits on print layouts: A map with an OpenStreetMap or other known basemap now carries its credit in the footer (a Credits line); a web layer whose credit is not known says 'credit not recorded' instead of getting a guessed one.
+- No data in graduated maps: A graduated style on a layer with empty values now draws those features in grey and lists 'No data' in the legend; before, they were not drawn at all.
+- Layout checks on export: An export reports text that overflows its box, items that overlap and items off the page. These are warnings; the file is still written.
+- Page sizes and export presets: create_print_layout takes page_size A4, A3, A2 or A1 (the finished A4 layout is scaled; the map keeps its extent). Exports take a preset: draft (96 dpi), web (150) or print (300), and a folder gets a file named from the title and the date.
+- Map profiles: A small JSON file in the project's cartogen_profiles folder holds what your team repeats on every map: page size, orientation, export preset, file name pattern and required elements. Name it with profile=. docs/MAP_PROFILES.md lists every field; no organisation's template or mark ships.
+- Branding and sign-off in profiles: A profile can add your logo (PNG or JPG), masthead colours, a font, up to three footer lines, a reviewer sign-off line (without a named reviewer it reads 'Draft - not reviewed') and a COD flag with your own credit wording. A profile can require the sign-off before a publication export. A footer that needs more room takes it from the bottom of the map.
+- Footer fit: Landscape layouts no longer warn that the footer may not fit.
+- Known and open: The elevation profile in a layout rendered empty once in CI and has not been explained. OI-128 and OI-150 are still open and wait for a re-run with the context.json evidence.
+- Not hand-tested: Everything above is checked by the offline suite and, for the QGIS parts, by CI on QGIS 4.2.2. None of it has been hand-tested in desktop QGIS: nobody has looked at an exported A3 or A2 map, a logo, a font or a sign-off line yet. The disclaimer wording is a neutral default until your organisation supplies its own.
+
+## What's new in 1.17.0-rc49
+
+Built on 1.17.0-rc48. Offline tests and the QGIS 4.2.2 live checks in CI pass; **not hand-tested** in desktop QGIS unless an item says so. Full list: the `v1.17.0-rc49` block in [metadata.txt](metadata.txt) and [CHANGELOG.md](CHANGELOG.md).
+
+- Fixes from the rc48 hand test: Reachability within a distance now counts the road from the road to the facility (OI-148); tidy project layers asks before it changes anything and finds a layer loaded twice by different routes (OI-120); a script whose edits were not applied is reported as failed, and a blocked import says what scripts can do (145 and 146); dashboards say they need an internet connection (84); a large admin layer gets labels when you zoom in (127); after Zoom Full the layout frames the road network (129); the Memory dialog explains why project memory shows ON (95).
+- Layouts and routing: Charts and the elevation profile take a free spot on the page and draw with the right axes; a plain request such as 'sort the districts by population' goes to the algorithm instead of a mapping task; a Processing algorithm given the wrong geometry type is refused with a clear message; the sun-position algorithm gets a point inside your DEM.
+- Exports that draw sensitive layers: A layout export (single page or atlas) whose map draws a layer tagged RESTRICTED or SENSITIVE waits for your confirmation and writes nothing until you press Apply. For a file that will be shared outside the team, ask for a publication export: it is refused while the layout lacks a title, legend, scale bar or north arrow or draws a protected layer, unless you give a reason, which is saved beside the file. Every layout export now lists protected layers and missing elements.
+- Sources and disclaimer on print layouts: The footer of a new layout carries a Sources line (each layer's own organisation and publication date, else its file name, else 'source not recorded') and a boundary and data-sensitivity line. Settings has a checkbox and a box for your organisation's own wording; without it a neutral sentence is used. The footer grows to fit.
+- Fixes from an external audit: Blurring sensitive points to an admin unit works when the points and the admin layer use different coordinate systems, and blurring works on MultiPoint layers (one output point per part; before, it stopped with an error). The sector coverage report no longer shows a missing target as zero percent. The QA checklist says 'unknown' instead of 'no concern' when it cannot read a layer. A failed save of a result layer is reported. The file name for an automatic GeoJSON export is made safe and never overwrites an earlier file. Tools say when their files are in the system temporary folder.
+- Evidence for the two findings still open: Each evidence folder now records the settings and layer state of the request (context.json), so a re-run can explain the rc48 findings OI-128 (colour ramp reported, canvas grey) and OI-150 (sensitive tag lost after a merge). Neither could be reproduced in CI, so neither is fixed.
+- Not hand-tested: Everything above is checked by the offline suite and, for the QGIS parts, by CI on QGIS 4.2.2. None of it has been hand-tested in desktop QGIS, including the confirmation card, the footer layout and the Settings boxes. The wording of the disclaimer is a neutral default until your organisation supplies its own.
+
+## What's new in 1.17.0-rc48
+
+Built on 1.17.0-rc47. Offline tests and the QGIS 4.2.2 live checks in CI pass; **not hand-tested** in desktop QGIS unless an item says so. Full list: the `v1.17.0-rc48` block in [metadata.txt](metadata.txt) and [CHANGELOG.md](CHANGELOG.md).
+
+- Excel and CAD export: New tools export_layers_to_spreadsheet (one Excel .xlsx or .ods file, one sheet per layer, attributes only) and export_layers_to_dxf (a DXF for CAD software: geometry and layer names, no attribute tables or styling). Both save under the project's export folder unless you name a path, and ask before replacing an existing file.
+- Plain export requests: 'Send me the map as a pdf', 'Bundle the project data for sharing' and 'Save the roads layer to a geopackage' now reach the export tools; before, the tool was not offered for those words. 'Export to Excel' reaches the spreadsheet export and 'export to csv' still reaches the CSV export.
+- Statistics and raster to polygons: 8 more approved Processing algorithms (435 in all): basic statistics for fields, unique values, nearest-neighbour analysis, raster layer statistics, raster unique values report, raster surface volume, polygonize and contour polygons. The numbers come back in the reply, report files and file results are temporary, and small vector results are copied into the project.
+- Includes rc47: Everything in rc47 is in this build: 28 tool definitions per request instead of 40, the request fixes, elevation profile along a road, project tidy with vector tile layers and 20 more plain-language algorithm matches. rc47 itself was never installed for testing.
+- Not hand-tested: Everything above is checked by the offline suite and, for the QGIS parts, by CI on QGIS 4.2.2 (the DXF and spreadsheet files are written and read back there). None of it has been hand-tested in desktop QGIS. The 8 new algorithms and both exports have only run in CI.
+
+## What's new in 1.17.0-rc47
+
+Built on 1.17.0-rc46. Offline tests and the QGIS 4.2.2 live checks in CI pass; **not hand-tested** in desktop QGIS unless an item says so. Full list: the `v1.17.0-rc47` block in [metadata.txt](metadata.txt) and [CHANGELOG.md](CHANGELOG.md).
+
+- Cheaper requests: 28 tool definitions are offered per request instead of 40, about 35 percent fewer tokens on every model call (measured offline: 14.3k to 9.4k on average). It is a setting (cartogen_ai/tool_router_top_k, 12 to 60) if the assistant ever says a tool is unavailable. Not measured against live model answers.
+- Requests that were refused or misrouted: 'Set the project CRS to EPSG:3857', 'Assign EPSG:4326 to the layer' and 'Go to the bookmark' are no longer dismissed as pasted fragments; 'Show the metadata of towns' reads the metadata instead of planning a metadata-creation task; a raster expression such as 'Calculate dem@1 > 100 as a new layer' offers the raster calculator; 'animate', 'produce' and 'charts linked to maps' reach their tools.
+- Elevation profile along a road: add_layout_elevation_profile takes along_layer, a line layer: the profile runs from the first to the last vertex of its selected or first feature, so no coordinates have to be typed.
+- Project tidy: tidy_project_layers no longer fails when the project has a vector tile layer.
+- More plain-language matches: 20 more approved Processing algorithms can be found from a description of the result (holes in polygons, sorting, constant rasters, raster properties, hub lines and others).
+- Not hand-tested: Everything above is checked by the offline suite and, for the QGIS parts, by CI on QGIS 4.2.2. None of it has been hand-tested in desktop QGIS, and no real model was observed with the smaller tool list. The cause of the animation how-to answer and the HTML dashboard for a layout chart (issue 362) is not confirmed.
+
+## What's new in 1.17.0-rc46
+
+Built on 1.17.0-rc45. Offline tests and the QGIS 4.2.2 live checks in CI pass; **not hand-tested** in desktop QGIS unless an item says so. Full list: the `v1.17.0-rc46` block in [metadata.txt](metadata.txt) and [CHANGELOG.md](CHANGELOG.md).
+
+- Find an algorithm by what it does: A request that describes a result (fill the gaps in an elevation raster, which areas can be seen from a point, disconnected parts of the road network) now reaches the right one of the 427 approved Processing algorithms without its name. find_processing_algorithm searches by meaning and can list a whole family with what each is for. Measured offline on 40 fresh plain requests, the algorithm was among the first 15 results 60 percent of the time; which one a real model then picks is not tested.
+- Requests no longer hijacked by an unrelated task: A request that names an algorithm, asks for a computation, or asks for a chart is no longer answered with a confirm card for a map task (OpenStreetMap mapping, bridge damage, population mapping). 37 humanitarian tasks (flood, drainage, terrain, density, hotspots, catchments, nearest facility, interpolation, watershed, fire) now name the approved algorithms that fit them.
+- Undo: undo_last_operation reaches back up to five messages, so 'undo that' typed as the next message works. delete_features can be undone, and rule-based labels can be removed (clear). A project switch clears the undo list.
+- Stalls and freezes: A background algorithm now stops by itself after 300 seconds with a clear message; its status line no longer says 'road network' for raster algorithms. A layer of the wrong kind in any algorithm parameter (a raster where a table is needed) is refused before anything runs. GRASS runs keep the window repainting, but Stop still cannot interrupt them and they can take minutes on Windows. The cause of five algorithms that stalled in the hand test is not found.
+- Smaller fixes: The overview map keeps the size asked for, snapping to vertices and segments sets both, a layout is found by a loose name (Test Layout for Layout_Test_Layout), the raster calculator refusal names the raster_calculator tool, every output of a multi-output algorithm gets its look, and the no-data range wording is clear.
+- Not hand-tested: Everything above is checked by the offline suite and, for the QGIS parts, by CI on QGIS 4.2.2. None of it has been hand-tested in desktop QGIS and no real model was observed choosing algorithms from plain requests. The plain-language hand test (385 prompts) is written but not run.
+
+## What's new in 1.17.0-rc45
+
+Built on 1.17.0-rc44. Offline tests and the QGIS 4.2.2 live checks in CI pass; **not hand-tested** in desktop QGIS unless an item says so. Full list: the `v1.17.0-rc45` block in [metadata.txt](metadata.txt) and [CHANGELOG.md](CHANGELOG.md).
+
+- Fixes found against the QGIS 4.2.3 reference: The map-history tool (zoom_history) now says so when there is no earlier or later extent instead of reporting success; diagnose_topology counts invalid geometries again; the proxy check no longer fails on the QGIS network settings; and the point-displacement map style applies. A new test compares every QGIS call in the code with the 4.2.3 reference list and fails on a name that does not exist.
+- Not hand-tested: Everything above is checked by the offline suite and, for the QGIS parts, by CI on QGIS 4.2.2. None of it has been hand-tested in desktop QGIS. The check compares method names only, not argument lists or return types.
+
+## What's new in 1.17.0-rc44
+
+Built on 1.17.0-rc43. Offline tests and the QGIS 4.2.2 live checks in CI pass; **not hand-tested** in desktop QGIS unless an item says so. Full list: the `v1.17.0-rc44` block in [metadata.txt](metadata.txt) and [CHANGELOG.md](CHANGELOG.md).
+
+- Symbology and labels: New tools: rule-based labels, label callouts and masks, pie and bar diagrams, SVG and font point markers, hillshade and contour styles for rasters, and a personal symbol library (save a layer's symbol, list and re-apply it). Undo covers the label, callout, diagram, marker, relief and saved-symbol changes.
+- Print layouts: New tools: an overview (locator) map, layout guides and a snapping grid, an atlas with one page per feature, bar, line and pie charts, and an elevation profile along a line. A layout can be exported with a world file or as a GeoPDF. How charts and profiles look when drawn has not been checked.
+- New layer types: New tools: open a point cloud (.copc.laz or EPT; a plain .las or .laz needs a QGIS build with the PDAL provider and says so otherwise), a vector tile source (https XYZ, .mbtiles or .vtpk) and a 3D Tiles tileset. New settings tools: turn elevation on for a raster or set a vector layer's clamping and extrusion, and set the project's terrain (flat or a DEM).
+- GRASS and mesh algorithms: The approved Processing list grew from 267 to 427 algorithms: 154 GRASS algorithms (only where QGIS has GRASS installed; the ones that read or write files, take SQL or expressions, or install extensions are left out) and 6 mesh algorithms (export edges, faces, vertices and grid points, rasterize a dataset, surface to polygon). 12 GRASS algorithms and mesh contours failed their live run and are not offered.
+- Fixes found by an integration audit: More changes can now be undone with undo_last_operation (layer filter, labels, callouts, diagrams, markers, relief, saved symbols, elevation, time settings). A virtual layer built over a protected layer is now seen by the privacy gate and inherits that protection. Packaging layers offline, adding a chart and setting an atlas now warn when a RESTRICTED or SENSITIVE layer is involved. A plain 'animate the layer over time' is offered the animation tool again.
+- Results look better: Continuous raster, GRASS and mesh results (distance, cost, slope-like surfaces, interpolations) open with a colour ramp instead of plain grey; classified and shaded results stay as they are. GRASS buffers, hulls, overlays and network results get the same look as their native counterparts. This was checked by which algorithm gets which look, not by viewing the maps.
+- Not hand-tested: Everything above is checked by the offline suite and, for the QGIS parts, by CI on QGIS 4.2.2 (each new tool is read back from real QGIS objects, each Processing algorithm was run once on small test data). None of it has been hand-tested in desktop QGIS, no real model was used to choose these tools, and no real point cloud, vector-tile or 3D-tiles data was opened. Not built: GPS tools, PDAL point-cloud algorithms (this QGIS build has no PDAL) and a 3D map layout item (not available in the CI QGIS).
+
+## What's new in 1.17.0-rc43
+
+Built on 1.17.0-rc42. Offline tests and the QGIS 4.2.2 live checks in CI pass; **not hand-tested** in desktop QGIS unless an item says so. Full list: the `v1.17.0-rc43` block in [metadata.txt](metadata.txt) and [CHANGELOG.md](CHANGELOG.md).
+
+- More QGIS actions by plain request: The approved Processing list grew from 166 to 267 algorithms: 66 raster algorithms (terrain indices, proximity, sieve, fill no-data, warp, translate, grid interpolation, cell-stack and fuzzify tools, zonal tables, constant and random rasters) and 35 more table, analysis and geometry algorithms (X/Y fields, extract by attribute, kernel density heatmap, raster pixels to points or polygons, multi-layer union, intersection and difference, drape lines on a DEM, rasterize, service area from a layer and others). Each was run once in real QGIS 4.2.2 in CI; any that failed there was left off (find projection hangs, line density could not create its raster, shortest path from a layer needs a purpose-built network). A layer list given to a raster-stack algorithm must hold rasters: vector layers there crashed QGIS in a test, so they are now refused before the algorithm runs.
+- Edit features, not just values: New tools: set a layer filter, move, rotate and scale features, merge features, split features by a line, undo and redo manual edits on a layer in edit mode, change a field's type, and start, save or discard editing. Anything that changes or removes data shows a preview with exact counts first.
+- Open more kinds of data: New tools: add a PostGIS table through a connection saved in QGIS, create a virtual layer (SQL over the project's layers; a single SELECT only), load and save .qlr layer files, and package layers into one GeoPackage for offline use. NetCDF, GRIB, HDF, ECW, MrSID and mesh files (.nc .grb .2dm .slf) are opened when your QGIS build supports them.
+- Styling and print layouts: New tools: set a layer's fill, outline, marker and opacity, label style (halo, buffer, placement) and raster style (resampling, brightness and contrast). Layouts: add label, picture, shape, arrow and attribute-table items, edit, move, rotate or remove them, set the map's scale, extent and rotation, change the page size, save and load layout templates, and export to PDF, image or SVG. HTML frames and pictures given as a URL are refused on purpose.
+- Project settings: New tools: rename a layer group, zoom to the previous or next extent, read and set layer metadata, snapping options, 1-N relations between layers, time-aware layers and the project time range, and text annotations on the map.
+- Showcase services measured: A CI job now records which outside services answer from the build machine. The Copernicus DEM tile and Google News were reached; GDELT answered with a rate limit (HTTP 429) and DuckDuckGo returned no result list. The plugin falls back from GDELT to Google News and says when a service cannot be used.
+- Not hand-tested: Everything above is checked by the offline suite and, for the QGIS parts, by CI on QGIS 4.2.2 (each new tool is read back from real QGIS objects and each Processing algorithm was run once). None of it has been hand-tested in desktop QGIS. set_map_view, go_to_bookmark and zoom_history need the real map canvas, which CI does not have. PostGIS was tested against a throwaway server only. ECW and MrSID depend on your QGIS build's drivers and were not tested.
+
+## What's new in 1.17.0-rc42
+
+Built on 1.16.3. Offline tests and the QGIS 4.2.2 live checks in CI pass; **not hand-tested** in desktop QGIS unless an item says so. Full list: the `v1.17.0-rc42` block in [metadata.txt](metadata.txt) and [CHANGELOG.md](CHANGELOG.md).
+
+- Run QGIS tools by name: The approved Processing list grew from 42 to 166 algorithms: 73 geometry tools (densify, smooth, extract vertices, polygons to lines, hulls, boundaries and more), 11 table and selection tools (delete duplicates, drop fields, random extract, join by location summary and others), 35 analysis and creation tools (distance matrix, hub lines, random points, mean coordinates, topological colouring, the 16 geometry checks) and 5 expression tools (extract, geometry and order by expression, autoincrement field, random points inside polygons). New tool find_processing_algorithm searches the list by a few words and returns each algorithm's exact parameters. Each algorithm was run once in real QGIS 4.2.2 in CI; any that failed there was left off. Expression tools refuse env(), file functions and eval() in what the model writes. Algorithms that need file output, a path, or a selection change on your own layer are not on the list.
+- Raster calculator: New tool raster_calculator: map algebra with QGIS's own calculator, for example "dem@1" > 100 or ("nir@1" - "red@1") / ("nir@1" + "red@1"). Only numbers, + - * / ^, comparisons, AND, OR, brackets and sqrt sin cos tan asin acos atan ln log10 abs min max are accepted; layers must exist, share a coordinate system and have unique names. The result is a new raster; no input is changed.
+- Layers, groups, map view and project: New tools: create an empty layer, add a basemap or a web service layer (WMS, WFS, XYZ), find and repair broken layer paths, assign a layer CRS, save a layer as another format, create layer groups and move layers into them, set the project CRS and properties, set the map view (centre, scale), create and go to bookmarks, and measure a distance.
+- Selections and attribute editing: New tools: select all, select by expression, clear selection, set an attribute value, add, rename and delete a field, add a feature from WKT, delete features. Edits go through the edit session so they can be undone. Expressions the model writes are screened: env(), file functions and eval() are refused.
+- Hydrology and research: New tool delineate_watershed: from a DEM and an outlet point it derives the basin, longest flow path and outlet, and returns area, stream length, relief, slope and time of concentration, then hands over to the existing peak-flow tool, which still refuses guessed rainfall intensity or runoff coefficient. New tool web_research returns sourced findings; search_web now falls back instead of failing when the search package is missing; find_incident_reports can include news as an opt-in source mapped from place names in headlines.
+- Safety net: Every release is now built behind a gate of the offline test suite, a tool-schema snapshot, golden routing requests with size pins, a coverage ratchet over 163 QGIS actions and all 772 registry algorithms, and the replay of 26 recorded sessions. Plain requests that worked before must keep being offered their tools.
+- Not hand-tested: Everything above is checked by the offline suite and, for the QGIS parts, by CI on QGIS 4.2.2. None of it has been hand-tested in desktop QGIS. Not verified from the build environment: the Copernicus DEM download behind delineate_watershed, and the live GDELT, Google News and DuckDuckGo responses behind the news source and web_research. set_map_view and go_to_bookmark need the real map canvas, which CI does not have.
+
+## What's new in 1.16.3
+
+Built on 1.16.2. Offline tests and the QGIS 4.2.2 live checks in CI pass; **not hand-tested** in desktop QGIS unless an item says so. Full list: the `v1.16.3` block in [metadata.txt](metadata.txt) and [CHANGELOG.md](CHANGELOG.md).
+
+- Plain requests are offered their tools again: Since 1.16.0-rc23 a short request such as 'create layer for Jordan ADM1', 'zoom to the layer X', 'remove the layer X' or 'export X to CSV' was no longer offered add_layer_from_path, zoom_to_layer, get_layer_extent, remove_layer, export_layer, reproject_layer, clip_layer and the other layer tools: the cost work had removed generic words such as layer, add, create and export from tool matching for every request, and ties were then broken alphabetically. The model never saw the tool and answered that none was available. The discount now applies only to requests of more than 25 words, as designed. Found by replaying 40 plain requests through the router of all 43 releases from rc12 to 1.16.2.
+- Boundary tools for ADM codes: 'Jordan ADM1', 'ADM2 districts', 'governorates of Syria', 'admin boundaries' and 'P-code' now offer fetch_geoboundaries and fetch_hdx_admin_boundaries.
+- Long requests and raster styling: 'Style the result with a green to red colour ramp' now offers apply_raster_stretch, and 'style them with a pale fill and a grey outline' offers a tool that can change a fill or an outline (neither was offered before). 16 long requests are checked by the new guard.
+- QGIS vocabulary and Processing tools: Eight plain phrases that missed their tool now reach it (symmetrical difference, k-means, DBSCAN, reclassify a raster, sample raster values, how many features, categorize the layer, create a grid). Thirteen everyday actions that have no tool (extract vertices, densify, polygons to lines, random points, split layer, raster calculator, polygonize, rasterize, viewshed, basemap, measure and others) now at least get the script fallback and find_tools instead of nothing. All 42 allow-listed Processing algorithms are reachable from a plain request.
+- Permanent guards: tests/test_tool_router_basics.py (44 plain and long requests), tests/test_qgis_vocabulary_coverage.py (91 phrases), tests/test_processing_allowlist_routing.py (every allow-listed algorithm) and tests/test_recorded_sessions_replay.py (26 real sessions replayed through the agent loop) fail the build when a change drops a tool a plain request needs. tools/replay_router_across_releases.py repeats the comparison across releases; the audit is in docs/ROUTER_REGRESSION_AUDIT_2026-10-14.md.
+- Not hand-tested: All of the above is checked by the offline suite and CI. It checks which tools the model is offered, not what the model then does with them; the 1.16.2 and rc41 fixes (Stop during a model call, honest script edits, raster style kept, template defaults, boundary-failure wording) are also still not hand-tested. The 13 actions without a tool still need a script or a future Processing allow-list entry (owner decision, see the audit note).
+
+## What's new in 1.16.2
+
+Built on 1.16.1. Offline tests and the QGIS 4.2.2 live checks in CI pass; **not hand-tested** in desktop QGIS unless an item says so. Full list: the `v1.16.2` block in [metadata.txt](metadata.txt) and [CHANGELOG.md](CHANGELOG.md).
+
+- No substitute for a failed boundary download: In a Jordan ADM1 request both boundary downloads failed, and the assistant then drew 12 governorate capitals from coordinates it remembered and titled the reply 'Jordan ADM1 Layer Created'. Points are not boundaries and remembered positions are unverified. Every failure message of fetch_geoboundaries and fetch_hdx_admin_boundaries now tells the model not to substitute points, capitals or polygons, to say the download failed and why, and to offer the other source or a boundary file you already have. It is an instruction to the model, not a block: the 'Unverified point positions' flag from rc40 stays as the backstop. Checked by an offline test; not tried against a real model.
+- Still failing on some machines: The geoBoundaries file download still fails with 'HTTP Error 500: Domain Not Found' on the machine where it was reported. That points to DNS or a proxy on that machine (issue 305); this release does not change it. If it happens to you, check that github.com opens in a browser and what QGIS has under Settings, Options, Network.
+- Same code otherwise: Everything else is 1.16.1 unchanged. The fixes of 1.16.0-rc41 and 1.16.1 (Stop during a model call, honest script edits, raster style kept, template defaults, routing words) are still checked by the offline suite and CI only, not by hand.
+
+## What's new in 1.16.1
+
+Built on 1.16.0-rc41. Offline tests and the QGIS 4.2.2 live checks in CI pass; **not hand-tested** in desktop QGIS unless an item says so. Full list: the `v1.16.1` block in [metadata.txt](metadata.txt) and [CHANGELOG.md](CHANGELOG.md).
+
+- First stable release of 1.16: 1.16.1 is the stable build of the 1.16 line. It contains exactly the code of 1.16.0-rc41 and nothing else: the version number no longer carries 'pre-release'. The 1.16 line adds the audit fixes, the cost and routing work, the incident, earthquake, conflict-event and fact-check tools, point-position flags, and the fixes from the rc37 and rc40 hand tests (rc20 to rc41; full list in CHANGELOG.md).
+- What was hand-tested: The rc40 build was hand-tested on Windows with QGIS 4.2.2 and Gemini (67 rows: 42 pass, 14 fail, 11 not run); 19 issues were closed from it and the failures were fixed in rc41 or traced to wrong test rows. Upgrading from rc39 to rc40 was checked by the owner. The rc41 fixes are checked by the offline suite and CI only, including live checks in QGIS 4.2.2.
+- Not yet hand-tested in 1.16.1: Stop during a model call, the raster-style follow-up, honest script edits to file layers, task-template defaults, the routing words for access by road, the Memory dialog line and the cloud-card text. The corrected live-test rows for them are in docs/FULL_LIVE_TEST_open_issues_ROWS.csv. Report anything that fails at https://github.com/http-solution/cartogen-ai-qgis-plugin/issues.
+- Changes from rc41: None in code. Version number and release text only.
+
+## What's new in 1.16.0-rc41
+
+Built on 1.16.0-rc40. Offline tests and the QGIS 4.2.2 live checks in CI pass; **not hand-tested** in desktop QGIS unless an item says so. Full list: the `v1.16.0-rc41` block in [metadata.txt](metadata.txt) and [CHANGELOG.md](CHANGELOG.md).
+
+- Stop takes effect during a model call: Pressing Stop while the assistant was waiting for the model took 25 to 30 seconds to show, because the wait only ended when the reply did. The wait now checks Stop every quarter of a second, ends the turn as 'Stopped by user' rather than an API error, and does not resend the request. Checked by offline tests only; not tried against a real provider.
+- Script edits to file layers are reported honestly: A script works on a copy of a file or database layer, so an edit it made to such a layer never reached the real one, yet the reply said it had. The reply now says the edit was NOT applied and points to an editing tool. Layers a script creates are flagged as temporary (lost when the project closes unless saved or exported). Memory layers still receive same-count edits. Two new live checks run in QGIS 4.2.2 in CI.
+- A styled raster stays styled: After the assistant applied a colour ramp to a raster, a follow-up that checks the promised result told it to call a categorized-style tool, and it re-stretched the raster to grey. Styling tools now count as delivering a layer, so no follow-up is sent.
+- Task templates state a default only where it is used: A matched task template used to add 'Given: threshold = 5 km', 'imagery = most recent low-cloud scene' or 'population_src = WorldPop' to requests that never mentioned them. A default is now stated only when a tool in the task's chain can use that slot (issue 304, owner decision).
+- Routing words for access by road: 'Which facilities are beyond N minutes or km by road' now points the assistant to classify_facilities_by_access, the tool that adds the green reached and red beyond layer, for any number of facilities (the prompt said more than about 200).
+- Incident wording, Memory dialog, cloud card, busy chat: find_incident_reports tells the model to say 'reported by', never 'verified'. The Memory dialog says whether notes are saved with the project. The cloud-override card says that layer names, field names, types, CRS and counts always reach the cloud model. A message sent while a reply is running now says it was kept in the box instead of being ignored silently.
+- Security scan notes: Bandit's two XML findings (B405, B314) are marked with the reason: both feed parsers refuse any DOCTYPE or ENTITY and cap the size before parsing.
+- Not hand-tested: Everything above is checked by the offline suite and CI (including live checks in QGIS 4.2.2) only. Stop latency, the card and dialog text, the raster fix and the routing words need a hand run; the corrected live-test rows are in the bundle.
+
+## What's new in 1.16.0-rc40
+
+Built on rc39. Offline tests, mypy and the QGIS 4.2.2 live checks in CI pass; **not hand-tested** in desktop QGIS. Full list: the `v1.16.0-rc40` block in [metadata.txt](metadata.txt) and [CHANGELOG.md](CHANGELOG.md).
+
+- New tool: search_fact_checks: Answers 'has this claim, video or photo been fact-checked?' from the published feeds of Snopes, PolitiFact, FactCheck.org, Full Fact, Lead Stories and the Arabic-language Fatabyyano (searchable in Arabic). Every reply names the outlets that answered or failed and says that only each outlet's newest 10 to 25 entries are searched, so no match is never evidence that a claim is true, false or unchecked. Reuters, AFP, Africa Check and AP refuse automated requests and cannot be asked. The six feeds were queried live from a development session; not hand-tested in QGIS.
+- Point positions the model typed are flagged: Coordinates passed to add_point_layer, add_incident_point or execute_pyqgis_script that appear in neither your message nor an earlier tool result are flagged in the tool result and in the final reply ('Unverified point positions'). This closes the gap noted in rc39. It never blocks, and it cannot see coordinates computed or read from a file inside a script.
+- Routes from a depot in another layer: optimize_delivery_route takes additional_stops_layers, so a depot or hub in one layer and the stops in another no longer need scripts to merge them first (rc37 row F3 took 9 calls for 5 stops). Whether the assistant now does it in one call is not yet checked.
+- Analysis fields are written through the edit session: Severity score, presence-gap status, population-in-need and damage-severity fields were added straight to the data provider, bypassing the edit buffer, so a failure half-way could not be undone and a layer you were already editing was ignored (issue 293). They now go through the same checked, undoable edit as the other field-writing tools.
+- Downloads that redirect to another site: A download that follows a redirect (geoBoundaries boundary files do) used urllib for the redirected hop, which does not know a PAC or authenticated proxy that QGIS does. A hop urllib cannot connect to is now retried through QGIS's own network stack. geoBoundaries failures now say whether the lookup or the file download failed, and from which host. The tester's failure on 2026-10-13 is still unconfirmed; this fixes the best-supported explanation.
+- Security alerts and documentation site: Fixes for the CodeQL alerts on the website prototype (content security policy, a reflected error message, a log format string), a test server that copied the Host header into a redirect, workflow permissions, and the documentation site's search. The documentation site is live at https://http-solution.github.io/cartogen-ai-qgis-plugin/.
+- Not hand-tested: Everything above is checked by the offline suite and CI (including the live checks in QGIS 4.2.2) only. The proxy fix was not tried behind a real proxy, the point-flagging and the depot merge were not tried with a real model, and the rc39 hand-test rows (no invented layer, follow-up, Stop on a long job) are still to run.
+
+## What's new in 1.16.0-rc39
+
+Built on rc38. Offline tests, mypy and the QGIS 4.2.2 live checks in CI pass; **not hand-tested** in desktop QGIS. Full list: the `v1.16.0-rc39` block in [metadata.txt](metadata.txt) and [CHANGELOG.md](CHANGELOG.md).
+
+- No invented records to fill an empty layer: When a request promised a map layer and no layer had been made, the follow-up the plugin sends the model told it to 'generate an operational/representative sample dataset'. In the rc37 hand test (a request to check the internet for incidents near Amman, after every source returned nothing) the model added four invented incidents to the map as a 'planning baseline'. The follow-up now says the opposite: do not invent, sample, simulate or illustrate records; say which sources were tried, what each returned, and that no layer was made because there was nothing real to show. A test fails if the old wording returns.
+- Hand-test result for rc37, corrected: Row RC37-A1 of the live test, recorded as a pass by the tester, is a fail for the reason above. Everything else in the rc37 report stands (docs/RC37_LIVE_TEST_REPORT_2026-10-13.md).
+- Live-test bundle: The live-test bundle (tools/build_live_test_bundle.py) takes its version from metadata.txt, and its rows no longer name a version.
+- Not hand-tested: The fix is checked by the offline suite and CI only. Nothing stops the model from adding made-up points by another route (for example add_point_layer with coordinates it invented); this release only removes the wording that asked for it.
+
+## What's new in 1.16.0-rc38
+
+Built on rc37. Offline tests, mypy and the QGIS 4.2.2 live checks in CI pass for these fixes; they have **not been re-run by hand** in desktop QGIS. rc37 itself was hand-tested on 2026-10-13 (17 of 23 rows passed; see [docs/RC37_LIVE_TEST_REPORT_2026-10-13.md](docs/RC37_LIVE_TEST_REPORT_2026-10-13.md)). Full list: the `v1.16.0-rc38` block in [metadata.txt](metadata.txt) and [CHANGELOG.md](CHANGELOG.md).
+
+- Processing-algorithm tool works again: run_allowlisted_processing_algorithm failed on every call from the assistant since rc24 with "unexpected keyword argument 'params'": a code change had left the tool registered against an internal helper. Found in the rc37 hand test (a follow-up statistics step after a classification). The registration is fixed and a new test checks that every registered tool accepts the arguments it advertises.
+- No false 'step did not run' note after incident searches: After find_incident_reports added its layer the chat could still end with 'Expected styled layers ... but the step that writes it did not run', because the tool's name was not recognised as one that creates a layer. It is now.
+- rc37 hand test: rc37 was hand-tested on 2026-10-13 against Gemini in desktop QGIS 4.2: 17 of 23 rows passed, 2 were inconclusive (Stop was never exercised against a running job), 2 were not recorded and 2 optional rows were skipped. Report: docs/RC37_LIVE_TEST_REPORT_2026-10-13.md.
+- Not hand-tested: The two fixes above are checked by the offline suite and CI only; neither has been re-run in desktop QGIS. Stop during a long-running job is still unproven on real data.
+
+## What's new in 1.16.0-rc37
+
+Built on rc36. Offline tests, mypy and the QGIS 4.2.2 live checks in CI pass; the five sources were queried live from a development session; **not hand-tested** in desktop QGIS and not run with a real model. Full list: the `v1.16.0-rc37` block in [metadata.txt](metadata.txt) and [CHANGELOG.md](CHANGELOG.md).
+
+- New tool: find_incident_reports: Answers 'what incidents, disasters or conflict events happened in <place>' from a fixed list of named sources instead of the open web: GDACS (UN alerts), USGS earthquakes, NASA EONET, UCDP armed-conflict events and the ReliefWeb disasters feed. Every record carries its source, rating, date and link; records with a position become a map layer (ReliefWeb items have no coordinates and are listed). Every reply names the sources that answered, the ones that could not be reached and the ones not searched, so an empty result is not read as 'nothing happened'. UCDP data is preliminary and weeks old. No keys needed. The tool count is now 211.
+- What it does not search: News outlets, fact-checkers and social media are not searched: the Reuters, AFP and Full Fact pages cannot be read by a program, Liveuamap is a paid API, ACLED needs a registered key, and social media is out of scope. The reply lists each with its reason.
+- search_web points to it: The general web search description now tells the assistant to use find_incident_reports for incident, disaster and conflict questions.
+- Not hand-tested: The five sources were queried live from a development session and CI is green, including the live checks in QGIS 4.2.2, but none of this has been hand-tested in desktop QGIS. Whether the assistant chooses the new tool for a plain request such as 'check the internet for incidents' is not yet known.
+
+## What's new in 1.16.0-rc36
+
+Built on rc35. Offline tests, mypy and the QGIS 4.2.2 live checks in CI pass; **not hand-tested** in desktop QGIS, not tried on a large real project and not run with a real model. Full list: the `v1.16.0-rc36` block in [metadata.txt](metadata.txt) and [CHANGELOG.md](CHANGELOG.md).
+
+- QGIS stays responsive during long analyses: Loops over features, pairs and pixels used to run in one unbroken stretch on QGIS's main thread, so QGIS showed Not Responding and ignored Stop. About 90 such loops in the analysis, validation, styling, export and import tools now work in slices of about 50 ms: the window repaints, Stop is heard, and progress is reported every few seconds. A Stop inside an edit rolls the edit back.
+- Hub siting, allocation and delivery routes: The distance matrix is built in slices and the ranking, facility selection and route ordering run off the main thread. Route ordering now finds tours about 14 percent shorter on a 200-stop test and runs faster (it used to stop after 2000 trial moves). The route-risk tool merges geometry in one pass and tests incidents against a prepared buffer.
+- Large raster classification: unsupervised_classification reads and classifies the raster in blocks, so memory no longer limits its size; a raster over 400 million cells is refused with a clip-it-first message (it used to refuse over 25 million cells).
+- Fewer freezes elsewhere: geocode_batch (up to 25 lookups with pauses) no longer runs on the main thread and stops when you press Stop. Scheduled recurring workflows now skip a tick while another one or a chat request is running instead of starting a second analysis on top. The chat window removes the oldest messages once it holds more than 300 items, keeping the newest 200 (the saved conversation is untouched).
+- Not hand-tested: CI is green, including the live checks in QGIS 4.2.2, but none of this has been tried on a large real project or hand-tested in desktop QGIS. The size of the speed-up on real data has not been measured, and 300 and 200 for the chat window are estimates.
+
+## What's new in 1.16.0-rc35
+
+Built on rc34. Offline tests and mypy pass locally; the data fetches of the two new tools were run against the live services; **not hand-tested** in desktop QGIS and not run with a real model. Full list: the `v1.16.0-rc35` block in [metadata.txt](metadata.txt) and [CHANGELOG.md](CHANGELOG.md).
+
+- Research requests end with an answer: A request that only reads (a web search, an inspection) never creates or changes anything, so the stall guard used to stop it after six rounds as 'NOT complete' with nothing summarised. Now, when such a turn has gathered results, the model is asked once to answer from them without calling more tools, saying what it found, its sources and what it could not find. A second stall still stops the turn.
+- Two new tools: earthquakes and conflict events: fetch_usgs_earthquakes loads recent USGS earthquakes (bounding box, days, minimum magnitude) as a layer coloured by magnitude band. fetch_ucdp_conflict_events loads UCDP Candidate Events (state-based, non-state and one-sided violence) from the open UCDP download, filtered by country, area, dates and deaths. UCDP candidate data is preliminary and weeks old, and every result says so and names the newest event date. Both need no key. The tool count is now 210.
+- URL downloads use the QGIS network stack: Downloads of web addresses named by the model, including the humanitarian data downloads, now go through QGIS's network stack (your proxy, authentication and SSL settings apply). Every redirect is still checked against the private-address block before it is followed, one hop at a time, and the key is dropped when a redirect leaves the site.
+- Licence notice says GPL version 2 only: The notice in the plugin's root file offered 'any later version'; it now says version 2 only, matching the package metadata and the manifest.
+- Not hand-tested: The earthquake and UCDP data fetches were run against the live services from a development session, and CI runs the rest, including the QGIS 4.2.2 live job, but none of this has been hand-tested in desktop QGIS or with a real model. Whether the assistant picks the new tools for plain requests is not yet known.
+
+## What's new in 1.16.0-rc34
+
+Built on rc33. GitHub Actions ran green on the merged head (Ubuntu, Windows, the QGIS 4.2.2 live job and the secret scan); **not hand-tested** in desktop QGIS and not run with a real model or API key. Full list: the `v1.16.0-rc34` block in [metadata.txt](metadata.txt) and [CHANGELOG.md](CHANGELOG.md).
+
+- A refused Gemini request now explains itself: When Google refuses a request, the chat message says what each model answered (the status and Google's own text, for example 'Your project has been denied access'), which API key was sent (its length, last four characters and where it was found: QGIS saved credentials, this session's memory or an old plaintext setting) and, when the reply is not a normal Google error, the server name and size of the reply. Long key-like strings in provider text are blanked and the whole key is never shown.
+- Retired Gemini model replaced: Google answers 404 for gemini-2.5-flash ('no longer available to new users, use gemini-3.8-flash'). The fallback list is now gemini-flash-latest, gemini-3.8-flash and gemini-3.7-flash, and Settings offers gemini-3.8-flash.
+- No more waiting on a model your plan cannot use: A quota of zero (the free tier has none for the Pro models) is returned at once instead of after a minute of retries, and the plugin moves to the next model. A model refused with 403 is also skipped. When Google denies the whole project, the plugin stops and shows Google's message instead of trying every model. A Google quota error is shown as one sentence (model, free tier, limit, retry time) instead of a screenful of JSON.
+- Log lines keep their host names: The redirect and refusal log lines had lost their host fields to the logger's allow-list; host names (never paths, keys or bodies) are now logged.
+- Not hand-tested: CI is green, including the live checks in QGIS 4.2.2, but none of this has been hand-tested in desktop QGIS or run against Google. Which key and project Google accepts remains the user's to check in Google AI Studio.
+
+## What's new in 1.16.0-rc33
+
+Built on rc32. GitHub Actions ran green on the merged head (Ubuntu, Windows, the QGIS 4.2.2 live job and the secret scan); **not hand-tested** in desktop QGIS and not run with a real model or API key. Full list: the `v1.16.0-rc33` block in [metadata.txt](metadata.txt) and [CHANGELOG.md](CHANGELOG.md).
+
+- AI requests keep their API key when a server redirects them: If anything between QGIS and a provider (a proxy, firewall or gateway) answered an AI request with a redirect, QGIS's own sender repeated the request without the Authorization header, so the provider refused it with 403. This was reproduced in QGIS 4.2.2 with a local test server. Requests that carry a body or a key now follow redirects inside the plugin: the same method, headers and body on a 307 or 308, a plain GET on 301, 302 and 303, the key kept on the same site and dropped for another, relative targets resolved, at most 5 hops.
+- Redirects are logged without secrets: Each redirect writes a log line with the two host names and the status, never the path, key or body, so a later refusal shows whether a redirect was involved.
+- Not hand-tested: CI is green, including the live checks in QGIS 4.2.2 against a local test server, but none of this has been hand-tested in desktop QGIS or run against Google, and it has not been confirmed that a redirect is what caused the reported Gemini 403. The reason code and the sender switch added in rc32 remain for that case.
+
+## What's new in 1.16.0-rc32
+
+Built on rc31. GitHub Actions ran green on the merged head (Ubuntu, Windows, the QGIS 4.2.2 live job and the secret scan); **not hand-tested** in desktop QGIS and not run with a real model or API key. Full list: the `v1.16.0-rc32` block in [metadata.txt](metadata.txt) and [CHANGELOG.md](CHANGELOG.md).
+
+- A refused AI request now says why: When Google, OpenAI or another provider answers 401 or 403, the chat message now includes the provider's own short reason code (for example PERMISSION_DENIED, API_KEY_INVALID or SERVICE_DISABLED). The rest of the response is still hidden, because some providers echo part of the key back, and only values that look like a plain code name are shown.
+- Switch back to the previous request sender: A Gemini key that worked in a test outside QGIS was refused with 403 when the plugin sent the same kind of request through QGIS's network stack. The cause has not been found. Setting cartogen_ai/hosted_requests_via_qgis to false in QGIS's advanced settings sends hosted AI requests (Gemini, OpenAI, Claude, OpenRouter) the way versions before rc28 did. It is on by default.
+- Refusals are logged without secrets: A 401 or 403 on the QGIS path now writes a log line with the host and whether a QGIS proxy is set, never the key, the headers or the response body.
+- Not hand-tested: CI is green, including the live checks in QGIS 4.2.2, but none of this has been hand-tested in desktop QGIS, and it has not been confirmed that the switch fixes the Gemini 403.
+
+## What's new in 1.16.0-rc31
+
+Built on rc30. GitHub Actions ran green on the merged head (Ubuntu, Windows, the QGIS 4.2.2 live job and the secret scan); **not hand-tested** in desktop QGIS and not run with a real model or API key. Full list: the `v1.16.0-rc31` block in [metadata.txt](metadata.txt) and [CHANGELOG.md](CHANGELOG.md).
+
+- Metadata matches the QGIS plugin rules: The metadata declared a menu category (Plugins) that the QGIS developer documentation does not allow; it is removed, and the plugin stays in the default Plugins menu.
+- Clearer error when QGIS cannot create a temporary layer: 18 places that create a temporary layer now check that QGIS actually created it and report a readable error, instead of failing a line later with a confusing message about a missing data provider.
+- Notices appear inside the dialog: Results such as 'exported', 'deleted' and 'failed' in the Memory, Layer Data Sensitivity and account dialogs now show in a message bar inside the dialog instead of a pop-up box. Questions that need an answer, and the warning when an API key is kept for this session only, still use a pop-up.
+- Styled layers redraw after score fields are written: After the severity, presence-gap, population and index tools write a field into a layer, the layer is redrawn, so a layer styled on that field no longer shows the old colours until the next refresh.
+- Not hand-tested: CI is green, including the live checks in QGIS 4.2.2, but none of this has been hand-tested in desktop QGIS, and the new message bar has been checked only by an automated test, not by eye.
+
+## What's new in 1.16.0-rc30
+
+Built on rc29. GitHub Actions ran green on the merged head (Ubuntu, Windows, the QGIS 4.2.2 live job and the secret scan); **not hand-tested** in desktop QGIS and not run with a real model or API key. Full list: the `v1.16.0-rc30` block in [metadata.txt](metadata.txt) and [CHANGELOG.md](CHANGELOG.md).
+
+- Large downloads and the account client use QGIS's network stack: Geofabrik extracts, model checkpoints and other large downloads are now read through QGIS's network stack, in chunks, so QGIS proxy, authentication and SSL settings apply, progress and cancel still work, and a download cut short is reported as an error instead of leaving a smaller file. The Cartogen account client does the same. Three things still use Python's own HTTP code: a download that answers with a redirect (it is retried through urllib with the QGIS proxy; following the redirect through QGIS failed in testing and the cause was not found), the check that every redirect of a fetched URL is safe (QGIS follows redirects without letting the plugin look at each step), and Ollama (a local server whose answers can take longer than QGIS's 60 second network timeout).
+- Scripts do not run without isolation: If QGIS cannot be loaded, the script tool now refuses to run a script instead of running it in the plugin's own process.
+- Directory checks reproduced: The plugin directory's own upload rules are now an automated test against the built zip, and the code passes the pyflakes checks (unused re-exports and conditional redefinitions removed).
+- Contact address: The project contact address is now cartogenai@gmail.com.
+- Not hand-tested: CI is green, including the live checks in QGIS 4.2.2 against a local test server, but none of this has been hand-tested in desktop QGIS, and the new download path has not been run against Geofabrik or any real service.
+
+## What's new in 1.16.0-rc29
+
+Built on rc28. GitHub Actions ran green on the merged head (Ubuntu, Windows, the QGIS 4.2.2 live job and the secret scan); **not hand-tested** in desktop QGIS and not run with a real model or API key. Full list: the `v1.16.0-rc29` block in [metadata.txt](metadata.txt) and [CHANGELOG.md](CHANGELOG.md).
+
+- Replies can no longer forge internal links: A reply (or a layer attribute it quoted) could draw a look-alike Apply edit link that resolved a real pending confirmation, and a quote in a link address could add attributes to the link. Replies can now create only the four chip links (action, export, prompt, zoom); a quote, angle bracket or space in a link address is encoded; and a file link opens only an existing file of a type the tools write (pdf, png, html, csv and similar).
+- Limits on remote data: Data fetches no longer read an unbounded answer into memory. JSON and CSV answers are capped at 64 MB, downloads at 1.5 GB, and a gzip tile or zip member that would expand past 256 MB is refused instead of inflated.
+- Smaller, cleaner package: The release zip no longer carries hidden files (a build once included a 92 KB .coverage file) or about 70 internal development documents; only the README, user guide, tools reference, humanitarian catalogue and screenshots ship (206 files instead of 288).
+- Diagnostics in the QGIS Message Log: Startup, unload and error messages that were printed to the Python console now go to the QGIS Message Log, with the same redaction as every other log line and no exception text.
+- Not hand-tested: CI is green, including the live checks in QGIS 4.2.2, but none of this has been hand-tested in desktop QGIS, and no real API key has been used through the QGIS network path.
+
+## What's new in 1.16.0-rc28
+
+Built on rc27. GitHub Actions ran green on the merged head (Ubuntu, Windows, the QGIS 4.2.2 live job and the secret scan); **not hand-tested** in desktop QGIS and not run with a real model or API key. Full list: the `v1.16.0-rc28` block in [metadata.txt](metadata.txt) and [CHANGELOG.md](CHANGELOG.md).
+
+- Warning about an old install: If an install from rc24 or earlier (folder cartogen-ai) is still present next to this one, the plugin now shows a warning when it starts, because both copies would otherwise load together. Delete the old folder and restart QGIS.
+- Documentation and Qt6 tidy-up: The README and user guide no longer tell users to pick OpenAI or Claude, which have not been offered since rc25. The label line-placement flags use their scoped Qgis names, and CI confirms they and the QVariant field types exist in QGIS 4.2.2.
+- Not hand-tested: CI is green, including the live checks in QGIS 4.2.2, but none of this has been hand-tested in desktop QGIS, and no real API key has been used through the new network path.
+
+## What's new in 1.16.0-rc27
+
+Built on rc26. GitHub Actions ran green on the merged head (Ubuntu, Windows, the QGIS 4.2.2 live job and the secret scan); **not hand-tested** in desktop QGIS and not run with a real model or API key. Full list: the `v1.16.0-rc27` block in [metadata.txt](metadata.txt) and [CHANGELOG.md](CHANGELOG.md).
+
+- AI provider calls use QGIS's network stack: Requests to OpenRouter, Google Gemini and the Cartogen API entry now go through QGIS's own network stack, so QGIS proxy, authentication and SSL settings apply to them. A call waits at most the timeout set in QGIS (Settings > Options > Network, default 60 seconds). Ollama (a local server that can take minutes to answer) and the Cartogen account client still use the requests library. While QGIS's Network Logger panel is open, request headers, including the API key, appear in it on your own machine. This path has been tested in CI against a local server only, not against a real provider.
+- Qt6 enum names: The 38 unscoped enum uses the plugin directory's Qt6 check flagged (for example QgsProcessing.TypeVectorPoint) now use the scoped names, and a live test confirms each resolves in QGIS 4.2.2.
+- Not hand-tested: CI is green, including the live network and enum tests in QGIS 4.2.2, but none of this has been hand-tested in desktop QGIS or run with a real model or API key.
+
+## What's new in 1.16.0-rc26
+
+Built on rc25. GitHub Actions ran green on the merged head (Ubuntu, Windows, the QGIS 4.2.2 live job and the secret scan); **not hand-tested** in desktop QGIS and not run with a real model. Full list: the `v1.16.0-rc26` block in [metadata.txt](metadata.txt) and [CHANGELOG.md](CHANGELOG.md).
+
+- Network requests use QGIS: Data-fetch tools (OpenStreetMap, HDX, hazard feeds, STAC and the like) now send their requests through QGIS's own network stack, so QGIS proxy, authentication and SSL settings apply. QGIS sets the User-Agent and applies its own network timeout (Settings > Options > Network, default 60 seconds) on these calls. Large downloads (Geofabrik extracts, model checkpoints) are still streamed with urllib, using the QGIS proxy. The AI provider clients still use the requests library; moving them is planned (#71).
+- Security scan fixes: Short-key hashes are marked as non-security, a failed restore of the database session's read-only mode is now logged, and the reviewed best-effort handlers carry a reason, so the plugin-directory security scan reports far fewer findings.
+- Not hand-tested: CI is green, including the new live network tests in QGIS 4.2.2, but none of this has been hand-tested in desktop QGIS or run with a real model.
+
+## What's new in 1.16.0-rc25
+
+Built on rc24. GitHub Actions runs on every push; **not hand-tested** in desktop QGIS and not run with a real model. Full list: the `v1.16.0-rc25` block in [metadata.txt](metadata.txt) and [CHANGELOG.md](CHANGELOG.md).
+
+- Providers limited to tested ones: Settings and the quick switcher now offer OpenRouter, Google Gemini, Ollama (local) and the Cartogen API entry only. OpenAI and Claude are no longer listed or run, because they were not tested. A provider saved by an earlier version (for example OpenAI) falls back to OpenRouter and its saved key and settings are left untouched. The Cartogen API entry is a stub: no hosted gateway is deployed yet, so it cannot be used until one exists.
+- Plugin-directory fixes: metadata.txt now parses (no percent sign), gives the project email and GitHub homepage, states requirements and the data sent to a cloud provider, and the package leaves out hidden git files, sample data and binary documents.
+- Opt-in API trace and local layer list: A Settings checkbox (off by default) records every model request and reply to a local file for diagnosing call counts. 'List the layers' is answered in the dock with no model call.
+- Plugin folder renamed: Plugin folder renamed: the zip's top-level folder is now cartogen_ai_plugin (a valid Python identifier, which plugins.qgis.org requires) instead of cartogen-ai. If you installed rc24 or earlier, delete the old cartogen-ai folder from your profile's plugins directory, otherwise two copies load.
+- Not hand-tested: CI is green, but none of this has been hand-tested in desktop QGIS or run with a real model.
+
+## What's new in 1.16.0-rc24
+
+Built on rc23. GitHub Actions ran green on the merged heads (Ubuntu, Windows, the QGIS 4.2.2 live job with a real PostGIS server, and the secret scan); **not hand-tested** in desktop QGIS and not run with a real model. Full list: the `v1.16.0-rc24` block in [metadata.txt](metadata.txt) and [CHANGELOG.md](CHANGELOG.md).
+
+- Replies checked against tool results: A reply is footnoted when it names an identifier no tool returned (District_4), gives a total, mean or preliminary figure that matches no tool result, or says a style was applied when no styling call succeeded (#228). These are wording checks, not a fix for the model inventing values.
+- Guessed file paths: After two 'file not found' errors in a row the agent is told once to stop guessing and use a path you gave or a tool returned, or ask you (#231).
+- Less freezing: Approved native Processing algorithms (buffer, clip and the like) now run in the background with Stop available, except ones that change your own layer. The raster tools use GDAL algorithms, which crashed the CI job when run on a worker thread, so they and contours, task-grid statistics and some logistics steps still run on the main thread (#221 is only partly done).
+- Safer scripts and SQL: Database and web layers are read-only inside the script worker (#220), and the result layer of execute_read_only_sql cannot be edited (#151). A read-only database role is still the real guarantee for SQL.
+- Not hand-tested: CI is green, but none of this has been hand-tested in desktop QGIS or run with a real model.
+
+## What's new in 1.16.0-rc23
+
+Built on rc22. GitHub Actions ran green on the merged head (Ubuntu, Windows, the QGIS 4.2.2 live job and the secret scan); **not hand-tested** in desktop QGIS, and no real model has yet run `run_steps`, the chains or the request queue. Full list: the `v1.16.0-rc23` block in [metadata.txt](metadata.txt) and [CHANGELOG.md](CHANGELOG.md).
+
+- Cost: every model call is measured (provider-reported input, cached and output tokens, latency, tools offered; estimates are labelled and kept apart) and each reply's footer shows what the request used. A loop guard stops a turn that repeats an identical call, fails three times in a row or makes no progress, and says what was done. A per-turn token budget (default 450,000, a provisional figure taken from the rc22 hand-test logs; 0 = no limit; Settings) stops a request BEFORE a call that would pass it and reports what finished.
+- Routing: the tools a request needs are chosen from the data sources and actions it names (OpenStreetMap, HDX, buffer, clip, slope, contours and so on) instead of weak word matches, with find_tools for a step the offered list did not cover. A task that names one hazard (drought, extreme heat) only matches when the request names it. Several separate requests pasted together are shown as a queue and run one at a time after you confirm.
+- New tools: split_lines_by_zones (a road or highway split by exclusion zones, with total passable length AND longest continuous passable segment, ellipsoidal), generate_contours, and fetch_dem (Copernicus DEM GLO-30, about 30 m, no account needed; a surface model, not bare earth; the result records source, tiles, date and datum and returns the licence's required notices). Print layouts and PDFs are NOT stamped with the Copernicus notice: add it yourself when you publish.
+- Fewer model round trips: run_steps lets the model send up to 8 tool calls in one step, checked against the open project before anything runs (layers exist and are the right kind and geometry, no buffering a geographic-CRS layer, numeric style fields) and stopped at the first error or pending confirmation. Eleven vetted chains (exclusion-zone split, buffer then clip, coverage gap, outside distance, terrain contours, terrain slope, clip DEM then slope, clip-style-zoom, reproject then export, population exposure, admin boundary validation) are offered when a request names all their steps, with a project check that binds layers and suggests the UTM zone. The coverage-gap chain is a straight-line distance gap only, not a service gap.
+- Evidence (off by default, Settings): each request can write a folder with every tool call's real arguments, results, timings and layers created, copies of written files with SHA-256, and a canvas screenshot. It stores raw values, unlike the logs, so check it before sharing.
+- Fixes from the rc22 hand test: a relative output path is anchored to the saved project's folder and the reply names the full path; export_layer writes a GeoTIFF for a raster; a print layout map follows the canvas rotation; 'show the severity on the map' no longer asks which hazard; after a confirmed Apply edit the 'show it on the map' part runs; a project change drops the previous plan so a plain 'Yes' cannot resume it; apply_graduated_style accepts color_from and color_to; 'cluster ... into N groups' reaches unsupervised classification.
+- Fixes after that: a natural 'Yes, proceed.' at the preview now runs the original request; when a tool hands over its map hint and the request asked to see the result, the agent asks once for the styling call, and point layers are lifted above polygon layers that cover them; a layout built over JIAF-support results carries the 'not the JIAF method, not endorsed by OCHA or the IASC' statement; people-in-need legends say 'people' and a value exactly on a class limit now draws in the class its label gives.
+- Verification: GitHub Actions ran green on the merged head (Ubuntu with Python 3.10 and 3.11, Windows, the QGIS 4.2.2 live job with PostGIS, and the gitleaks scan), and the live tests reproduced the preview-reply fix before fixing it. NOT hand-tested in desktop QGIS: every item above, and no real model has yet run run_steps, the chains or the request queue. Open and not fixed: invented or wrong facts in replies (model behaviour, issue 228), reply-wording requirements (issue 229), legend entries hidden under opaque polygons (issue 165). No issue is closed by this build.
+
+## What's new in 1.16.0-rc22
+
+Built on rc21; verified offline and in a local QGIS 4.2.2 run (GitHub Actions did not run), **not by hand**. Full list: the `v1.16.0-rc22` block in [metadata.txt](metadata.txt) and [CHANGELOG.md](CHANGELOG.md).
+
+- Fix: a result that replaces a layer of the same name no longer overwrites a layer you made yourself. Plugin results are marked as the plugin's own; a same-named layer of yours is set aside (renamed) and the reply says so (rc20 audit A02).
+- Fix: feature extraction from imagery only outlines the detected object, not the surrounding background (A01), and a rotated or non-square mask keeps its true geometry (A10).
+- Fix: a long-running agent turn that was stopped or superseded can no longer deliver a stale result or act after the project changed (A04); the data-egress gate now follows layer lineage through renames and duplicates, so a derived layer keeps the protection of its source (A05); feature edits report a refused commit or delete instead of claiming success (A03).
+- Fix: histogram equalisation no longer turns the lowest valid pixels into NoData: valid cells are 1-255 and 0 is NoData only (A09). Slope and hillshade on a projected DEM in feet convert metres into the DEM's own units (A11). GeoJSON export is RFC 7946: WGS84 coordinates, no legacy crs member (A12). A failed CRS transform is now an error instead of zooming or building a layout in the wrong place (A13).
+- Safety: the isolated script worker (execute_pyqgis_script) receives COPIES of file-backed layers, so a script cannot modify your files; edits it makes to such a layer are discarded. Database and web-service layers have no file to copy and remain writable by a script (A06, issue 220).
+- Memory: classification refuses rasters over 25 million cells or 60 million cell-band values (A15). Abandoned background-analysis objects are released once their task finishes (A16). The plugin's last-resort import bootstrap removes only its own modules (A18).
+- Responsiveness: zonal_statistics (zones of 200 or more) and the model and outline steps of extract_features_from_imagery run off the GUI thread and honour Stop. Every other expensive tool still blocks QGIS while it runs (A14, issue 221 stays open).
+- Verification: the full local run passed on the audit-fix build (offline suite, ruff, zip check, 360 QGIS 4.2.2 live tests against PostGIS). NOT hand-tested: every fix above. Imagery extraction needs the FastSAM model and was not run live. GitHub Actions did not run (account billing), so the Windows job and the gitleaks scan did not run. No audit issue (220-224) is closed by this build.
+
+## What's new in 1.16.0-rc21
+
+Built on rc20; verified offline and in a local QGIS 4.2.2 run (GitHub Actions did not run), **not by hand**. Full list: the `v1.16.0-rc21` block in [metadata.txt](metadata.txt) and [CHANGELOG.md](CHANGELOG.md).
+
+- Fix: manual class boundaries passed to apply_graduated_style must be finite, distinct numbers inside the field's own range. A boundary of 100 for values 5-15 used to make an inverted "100 - 15" class and a legend that matched nothing (rc20 hand test, #165); it is now an error that names the data range.
+- Fix: the north arrow on a print layout is linked to the map, so it turns with a rotated map. In rc20 it stayed at 0 degrees on a map rotated 30 degrees (rc20 hand test, #165). Checked in real QGIS 4.2.2: the new test fails on the old code and passes on this one.
+- Fix: a short pasted fragment shaped like key: value (for example "template: access_map") can no longer make the agent create, change, delete or export anything. In the rc20 hand test a real model called get_layers and create_print_layout for that fragment alone and left a layout behind (#130). The agent may still read the project and ask what you want. Natural short replies ("yes", a layer name, "EPSG:3857" after a question) and any turn with a confirmation card pending are not affected.
+- Dev: tools/local_ci.sh runs what the CI workflow runs on a developer machine (offline suite, byte-compile, ruff, release zip check, and the QGIS 4.2.2 live job with PostGIS in Docker). It does not cover the Windows job or the secret scan.
+- Verification: the full local run passed (3,669 offline tests, ruff, zip check, 345 QGIS 4.2.2 live tests against a real PostGIS server). NOT hand-tested: every fix above. The stray-fragment gate was tested with fakes at the tool-dispatch layer, not against a real hosted model. GitHub Actions did not run for this build (account billing), so the Windows job and the gitleaks scan did not run. No audit issue is closed by this build.
 
 ## What's new in 1.16.0-rc20
 
@@ -210,7 +629,7 @@ strategic orchestration. The full catalogue -- what each tool does, what it draw
 in [docs/HUMANITARIAN_TOOLS_CATALOGUE.md](docs/HUMANITARIAN_TOOLS_CATALOGUE.md); exact arguments are in
 [docs/TOOLS_REFERENCE.md](docs/TOOLS_REFERENCE.md), and what is still missing is in
 [docs/HUMANITARIAN_WORKFLOW_GAP_ANALYSIS_2026-10-04.md](docs/HUMANITARIAN_WORKFLOW_GAP_ANALYSIS_2026-10-04.md).
-Tools marked **new** were added in 1.16.0-rc19 or 1.16.0-rc20 and have been tested offline and in CI on QGIS 4.2.2, not by hand.
+1.17.0-rc42, 1.17.0-rc43 and 1.17.0-rc44 added tools outside these workflows (see their notes and `docs/TOOLS_REFERENCE.md`), so none is marked **new** here; the newest are `search_fact_checks` (1.16.0-rc40) and `find_incident_reports` (1.16.0-rc37), tested offline and in CI on QGIS 4.2.2 and, for the rc37 tool, in the rc40 hand test.
 
 | Workflow | Tools |
 |---|---|
@@ -219,7 +638,7 @@ Tools marked **new** were added in 1.16.0-rc19 or 1.16.0-rc20 and have been test
 | **3. Logistics, routes and catchments** | `estimate_road_speeds`, `build_composite_impedance_field`, `apply_network_barriers`, `calculate_service_area`, `classify_facilities_by_access`, `travel_time_matrix`, `population_access_gap`, `optimal_hub_siting`, `location_allocation`, `optimize_delivery_route`, `score_route_incident_risk`, `analyze_critical_links` |
 | **4. Severity mapping (JIAF-style)** | `calculate_severity_index`, `calculate_presence_gap`, `load_3w_data`, `calculate_population_in_need`, `hotspot_analysis`, `analyze_incident_trend`, `forecast_trend`, `import_jiaf_inputs`, `record_jiaf_setup`, `get_jiaf_setup`, `compute_jiaf_preliminary`, `record_jiaf_decisions`, `get_jiaf_decisions`, `finalize_jiaf_results`, `compute_jiaf_patterns` |
 | **5. Allocation and prioritisation** | `calculate_mcda_ranking`, `fetch_fts_funding_data`, `generate_sector_coverage_report`, `weighted_overlay_analysis`, `calculate_allocation_envelope` |
-| **6. Anticipatory action** | `evaluate_forecast_trigger`, `fetch_gdacs_disaster_alerts`, `fetch_nasa_eonet_events`, `fetch_nasa_active_fires`, `generate_situation_dashboard`, `run_monitoring_workflow`, `schedule_recurring_workflow`, `stop_recurring_workflow`, `list_scheduled_workflows` |
+| **6. Anticipatory action** | `evaluate_forecast_trigger`, `fetch_gdacs_disaster_alerts`, `fetch_nasa_eonet_events`, `fetch_usgs_earthquakes`, `fetch_ucdp_conflict_events`, `find_incident_reports`, `search_fact_checks`, `fetch_nasa_active_fires`, `generate_situation_dashboard`, `run_monitoring_workflow`, `schedule_recurring_workflow`, `stop_recurring_workflow`, `list_scheduled_workflows` |
 | **Data quality and governance** | `check_pcode_uniqueness`, `check_pcode_hierarchy`, `validate_schema`, `list_schema_contracts`, `get_dataset_status`, `set_dataset_status`, `advance_dataset_status`, `get_provenance_record`, `write_provenance_sidecar`, `set_layer_sensitivity`, `get_layer_sensitivity`, `generate_map_product_qa_checklist` |
 | **Reporting and products** | `generate_chart`, `generate_html_dashboard`, `generate_temporal_dashboard`, `generate_spatial_report`, `generate_report`, `apply_humanitarian_look` |
 | **Engineering hydrology** | `parse_dms_location`, `assess_watershed_hydrology_request`, `calculate_rational_watershed_peak_flow` |
@@ -237,8 +656,8 @@ repository is tier-gated.
 ## Installation
 
 **From the release zip** (recommended). The current build is the
-[1.16.0-rc19 pre-release](https://github.com/http-solution/cartogen-ai-qgis-plugin/releases/tag/cartogen-ai-v1.16.0-rc19); the release
-also carries a `SHA256-1.16.0-rc19.txt` file to check your download against. It is a pre-release, so expect rough edges and report
+[1.16.0-rc37 pre-release](https://github.com/http-solution/cartogen-ai-qgis-plugin/releases/tag/cartogen-ai-v1.16.0-rc37); the release
+also carries a `SHA256.txt` file to check your download against. It is a pre-release, so expect rough edges and report
 them as issues.
 1. In QGIS: `Plugins` → `Manage and Install Plugins…` → `Install from ZIP`.
 2. Select `cartogen_ai.zip` (or the versioned archive under `dist/`). From a GitHub release,
@@ -252,14 +671,14 @@ them as issues.
 > invalid module name, so QGIS fails with
 > `ModuleNotFoundError: No module named 'cartogen-ai-qgis-plugin-cartogen-ai-v1'`
 > (seen live on QGIS 4.2.2 with an earlier release candidate). The release asset built by
-> `plugin_upload.py` always uses the folder `cartogen-ai`. If you already installed the source
-> zip, delete its folder from your profile's `python/plugins/` directory and install the asset.
+> `plugin_upload.py` always uses the folder `cartogen_ai_plugin`. If you already installed the source
+> zip, or an older release that used the folder `cartogen-ai` (rc24 and earlier), delete that folder from your profile's `python/plugins/` directory and install the asset.
 
 **From source** (development):
-1. Copy this repository into your QGIS profile's plugin folder as `cartogen-ai` (the same
+1. Copy this repository into your QGIS profile's plugin folder as `cartogen_ai_plugin` (the same
    folder name the release zip uses), e.g.
-   `%APPDATA%\QGIS\QGIS4\profiles\default\python\plugins\cartogen-ai` on Windows.
-   Don't name it `cartogen_ai`: that folder would shadow the `cartogen_ai` namespace package
+   `%APPDATA%\QGIS\QGIS4\profiles\default\python\plugins\cartogen_ai_plugin` on Windows.
+   Don't name it exactly `cartogen_ai`: that folder would shadow the `cartogen_ai` namespace package
    under `src/` and break every `cartogen_ai.core` import (see `plugin_upload.py`'s
    `PACKAGE_DIR` comment). Don't include dots in the name either, for the reason above.
 2. Restart QGIS, or use the Plugin Reloader plugin.
@@ -293,8 +712,6 @@ OSGeo4W Shell), then reopen QGIS.
    local Ollama server — no key needed). Get a key from the provider you picked:
    - OpenRouter (has a genuinely free tier): https://openrouter.ai/keys
    - Google Gemini: https://aistudio.google.com/apikey
-   - OpenAI: https://platform.openai.com/api-keys
-   - Anthropic Claude: https://console.anthropic.com/settings/keys
    - Ollama needs no key — just a local server endpoint URL.
 3. Type a request, e.g. *"List all layers in the project"* or *"Calculate the area for
    the active layer"*. See the in-app **Help** tab for more examples, or
@@ -310,7 +727,9 @@ the folder directly on GitHub.
 | Doc | Covers |
 |---|---|
 | [docs/USER_GUIDE.md](docs/USER_GUIDE.md) | Chat, Task Manager, memory, file attachments, settings, live hazard monitoring — with screenshots |
-| [docs/TOOLS_REFERENCE.md](docs/TOOLS_REFERENCE.md) | All 203 tools, auto-generated from the live registry |
+| [docs/TOOLS_REFERENCE.md](docs/TOOLS_REFERENCE.md) | All 335 tools, auto-generated from the live registry |
+| [docs/WORKFLOW_FILES.md](docs/WORKFLOW_FILES.md) | Sharing an analysis as a workflow file: export, open, what it can and cannot do, the file format |
+| [Wiki](https://github.com/http-solution/cartogen-ai-qgis-plugin/wiki) | The documentation (architecture, security and privacy, tool reference by category, development guides), generated from the documents in this repository by `site/build_wiki.py` and pushed to the wiki by `.github/workflows/docs-site.yml` on every merge to `main`; edits made in the browser are overwritten, so correct the source files. The HTML build in [site/](site/) is kept only as a link check; GitHub Pages is no longer deployed. |
 
 ### Security & compliance
 
@@ -406,7 +825,7 @@ The codebase is organized as:
   - `models/` — Domain models, transaction logging (`TurnTransactionLog`), and QA gate lifecycle states.
   - `validators/` — Schema contract and P-code depth validation engines.
   - `services/` — Core orchestration services (tool router, prompt refiner, background task runners).
-  - `agent/` — Tool-calling loop, multi-provider interfaces (Gemini, Claude, OpenAI, OpenRouter, Ollama), and 203 tools across the domain modules.
+  - `agent/` — Tool-calling loop, multi-provider interfaces (Gemini, OpenRouter, Ollama; the OpenAI and Claude clients stay in the code but are not offered since rc25), and 335 tools across the domain modules.
   - `ui/` — Dock widget, settings, layer context picker, and theme integration.
   - `exceptions.py` & `logger.py` — Exception hierarchy and structured `QgsMessageLog` logging.
 - `tests/` — 3,069 automated unit and integration tests, runnable outside QGIS; the `*_live.py` modules (247 tests) need a real QGIS and run in the CI job `qgis-live-tests` on QGIS 4.2.2.
@@ -419,5 +838,8 @@ top of this file.)
 
 ## Support
 
-For issues or questions, use the
-[GitHub issue tracker](https://github.com/http-solution/cartogen-ai-qgis-plugin/issues).
+For bugs, use the
+[GitHub issue tracker](https://github.com/http-solution/cartogen-ai-qgis-plugin/issues); for questions and
+ideas, use [Discussions](https://github.com/http-solution/cartogen-ai-qgis-plugin/discussions). Security problems go through
+[private vulnerability reporting](https://github.com/http-solution/cartogen-ai-qgis-plugin/security/advisories/new), not a public issue
+(see [SECURITY.md](SECURITY.md)). Everyone taking part is expected to follow the [Code of Conduct](CODE_OF_CONDUCT.md). General contact: cartogenai@gmail.com.

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """JIAF 2 flag rules, profile `ocha_worksheet_2026`: the PiN and severity flags exactly as OCHA's Worksheet 3A/3B computes them.
 
 SUPPORT FOR PEOPLE WHO RUN THE JIAF 2 PROCESS. NOT the JIAF method, NOT endorsed by OCHA or the IASC.

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Regenerates docs/TOOLS_REFERENCE.md directly from the live TOOL_REGISTRY/
 TOOLS_SCHEMA -- so the tool reference can never drift out of sync with the
@@ -16,8 +15,8 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src"))
 
-from cartogen_ai.core.agent.tools import TOOL_REGISTRY, TOOLS_SCHEMA  # noqa: E402
-from cartogen_ai.core.agent.agent_orchestrator import NETWORK_ONLY_TOOLS, TWO_PHASE_TOOLS, TASK_MANAGEMENT_TOOLS  # noqa: E402
+from cartogen_ai.core.agent.tools import TOOL_REGISTRY, TOOLS_SCHEMA
+from cartogen_ai.core.agent.agent_orchestrator import NETWORK_ONLY_TOOLS, TWO_PHASE_TOOLS, TASK_MANAGEMENT_TOOLS
 
 
 def _group_key(name):
@@ -54,7 +53,8 @@ def _flag_str(name):
     return f" _({', '.join(flags)})_" if flags else ""
 
 
-def generate():
+def render():
+    """The full text of TOOLS_REFERENCE.md and its group count (also used by tests/test_tools_reference_in_sync.py)."""
     groups = {}
     for entry in TOOLS_SCHEMA:
         fn = entry["function"]
@@ -64,14 +64,14 @@ def generate():
     lines = [
         "# Tool Reference",
         "",
-        f"Auto-generated from the live tool registry ({len(TOOLS_SCHEMA)} tools) by "
+        (f"Auto-generated from the live tool registry ({len(TOOLS_SCHEMA)} tools) by "
         "`docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this "
-        "can never drift from the actual code.",
+        "can never drift from the actual code."),
         "",
-        "Flags: **network-only** tools bypass the main-thread QGIS dispatcher entirely (pure "
+        ("Flags: **network-only** tools bypass the main-thread QGIS dispatcher entirely (pure "
         "HTTP, safe from any background thread); **two-phase** tools split a network fetch "
         "(background thread) from the QGIS-touching part (main thread); **task-management** "
-        "tools are excluded from auto-advance in the Task Manager.",
+        "tools are excluded from auto-advance in the Task Manager."),
         "",
     ]
 
@@ -106,10 +106,15 @@ def generate():
                 lines.append("_No parameters._")
                 lines.append("")
 
+    return "\n".join(lines), len(groups)
+
+
+def generate():
+    text, group_count = render()
     out_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "TOOLS_REFERENCE.md")
     with open(out_path, "w", encoding="utf-8") as f:
-        f.write("\n".join(lines))
-    print(f"Wrote {out_path} ({len(TOOLS_SCHEMA)} tools across {len(groups)} groups)")
+        f.write(text)
+    print(f"Wrote {out_path} ({len(TOOLS_SCHEMA)} tools across {group_count} groups)")
 
 
 if __name__ == "__main__":

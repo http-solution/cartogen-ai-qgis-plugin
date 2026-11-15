@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Core CartogenAi class for Cartogen AI: the tool-calling orchestration loop.
 Integrates Multi-LLM provider clients, Spatial Memory Engine, and Task List Manager.
@@ -21,11 +20,11 @@ try:
     QGIS_AVAILABLE = True
 except ImportError:
     QGIS_AVAILABLE = False
-    class QThread:
+    class QThread:  # type: ignore[no-redef]
         @staticmethod
         def currentThread():
             return None
-    class QgsSettings:
+    class QgsSettings:  # type: ignore[no-redef]
         def value(self, k, default=""): return default
         def setValue(self, k, v): pass
 
@@ -33,10 +32,12 @@ from ...infrastructure.providers import (
     OpenRouterClient, GeminiClient, OllamaClient, OpenAIClient, ClaudeClient, CartogenClient,
 )
 from ...infrastructure.providers.base import DEFAULT_MAX_TOKENS
+from ...infrastructure.providers.cli_bridge import AgyCliClient, ClaudeCliClient, CodexCliClient
 from ...infrastructure.providers.cartogen import FALLBACK_MODELS as CARTOGEN_FALLBACK_MODELS
-from .model_selector import AUTO_SENTINEL, classify_complexity, is_cheap_tier, pick_model_for_complexity
+from ..model_selector import AUTO_SENTINEL, classify_complexity, is_cheap_tier, pick_model_for_complexity
 from .tool_dispatcher import ToolDispatcher
 from .usage_tracker import UsageTracker
+from . import call_metrics, loop_guard, result_gate, source_record, superseded, workflow_file
 from .history_manager import HistoryManager
 from .memory import SpatialMemoryManager
 from .task_manager import AgentTaskManager
@@ -45,23 +46,28 @@ from .tools import TOOL_REGISTRY, TOOLS_SCHEMA
 from .tools._snapshot_registry import get_snapshot_fn
 from .tools.task_tools import bind_agent_context
 from .tools.transaction_tools import bind_transaction_log
-from . import tool_operations, tool_result as tool_results
+from .. import tool_operations
+from . import api_trace, arg_repair, evidence, look_followup, step_runner, tool_result as tool_results
 from ..models.transactions import TurnTransactionLog
 from ..models.plan_gate import PlanValidationGate
 from ..models import egress_gate
-from ..services import learning, response_guard
+from ..services import canvas_capture, coordinate_provenance, learning, response_guard
 from . import onboarding_profile
 from ..logger import log_event
 from ...infrastructure.settings_keys import (
-    SETTINGS_PROVIDER, SETTINGS_GEMINI_MODEL, SETTINGS_OLLAMA_MODEL,
+    SETTINGS_PROVIDER, normalize_provider, SETTINGS_GEMINI_MODEL, SETTINGS_OLLAMA_MODEL,
+    CLI_PROVIDERS, cli_path_setting_key, SETTINGS_CLAUDE_CLI_MODEL, SETTINGS_CODEX_CLI_MODEL, SETTINGS_AGY_CLI_MODEL,
     SETTINGS_OPENAI_MODEL, SETTINGS_CLAUDE_MODEL, SETTINGS_CARTOGEN_MODEL,
     SETTINGS_CARTOGEN_GATEWAY_URL, SETTINGS_OPENROUTER_MODEL,
     SETTINGS_PROJECT_INSPECTOR_ENABLED,
     SETTINGS_PLAN_VALIDATION_GATE_ENABLED,
     SETTINGS_MAX_TOOL_ITERATIONS,
     SETTINGS_MAX_TURN_TOKENS,
+    SETTINGS_API_TRACE_ENABLED,
+    SETTINGS_EVIDENCE_ENABLED,
     provider_model_list_key,
 )
+import contextlib
 
 
 # Tools that only do HTTP I/O, or local file/CPU work (chart rendering, table
@@ -72,9 +78,9 @@ from ...infrastructure.settings_keys import (
 # main-thread PyQGIS safety. Routing these through it too would just freeze
 # the QGIS GUI for the duration of each request/render.
 NETWORK_ONLY_TOOLS = frozenset({
-    "search_web", "geocode_and_enrich", "search_hdx_datasets",
+    "search_web", "geocode_and_enrich", "geocode_batch", "search_hdx_datasets",
     "fetch_osm_features", "search_stac_satellite_imagery", "fetch_fts_funding_data",
-    "generate_chart", "extract_pdf_tables", "extract_word_tables", "aggregate_data",
+    "generate_chart", "extract_pdf_tables", "extract_word_tables", "aggregate_data", "search_fact_checks", "web_research",
 })
 
 # Bookkeeping tools excluded from auto-advancing the task plan on success (see
@@ -90,11 +96,16 @@ TASK_MANAGEMENT_TOOLS = frozenset({
 # dispatch above would block the QGIS GUI for the duration of the HTTP
 # request(s). Instead, _execute_two_phase_tool runs only the fast QGIS-touching
 # part on the main thread, and the network part on the calling (background) thread.
+# find_tools lookups: schemas kept per lookup and per turn (see AgentOrchestrator._offer_found_tools for the measured reason)
+MAX_FOUND_TOOLS_PER_CALL = 5
+MAX_FOUND_TOOLS_PER_TURN = 12
+
 TWO_PHASE_TOOLS = frozenset({
     "add_layer_from_path", "fetch_geoboundaries", "fetch_hdx_admin_boundaries", "fetch_building_footprints",
     "fetch_worldpop_population", "gemini_grounded_search", "openai_grounded_search",
     "fetch_nasa_active_fires", "fetch_nasa_eonet_events", "fetch_gdacs_disaster_alerts",
-    "ingest_osm_features", "extract_features_from_imagery",
+    "fetch_usgs_earthquakes", "fetch_ucdp_conflict_events", "find_incident_reports",
+    "ingest_osm_features", "extract_features_from_imagery", "load_stac_assets",
 })
 
 
@@ -125,6 +136,14 @@ FAILURE_ACK_KEYWORDS = (
 # tight and caused "Maximum iterations reached" on legitimate requests before
 # they could produce a final answer.
 MAX_ITERATIONS = 20
+# Provisional per-request token budget (input + output, all calls of one request; cached input counts at 10 percent, BUD-1), applied when the user has not set one. Chosen from
+# the evidence on hand, not from a calibrated optimum: the rc22 hand-test logs show tool calls per request of 1,1,1,1,2,2,2,2,5,8,10,
+# 11,14,15 (median 2, p90 11, max 15 -- the two 14-15 call requests were simple tasks that wandered), and the footers showed about
+# 21,700-26,000 tokens per model call (5.49M tokens over 253 calls). 450,000 is ~17 calls at the upper figure: above every request
+# observed, so it should not cut normal work, yet it stops a runaway at roughly the same point as the round cap instead of far past
+# it. The budget is checked BEFORE each request against the observed size of the last call. 0 in Settings = no limit.
+# Recalibrate from the model_call records (call_metrics) of successful single scenarios; see docs/COST_AND_ROUTING_PLAN_2026-10-09.md.
+DEFAULT_TURN_TOKEN_BUDGET = 450_000
 
 # Rate-limit resilience for large/complex requests (2026-09-12): up to MAX_ITERATIONS calls to
 # client.complete() used to fire back-to-back with zero pacing -- a genuinely complex multi-step
@@ -230,7 +249,7 @@ class CartogenAi:
 
         from ...infrastructure.auth import CredentialManager
         settings = QgsSettings()
-        provider_name = settings.value(SETTINGS_PROVIDER, "openrouter")
+        provider_name = normalize_provider(settings.value(SETTINGS_PROVIDER, "openrouter"))
         key = CredentialManager.get_credential(provider_name)
 
         # When a model setting is the "auto" sentinel, use the provider's normal
@@ -278,6 +297,19 @@ class CartogenAi:
         elif provider_name == "claude":
             claude_model = resolve_model(SETTINGS_CLAUDE_MODEL, "claude-opus-5")
             self.client = ClaudeClient(api_key=key, model=claude_model)
+        elif provider_name in CLI_PROVIDERS:
+            # Experimental CLI bridge (PLAN-038): the model is a locally installed vendor CLI on the user's own login. No auto
+            # routing (the CLI picks its own default when no model is named), and the executable path is a plain setting, not a
+            # credential. The client has no base_url, so the egress gate treats it as a non-local provider, which is correct: the
+            # prompt leaves the machine through the vendor's service.
+            cli_class, cli_model_key = {
+                "claude_cli": (ClaudeCliClient, SETTINGS_CLAUDE_CLI_MODEL),
+                "codex_cli": (CodexCliClient, SETTINGS_CODEX_CLI_MODEL),
+                "agy_cli": (AgyCliClient, SETTINGS_AGY_CLI_MODEL),
+            }[provider_name]
+            cli_model = settings.value(cli_model_key, AUTO_SENTINEL)
+            self.client = cli_class(executable=settings.value(cli_path_setting_key(provider_name), "") or None,
+                                    model=None if cli_model in (None, "", AUTO_SENTINEL) else str(cli_model))
         elif provider_name == "cartogen":
             cartogen_model = resolve_model(SETTINGS_CARTOGEN_MODEL, CARTOGEN_FALLBACK_MODELS[0])
             # No gateway is deployed anywhere this repo can reach yet (see
@@ -356,6 +388,57 @@ class CartogenAi:
     def tools_schema(self):
         return TOOLS_SCHEMA
 
+    def _get_call_log(self):
+        """Per-call measurement log (call_metrics.CallLog); lazy for the same reason as _get_usage_tracker."""
+        log = self.__dict__.get("_call_log")
+        if log is None:
+            log = call_metrics.CallLog()
+            self._call_log = log
+        return log
+
+    def get_turn_call_records(self):
+        """The measured/estimated records of the turn that just ran (call_metrics), oldest first."""
+        return self._get_call_log().turn_records(self.__dict__.get("_current_turn_id"))
+
+    def get_turn_usage_detail_text(self):
+        """'This turn: 5 calls, 131,878 input (51,200 cached) + 2,100 output tokens; last call 27,400 input', observed only."""
+        return call_metrics.turn_usage_line(self.get_turn_call_records())
+
+    def _record_model_call(self, turn_id, call_index, tools, messages, started, usage, outcome, tool_calls=0, model=None,
+                           response=None, error=None):
+        """Builds, stores and logs one call record. Never raises: measurement must not break a turn."""
+        with contextlib.suppress(Exception):
+            client = getattr(self, "client", None)
+            record = call_metrics.new_record(
+                turn_id, call_index, model or getattr(client, "model", None), type(client).__name__, tools, messages, started)
+            call_metrics.finish_record(record, usage, call_metrics.monotonic() - started, tool_calls, outcome)
+            self._get_call_log().add(record)
+            log_event("model_call", tag="Agent", error=(outcome not in ("ok", "cancelled")),
+                      **{k: record[k] for k in ("call_index", "model", "latency_ms", "input_tokens", "cached_tokens", "output_tokens",
+                                                 "tool_count", "tool_calls", "outcome", "est_system_tokens", "est_tools_tokens",
+                                                 "est_history_tokens", "est_user_tokens") if record.get(k) is not None},
+                      tool_names=",".join(record["tool_names"]) if call_index == 0 else "")
+        trace = self._api_trace()
+        if trace is not None:
+            client = getattr(self, "client", None)
+            trace.record(turn_id, call_index, type(client).__name__, model or getattr(client, "model", None), messages, tools,
+                         response=response, usage=usage, latency_ms=int((call_metrics.monotonic() - started) * 1000),
+                         outcome=outcome, error=error)
+
+    def _api_trace(self):
+        """The raw model-call trace (core/agent/api_trace.py) when the user switched it on in Settings, else None. Never raises."""
+        try:
+            if str(QgsSettings().value(SETTINGS_API_TRACE_ENABLED, False)).lower() not in ("true", "1"):    # QSettings may hand back text
+                return None
+            trace = self.__dict__.get("_api_trace_obj")
+            if trace is None:
+                from .tools._paths import resolve_output_path
+                trace = api_trace.ApiTrace(resolve_output_path(api_trace.relative_folder()))
+                self._api_trace_obj = trace
+            return trace
+        except Exception:
+            return None
+
     def _get_usage_tracker(self):
         """Mirrors _get_history_lock()'s own lazy-init pattern (see its docstring):
         tests that construct CartogenAi via __new__() to skip __init__ entirely still
@@ -418,8 +501,8 @@ class CartogenAi:
 
     def _turn_limits(self):
         """(max tool-call rounds, max tokens) for one request. Settings override; a bad value falls back to the
-        defaults (MAX_ITERATIONS, no token limit). The round cap is clamped to 1-100."""
-        cap, budget = MAX_ITERATIONS, 0
+        defaults (MAX_ITERATIONS, DEFAULT_TURN_TOKEN_BUDGET). The round cap is clamped to 1-100; a stored 0 means no token limit."""
+        cap, budget = MAX_ITERATIONS, DEFAULT_TURN_TOKEN_BUDGET
         try:
             settings = QgsSettings()
             raw_cap = settings.value(SETTINGS_MAX_TOOL_ITERATIONS, None)
@@ -429,7 +512,7 @@ class CartogenAi:
             if raw_budget not in (None, ""):
                 budget = max(int(raw_budget), 0)
         except Exception:
-            cap, budget = MAX_ITERATIONS, 0
+            cap, budget = MAX_ITERATIONS, DEFAULT_TURN_TOKEN_BUDGET
         return cap, budget
 
     def get_session_usage_text(self):
@@ -452,6 +535,25 @@ class CartogenAi:
         new_history = load_chat_history()
         with self._get_history_lock():
             self.conversation_history = new_history
+        self.reset_project_scoped_state()
+
+    def reset_project_scoped_state(self):
+        """Drops what belongs to the PREVIOUS project: the task plan and any pending confirmation preview, the tools carried over
+        from the last turn, the grounding texts, the last tool call and a pending stray-fragment flag.
+
+        rc22 live smoke (H5, T4, J4, V4, A4/A5): the agent instance is cached across projects, and only the chat history was
+        reloaded, so a plan or a pending "Apply" from the earlier project resurfaced in a fresh project's chat and a plain "Yes"
+        resumed the old request (an INFORM styling plan in the JIAF project; a print layout from an earlier fragment instead of the
+        requested export). Called from reload_chat_history, i.e. on every project switch."""
+        with contextlib.suppress(Exception):
+            self.task_manager.clear_plan()
+            self.task_manager.plan_history = []
+        with contextlib.suppress(Exception):
+            self._transaction_log.clear()
+        self._recent_tools = ((), 0)
+        self._grounding_texts = []
+        self._last_tool_call = None
+        self._stray_fragment_turn = False
 
     def _is_project_inspector_enabled(self) -> bool:
         """§1.5 option (b), OFF by default. Mirrors prompt_refiner.is_refinement_enabled()'s
@@ -484,25 +586,11 @@ class CartogenAi:
         except ImportError:
             return None
         try:
-            from .lineage import effective_source_names, get_layer_lineage
-            from ..models import sensitivity as _sens
+            from .protection import lookups
             project = QgsProject.instance()
 
             all_layers = list(project.mapLayers().values())
-
-            def get_level(layer_name):
-                # Every layer sharing the name counts, strictest wins (#150): the first match alone could be the open twin.
-                found = project.mapLayersByName(layer_name)
-                return egress_gate.most_protective_level(
-                    _sens.get_layer_sensitivity(lyr).get("level") for lyr in found)
-
-            def get_sources(layer_name):
-                out = []
-                for lyr in project.mapLayersByName(layer_name):
-                    for entry in get_layer_lineage(lyr):
-                        if isinstance(entry, dict):
-                            out.extend(n for n in effective_source_names(entry, all_layers) if n not in out)
-                return out
+            get_level, get_sources = lookups(all_layers)      # one lineage-following lookup, shared with the export gate (PLAN-016 item 2)
 
             # A client with no readable endpoint (OpenRouter's, for one) counts as non-local --
             # the safe direction for a privacy gate.
@@ -516,11 +604,33 @@ class CartogenAi:
                 get_level=get_level,
                 get_sources=get_sources,
                 strict=egress_gate.read_strict(),
+                visible_layer_names=self._visible_layer_names(project) if name in egress_gate.VISIBLE_LAYER_TOOLS else None,
             )
         except Exception:
             if mode == egress_gate.MODE_ENFORCE:
                 return egress_gate.check_failed_decision(name)
             return None
+
+    @staticmethod
+    def _visible_layer_names(project):
+        """Names of the layers whose checkbox is on in the layer tree: what a picture of the map shows (PLAN-032). MAIN THREAD."""
+        return [node.layer().name() for node in project.layerTreeRoot().findLayers() if node.isVisible() and node.layer() is not None]
+
+    def _detach_canvas_image(self, tool_result, image_messages):
+        """Takes the map picture out of a tool result (it would cost hundreds of thousands of tokens as text) and queues it, with its legend and
+        layer list, as a user image message for after this round's tool messages (PLAN-032). Returns the result without the picture."""
+        client = getattr(self, "client", None)
+        vision = canvas_capture.provider_supports_vision(type(client).__name__, getattr(client, "model", None))
+        clean, message = canvas_capture.split_image(tool_result, vision)
+        image_messages.extend([message] if message else [])
+        return clean
+
+    @staticmethod
+    def _add_image_messages(messages, image_messages):
+        """Adds this round's picture message(s) after the tool messages, first replacing any older picture so only the newest is sent again."""
+        if image_messages:
+            canvas_capture.compact_old_images(messages)
+            messages.extend(image_messages)
 
     def _is_plan_gate_enabled(self) -> bool:
         """§1.6 option (b), OFF by default. Mirrors prompt_refiner.is_refinement_enabled()'s
@@ -588,6 +698,41 @@ class CartogenAi:
         except Exception:
             return False
 
+    def _egress_precheck(self, name, args, filtered_args, user_confirmed):
+        """The egress gate's verdict for one call, shared by every dispatch path so none can skip it. Returns (blocked result or None, the gate's
+        decision or None, whether a person's confirmation overrode a block). A block registers the confirmable card, exactly as before. MAIN THREAD
+        when it can reach QgsProject (the callers marshal it). PLAN-051: _execute_two_phase_tool used to have no call to this at all."""
+        egress = self._egress_gate_decision(name, filtered_args)
+        egress_overridable = egress is not None and egress["action"] == "block" and bool(egress.get("layers"))
+        egress_override_applied = egress_overridable and user_confirmed
+        if egress is not None and egress["action"] == "block" and not egress_override_applied:
+            log_event("egress_blocked", tag="Agent", tool=name, layer_count=len(egress.get("layers") or {}))
+            if egress_overridable:
+                # The confirmable task MUST be registered here: without it nothing confirmable exists, a typed "confirm" reaches the model
+                # instead of the plugin, and the model improvises (rc7 smoke test F02/F03, 2026-09-30).
+                blocked = egress_gate.preview_required(name, filtered_args, egress, downloads=name in TWO_PHASE_TOOLS)
+                self._register_preview_task(name, args, blocked)
+                return blocked, egress, False
+            return egress["result"], egress, False
+        if egress_override_applied:
+            log_event("egress_override_confirmed", tag="Agent", tool=name, layer_count=len(egress["layers"]))
+        return None, egress, bool(egress_override_applied)
+
+    def _stray_fragment_block(self, name, user_confirmed):
+        """The refusal for a tool that would change something on a stray-fragment turn, else None (GitHub #130: a stray pasted fragment such as
+        "template: access_map" is not a request, but a real model improvised calls for it and created a layout). Such a turn may still READ the project
+        (the model can ask what the user wants), but nothing may be created, changed, deleted or written until the user says what they want. A
+        human-confirmed card still runs. One check for both dispatch paths: _execute_two_phase_tool did not ask it until PLAN-055 gap B, so a fragment
+        could still make the model fetch and add layers. Pure given the turn flag."""
+        if (getattr(self, "_stray_fragment_turn", False) and not user_confirmed
+                and tool_operations.get_tool_operation_type(name) in (
+                    tool_operations.CREATE, tool_operations.MODIFY, tool_operations.DELETE, tool_operations.PUBLISH)):
+            log_event("stray_fragment_blocked", tag="Agent", tool=name)
+            return {"error": ("The user's last message is a short fragment, not a request, so nothing was changed. "
+                              "Ask the user what they want to do with it before creating, editing or exporting anything."),
+                    "blocked": True}
+        return None
+
     def _real_execute_tool(self, name, arguments, user_confirmed: bool = False):
         func = TOOL_REGISTRY.get(name)
         if func is None:
@@ -616,20 +761,13 @@ class CartogenAi:
                 break
 
         # Strip unadvertised arguments (prevents model self-approval via injected parameters)
-        filtered_args = {k: v for k, v in args.items() if k in schema_props}
+        filtered_args = arg_repair.repair_path_arguments({k: v for k, v in args.items() if k in schema_props})
         if user_confirmed and _accepts_confirmed(func):
             filtered_args["confirmed"] = True
 
-        # GitHub #130: a stray pasted fragment ("template: access_map") is not a request, but a real model improvised calls for
-        # it and created a layout. Such a turn may still READ the project (the model can ask what the user wants), but nothing
-        # may be created, changed, deleted or written until the user says what they want. A human-confirmed card still runs.
-        if getattr(self, "_stray_fragment_turn", False) and not user_confirmed:
-            if tool_operations.get_tool_operation_type(name) in (
-                    tool_operations.CREATE, tool_operations.MODIFY, tool_operations.DELETE, tool_operations.PUBLISH):
-                log_event("stray_fragment_blocked", tag="Agent", tool=name)
-                return {"error": ("The user's last message is a short fragment, not a request, so nothing was changed. "
-                                  "Ask the user what they want to do with it before creating, editing or exporting anything."),
-                        "blocked": True}
+        blocked_fragment = self._stray_fragment_block(name, user_confirmed)
+        if blocked_fragment is not None:
+            return blocked_fragment
 
         # §1.6 option (b) plan-validation gate: checked BEFORE the call, not after --
         # blocking here means the DELETE/PUBLISH tool's own side effects never happen at
@@ -643,31 +781,18 @@ class CartogenAi:
         # already confirmed the override via the SAME UI Confirm-button path destructive
         # actions use (user_confirmed=True never comes from the model; see filtered_args'
         # own "confirmed" handling above). IMPLEMENTATION_TRACKER.md §1.4 decision 2.
-        egress = self._egress_gate_decision(name, filtered_args)
-        egress_overridable = egress is not None and egress["action"] == "block" and bool(egress.get("layers"))
-        egress_override_applied = egress_overridable and user_confirmed
-        if egress is not None and egress["action"] == "block" and not egress_override_applied:
-            log_event("egress_blocked", tag="Agent", tool=name, layer_count=len(egress.get("layers") or {}))
-            if egress_overridable:
-                # The confirmable task MUST be registered here: this branch returns before the
-                # generic PREVIEW_REQUIRED handling further down, so without it nothing
-                # confirmable exists, a typed "confirm" reaches the model instead of the
-                # plugin, and the model improvises (rc7 smoke test F02/F03, 2026-09-30).
-                blocked = egress_gate.preview_required(name, filtered_args, egress)
-                self._register_preview_task(name, args, blocked)
-                return blocked
-            return egress["result"]
-        if egress_override_applied:
-            log_event("egress_override_confirmed", tag="Agent", tool=name, layer_count=len(egress["layers"]))
+        blocked, egress, egress_override_applied = self._egress_precheck(name, args, filtered_args, user_confirmed)
+        if blocked is not None:
+            return blocked
 
         try:
+            layers_before = self._loaded_layer_ids()
             res = func(**filtered_args)
             if egress is not None and egress["action"] == "warn" and isinstance(res, dict):
                 res["egress_warning"] = egress["warning"]
             if egress_override_applied and isinstance(res, dict):
                 res["egress_override_note"] = (
-                    "User confirmed sending protected data (%s) to a cloud provider for this call."
-                    % ", ".join(sorted(egress["layers"]))
+                    "User confirmed sending protected data ({}) to a cloud provider for this call.".format(", ".join(sorted(egress["layers"])))
                 )
             if name == "create_plan" and isinstance(res, dict) and res.get("success"):
                 self._plan_gate.mark_plan_created()
@@ -680,14 +805,20 @@ class CartogenAi:
                     learning.record_tool_usage(self.memory_manager, name)
                     learning.maybe_infer_preferences(self.memory_manager)
                     self._last_tool_call = (name, args)
-                    self._tag_created_layers(name, args, res)
+                    self._tag_created_layers(name, args, res, layers_before)
                     if name not in TASK_MANAGEMENT_TOOLS:
                         self.task_manager.auto_advance_if_unambiguous(f"{name} succeeded", tool_name=name)
             # One exit for every dispatch path: a tool that returns nothing is reported as a failure here, so the inline and the
             # dispatcher-thread paths no longer disagree (the model used to see a bare null on one of them).
             return tool_results.ensure_result(res)
         except TypeError as e:
-            return {"error": f"Invalid arguments for {name}: {e}", "error_class": type(e).__name__}
+            message = f"Invalid arguments for {name}: {e}"
+            if "required positional argument" in str(e):
+                # DEF-12: execute_pyqgis_script arrived with no `script` and the model saw only Python's wording. An argument that is
+                # absent is most often a reply cut off at the length limit while writing a long value, so say so.
+                message += (" -- a required argument was not sent. If your last reply was cut off while writing a long value, "
+                            "send a shorter one, or use a dedicated tool for this task.")
+            return {"error": message, "error_class": type(e).__name__}
         except Exception as e:
             return {"error": f"Tool {name} failed: {e}", "error_class": type(e).__name__}
 
@@ -712,6 +843,197 @@ class CartogenAi:
             return set(QgsProject.instance().mapLayers().keys())
         except Exception:
             return set()
+
+    @staticmethod
+    def _project_layer_facts(_unused=None):
+        """Facts about the open project's layers (main thread); None outside QGIS, which skips preflight (an empty dict is a real,
+        empty project). See discovery.gather_facts."""
+        from . import discovery
+        return discovery.gather_facts()
+
+    def _evidence_start(self, user_query):
+        """Create this request's evidence recorder when the user switched evidence on in Settings, else None. Never raises."""
+        self._evidence = None
+        try:
+            if str(QgsSettings().value(SETTINGS_EVIDENCE_ENABLED, False)).lower() not in ("true", "1"):     # QSettings may hand back text
+                return
+            from .tools._paths import resolve_output_path
+            self._evidence = evidence.EvidenceRecorder(
+                resolve_output_path(evidence.relative_folder(f"t{getattr(self, '_turn_counter', 0) + 1}")), user_query)
+            self._evidence.context = evidence.project_context(getattr(self, "client", None))
+        except Exception as e:
+            log_event("swallowed_exception", tag="Agent", tool="evidence_start", error_class=type(e).__name__, error=True)
+
+    def _evidence_finish(self, final_text):
+        recorder = getattr(self, "_evidence", None)
+        self._evidence = None
+        if recorder is None:
+            return
+        try:
+            usage = self.get_turn_usage_detail_text() if hasattr(self, "get_turn_usage_detail_text") else ""
+            recorder.finish(final_text, usage_line=usage or "",
+                            screenshot_fn=lambda path: self._run_on_main_thread(self._save_canvas, path) is True)
+        except Exception as e:
+            log_event("swallowed_exception", tag="Agent", tool="evidence_finish", error_class=type(e).__name__, error=True)
+
+    @staticmethod
+    def _save_canvas(path):
+        """Main thread: save the map canvas as an image. False when there is no canvas (headless)."""
+        try:
+            from qgis.utils import iface
+        except ImportError:
+            return False
+        if iface is None:
+            return False
+        iface.mapCanvas().saveAsImage(path)
+        return True
+
+    @staticmethod
+    def _layer_names(_unused=None):
+        try:
+            from qgis.core import QgsProject
+        except ImportError:
+            return []
+        return sorted(layer.name() for layer in QgsProject.instance().mapLayers().values())
+
+    def _note_turn_call(self, name, arguments, result):
+        """Remember (tool, arguments, result) for this turn so look_followup can see which map hints were never acted on."""
+        try:
+            args = arguments if isinstance(arguments, dict) else json.loads(arguments or "{}")
+        except (TypeError, ValueError):
+            args = {}
+        calls = getattr(self, "_turn_calls", None)
+        if calls is not None:
+            calls.append((name, args if isinstance(args, dict) else {}, result))
+
+    def _check_point_provenance(self, name, arguments, result):
+        """Flags point positions the model typed that appear in neither the user's words nor any earlier tool result (see
+        services/coordinate_provenance.py). Adds a note to the result the model reads and counts them for the final reply.
+        Runs before this call's own result enters the grounding text, so a call cannot ground itself. Never raises."""
+        try:
+            if name not in coordinate_provenance.TOOLS or not isinstance(result, dict):
+                return result
+            args = arguments if isinstance(arguments, dict) else json.loads(arguments or "{}")
+            total, bad = coordinate_provenance.check_call(name, args, result, "\n".join(getattr(self, "_grounding_texts", [])))
+            if bad:
+                self._turn_unverified_points = getattr(self, "_turn_unverified_points", 0) + len(bad)
+                result["unverified_coordinates"] = [{"x": p[0], "y": p[1], "label": p[2]} for p in bad[:10]]
+                result["coordinate_provenance_note"] = coordinate_provenance.result_note(total, bad)
+        except Exception as e:
+            log_event("swallowed_exception", tag="Agent", tool="point_provenance", error_class=type(e).__name__, error=True)
+        return result
+
+    def _exec_recorded(self, name, arguments):
+        """_execute_tool, plus an evidence entry (real arguments, result, timing, layers created) when evidence is on."""
+        recorder = getattr(self, "_evidence", None)
+        if recorder is None:
+            result = self._check_point_provenance(name, arguments, self._execute_tool(name, arguments))
+            self._note_turn_call(name, arguments, result)
+            return result
+        before = self._run_on_main_thread(self._layer_names, None)
+        started = time.monotonic()
+        result = self._check_point_provenance(name, arguments, self._execute_tool(name, arguments))
+        elapsed = (time.monotonic() - started) * 1000
+        self._note_turn_call(name, arguments, result)
+        try:
+            after = self._run_on_main_thread(self._layer_names, None)
+            new = [n for n in (after if isinstance(after, list) else []) if n not in (before if isinstance(before, list) else [])]
+            try:
+                args = arguments if isinstance(arguments, dict) else json.loads(arguments or "{}")
+            except (TypeError, ValueError):
+                args = str(arguments)
+            recorder.record_call(name, args, result, elapsed, new)
+        except Exception as e:
+            log_event("swallowed_exception", tag="Agent", tool="evidence_record", error_class=type(e).__name__, error=True)
+        return result
+
+    def _run_steps(self, arguments, active_tools, turn_tool_log, turn_pending, guard, tool_step_callback, should_stop,
+                   correlation_id, provider_name, image_messages=None, max_steps=step_runner.MAX_STEPS):
+        """Run a validated chain of tool calls inside ONE model round trip (see step_runner's docstring for why).
+
+        Every inner call goes through _execute_tool exactly like a call the model made on its own, so confirmations, the egress gate,
+        undo snapshots and the stale-turn check all still apply; it is also recorded in turn_tool_log / turn_pending / the loop guard
+        so the final-text reconciliation and the guards see what really ran. The chain stops at the first error, the first call
+        waiting for the user's Confirm, a Stop request or a guard stop. Mutates turn_tool_log and turn_pending in place."""
+        steps, problem = step_runner.parse_steps(arguments)
+        schemas = {t.get("function", {}).get("name"): t.get("function", {}).get("parameters", {}) for t in active_tools}
+        if problem is None:
+            problem = step_runner.validate_steps(steps, schemas, tool_operations.get_tool_operation_type, max_steps)
+        if problem is None:
+            facts = getattr(self, "_turn_facts", None)
+            if facts is None:
+                facts = self._run_on_main_thread(self._project_layer_facts, None)
+            if isinstance(facts, dict) and not isinstance(facts.get("error"), str):    # None / error dict = no QGIS: skip preflight
+                problem = step_runner.preflight(steps, facts, tool_operations.get_tool_operation_type)
+        if problem:
+            return {"error": problem, "completed": 0}
+        results, summaries = [], []
+        total = len(steps)
+        for index, step in enumerate(steps, 1):
+            tool = step["tool"]
+            last = index == total
+            if should_stop is not None and should_stop():
+                return step_runner.final_result(total, summaries, stopped="Stopped by the user.")
+            resolved, problem = step_runner.resolve_arguments(step.get("arguments", {}), results)
+            if problem:
+                return step_runner.final_result(total, [*summaries, step_runner.step_summary(index, tool, {"error": problem}, False, 300)],
+                                                stopped=f"Step {index} ({tool}): {problem}")
+            log_event("tool_call", tag="Agent", tool=tool, status="running", correlation_id=correlation_id, provider=provider_name)
+            if tool_step_callback is not None:
+                with contextlib.suppress(Exception):
+                    tool_step_callback(tool, "running", None)
+            started = time.monotonic()
+            result = response_guard.annotate_not_run(self._exec_recorded(tool, json.dumps(resolved, default=str)))
+            if image_messages is not None:
+                result = self._detach_canvas_image(result, image_messages)       # PLAN-032: a map picture inside a chain reaches the model as a picture too
+            failed = tool_results.is_error(result)
+            turn_tool_log.append((tool, failed, tool_results.error_of(result)))
+            guard.record_call(tool, resolved, failed, tool_results.error_of(result) or "", tool_operations.get_tool_operation_type(tool))
+            status = tool_results.status_of(result)
+            if status in response_guard.NOT_RUN_STATUSES:
+                turn_pending.append(tool)
+            elif not failed and tool in turn_pending:
+                turn_pending[:] = [n for n in turn_pending if n != tool]
+            log_event("tool_call", tag="Agent", tool=tool, status="failed" if failed else "done",
+                      duration_ms=int((time.monotonic() - started) * 1000), correlation_id=correlation_id, provider=provider_name,
+                      **({"error_class": tool_results.error_class_of(result), "error": True} if failed else {}))
+            if tool_step_callback is not None:
+                with contextlib.suppress(Exception):
+                    tool_step_callback(tool, "failed" if failed else "done", tool_results.error_of(result))
+            self._remember_grounding(json.dumps(result, default=str))
+            results.append(result)
+            not_run = status in response_guard.NOT_RUN_STATUSES
+            summaries.append(step_runner.step_summary(index, tool, result, not (failed or not_run),
+                                                      step_runner.LAST_RESULT_CHARS if last else step_runner.RESULT_CHARS))
+            if failed:
+                return step_runner.final_result(total, summaries, stopped=f"Step {index} ({tool}) failed: {tool_results.error_of(result)}")
+            if not_run:
+                return step_runner.final_result(total, summaries, stopped=f"Step {index} ({tool}) is waiting for the user's confirmation.",
+                                                status=status)
+            if guard.stop:
+                return step_runner.final_result(total, summaries, stopped="Stopped by the loop guard.")
+        return step_runner.final_result(total, summaries)
+
+    def execute_confirmed(self, name, arguments):
+        """What the Apply button runs (PLAN-051, hand-test row W1): the tool with a person's confirmation, wrapped like an ordinary call. The button
+        used to call _real_execute_tool directly, so a confirmed write had no result checks and no transaction record (no Undo). MAIN THREAD (the UI).
+        The after-steps never hide the tool's own result."""
+        try:
+            parsed = arguments if isinstance(arguments, dict) else json.loads(arguments or "{}")
+        except (TypeError, ValueError):
+            parsed = {}
+        if not isinstance(parsed, dict):
+            parsed = {}
+        operation_type = tool_operations.get_tool_operation_type(name)
+        ids_before, snapshot = self._capture_before(name, parsed)
+        result = self._real_execute_tool(name, arguments, user_confirmed=True)
+        try:
+            if name in NETWORK_ONLY_TOOLS or name in TWO_PHASE_TOOLS:
+                result = source_record.attach(name, parsed, result)
+            self._record_after(name, operation_type, result, ids_before, snapshot)
+        except Exception as e:
+            log_event("swallowed_exception", tag="Agent", tool="execute_confirmed", error_class=type(e).__name__, error=True)
+        return result_gate.attach_checks(name, result, operation_type)
 
     def _execute_tool(self, name, arguments):
         """Single entry point for every tool call in run()'s loop, regardless
@@ -777,9 +1099,12 @@ class CartogenAi:
             before = self._run_on_main_thread(lambda _a: self._capture_before(name, parsed_arguments), None)
             if not (isinstance(before, tuple) and len(before) == 2):
                 before = (set(), None)
-            result = self._guarded_dispatch(name, arguments)
-            self._run_on_main_thread(
-                lambda _a: self._record_after(name, operation_type, result, before[0], before[1]), None)
+            result = source_record.attach(name, parsed_arguments, self._guarded_dispatch(name, arguments))     # PLAN-044: pure, worker thread is fine
+
+            def after(_a):
+                self._record_after(name, operation_type, result, before[0], before[1])
+                result_gate.attach_checks(name, result, operation_type)       # PLAN-031: the fetch tools that create a layer are checked too
+            self._run_on_main_thread(after, None)
             return result
 
         def command(_unused):
@@ -790,7 +1115,7 @@ class CartogenAi:
             ids_before, snap = self._capture_before(name, parsed_arguments)
             res = self._guarded_dispatch(name, arguments)
             self._record_after(name, operation_type, res, ids_before, snap)
-            return res
+            return result_gate.attach_checks(name, res, operation_type)     # PLAN-031: checks on a result that wrote a layer; never raises
 
         result = self._run_on_main_thread(command, None)
         # Only a MISSING result is a failure. #138 (rc12) tested isinstance(result, dict) here, but get_layers, get_attributes and
@@ -817,6 +1142,17 @@ class CartogenAi:
         """Records the call in the turn's transaction log. MAIN THREAD ONLY (reads the live project)."""
         ids_after = self._live_layer_ids()
         self._transaction_log.record(name, operation_type, result, ids_before, ids_after, snapshot=snapshot)
+        self._tag_fetched_layer_source(result)
+
+    @staticmethod
+    def _tag_fetched_layer_source(result):
+        """PLAN-044: a fetch result that carries a source record stores it on the layer it created, so provenance and reports can read it. MAIN THREAD."""
+        record = result.get("data_source") if isinstance(result, dict) else None
+        name = result_gate.output_layer_name(result)
+        if not record or not name or not result_gate.QGIS_AVAILABLE:
+            return
+        for layer in result_gate.QgsProject.instance().mapLayersByName(name):
+            source_record.tag_layer(layer, record)
 
     def _guarded_dispatch(self, name, arguments):
         # Real live crash, 2026-09-13: a turn ended in a bare chat bubble reading
@@ -844,7 +1180,13 @@ class CartogenAi:
         try:
             return self._execute_tool_dispatch(name, arguments)
         except Exception as e:
-            return {"error": f"Tool {name} failed unexpectedly: {e}", "error_class": type(e).__name__}
+            result = {"error": f"Tool {name} failed unexpectedly: {e}", "error_class": type(e).__name__}
+            with contextlib.suppress(Exception):           # PLAN-053 stage 3: a QGIS-version-looking failure says which QGIS, Qt, OS and Python this was; a courtesy, the failure itself is always returned
+                from .. import environment
+                note = environment.api_mismatch_note(e, environment.detect())
+                if note:
+                    result["environment"] = note
+            return result
 
     def _execute_tool_dispatch(self, name, arguments):
         if name in NETWORK_ONLY_TOOLS:
@@ -900,7 +1242,63 @@ class CartogenAi:
         # (unlike the equivalent call in _real_execute_tool's success branch).
         self.task_manager.auto_advance_if_unambiguous(f"{name} succeeded", tool_name=name)
 
+    def _execute_two_phase_with_cleanup(self, name, filtered_args):
+        """The humanitarian boundary/footprint fetches: background download, main-thread layer
+        creation, then the temp file is removed whether or not layer creation worked."""
+        from .tools import humanitarian_tools as ht
+        large = bool(filtered_args.get("allow_large_download"))
+        if name == "fetch_geoboundaries":
+            fetch_result = ht.fetch_geoboundaries_network_phase(
+                filtered_args.get("iso3", ""), filtered_args.get("admin_level", "ADM1"), large)
+            add_phase = ht.add_geoboundaries_layer_main_thread_phase
+        elif name == "fetch_hdx_admin_boundaries":
+            fetch_result = ht.fetch_hdx_admin_boundaries_network_phase(
+                filtered_args.get("iso3", ""), filtered_args.get("admin_level", "ADM1"), large)
+            add_phase = ht.add_hdx_admin_boundaries_layer_main_thread_phase
+        else:
+            fetch_result = ht.fetch_building_footprints_network_phase(
+                filtered_args.get("country_name", ""), filtered_args.get("bbox", []),
+                filtered_args.get("max_features", 5000), large)
+            add_phase = ht.add_building_footprints_layer_main_thread_phase
+        try:
+            res = self._run_current_turn_on_main_thread(add_phase, fetch_result)
+        finally:
+            local_path = fetch_result.get("local_path")
+            if local_path:
+                import os
+                with contextlib.suppress(OSError):
+                    os.remove(local_path)
+        self._log_tool_success(name, filtered_args, res)
+        return res
+
     def _execute_two_phase_tool(self, name, arguments):
+        """TWO_PHASE_TOOLS dispatch with the egress gate in front (PLAN-051, hand-test row W11: this path used to skip the gate, so a fetch over a
+        RESTRICTED layer went out with no card). The check is marshalled to the main thread because it reads the project; a check that fails
+        blocks. A person's override reaches these tools through execute_confirmed -> _real_execute_tool, which already passed the gate."""
+        try:
+            args = arguments if isinstance(arguments, dict) else json.loads(arguments or "{}")
+        except (TypeError, ValueError) as e:
+            return {"error": f"Invalid tool arguments: {e}"}
+        if not isinstance(args, dict):
+            return {"error": f"Invalid tool arguments: expected an object, got {type(args).__name__}."}
+        schema_props = self._get_schema_props(name)
+        filtered_args = {k: v for k, v in args.items() if k in schema_props}
+        blocked_fragment = self._stray_fragment_block(name, False)
+        if blocked_fragment is not None:
+            return blocked_fragment
+        verdict = self._run_on_main_thread(lambda _a: self._egress_precheck(name, args, filtered_args, False), None)
+        if not (isinstance(verdict, tuple) and len(verdict) == 3):
+            log_event("swallowed_exception", tag="Agent", tool="egress_precheck", error=True)
+            return {"error": f"'{name}' was not run: the data-protection check could not be completed, and this deployment blocks rather than guesses."}
+        blocked, egress, _applied = verdict
+        if blocked is not None:
+            return blocked
+        result = self._run_two_phase_tool(name, arguments)
+        if egress is not None and egress["action"] == "warn" and isinstance(result, dict):
+            result["egress_warning"] = egress["warning"]
+        return result
+
+    def _run_two_phase_tool(self, name, arguments):  # noqa: C901 (one dispatch over the tool names; each branch is that tool's own phases)
         """Handles TWO_PHASE_TOOLS (see module-level comment): runs the network
         fetch on the calling thread (background, when invoked from run()), then
         bounces only the fast, local-disk-only QGIS layer-creation step to the
@@ -916,7 +1314,7 @@ class CartogenAi:
 
         # Same dispatcher-level schema enforcement as _real_execute_tool
         schema_props = self._get_schema_props(name)
-        filtered_args = {k: v for k, v in args.items() if k in schema_props}
+        filtered_args = arg_repair.repair_path_arguments({k: v for k, v in args.items() if k in schema_props})
 
         if name == "add_layer_from_path":
             from .tools.vector_tools import _prefetch_url_to_temp, add_layer_from_path
@@ -927,17 +1325,17 @@ class CartogenAi:
                 return {"error": f"Download failed: {e}"}
             try:
                 res = self._run_current_turn_on_main_thread(
-                    lambda a: add_layer_from_path(a["file_path"], a.get("layer_name"), a.get("source_label")),
+                    # sublayer was left out of this call until 2026-10-28 (DEF-20): the schema offered it and the tool honoured it, but
+                    # this branch never forwarded it, so a named layer of a GeoPackage always opened as the first one.
+                    lambda a: add_layer_from_path(a["file_path"], a.get("layer_name"), a.get("source_label"), a.get("sublayer")),
                     {"file_path": local_path, "layer_name": filtered_args.get("layer_name"),
-                     "source_label": file_path if is_temp else None},
+                     "source_label": file_path if is_temp else None, "sublayer": filtered_args.get("sublayer")},
                 )
             finally:
                 if is_temp:
                     import os
-                    try:
+                    with contextlib.suppress(OSError):
                         os.remove(local_path)
-                    except OSError:
-                        pass
             self._log_tool_success(name, filtered_args, res)
             return res
 
@@ -953,68 +1351,9 @@ class CartogenAi:
             self._log_tool_success(name, filtered_args, res)
             return res
 
-        if name == "fetch_geoboundaries":
-            from .tools.humanitarian_tools import (
-                fetch_geoboundaries_network_phase, add_geoboundaries_layer_main_thread_phase,
-            )
-            fetch_result = fetch_geoboundaries_network_phase(
-                filtered_args.get("iso3", ""), filtered_args.get("admin_level", "ADM1"),
-                bool(filtered_args.get("allow_large_download")),
-            )
-            try:
-                res = self._run_current_turn_on_main_thread(add_geoboundaries_layer_main_thread_phase, fetch_result)
-            finally:
-                local_path = fetch_result.get("local_path")
-                if local_path:
-                    import os
-                    try:
-                        os.remove(local_path)
-                    except OSError:
-                        pass
-            self._log_tool_success(name, filtered_args, res)
-            return res
+        if name in ("fetch_geoboundaries", "fetch_hdx_admin_boundaries", "fetch_building_footprints"):
+            return self._execute_two_phase_with_cleanup(name, filtered_args)
 
-        if name == "fetch_hdx_admin_boundaries":
-            from .tools.humanitarian_tools import (
-                fetch_hdx_admin_boundaries_network_phase, add_hdx_admin_boundaries_layer_main_thread_phase,
-            )
-            fetch_result = fetch_hdx_admin_boundaries_network_phase(
-                filtered_args.get("iso3", ""), filtered_args.get("admin_level", "ADM1"),
-                bool(filtered_args.get("allow_large_download")),
-            )
-            try:
-                res = self._run_current_turn_on_main_thread(add_hdx_admin_boundaries_layer_main_thread_phase, fetch_result)
-            finally:
-                local_path = fetch_result.get("local_path")
-                if local_path:
-                    import os
-                    try:
-                        os.remove(local_path)
-                    except OSError:
-                        pass
-            self._log_tool_success(name, filtered_args, res)
-            return res
-
-        if name == "fetch_building_footprints":
-            from .tools.humanitarian_tools import (
-                fetch_building_footprints_network_phase, add_building_footprints_layer_main_thread_phase,
-            )
-            fetch_result = fetch_building_footprints_network_phase(
-                filtered_args.get("country_name", ""), filtered_args.get("bbox", []),
-                filtered_args.get("max_features", 5000), bool(filtered_args.get("allow_large_download")),
-            )
-            try:
-                res = self._run_current_turn_on_main_thread(add_building_footprints_layer_main_thread_phase, fetch_result)
-            finally:
-                local_path = fetch_result.get("local_path")
-                if local_path:
-                    import os
-                    try:
-                        os.remove(local_path)
-                    except OSError:
-                        pass
-            self._log_tool_success(name, filtered_args, res)
-            return res
 
         if name == "fetch_worldpop_population":
             from .tools.humanitarian_tools import (
@@ -1042,6 +1381,22 @@ class CartogenAi:
             # the downloaded file must stay on disk for as long as the raster
             # layer exists (see add_worldpop_population_layer_main_thread_phase).
             res = self._run_current_turn_on_main_thread(add_worldpop_population_layer_main_thread_phase, fetch_result)
+            self._log_tool_success(name, filtered_args, res)
+            return res
+
+        if name == "load_stac_assets":
+            # PLAN-023 R3-2: the catalogue search and the window downloads run here on the worker thread; only the area lookup and the layer creation are
+            # marshalled to the main thread (the same split as fetch_worldpop_population). `confirmed` is never in filtered_args (it is not in the tool's schema, so
+            # a model cannot send it): a call from the model always ends in the preview card, and the person's Apply runs the registered function via execute_confirmed.
+            from .tools import stac_load_tool as stac
+            prepared = self._run_current_turn_on_main_thread(lambda a: stac.prepare_request(a["layer_name"], a["bbox"]),
+                                                             {"layer_name": filtered_args.get("layer_name"), "bbox": filtered_args.get("bbox")})
+            if "error" in prepared:
+                return prepared
+            fetch_result = stac.load_stac_assets_network_phase(
+                filtered_args.get("start_date"), filtered_args.get("end_date"), filtered_args.get("assets"), prepared["bbox"], prepared["folder"],
+                filtered_args.get("max_cloud", 20), filtered_args.get("limit", 1), filtered_args.get("item_ids"), False)
+            res = self._run_current_turn_on_main_thread(stac.add_stac_layers_main_thread_phase, fetch_result)
             self._log_tool_success(name, filtered_args, res)
             return res
 
@@ -1074,12 +1429,60 @@ class CartogenAi:
             self._log_tool_success(name, filtered_args, res)
             return res
 
+        if name == "find_incident_reports":
+            from .tools.incident_search_tools import (
+                find_incident_reports_network_phase, add_incident_reports_layer_main_thread_phase,
+            )
+            fetch_result = find_incident_reports_network_phase(
+                filtered_args.get("country"), filtered_args.get("bbox"), filtered_args.get("days", 30),
+                filtered_args.get("sources"), filtered_args.get("max_reports", 200),
+            )
+            res = self._run_current_turn_on_main_thread(
+                lambda a: add_incident_reports_layer_main_thread_phase(a["fetch_result"], a["layer_name"]),
+                {"fetch_result": fetch_result, "layer_name": filtered_args.get("layer_name", "Incident reports")},
+            )
+            self._log_tool_success(name, filtered_args, res)
+            return res
+
+        if name == "fetch_usgs_earthquakes":
+            from .tools.event_data_tools import (
+                fetch_usgs_earthquakes_network_phase, add_usgs_earthquakes_layer_main_thread_phase,
+            )
+            fetch_result = fetch_usgs_earthquakes_network_phase(
+                filtered_args.get("bbox"), filtered_args.get("days", 7),
+                filtered_args.get("min_magnitude", 4.5), filtered_args.get("max_events", 1000),
+            )
+            res = self._run_current_turn_on_main_thread(
+                lambda a: add_usgs_earthquakes_layer_main_thread_phase(a["fetch_result"], a["layer_name"]),
+                {"fetch_result": fetch_result, "layer_name": filtered_args.get("layer_name", "USGS Earthquakes")},
+            )
+            self._log_tool_success(name, filtered_args, res)
+            return res
+
+        if name == "fetch_ucdp_conflict_events":
+            from .tools.event_data_tools import (
+                fetch_ucdp_conflict_events_network_phase, add_ucdp_conflict_events_layer_main_thread_phase,
+            )
+            fetch_result = fetch_ucdp_conflict_events_network_phase(
+                filtered_args.get("country"), filtered_args.get("bbox"), filtered_args.get("start_date"),
+                filtered_args.get("end_date"), filtered_args.get("min_deaths", 0), filtered_args.get("max_events", 1000),
+            )
+            res = self._run_current_turn_on_main_thread(
+                lambda a: add_ucdp_conflict_events_layer_main_thread_phase(a["fetch_result"], a["layer_name"]),
+                {"fetch_result": fetch_result, "layer_name": filtered_args.get("layer_name", "UCDP Conflict Events")},
+            )
+            self._log_tool_success(name, filtered_args, res)
+            return res
+
         if name == "fetch_gdacs_disaster_alerts":
             from .tools.hazard_monitoring_tools import (
                 fetch_gdacs_disaster_alerts_network_phase, add_gdacs_disaster_alerts_layer_main_thread_phase,
             )
             fetch_result = fetch_gdacs_disaster_alerts_network_phase(
                 filtered_args.get("bbox"), filtered_args.get("min_alert_level", "Orange"),
+                # country was dropped here, so a "Yemen" request fetched the whole world (1.18.4 smoke N7c and A7: 86 alerts, none in Yemen);
+                # the function itself has filtered by country since 2026-09-15, but this two-phase path never passed it on.
+                filtered_args.get("country"),
             )
             res = self._run_current_turn_on_main_thread(
                 lambda a: add_gdacs_disaster_alerts_layer_main_thread_phase(a["fetch_result"], a["layer_name"]),
@@ -1128,10 +1531,8 @@ class CartogenAi:
                 local_path = fetch_result.get("local_path")
                 if local_path and not fetch_result.get("keep_local_file"):
                     import os
-                    try:
+                    with contextlib.suppress(OSError):
                         os.remove(local_path)
-                    except OSError:
-                        pass
             self._log_tool_success(name, filtered_args, res)
             return res
 
@@ -1246,7 +1647,7 @@ class CartogenAi:
             if target != default and hasattr(self.client, "_emit_status"):
                 self.client._emit_status(f"Auto-selected {target} ({complexity} request)")
         except Exception as e:
-            print(f"[CartogenAi] auto model selection failed: {e}")
+            log_event("auto_model_selection_failed", tag="CartogenAi", error_class=type(e).__name__, error=True)
 
     def _reconcile_final_text_with_tool_log(self, final_text, turn_tool_log):
         """Code-level backstop for the tool-result narrative-mismatch bug (see
@@ -1298,9 +1699,25 @@ class CartogenAi:
             )
         return f"{final_text}\n\n{note}"
 
-    def _tag_created_layers(self, name, args, res):
+    @staticmethod
+    def _loaded_layer_ids():
+        """Ids of the layers loaded right now, or None when QGIS is not available. Taken just before a tool runs, so the lineage tagger
+        can tell the layers a call READ from the layer it just CREATED."""
+        try:
+            from qgis.core import QgsProject
+            return frozenset(QgsProject.instance().mapLayers().keys())
+        except Exception:
+            return None
+
+    def _tag_created_layers(self, name, args, res, layers_before=None):
         """Records which layers a successful call read and tags every layer its result says it created (GitHub #150): sources are
-        found by value, including list and nested arguments and SQL, and every created layer is tagged, not only `layer_name`."""
+        found by value, including list and nested arguments and SQL, and every created layer is tagged, not only `layer_name`.
+
+        `layers_before` (ids loaded before the call) keeps the output's own name out of the sources. rc48 hand test OI-150 (2026-10-24), then
+        a CI reproduction: when the caller names the output (`new_layer_name="merged_test"`), that name is already a loaded layer by the time
+        this runs, so it was counted as one of the call's INPUTS; the rule that a result echoing its input must not be tagged as derived from
+        itself then skipped it, and a merge of a SENSITIVE layer came out with no lineage and read as open to the cloud gate. Without
+        `layers_before` (two-phase tools) the old behaviour is kept."""
         from .lineage import created_layer_names, derive_sources, source_layer_ids, tag_layer_lineage
         try:
             from qgis.core import QgsProject
@@ -1308,12 +1725,27 @@ class CartogenAi:
             return
         try:
             project = QgsProject.instance()
-            known = [lyr.name() for lyr in project.mapLayers().values()]
-            sources = derive_sources(name, args, known)
-            source_ids = source_layer_ids(sources, project.mapLayers().values())
+            all_layers = list(project.mapLayers().values())
+            read_layers = [lyr for lyr in all_layers if layers_before is None or lyr.id() in layers_before]
+            known = [lyr.name() for lyr in all_layers]
+            sources = derive_sources(name, args, [lyr.name() for lyr in read_layers])
+            source_ids = source_layer_ids(sources, read_layers)
+            superseded_now = []
             for created in created_layer_names(res, sources, known):
-                for layer in project.mapLayersByName(created)[:1]:
+                # The layer THIS call made, not the first of the same name (PLAN-072): with duplicate names the first could be an older result.
+                layer = superseded.pick_new_layer(project.mapLayersByName(created), layers_before)
+                if layer is None:
+                    continue
+                extra = getattr(self, "_workflow_context", None)       # set only while a workflow file runs (PLAN-048)
+                if extra:
+                    tag_layer_lineage(layer, name, args, sources, source_ids, extra=extra)
+                else:
                     tag_layer_lineage(layer, name, args, sources, source_ids)
+                if superseded.enabled():
+                    superseded_now += superseded.mark_older(project, layer, name, layers_before)
+            if superseded_now and isinstance(res, dict):
+                res["superseded_layers"] = superseded_now
+                res["superseded_note"] = superseded.note(superseded_now)
         except Exception as e:
             log_event("swallowed_exception", tag="Agent", tool="lineage_tagging",
                       error_class=type(e).__name__, error=True)
@@ -1323,15 +1755,13 @@ class CartogenAi:
 
     def _remember_grounding(self, text):
         """Keeps `text` as evidence for the claim check, newest last, within a fixed total size. Never raises."""
-        try:
+        with contextlib.suppress(Exception):
             # setdefault, not a bare attribute: tests (and any subclass) build agents without running __init__.
             texts = self.__dict__.setdefault("_grounding_texts", [])
             texts.append(str(text)[:self._GROUNDING_PER_ITEM_CHARS])
             total = sum(len(t) for t in texts)
             while total > self._GROUNDING_TOTAL_CHARS and len(texts) > 1:
                 total -= len(texts.pop(0))
-        except Exception:
-            pass
 
     def _guard_unbacked_data(self, final_text, turn_tool_log, turn_pending):
         """Appends a visible warning when the final answer contains a data table but a call this
@@ -1339,11 +1769,9 @@ class CartogenAi:
         the table cannot have come from that call. Also counts a gate task still awaiting
         Confirm from an earlier turn. See services/response_guard.py (rc7 smoke test F03)."""
         pending = list(turn_pending)
-        try:
+        with contextlib.suppress(Exception):
             pending += [t.get("pending_tool") for t in self.task_manager.tasks
                         if t.get("status") == "PREVIEW_READY" and t.get("pending_tool")]
-        except Exception:
-            pass
         failed = []
         for i, (name, is_error, _msg) in enumerate(turn_tool_log):
             if is_error and not any(n == name and not e for n, e, _ in turn_tool_log[i + 1:]):
@@ -1357,6 +1785,11 @@ class CartogenAi:
         final_text = response_guard.apply_ungrounded_claims_note(
             final_text, "\n".join(getattr(self, "_grounding_texts", [])),
             data_tool_ran and not pending)   # a call still waiting on the user produced no data; the other guard covers it
+        # #228 (T3): a styling claim needs a styling call that succeeded in this turn.
+        final_text = response_guard.apply_unconfirmed_style_note(
+            final_text, turn_tool_log, "\n".join(getattr(self, "_grounding_texts", [])))
+        final_text = coordinate_provenance.apply_final_note(final_text, getattr(self, "_turn_unverified_points", 0))
+        final_text = response_guard.apply_failed_checks_note(final_text, response_guard.failed_checks(getattr(self, "_turn_calls", None)))
         if pending:
             # F14: the app shows its own confirmation card for a pending call; drop the model's look-alike.
             final_text = response_guard.strip_confirmation_prose(final_text)
@@ -1414,7 +1847,8 @@ class CartogenAi:
         national road network takes minutes -- can notice Stop and say what it is doing
         (cancel_signal.py). Before this, should_stop was only checked between tool calls, so a
         running tool could not be stopped and QGIS froze until it finished."""
-        from . import cancel_signal, project_session
+        from .. import cancel_signal
+        from . import project_session
         # #147 (audit F11): bind this turn to the project that is open now. A project clear/read bumps the generation, which
         # both stops the turn at its next checkpoint (via the combined should_stop, also polled by long tools) and makes
         # _execute_tool / _append_history refuse to touch whatever project is open by then.
@@ -1425,12 +1859,200 @@ class CartogenAi:
             return project_session.is_stale(captured) or bool(should_stop is not None and should_stop())
 
         token = cancel_signal.begin(stop_or_stale, getattr(self.client, "_emit_status", None))
+        self._evidence_start(user_query)
         try:
-            return self._run_impl(user_query, map_context, stop_or_stale, tool_step_callback)
+            reply = self._run_impl(user_query, map_context, stop_or_stale, tool_step_callback)
+            self._evidence_finish(reply)
+            return reply
         finally:
+            self._evidence = None
             cancel_signal.end(token)
             self._turn_project_session = None
             self._stray_fragment_turn = False
+
+    @staticmethod
+    def _serialize_tool_result(tool_result):
+        try:
+            return json.dumps(tool_result, default=str)
+        except Exception as e:
+            return json.dumps({"error": f"Could not serialize tool result: {e}"})
+
+    @staticmethod
+    def _offer_found_tools(active_tools, tool_result, base_names=None):
+        """The model asked for tools its list did not cover: offer them for the rest of this turn (deduplicated), at most
+        MAX_FOUND_TOOLS_PER_CALL per lookup and MAX_FOUND_TOOLS_PER_TURN over the whole turn. `base_names` is the router's own list
+        for this turn, so the cap counts only what lookups added. Why a cap: a real 24-call run (owner, 2026-11-01: hospitals per
+        district on a printable map) called find_tools five times; every lookup kept up to eight schemas for the rest of the turn, so
+        the tool list grew from 28 to about 65 (about 260 tokens each), every later model call re-sent them, and the turn hit its
+        450,000-token budget before it finished. That is consistent with the run's token use, not proven (no per-call log)."""
+        offered = {t.get("function", {}).get("name") for t in active_tools}
+        base = set(base_names) if base_names is not None else set(offered)
+        room = MAX_FOUND_TOOLS_PER_TURN - len(offered - base)
+        added = 0
+        for wanted in tool_result.get("tool_names") or []:
+            if added >= room or added >= MAX_FOUND_TOOLS_PER_CALL:     # already-offered names do not count against either limit
+                break
+            schema = next((t for t in TOOLS_SCHEMA if t.get("function", {}).get("name") == wanted), None)
+            if schema is not None and wanted not in offered:
+                active_tools = [*list(active_tools), schema]
+                offered.add(wanted)
+                added += 1
+        return active_tools
+
+    @staticmethod
+    def _begin_wrap_up(guard, guard_stop, active_tools, messages, iteration_index, correlation_id):
+        """A read-only turn (web search, inspection) never "changes" anything, so a stall there is not a loop: ask for the answer once,
+        with no tools offered. Returns (guard_stop, active_tools): (None, []) when wrapping up, else both unchanged."""
+        if not (guard_stop and guard.can_wrap_up()):
+            return guard_stop, active_tools
+        guard.release_for_wrap_up()
+        log_event("turn_guard_stop", tag="Agent", status="wrap_up", count=iteration_index + 1, correlation_id=correlation_id)
+        messages.append({"role": "user", "content": loop_guard.WRAP_UP_NUDGE})
+        return None, []
+
+    @staticmethod
+    def _request_answer_round(due, active_tools, wrap_up_sent, messages, iteration_index, correlation_id):
+        """Asks for one tool-less answer round when `due` (the (nudge, status) pair from loop_guard.answer_round_due): DEF-21, the last
+        allowed round or a data source that is down. Returns (tools for the next call, whether an answer round has been requested)."""
+        if not due:
+            return active_tools, wrap_up_sent
+        nudge, status = due
+        messages.append({"role": "user", "content": nudge})
+        log_event("turn_guard_stop", tag="Agent", status=status, count=iteration_index + 1, correlation_id=correlation_id)
+        return [], True
+
+    @staticmethod
+    def _limit_reached_text(guard):
+        """The stop text when the round cap ends the turn anyway (the model kept asking for tools on its tool-less last round)."""
+        text = (
+            "[Agent stopped] Reached the tool-call limit for this request before finishing. This usually "
+            "means the request needed many individual actions (e.g. one call per item in a long list). Try "
+            "rephrasing so it can be done in bulk (e.g. \"create one layer with all of them\"), or break the "
+            "request into smaller pieces."
+        )
+        done = list(dict.fromkeys(guard.done))
+        if done:
+            text += "\nDone so far: " + ", ".join(f"`{n}`" for n in done[:12]) + (" ..." if len(done) > 12 else "") + "."
+        return text
+
+    def _end_of_round_nudges(self, messages, user_query, turn_tool_log, nudged):
+        """Each course-correction fires at most once per turn (tracked in `nudged`)."""
+        candidates = (
+            ("sandbox", lambda: self._sandbox_flailing_nudge(turn_tool_log)),
+            ("missing_file", lambda: loop_guard.missing_file_nudge(turn_tool_log)),
+            ("drift", lambda: self._named_tool_drift_nudge(user_query, turn_tool_log)),
+        )
+        for key, make in candidates:
+            if key in nudged:
+                continue
+            text = make()
+            if text:
+                messages.append({"role": "user", "content": text})
+                nudged.add(key)
+
+    def _prepare_turn_prompt(self, user_query, map_context):
+        """Routes tools for this turn and builds the system prompt (plus chain-input discovery);
+        split out of _run_impl purely to keep that loop's complexity reviewable."""
+        from ..services.tool_router import ToolRouter, configured_top_k
+        router = ToolRouter(TOOLS_SCHEMA)
+        self._turn_counter = getattr(self, "_turn_counter", 0) + 1
+        recent_names, recent_turn = getattr(self, "_recent_tools", ((), 0))
+        # Only the last two turns count: a tool from twenty messages ago is not "what we were in the middle of".
+        carry_over = recent_names if self._turn_counter - recent_turn <= 2 else ()
+        from ..services.prompt_refiner import get_persona_selection
+
+        # Multi-turn dialogue: a short reply ("YEM", "yes", "60 min", "hospitals") has too few
+        # words for keyword routing, so the previous user prompt is prepended to the router query.
+        router_query = user_query
+        history = self._read_history_snapshot()
+        if len(user_query.split()) < 10 and history:
+            prev_user_msgs = [m.get("content", "") for m in history
+                              if m.get("role") == "user" and isinstance(m.get("content"), str)]
+            if prev_user_msgs:
+                router_query = f"{prev_user_msgs[-1]} {user_query}"
+
+        active_tools = router.filter_relevant_tools(
+            router_query, top_k=configured_top_k(), carry_over_tools=carry_over, personas=get_persona_selection())
+        active_tool_names = {
+            t.get("function", {}).get("name", "") for t in active_tools if isinstance(t, dict)
+        }
+
+        # get_formatted_onboarding_context() does its own file read + QGIS_AVAILABLE guard and
+        # never raises (see onboarding_profile.py) -- no try/except needed at this call site,
+        # matching how map_context is passed through unguarded too.
+        user_profile_ctx = onboarding_profile.get_formatted_onboarding_context()
+
+        # §1.5 option (b): a deterministic Project Inspector snapshot (Layouts/Themes/Metadata),
+        # run BEFORE the first LLM call of this turn -- exactly the "Project Inspector" stage's
+        # own description: a snapshot step, not a reasoning step. Feature-flagged off by default,
+        # same as plan_gate.py's §1.6 sibling; see project_inspector.py's module docstring for
+        # why this is kept separate from map_context (already always-on) rather than merged into it.
+        project_inspector_ctx = None
+        if self._is_project_inspector_enabled():
+            from ..services.project_inspector import inspect_project
+            project_inspector_ctx = inspect_project()
+
+        system_prompt_content = build_system_prompt(
+            self.task_manager, self.memory_manager, map_context, user_profile_ctx=user_profile_ctx,
+            active_tool_names=active_tool_names, project_inspector_ctx=project_inspector_ctx,
+        )
+        # Input discovery for pre-built chains: what the open project can bind to each chain slot, read once per turn on the main
+        # thread and reused by run_steps' preflight. Added to the system prompt, not the user's message, so it is not stored as
+        # something the user said.
+        self._turn_facts = None
+        try:
+            from . import capabilities, chains as chain_mod, discovery
+            fitting = chain_mod.chains_for([c for c, _t, _v in capabilities.needed_capabilities(user_query)])
+            if fitting and "run_steps" in active_tool_names:
+                facts = self._run_on_main_thread(discovery.gather_facts, None)
+                if isinstance(facts, dict) and not isinstance(facts.get("error"), str):
+                    self._turn_facts = facts
+                    check = discovery.chain_context(user_query, facts, fitting)
+                    if check:
+                        system_prompt_content += "\n\n" + check
+        except Exception as e:
+            log_event("swallowed_exception", tag="Agent", tool="chain_context", error_class=type(e).__name__, error=True)
+        return active_tools, active_tool_names, system_prompt_content
+
+    def _stopped_reply(self, user_message, should_stop):
+        """The stop reply (recorded in the history) when the user has pressed Stop, else None."""
+        if should_stop is None or not should_stop():
+            return None
+        final_text = "[Agent stopped] Stopped by user."
+        self._append_history(user_message, {"role": "assistant", "content": final_text})
+        return final_text
+
+    def run_workflow_steps(self, steps, workflow=None, should_stop=None, tool_step_callback=None):
+        """Runs the steps of a workflow file a person has read and approved (PLAN-048 stage 3): NO model call. Each step goes through the same
+        `_run_steps` chain the model's own run_steps uses, which sends it through `_execute_tool`, so write confirmations, the egress gate,
+        sensitivity, the result gate, undo snapshots and the stale-project check all apply. The chain stops at the first error, the first call
+        waiting for the person's Confirm (the usual card is registered), a Stop request or a guard stop, and says which steps did not run.
+        `steps` are already validated and mapped (workflow_file, workflow_import); `workflow` = {"name", "fingerprint"} is recorded in the lineage
+        of every layer the run creates. Runs on a worker thread. Returns _run_steps' result dict."""
+        from .. import cancel_signal
+        from . import project_session
+        from .tools.registry import TOOLS_SCHEMA
+        captured = project_session.current()
+        self._turn_project_session = captured
+
+        def stop_or_stale():
+            return project_session.is_stale(captured) or bool(should_stop is not None and should_stop())
+
+        wanted = {s.get("tool") for s in steps}
+        active_tools = [t for t in TOOLS_SCHEMA if t.get("function", {}).get("name") in wanted]
+        self._transaction_log.reset()
+        self._plan_gate.reset()
+        self._stray_fragment_turn = False
+        self._turn_calls = []
+        self._turn_unverified_points = 0
+        self._workflow_context = {"workflow": dict(workflow)} if workflow else None
+        token = cancel_signal.begin(stop_or_stale, getattr(self.client, "_emit_status", None))
+        try:
+            return self._run_steps({"steps": steps}, active_tools, [], [], loop_guard.LoopGuard(), tool_step_callback, stop_or_stale,
+                                   uuid.uuid4().hex[:8], "workflow_file", None, max_steps=workflow_file.MAX_STEPS)
+        finally:
+            self._workflow_context = None
+            cancel_signal.end(token)
 
     def _run_impl(self, user_query, map_context=None, should_stop=None, tool_step_callback=None):
         """should_stop, if given, is a zero-arg callable returning True once the
@@ -1447,14 +2069,13 @@ class CartogenAi:
         and the final answer, no matter how many tools ran in between). Wrapped
         in try/except so a UI-side rendering bug can never break the actual
         agent loop -- worst case is a missed visual update, not a failed turn."""
-        from ..services.tool_router import ToolRouter
         # Structured-logging policy, 2026-09-20: every tool-call log line for this
         # turn carries the same correlation_id so a QgsMessageLog reader can group
         # them without any of the log content itself being the user's actual query.
         correlation_id = uuid.uuid4().hex[:8]
         provider_name = type(getattr(self, "client", None)).__name__
-        # New turn -- undo must never reach back into a previous one (see
-        # transactions.py's docstring).
+        # New turn -- the log starts a fresh turn but keeps a few undoable entries from earlier ones, so "undo the last operation" typed as
+        # the next message works (rc46, transactions.py). A project switch clears them (reset_project_scoped_state).
         self._transaction_log.reset()
         # New turn -- a plan made last turn must not silently satisfy this turn's gate
         # (§1.6 option (b), plan_gate.py).
@@ -1479,45 +2100,8 @@ class CartogenAi:
         # of the 47 base-prompt rules actually need sending depends on which tools this turn can
         # even reach, so the router's selection has to exist first. Nothing else depended on the
         # old ordering (confirmed by reading this whole function before reordering it).
-        router = ToolRouter(TOOLS_SCHEMA)
-        self._turn_counter = getattr(self, "_turn_counter", 0) + 1
-        recent_names, recent_turn = getattr(self, "_recent_tools", ((), 0))
-        # Only the last two turns count: a tool from twenty messages ago is not "what we were in the middle of".
-        carry_over = recent_names if self._turn_counter - recent_turn <= 2 else ()
-
-        # In multi-turn dialogues, short answers (e.g. "YEM", "yes", "60 min", "hospitals")
-        # have too few words for keyword filtering. Augment router_query with previous user prompt.
-        router_query = user_query
-        history = self._read_history_snapshot()
-        if len(user_query.split()) < 10 and history:
-            prev_user_msgs = [m.get("content", "") for m in history if m.get("role") == "user" and isinstance(m.get("content"), str)]
-            if prev_user_msgs:
-                router_query = f"{prev_user_msgs[-1]} {user_query}"
-
-        active_tools = router.filter_relevant_tools(router_query, top_k=40, carry_over_tools=carry_over)
-        active_tool_names = {
-            t.get("function", {}).get("name", "") for t in active_tools if isinstance(t, dict)
-        }
-
-        # get_formatted_onboarding_context() does its own file read + QGIS_AVAILABLE guard and
-        # never raises (see onboarding_profile.py) -- no try/except needed at this call site,
-        # matching how map_context is passed through unguarded too.
-        user_profile_ctx = onboarding_profile.get_formatted_onboarding_context()
-
-        # §1.5 option (b): a deterministic Project Inspector snapshot (Layouts/Themes/Metadata),
-        # run BEFORE the first LLM call of this turn -- exactly the "Project Inspector" stage's
-        # own description: a snapshot step, not a reasoning step. Feature-flagged off by default,
-        # same as plan_gate.py's §1.6 sibling; see project_inspector.py's module docstring for
-        # why this is kept separate from map_context (already always-on) rather than merged into it.
-        project_inspector_ctx = None
-        if self._is_project_inspector_enabled():
-            from ..services.project_inspector import inspect_project
-            project_inspector_ctx = inspect_project()
-
-        system_prompt_content = build_system_prompt(
-            self.task_manager, self.memory_manager, map_context, user_profile_ctx=user_profile_ctx,
-            active_tool_names=active_tool_names, project_inspector_ctx=project_inspector_ctx,
-        )
+        active_tools, _active_tool_names, system_prompt_content = self._prepare_turn_prompt(user_query, map_context)
+        base_tool_names = {t.get("function", {}).get("name") for t in active_tools}     # what the router chose; find_tools additions are capped against it
 
         self._remember_grounding(user_query)
         self._remember_grounding(map_context)
@@ -1526,23 +2110,36 @@ class CartogenAi:
         messages.append(user_message)
 
         self._get_usage_tracker().begin_turn()
+        turn_id = self._get_call_log().next_turn_id()
+        self._current_turn_id = turn_id
         max_rounds, max_turn_tokens = self._turn_limits()
         final_text = None
         # (name, is_error, error_message) for every tool call made in THIS turn --
         # feeds _reconcile_final_text_with_tool_log's code-level backstop below.
         turn_tool_log = []
+        self._turn_calls = []
+        self._turn_unverified_points = 0
+        look_nudged = False
         # Tools whose call this turn did NOT run (waiting for the user's Confirm, or blocked) and
         # have not since succeeded -- feeds response_guard's unbacked-data warning below.
         turn_pending = []
         # One-shot flag for _sandbox_flailing_nudge below -- the nudge is a single course-
         # correction attempt, not a repeating scold on every iteration if the model keeps
         # flailing anyway (MAX_ITERATIONS' own hard cutoff still applies either way).
-        sandbox_flailing_nudged = False
-        drift_nudged = False
+        nudged = set()   # which one-shot nudges have fired (sandbox, missing_file (#231), drift)
 
         token_budget_hit = False
+        wrap_up_sent = False            # a tool-less answer round was requested (last round, or a data source that is down)
+        data_source_is_down = False
+        guard = loop_guard.LoopGuard() if getattr(self, "loop_guard_enabled", True) else loop_guard.LoopGuard(
+            max_identical_calls=10 ** 9, max_consecutive_failures=10 ** 9, max_failures=10 ** 9, stall_rounds=10 ** 9)
+        guard_stop = None
         for iteration_index in range(max_rounds):
-            if max_turn_tokens and iteration_index > 0 and self._get_usage_tracker().turn_tokens() >= max_turn_tokens:
+            # Checked BEFORE the request: tokens already spent this turn plus the observed size of the last call (the next call
+            # cannot be smaller, the history only grows) must fit the budget -- not merely "already over".
+            if max_turn_tokens and iteration_index > 0 and loop_guard.budget_exceeded(
+                    self._get_usage_tracker().turn_budget_tokens(), max_turn_tokens,
+                    call_metrics.next_call_budget_estimate(self._get_call_log().turn_records(turn_id))):
                 token_budget_hit = True
                 break
             if should_stop is not None and should_stop():
@@ -1556,18 +2153,35 @@ class CartogenAi:
             # the first place, proportional to how large the task actually is.
             if iteration_index >= PACING_THRESHOLD_ITERATIONS:
                 time.sleep(PACING_DELAY_SECONDS)
+            # The final round answers instead of calling more tools (DEF-21): otherwise the turn ends right after that round's tool
+            # calls with nothing said about what exists. Skipped when a wrap-up round was already sent for another reason.
+            active_tools, wrap_up_sent = self._request_answer_round(
+                loop_guard.answer_round_due(iteration_index, max_rounds, data_source_is_down, wrap_up_sent),
+                active_tools, wrap_up_sent, messages, iteration_index, correlation_id)
+            call_started = call_metrics.monotonic()
             try:
                 result = self.client.complete(
                     messages, tools=active_tools, max_tokens=_max_tokens_for_iteration(iteration_index)
                 )
             except Exception as e:
-                return f"[API error] {e}"
+                self._record_model_call(turn_id, iteration_index, active_tools, messages, call_started, None, "exception", error=str(e))
+                # A request dropped because the user pressed Stop (net.py polls it) is a stop, not an API failure.
+                return self._stopped_reply(user_message, should_stop) or f"[API error] {e}"
 
             if not isinstance(result, dict):
+                self._record_model_call(turn_id, iteration_index, active_tools, messages, call_started, None, "bad_response")
                 return "[API error] Unexpected response from model client."
             if "error" in result:
-                return f"[API error] {result['error']}"
+                # DEF-32 (round-3 smoke row V1): a request that ended because Stop was pressed or the plugin was unticked is a stop, not a provider
+                # failure: it was logged as CRITICAL provider_error and shown as "[API error] The CLI request was cancelled."
+                stopped = self._stopped_reply(user_message, should_stop)
+                self._record_model_call(turn_id, iteration_index, active_tools, messages, call_started, None,
+                                        "cancelled" if stopped else "provider_error", error=result.get("error"))
+                return stopped or f"[API error] {result['error']}"
             self._accumulate_usage(result.get("usage"))
+            _reply = result.get("message") if isinstance(result.get("message"), dict) else {}
+            self._record_model_call(turn_id, iteration_index, active_tools, messages, call_started, result.get("usage"), "ok",
+                                    tool_calls=len(_reply.get("tool_calls") or []), model=result.get("model"), response=_reply)
 
             message = result.get("message")
             if not isinstance(message, dict):
@@ -1575,6 +2189,13 @@ class CartogenAi:
             messages.append(message)
 
             tool_calls = message.get("tool_calls")
+            if not tool_calls and not look_nudged:
+                nudge = look_followup.nudge_for(user_query, self._turn_calls)
+                if nudge:                                   # one deterministic follow-up; see look_followup's docstring
+                    look_nudged = True
+                    log_event("look_followup", tag="Agent", status="nudged", correlation_id=correlation_id)
+                    messages.append({"role": "user", "content": nudge})
+                    continue
             if not tool_calls:
                 content = message.get("content")
                 if content is None or (isinstance(content, str) and not content.strip()):
@@ -1586,6 +2207,7 @@ class CartogenAi:
                 self._append_history(user_message, {"role": "assistant", "content": final_text})
                 return final_text
 
+            image_messages = []         # map pictures this round's tools produced, sent after the tool messages (PLAN-032)
             for call in tool_calls:
                 # QGIS-003, 2026-09-13 audit: should_stop was only checked once per LLM
                 # round, at the top of the OUTER loop -- a multi-tool-call batch in one
@@ -1620,18 +2242,25 @@ class CartogenAi:
                 log_event("tool_call", tag="Agent", tool=name, status="running",
                            correlation_id=correlation_id, provider=provider_name)
                 if tool_step_callback is not None:
-                    try:
+                    with contextlib.suppress(Exception):
                         tool_step_callback(name, "running", None)
-                    except Exception:
-                        pass
                 _tool_start = time.monotonic()
-                tool_result = self._execute_tool(name, arguments)
+                if name == "run_steps":
+                    tool_result = self._run_steps(arguments, active_tools, turn_tool_log, turn_pending, guard, tool_step_callback,
+                                                  should_stop, correlation_id, provider_name, image_messages)
+                else:
+                    tool_result = self._exec_recorded(name, arguments)
                 _duration_ms = int((time.monotonic() - _tool_start) * 1000)
                 # Put "this call did not run" into the data the model reasons over, not only
                 # in a rule it may not weigh (rc7 smoke test F03: it invented the missing rows).
                 tool_result = response_guard.annotate_not_run(tool_result)
                 is_error = tool_results.is_error(tool_result)
                 turn_tool_log.append((name, is_error, tool_results.error_of(tool_result)))
+                guard.record_call(name, arguments, is_error, tool_results.error_of(tool_result) or "",
+                                  tool_operations.get_tool_operation_type(name))
+                data_source_is_down = data_source_is_down or loop_guard.data_source_down(tool_result)
+                if name == "find_tools" and not is_error and isinstance(tool_result, dict):
+                    active_tools = self._offer_found_tools(active_tools, tool_result, base_tool_names)
                 self._recent_tools = (tuple(dict.fromkeys(n for n, _e, _m in turn_tool_log))[-8:], self._turn_counter)
                 _status = tool_results.status_of(tool_result)
                 if _status in response_guard.NOT_RUN_STATUSES:
@@ -1648,14 +2277,10 @@ class CartogenAi:
                                duration_ms=_duration_ms, correlation_id=correlation_id,
                                provider=provider_name)
                 if tool_step_callback is not None:
-                    try:
+                    with contextlib.suppress(Exception):
                         tool_step_callback(name, "failed" if is_error else "done", tool_results.error_of(tool_result))
-                    except Exception:
-                        pass
-                try:
-                    serialized = json.dumps(tool_result, default=str)
-                except Exception as e:
-                    serialized = json.dumps({"error": f"Could not serialize tool result: {e}"})
+                tool_result = self._detach_canvas_image(tool_result, image_messages)
+                serialized = self._serialize_tool_result(tool_result)
                 self._remember_grounding(serialized)
                 messages.append({
                     "role": "tool",
@@ -1664,38 +2289,35 @@ class CartogenAi:
                     "content": serialized,
                 })
 
+            self._add_image_messages(messages, image_messages)
+            guard_stop = guard.end_round() or guard.stop
+            guard_stop, active_tools = self._begin_wrap_up(guard, guard_stop, active_tools, messages, iteration_index, correlation_id)
+            if guard_stop:
+                final_text = guard.partial_report(guard_stop)
+                log_event("turn_guard_stop", tag="Agent", status=guard_stop["reason"], count=iteration_index + 1,
+                          correlation_id=correlation_id)
+                self._append_history(user_message, {"role": "assistant", "content": final_text})
+                return final_text
+
             # Mid-turn context compaction (see MAX_FULL_TOOL_RESULTS_PER_TURN's own comment) --
             # once per iteration, after this iteration's own tool results are appended, so a
             # large task's per-call payload to the model stays bounded for the rest of the turn.
             self._compact_old_tool_results(messages)
 
-            if not sandbox_flailing_nudged:
-                nudge = self._sandbox_flailing_nudge(turn_tool_log)
-                if nudge:
-                    messages.append({"role": "user", "content": nudge})
-                    sandbox_flailing_nudged = True
-            if not drift_nudged:
-                drift = self._named_tool_drift_nudge(user_query, turn_tool_log)
-                if drift:
-                    messages.append({"role": "user", "content": drift})
-                    drift_nudged = True
+            self._end_of_round_nudges(messages, user_query, turn_tool_log, nudged)
 
         # Save this attempt to history even though it didn't finish -- otherwise a retry
         # starts with zero memory of what was already tried and can repeat the exact same
         # doomed step-per-item approach (e.g. one tool call per item in a long list)
         # instead of the more efficient path rule 14 in the system prompt asks for.
         if token_budget_hit:
-            final_text = (
-                "[Agent stopped] This request used its token budget (%s tokens, setting "
-                "cartogen_ai/max_turn_tokens) before finishing. Break it into smaller pieces, or raise the budget "
-                "in QGIS's advanced settings." % f"{max_turn_tokens:,}")
+            final_text = guard.partial_report({"reason": "token_budget", "detail": (
+                "this request reached its token budget ({} tokens, setting cartogen_ai/max_turn_tokens; the next call would "
+                "have passed it)".format(f"{max_turn_tokens:,}"))}).replace(
+                "before spending more of your API credit.", "before sending another request.")
+            final_text += " To allow more, raise the budget in Settings."
             self._append_history(user_message, {"role": "assistant", "content": final_text})
             return final_text
-        final_text = (
-            "[Agent stopped] Reached the tool-call limit for this request before finishing. This usually "
-            "means the request needed many individual actions (e.g. one call per item in a long list). Try "
-            "rephrasing so it can be done in bulk (e.g. \"create one layer with all of them\"), or break the "
-            "request into smaller pieces."
-        )
+        final_text = self._limit_reached_text(guard)
         self._append_history(user_message, {"role": "assistant", "content": final_text})
         return final_text

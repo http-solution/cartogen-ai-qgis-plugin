@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+from ..logger import log_event
 """
 Deterministic Project Inspector snapshot.
 
@@ -75,5 +75,5 @@ def inspect_project() -> dict:
             "metadata": metadata,
         }
     except Exception as e:
-        print(f"[ProjectInspector] Failed to build project inspector snapshot: {e}")
+        log_event("failed_to_build_project_inspector_snapshot", tag="ProjectInspector", error_class=type(e).__name__, error=True)
         return {}

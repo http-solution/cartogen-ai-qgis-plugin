@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """P1 fix, 2026-09-20 audit: core/logger.py used to forward whatever string a
 caller built straight to QgsMessageLog/stdout -- including tool arguments and
 tool results, which can embed a provider API key, a bearer token, or a
@@ -26,13 +25,17 @@ class TestLogRedaction(unittest.TestCase):
         return buf.getvalue()
 
     def test_log_info_redacts_openrouter_style_key(self):
-        out = self._captured(logger.log_info, 'Tool call: save_key({"api_key": "sk-or-v1-abcdefghijklmnopqrstuvwxyz"})')
-        self.assertNotIn("sk-or-v1-abcdefghijklmnopqrstuvwxyz", out)
+        fake_key = "sk-or-" + "v1-abcdefghijklmnopqrstuvwxyz"   # made-up; built at run time so scanners do not flag the file
+        out = self._captured(logger.log_info, f'Tool call: save_key({{"api_key": "{fake_key}"}})')
+        self.assertNotIn(fake_key, out)
         self.assertIn("***REDACTED***", out)
 
     def test_log_error_redacts_gemini_style_key(self):
-        out = self._captured(logger.log_error, "request failed for key=AIzaSyABCDEFGHIJKLMNOPQRSTUVWXYZ1234567")
-        self.assertNotIn("AIzaSyABCDEFGHIJKLMNOPQRSTUVWXYZ1234567", out)
+        # Built at run time so no key-shaped literal sits in the repository: GitHub secret scanning flagged this obviously fake value
+        # (alert #1, 2026-10-10) as a leaked Google API key. It is a made-up test string, not a credential.
+        fake_key = "AIza" + "Sy" + "ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567"
+        out = self._captured(logger.log_error, f"request failed for key={fake_key}")
+        self.assertNotIn(fake_key, out)
         self.assertIn("***REDACTED***", out)
 
     def test_log_warning_redacts_bearer_token(self):
@@ -121,7 +124,7 @@ class TestLogDiagnostic(unittest.TestCase):
         old = sys.stdout.write
         sys.stdout.write = buf.write
         try:
-            logger.log_diagnostic("this should never be printed: sk-or-v1-realkey123456")
+            logger.log_diagnostic("this should never be printed: sk-or-" + "v1-realkey123456")
         finally:
             sys.stdout.write = old
         self.assertEqual(buf.getvalue(), "")
@@ -141,7 +144,7 @@ class TestDiagnosticLoggingIsTimeBound(unittest.TestCase):
     def test_enabled_immediately_after_enable_call(self):
         store = {}
         fake_settings = MagicMock()
-        fake_settings.setValue.side_effect = lambda k, v: store.__setitem__(k, v)
+        fake_settings.setValue.side_effect = store.__setitem__
         fake_settings.value.side_effect = lambda k, default, type=None: store.get(k, default)
 
         with patch("cartogen_ai.core.logger.QGIS_LOG_AVAILABLE", True), \
@@ -152,7 +155,7 @@ class TestDiagnosticLoggingIsTimeBound(unittest.TestCase):
     def test_expires_on_its_own_without_manual_disable(self):
         store = {}
         fake_settings = MagicMock()
-        fake_settings.setValue.side_effect = lambda k, v: store.__setitem__(k, v)
+        fake_settings.setValue.side_effect = store.__setitem__
         fake_settings.value.side_effect = lambda k, default, type=None: store.get(k, default)
 
         with patch("cartogen_ai.core.logger.QGIS_LOG_AVAILABLE", True), \
@@ -165,7 +168,7 @@ class TestDiagnosticLoggingIsTimeBound(unittest.TestCase):
     def test_disable_ends_it_immediately(self):
         store = {}
         fake_settings = MagicMock()
-        fake_settings.setValue.side_effect = lambda k, v: store.__setitem__(k, v)
+        fake_settings.setValue.side_effect = store.__setitem__
         fake_settings.remove.side_effect = lambda k: store.pop(k, None)
         fake_settings.value.side_effect = lambda k, default, type=None: store.get(k, default)
 

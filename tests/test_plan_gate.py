@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Tests for core/models/plan_gate.py -- IMPLEMENTATION_TRACKER.md §1.6, option (b)."""
 import unittest
 

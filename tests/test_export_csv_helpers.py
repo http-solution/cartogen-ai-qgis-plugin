@@ -1,5 +1,5 @@
-# -*- coding: utf-8 -*-
 """CSV export helpers (rc7 smoke test F13): UTF-8 BOM for Excel, X/Y columns for point layers."""
+import pathlib
 import csv
 import os
 import tempfile
@@ -18,10 +18,10 @@ class TestCsvHelpers(unittest.TestCase):
         return path
 
     def test_bom_is_added_once(self):
-        path = self._tmp("name\nصنعاء\n".encode("utf-8"))
+        path = self._tmp("name\n\u0635\u0646\u0639\u0627\u0621\n".encode())
         self.assertIsNone(et._ensure_utf8_bom(path))
         self.assertIsNone(et._ensure_utf8_bom(path))
-        raw = open(path, "rb").read()
+        raw = pathlib.Path(path).read_bytes()
         self.assertTrue(raw.startswith(b"\xef\xbb\xbf"))
         self.assertFalse(raw.startswith(b"\xef\xbb\xbf\xef\xbb\xbf"))
         self.assertIn("صنعاء", raw.decode("utf-8-sig"))
@@ -74,6 +74,12 @@ class TestDashboardHelpers(unittest.TestCase):
         out = et._inject_notices("<html><body>x</body></html>", ["'Roads': showing 2,500 of 139,758 <features>"])
         self.assertIn("showing 2,500 of 139,758 &lt;features&gt;", out)
         self.assertLess(out.index("showing"), out.index("</body>"))
+
+    def test_the_internet_note_is_shown_in_the_file_itself(self):
+        # #84 (rc48): the file had no visible sign that it needs internet to draw its basemap.
+        out = et._inject_notices("<html><body>x</body></html>", [et.DASHBOARD_INTERNET_NOTE])
+        self.assertIn("needs an internet connection", out)
+        self.assertLess(out.index("internet"), out.index("</body>"))
 
     def test_no_notices_leaves_html_untouched(self):
         self.assertEqual(et._inject_notices("<body></body>", []), "<body></body>")

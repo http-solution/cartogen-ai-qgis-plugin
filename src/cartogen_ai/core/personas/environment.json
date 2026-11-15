@@ -1,0 +1,136 @@
+{
+ "id": "environment",
+ "number": 7,
+ "label": "Environment / Natural Resources",
+ "aliases": [
+  "natural resources",
+  "conservation",
+  "land cover"
+ ],
+ "summary": "Land cover, habitat and protected areas: change between dates, classification, suitability and evidence that can be reproduced.",
+ "guidance": "Prioritize habitat, land cover, protected areas, watersheds, pollution/exposure, change detection, conservation constraints, and reproducible evidence.",
+ "workflows": [
+  {
+   "id": "env.change",
+   "title": "Change between two dates",
+   "tools": [
+    "calculate_raster_change_detection",
+    "calculate_change_matrix",
+    "raster_time_series_stats"
+   ]
+  },
+  {
+   "id": "env.classify",
+   "title": "Classify land cover",
+   "tools": [
+    "supervised_classification",
+    "unsupervised_classification",
+    "zonal_statistics"
+   ]
+  },
+  {
+   "id": "env.look",
+   "title": "Official colours for land cover and change",
+   "tools": [
+    "apply_land_cover_look"
+   ]
+  }
+ ],
+ "tool_priority": [
+  "calculate_raster_change_detection",
+  "calculate_change_matrix",
+  "raster_time_series_stats",
+  "supervised_classification",
+  "weighted_overlay_analysis",
+  "buffer_analysis",
+  "zonal_statistics",
+  "create_zoning_map",
+  "load_stac_assets",
+  "calculate_spatial_autocorrelation",
+  "analyze_hotspots_gi_star",
+  "detect_spatial_clusters"
+ ],
+ "tool_aliases": {
+  "calculate_change_matrix": [
+   "land cover change",
+   "gain and loss by class"
+  ],
+  "supervised_classification": [
+   "train a classifier",
+   "classify from training polygons"
+  ],
+  "analyze_hotspots_gi_star": [
+   "hotspot test",
+   "cold spots"
+  ],
+  "calculate_spatial_autocorrelation": [
+   "spatial pattern",
+   "is it clustered"
+  ],
+  "detect_spatial_clusters": [
+   "is this a real cluster"
+  ]
+ },
+ "task_ids": [
+  "43.01",
+  "43.02",
+  "43.03",
+  "43.04",
+  "43.05",
+  "43.06",
+  "43.07"
+ ],
+ "data_sources": [
+  "stac_search"
+ ],
+ "style_profile": "environment",
+ "layout_templates": [
+  "change_report"
+ ],
+ "readiness": [
+  {
+   "capability": "two-date change detection",
+   "state": "CI-checked",
+   "tool": "calculate_raster_change_detection"
+  },
+  {
+   "capability": "from-to change matrix",
+   "state": "CI-checked",
+   "tool": "calculate_change_matrix"
+  },
+  {
+   "capability": "time-series statistics and trend",
+   "state": "CI-checked",
+   "tool": "raster_time_series_stats"
+  },
+  {
+   "capability": "supervised and unsupervised classification",
+   "state": "CI-checked",
+   "tool": "supervised_classification"
+  },
+  {
+   "capability": "weighted-overlay suitability",
+   "state": "CI-checked",
+   "tool": "weighted_overlay_analysis"
+  },
+  {
+   "capability": "ESA WorldCover and protected-area layers (WDPA)",
+   "state": "not built",
+   "since": "R7 (1.25.0)"
+  },
+  {
+   "capability": "change report layout (change figures, a reading guide for loss, stable and gain, and a screening-not-survey note)",
+   "state": "CI-checked",
+   "tool": "create_print_layout"
+  },
+  {
+   "capability": "official ESA WorldCover class colours, loss/stable/gain colours and a protected-area hatch on a layer you already have",
+   "state": "CI-checked",
+   "tool": "apply_land_cover_look"
+  }
+ ],
+ "guardrails": [
+  "Habitat suitability is a documented weighted overlay with stated weights, not a species model.",
+  "Report class accuracy limits when a classification has no reference data."
+ ]
+}

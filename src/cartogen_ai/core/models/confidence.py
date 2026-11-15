@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Confidence/uncertainty classification for Cartogen AI layers -- point 23
 of docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md.
 

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Tests for agent/tools/sensitivity_tools.py -- the registered-tool surface
 over models/sensitivity.py (point 24 of
 docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md). Degrade-path tests

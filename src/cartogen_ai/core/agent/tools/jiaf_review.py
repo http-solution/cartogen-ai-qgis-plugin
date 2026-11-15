@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """JIAF 2 analysis support, stage 4a: recording the group's decisions and producing the FINAL figures
 (docs/JIAF2_ANALYSIS_SUPPORT_PLAN_2026-10-04.md, sections 2, 4 and 5).
 
@@ -21,11 +20,13 @@ Four things are kept apart, in the result rows, the CSV and the layer fields: th
 STATUS (no_flag / flags_closed_in_bulk / decided / pending_flagged, and for severity preliminary_accepted / decided / pending_flagged /
 incomplete_coverage / no_severity_data), the FINAL result, and the JUSTIFICATION with who decided and when.
 """
+import contextlib
 import csv
 import datetime
 import json
 import os
 
+from ... import _chunked as _ck
 from .registry import register_tool
 from ._edit_session import EditError, add_numeric_field, edit_command, set_value
 from .jiaf_engine import ranked_pins, rank_of_value, run_analysis
@@ -63,13 +64,11 @@ def load_decisions():
     empty = {"pin": {}, "severity": {}}
     if not QGIS_AVAILABLE:
         return empty
-    try:
+    with contextlib.suppress(Exception):
         raw, ok = QgsProject.instance().readEntry(SCOPE, KEY, "")
         if ok and raw:
             data = json.loads(raw)
             return {"pin": dict(data.get("pin", {})), "severity": dict(data.get("severity", {}))}
-    except Exception:
-        pass
     return empty
 
 
@@ -138,7 +137,7 @@ def finalize(units, analysis, decisions, bulk_accepted_flags=(), bulk_info=None)
     """Apply the recorded decisions to an `analyze` result. Returns (rows, summary). Pure."""
     expected = analysis["expected_sectors"]
     by_unit = {_row_key(u): u for u in units}
-    bulk = set(int(x) for x in bulk_accepted_flags or ())
+    bulk = {int(x) for x in bulk_accepted_flags or ()}
     issues, rows = [], []
     final_total = provisional_total = published_total = 0.0
     published_differs = published_undocumented = 0
@@ -219,9 +218,8 @@ def finalize(units, analysis, decisions, bulk_accepted_flags=(), bulk_info=None)
                      "severity_evidence_basis": sd.get("evidence_basis") if sd else None, "severity_evidence": sev_evidence,
                      "severity_decided_by": sd.get("decided_by") if sd else None, "severity_decision_date": sd.get("date") if sd else None})
     for kind in ("pin", "severity"):
-        for uid in decisions[kind]:
-            if uid not in by_unit:
-                issues.append({"unit": uid, "problem": f"a {kind} decision is recorded for a unit that is not in this file; it is ignored"})
+        issues.extend({"unit": uid, "problem": f"a {kind} decision is recorded for a unit that is not in this file; it is ignored"}
+                      for uid in decisions[kind] if uid not in by_unit)
     pending_pin = counts["pin_status"].get("pending_flagged", 0)
     pending_sev = counts["severity_status"].get("pending_flagged", 0)
     incomplete_sev = counts["severity_status"].get("incomplete_coverage", 0)
@@ -300,6 +298,10 @@ def _csv_row(r):
             "replace": {"type": "boolean", "description": "Replace all stored decisions instead of merging."},
         },
     },
+    keywords=[
+        "record the jiaf decision", "jiaf decisions", "final pin decision", "agreed severity", "flagged unit decision",
+        "which sector pin",
+    ],
 )
 def record_jiaf_decisions(pin_decisions=None, severity_decisions=None, replace=False):
     pin, e1 = validate_pin_decisions(pin_decisions)
@@ -323,6 +325,10 @@ def record_jiaf_decisions(pin_decisions=None, severity_decisions=None, replace=F
     "get_jiaf_decisions",
     "Read the JIAF 2 group decisions stored in the project by record_jiaf_decisions (support for the JIAF 2 process; not endorsed by OCHA or the IASC).",
     {"type": "object", "properties": {}},
+    keywords=[
+        "show the jiaf decisions", "stored jiaf decisions",
+        "what was decided about", "decisions about the severity", "show the decisions", "recorded decisions",
+    ],
 )
 def get_jiaf_decisions():
     if not QGIS_AVAILABLE:
@@ -363,6 +369,10 @@ def get_jiaf_decisions():
         },
         "required": ["file_path"],
     },
+    keywords=[
+        "final pin", "final joint overall pin", "finalize the jiaf", "finalise the jiaf", "jiaf final results",
+        "pending flagged units",
+    ],
 )
 def finalize_jiaf_results(file_path, input_format="auto", sheet_name=None, previous_file_path=None, previous_sheet_name=None,
                           bulk_accepted_flags=None, bulk_rationale=None, bulk_decided_by=None, rules_profile=None, sectors_sev_5=None, sectors_sev_4=None, sectors_in_scope=None, zero_severity_as=None,
@@ -398,7 +408,7 @@ def finalize_jiaf_results(file_path, input_format="auto", sheet_name=None, previ
         "source_discrepancies": [dict(d, note="Stored value preserved; nothing was corrected.")
                                  for d in run["analysis"]["stored_comparison"]["pin_mismatch"][:_CAP]],
         **summary,
-        "total_note": ("PROVISIONAL: %d flagged unit(s) have no recorded PiN decision and are included at the highest sectoral PiN." % summary["pending_pin_units"]
+        "total_note": (f"PROVISIONAL: {summary['pending_pin_units']} flagged unit(s) have no recorded PiN decision and are included at the highest sectoral PiN."
                        if summary["provisional"] else "Every flagged unit is decided or closed; the total is the sum of the Final PiN over units."),
         "severity_note": "Intersectoral severity is per unit only; there is no national severity and no PiN per severity phase.",
         "pending_units_shown": [{"unit": r["admin2_code"], "pin_flags": r["pin_flags_fired"], "severity_flags": r["severity_flags_fired"]}
@@ -428,7 +438,7 @@ def finalize_jiaf_results(file_path, input_format="auto", sheet_name=None, previ
     if not layer_key_field or layer.fields().indexOf(layer_key_field) < 0:
         return {"error": f"layer_key_field '{layer_key_field}' not found on '{layer_name}'. Available: {[f.name() for f in layer.fields()]}"}
     pairs, report = plan_join([{"key": key_of(r["admin2_code"], None), "row": r} for r in rows],
-                              [(f.id(), key_of(f[layer_key_field], None)) for f in layer.getFeatures()])
+                              [(f.id(), key_of(f[layer_key_field], None)) for f in _ck.features(layer, "Jiaf review: reading features")])
     result["join"] = report
     if not write_fields or not pairs:
         return result
@@ -453,7 +463,7 @@ def finalize_jiaf_results(file_path, input_format="auto", sheet_name=None, previ
                 rank = r["final_pin_rank"]
                 vals = [r["final_pin"], r["final_severity"], (rank if isinstance(rank, int) else (4 if rank == "other" else None)),
                         PIN_STATUS_CODE.get(r["final_pin_status"]), SEV_STATUS_CODE.get(r["final_severity_status"])]
-                for i, v in zip(idx, vals):
+                for i, v in zip(idx, vals, strict=False):
                     if v is not None:
                         set_value(layer, fid, i, float(v))
         result["fields_written"] = names

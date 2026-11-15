@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Derive the derived fields of the task register, in place.
 
 Adds two keys to every entry of src/cartogen_ai/core/agent/task_register.json:
@@ -86,7 +85,7 @@ ORDER = ["pdf", "docx", "txt", "table", "image", "vector", "raster", "project"]
 
 def derive_acc(entry):
     """Media kinds a user could usefully attach to this task."""
-    text = "%s %s" % (entry["text"], entry["cname"])
+    text = "{} {}".format(entry["text"], entry["cname"])
     kinds = set()
 
     if _DOC.search(text):
@@ -198,23 +197,23 @@ def main():
             for k in e["acc"]:
                 acc[k] += 1
             prod[tuple(e["prod"])] += 1
-        print("tasks: %d   with no attachable input: %d" % (len(new), none_acc))
+        print(f"tasks: {len(new)}   with no attachable input: {none_acc}")
         print("accepts:", dict(acc))
         for k, v in prod.most_common():
-            print("  produces %-22s %d" % (",".join(k) or "(none)", v))
+            print(f"  produces {','.join(k) or '(none)':<22} {v}")
         return 0
 
     if args.check:
         if data == new:
-            print("register file-io fields are up to date (%d tasks)" % len(new))
+            print(f"register file-io fields are up to date ({len(new)} tasks)")
             return 0
-        diff = [e["id"] for old, e in zip(data, new) if old != e]
-        print("register is STALE -- %d task(s) differ, e.g. %s" % (len(diff), diff[:10]))
+        diff = [e["id"] for old, e in zip(data, new, strict=False) if old != e]
+        print(f"register is STALE -- {len(diff)} task(s) differ, e.g. {diff[:10]}")
         return 1
 
     with open(REGISTER, "w", encoding="utf-8") as fh:
         json.dump(new, fh, ensure_ascii=False, separators=(",", ":"))
-    print("rewrote %s (%d tasks)" % (REGISTER, len(new)))
+    print(f"rewrote {REGISTER} ({len(new)} tasks)")
     return 0
 
 

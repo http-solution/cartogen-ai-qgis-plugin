@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Map Intelligence Engine & Chat Action Registry for Cartogen AI.
 
@@ -15,7 +14,7 @@ Responsibilities:
 
 import uuid
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any, ClassVar
 
 try:
     from qgis.core import (
@@ -24,7 +23,7 @@ try:
         QgsFillSymbol, QgsLineSymbol, QgsSingleSymbolRenderer,
         QgsPalLayerSettings, QgsTextFormat, QgsTextBufferSettings,
         QgsVectorLayerSimpleLabeling, QgsUnitTypes, QgsLabelObstacleSettings,
-        QgsLayerTreeLayer,
+        QgsLayerTreeLayer, Qgis,
     )
     from qgis.PyQt.QtCore import Qt
     from qgis.PyQt.QtGui import QColor, QFont
@@ -43,11 +42,11 @@ except ImportError:
 class MapOutputDescriptor:
     layer_id: str
     output_role: str  # 'proximity_buffer', 'administrative_boundary', 'facilities', 'thematic_choropleth', 'hazard_extent', 'selection_overlay', 'route_line'
-    source_layer_id: Optional[str] = None
+    source_layer_id: str | None = None
     geometry_role: str = "operational_overlay"  # 'focal_point', 'context_overlay', 'boundary', 'raster_dem', 'hillshade'
-    recommended_label_field: Optional[str] = None
-    style_profile: Optional[str] = None
-    properties: Dict[str, Any] = field(default_factory=dict)
+    recommended_label_field: str | None = None
+    style_profile: str | None = None
+    properties: dict[str, Any] = field(default_factory=dict)
 
 
 # ---------------------------------------------------------------------------
@@ -59,19 +58,19 @@ class ChatAction:
     id: str
     kind: str  # 'export', 'zoom', 'set_transparency', 'apply_style', 'label_layer', 'undo'
     label: str
-    payload: Dict[str, Any]
+    payload: dict[str, Any]
     safety: str = "dialog"  # 'immediate', 'dialog', 'confirm'
-    project_id: Optional[str] = None
+    project_id: str | None = None
     expires_on_project_change: bool = True
 
 
 class ChatActionRegistry:
     """In-memory session registry mapping opaque IDs (act_...) to validated actions."""
 
-    _actions: Dict[str, ChatAction] = {}
+    _actions: ClassVar[dict[str, ChatAction]] = {}
 
     @classmethod
-    def register(cls, kind: str, label: str, payload: Dict[str, Any], safety: str = "dialog") -> str:
+    def register(cls, kind: str, label: str, payload: dict[str, Any], safety: str = "dialog") -> str:
         act_id = f"act_{uuid.uuid4().hex[:8]}"
         project_id = None
         if QGIS_AVAILABLE and QgsProject.instance():
@@ -88,7 +87,7 @@ class ChatActionRegistry:
         return act_id
 
     @classmethod
-    def get(cls, act_id: str) -> Optional[ChatAction]:
+    def get(cls, act_id: str) -> ChatAction | None:
         action = cls._actions.get(act_id)
         if not action:
             return None
@@ -207,11 +206,11 @@ def insert_layer_semantically(layer: 'QgsMapLayer', descriptor: MapOutputDescrip
     else:
         # Generic role placement based on geometry: point (top) -> line -> polygon (bottom)
         geom_type = getattr(layer, "geometryType", lambda: None)()
-        if geom_type == QgsWkbTypes.PointGeometry:
+        if geom_type == QgsWkbTypes.GeometryType.PointGeometry:
             insert_index = 0
-        elif geom_type == QgsWkbTypes.LineGeometry:
+        elif geom_type == QgsWkbTypes.GeometryType.LineGeometry:
             insert_index = min(1, len(target_parent.children()))
-        elif geom_type == QgsWkbTypes.PolygonGeometry:
+        elif geom_type == QgsWkbTypes.GeometryType.PolygonGeometry:
             insert_index = len(target_parent.children())
         else:
             insert_index = len(target_parent.children())
@@ -289,9 +288,9 @@ def apply_component_symbology(layer: 'QgsMapLayer', descriptor: MapOutputDescrip
     profile = STYLE_PROFILES.get(profile_name, STYLE_PROFILES["proximity_buffer"])
 
     geom_type = layer.geometryType()
-    if geom_type == QgsWkbTypes.LineGeometry:
+    if geom_type == QgsWkbTypes.GeometryType.LineGeometry:
         return _apply_line_component_symbology(layer, descriptor, profile)
-    if geom_type != QgsWkbTypes.PolygonGeometry:
+    if geom_type != QgsWkbTypes.GeometryType.PolygonGeometry:
         return False
 
     base_color_hex = descriptor.properties.get("color") or profile["default_hue"]
@@ -318,7 +317,7 @@ def apply_component_symbology(layer: 'QgsMapLayer', descriptor: MapOutputDescrip
 
     symbol_layer.setStrokeColor(stroke_color)
     symbol_layer.setStrokeWidth(profile["stroke_width"])
-    symbol_layer.setStrokeWidthUnit(QgsUnitTypes.RenderMillimeters)
+    symbol_layer.setStrokeWidthUnit(QgsUnitTypes.RenderUnit.RenderMillimeters)
 
     if profile.get("join_style") == "round":
         symbol_layer.setPenJoinStyle(round_join)
@@ -352,14 +351,14 @@ def _apply_line_component_symbology(layer: 'QgsVectorLayer', descriptor: MapOutp
     casing_layer = QgsSimpleLineSymbolLayer()
     casing_layer.setColor(casing_color)
     casing_layer.setWidth(line_profile["casing_width"])
-    casing_layer.setWidthUnit(QgsUnitTypes.RenderMillimeters)
+    casing_layer.setWidthUnit(QgsUnitTypes.RenderUnit.RenderMillimeters)
     casing_layer.setPenCapStyle(round_cap)
     casing_layer.setPenJoinStyle(round_join)
 
     fill_layer = QgsSimpleLineSymbolLayer()
     fill_layer.setColor(fill_color)
     fill_layer.setWidth(line_profile["stroke_width"])
-    fill_layer.setWidthUnit(QgsUnitTypes.RenderMillimeters)
+    fill_layer.setWidthUnit(QgsUnitTypes.RenderUnit.RenderMillimeters)
     fill_layer.setPenCapStyle(round_cap)
     fill_layer.setPenJoinStyle(round_join)
 
@@ -378,10 +377,10 @@ def _apply_line_component_symbology(layer: 'QgsVectorLayer', descriptor: MapOutp
 
 def configure_intelligent_labels(
     layer: 'QgsVectorLayer',
-    field_name: Optional[str] = None,
+    field_name: str | None = None,
     priority: int = 5,
-    min_scale: Optional[float] = None,
-    max_scale: Optional[float] = None,
+    min_scale: float | None = None,
+    max_scale: float | None = None,
 ) -> bool:
     """Configures high-quality PAL labeling with halos, obstacle boundaries, and scale thresholds."""
     if not QGIS_AVAILABLE or not isinstance(layer, QgsVectorLayer) or not field_name:
@@ -402,7 +401,7 @@ def configure_intelligent_labels(
     buf = QgsTextBufferSettings()
     buf.setEnabled(True)
     buf.setSize(0.8)
-    buf.setSizeUnit(QgsUnitTypes.RenderMillimeters)
+    buf.setSizeUnit(QgsUnitTypes.RenderUnit.RenderMillimeters)
     buf.setColor(QColor(255, 255, 255, 204))
     pen_round = Qt.PenJoinStyle.RoundJoin if hasattr(Qt, "PenJoinStyle") else getattr(Qt, "RoundJoin", 64)
     buf.setJoinStyle(pen_round)
@@ -414,18 +413,18 @@ def configure_intelligent_labels(
     settings.priority = max(0, min(10, priority))
 
     geom = layer.geometryType()
-    if geom == QgsWkbTypes.PointGeometry:
-        settings.placement = QgsPalLayerSettings.OrderedPositionsAroundPoint
+    if geom == QgsWkbTypes.GeometryType.PointGeometry:
+        settings.placement = QgsPalLayerSettings.Placement.OrderedPositionsAroundPoint
         settings.obstacleSettings().setIsObstacle(True)
-    elif geom == QgsWkbTypes.LineGeometry:
-        settings.placement = QgsPalLayerSettings.Curved
-        settings.placementFlags = QgsPalLayerSettings.AboveLine | QgsPalLayerSettings.MapOrientation
-    elif geom == QgsWkbTypes.PolygonGeometry:
-        settings.placement = QgsPalLayerSettings.Horizontal
+    elif geom == QgsWkbTypes.GeometryType.LineGeometry:
+        settings.placement = QgsPalLayerSettings.Placement.Curved
+        settings.placementFlags = Qgis.LabelLinePlacementFlag.AboveLine | Qgis.LabelLinePlacementFlag.MapOrientation
+    elif geom == QgsWkbTypes.GeometryType.PolygonGeometry:
+        settings.placement = QgsPalLayerSettings.Placement.Horizontal
         settings.fitInPolygonOnly = True
         # Polygon boundaries are obstacles, not the entire interior
         if hasattr(QgsLabelObstacleSettings, "PolygonBoundary"):
-            settings.obstacleSettings().setType(QgsLabelObstacleSettings.PolygonBoundary)
+            settings.obstacleSettings().setType(QgsLabelObstacleSettings.ObstacleType.PolygonBoundary)
 
     # Scale-aware visibility heuristics based on feature count
     count = layer.featureCount()
@@ -449,9 +448,9 @@ def configure_intelligent_labels(
 # 6. Map Quality Evaluator
 # ---------------------------------------------------------------------------
 
-def evaluate_map_quality(layer: 'QgsMapLayer', descriptor: MapOutputDescriptor) -> List[Dict[str, Any]]:
+def evaluate_map_quality(layer: 'QgsMapLayer', descriptor: MapOutputDescriptor) -> list[dict[str, Any]]:
     """Evaluates canvas readability and structural correctness after layer generation."""
-    findings = []
+    findings: list = []
     if not QGIS_AVAILABLE or not layer:
         return findings
 
@@ -486,20 +485,20 @@ def evaluate_map_quality(layer: 'QgsMapLayer', descriptor: MapOutputDescriptor) 
             })
 
     # Check 3: Full Opaque Polygon Fill Covering Map
-    if isinstance(layer, QgsVectorLayer) and layer.geometryType() == QgsWkbTypes.PolygonGeometry:
-        if layer.opacity() >= 0.9:
-            renderer = layer.renderer()
-            if isinstance(renderer, QgsSingleSymbolRenderer):
-                sym = renderer.symbol()
-                if sym and sym.symbolLayerCount() > 0:
-                    sl = sym.symbolLayer(0)
-                    if isinstance(sl, QgsSimpleFillSymbolLayer) and sl.fillColor().alpha() > 200:
-                        findings.append({
-                            "code": "OVERLAY_OCCLUSION",
-                            "severity": "warning",
-                            "message": f"Polygon layer '{layer.name()}' has an opaque solid fill that blocks the underlying basemap.",
-                            "repair_action": "apply_translucent_fill",
-                        })
+    if (isinstance(layer, QgsVectorLayer) and layer.geometryType() == QgsWkbTypes.GeometryType.PolygonGeometry
+            and layer.opacity() >= 0.9):
+        renderer = layer.renderer()
+        if isinstance(renderer, QgsSingleSymbolRenderer):
+            sym = renderer.symbol()
+            if sym and sym.symbolLayerCount() > 0:
+                sl = sym.symbolLayer(0)
+                if isinstance(sl, QgsSimpleFillSymbolLayer) and sl.fillColor().alpha() > 200:
+                    findings.append({
+                        "code": "OVERLAY_OCCLUSION",
+                        "severity": "warning",
+                        "message": f"Polygon layer '{layer.name()}' has an opaque solid fill that blocks the underlying basemap.",
+                        "repair_action": "apply_translucent_fill",
+                    })
 
     return findings
 
@@ -511,11 +510,11 @@ def evaluate_map_quality(layer: 'QgsMapLayer', descriptor: MapOutputDescriptor) 
 def process_map_output(
     layer: 'QgsMapLayer',
     output_role: str,
-    source_layer_id: Optional[str] = None,
-    recommended_label_field: Optional[str] = None,
-    style_profile: Optional[str] = None,
-    properties: Optional[Dict[str, Any]] = None,
-) -> Dict[str, Any]:
+    source_layer_id: str | None = None,
+    recommended_label_field: str | None = None,
+    style_profile: str | None = None,
+    properties: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     """Single post-processing service invoked whenever a layer is created or substantially modified."""
     # Design-state memory (§1.16 "smart mapping" -- see map_state_memory.py's module
     # docstring): if a PRIOR call already produced this output_role in this project and

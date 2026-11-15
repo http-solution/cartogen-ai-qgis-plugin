@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Tests for humanitarian_tools.py's _clip_to_field_width -- the same fix as
 hazard_monitoring_tools.py's identically-named helper (see
 tests/test_hazard_monitoring_tools.py::TestClipToFieldWidth for the full live-report

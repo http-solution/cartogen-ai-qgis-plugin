@@ -12,12 +12,12 @@ permissions:
 
 jobs:
   publish:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
       - name: Build and publish rc7..rc10
@@ -50,7 +50,7 @@ jobs:
           import sys, zipfile
           names = zipfile.ZipFile(sys.argv[1]).namelist()
           tops = {n.split("/")[0] for n in names}
-          assert tops == {"cartogen-ai"}, tops
+          assert tops == {"cartogen_ai_plugin"}, tops
           print(len(names), "files; top-level:", tops)
           PY
             sha256sum "$ZIP" | tee "dist/SHA256-${VERSION}.txt"

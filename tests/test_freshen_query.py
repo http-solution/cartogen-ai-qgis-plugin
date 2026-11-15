@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Web searches for the latest/current thing carry today's date (rc17 hand test B5, 2026-10-06)."""
 import datetime
 import unittest

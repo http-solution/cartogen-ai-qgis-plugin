@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """In-place upgrade must not keep the previous version's cartogen_ai.* modules cached.
 
 Reported live on QGIS 4.2.2 after Install from ZIP of v1.16.0-rc5 over a running rc4:
@@ -16,7 +15,7 @@ import tempfile
 import unittest
 
 _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-_PLUGIN = "cartogen-ai"
+_PLUGIN = "cartogen_ai_plugin"
 
 
 def _write(path, text):

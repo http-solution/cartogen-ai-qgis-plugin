@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Centralized Logging Infrastructure for Cartogen AI.
 
@@ -6,6 +5,8 @@ Routes diagnostic, warning, and error messages to QgsMessageLog when running ins
 falling back gracefully to standard Python logging / sys.stderr in headless or test environments.
 """
 
+import collections
+import contextlib
 import re
 import sys
 import time
@@ -39,10 +40,7 @@ _SECRET_PATTERNS = [
 def _redact(message: str) -> str:
     text = str(message)
     for pattern in _SECRET_PATTERNS:
-        if pattern.groups:
-            text = pattern.sub(lambda m: m.group(1) + _REDACTED, text)
-        else:
-            text = pattern.sub(_REDACTED, text)
+        text = pattern.sub(lambda m: m.group(1) + _REDACTED, text) if pattern.groups else pattern.sub(_REDACTED, text)
     return text
 
 
@@ -51,7 +49,7 @@ try:
     QGIS_LOG_AVAILABLE = True
 except ImportError:
     QGIS_LOG_AVAILABLE = False
-    class Qgis:
+    class Qgis:  # type: ignore[no-redef]
         Info = 0
         Warning = 1
         Critical = 2
@@ -60,39 +58,65 @@ except ImportError:
 TAG = "CartogenAI"
 
 
+# The most recent log lines, redacted exactly like what goes to QGIS. DEF-9: the hand-test evidence collector tried to read the plugin's lines through QGIS's
+# messageReceived signal and recorded nothing on QGIS 4 (a live run delivered no line through any form that carries the text), so the plugin keeps its own
+# short memory and the collector asks for it. Metadata-only by the logging rules above; it never leaves the process and holds at most 2000 lines.
+_RECENT: collections.deque = collections.deque(maxlen=2000)
+
+
+def _remember(level: str, tag: str, message: str) -> None:
+    """Never raises: remembering a line must not stop it being logged."""
+    with contextlib.suppress(Exception):
+        _RECENT.append((time.time(), level, str(tag), message))
+
+
+def recent_lines(since=None):
+    """[(epoch seconds, 'INFO'|'WARNING'|'CRITICAL', tag, message)] for the remembered lines, oldest first; only those at or after `since` when given."""
+    return [line for line in list(_RECENT) if since is None or line[0] >= since]
+
+
+def log_destination(tag, message):
+    """(Log Messages tab, text) for a message logged under `tag`. QGIS opens one Log Messages tab per tag, and the plugin logs under about
+    twenty-seven (Tools, Agent, Providers, CredentialManager, ... and one spelled CartogenAi), so the tab the hand-test README says to save,
+    CartogenAI, did not hold the model_call lines (tag Agent) the cost table is built from, and two look-alike tabs appeared (1.18.0 hand run,
+    PLAN-021 WP-C). Everything now goes to the one tab and a component name other than the tab name leads the text. Pure."""
+    return TAG, (message if str(tag).lower() == TAG.lower() else f"[{tag}] {message}")
+
+
+
 def log_info(message: str, tag: str = TAG) -> None:
     """Logs an informational message to QgsMessageLog."""
     message = _redact(message)
+    _remember("INFO", tag, message)
     if QGIS_LOG_AVAILABLE:
-        try:
-            QgsMessageLog.logMessage(message, tag, Qgis.Info)
+        with contextlib.suppress(Exception):
+            _tab, _text = log_destination(tag, message)
+            QgsMessageLog.logMessage(_text, _tab, Qgis.MessageLevel.Info)
             return
-        except Exception:
-            pass
     print(f"[{tag}] {message}", file=sys.stdout)
 
 
 def log_warning(message: str, tag: str = TAG) -> None:
     """Logs a warning message to QgsMessageLog."""
     message = _redact(message)
+    _remember("WARNING", tag, message)
     if QGIS_LOG_AVAILABLE:
-        try:
-            QgsMessageLog.logMessage(message, tag, Qgis.Warning)
+        with contextlib.suppress(Exception):
+            _tab, _text = log_destination(tag, message)
+            QgsMessageLog.logMessage(_text, _tab, Qgis.MessageLevel.Warning)
             return
-        except Exception:
-            pass
     print(f"[{tag}] WARNING: {message}", file=sys.stderr)
 
 
 def log_error(message: str, tag: str = TAG) -> None:
     """Logs an error message to QgsMessageLog."""
     message = _redact(message)
+    _remember("CRITICAL", tag, message)
     if QGIS_LOG_AVAILABLE:
-        try:
-            QgsMessageLog.logMessage(message, tag, Qgis.Critical)
+        with contextlib.suppress(Exception):
+            _tab, _text = log_destination(tag, message)
+            QgsMessageLog.logMessage(_text, _tab, Qgis.MessageLevel.Critical)
             return
-        except Exception:
-            pass
     print(f"[{tag}] ERROR: {message}", file=sys.stderr)
 
 
@@ -113,6 +137,17 @@ _SAFE_EVENT_FIELDS = {
     "facilities", "reached_layers", "service_area_ms", "prepare_ms", "nearest_ms", "build_ms", "replace_ms",
     # isolated-script reconciliation: how many parts of a script's work could not be applied (a count)
     "problems",
+    # model_call (core/agent/call_metrics.py): sizes, timings and tool NAMES of each request -- never prompt text, arguments or
+    # results. est_* are character-count estimates; input/cached/output tokens are provider-reported (or absent).
+    "call_index", "model", "latency_ms", "input_tokens", "cached_tokens", "output_tokens", "tool_count", "tool_calls", "outcome",
+    "est_system_tokens", "est_tools_tokens", "est_history_tokens", "est_user_tokens", "tool_names",
+    # network (core/net.py, providers/base.py): host NAMES, never a path, query, header or body. The first rc32/rc33 versions of the
+    # http_redirect and provider_auth_refused lines lost these fields because they were missing here (2026-10-11 field log).
+    "sender", "host", "qgis_proxy", "from_host", "to_host", "other_site", "key_source", "key_length",
+    # environment (core/environment.py, PLAN-053): version strings and the OS family name of the machine, a count of findings. No user name, host name, path or locale.
+    "os", "os_release", "arch", "python", "qgis", "qt", "gdal", "findings",
+    # cli_bridge flag fallback (PLAN-053 stage 2): the names of command-line OPTIONS a CLI rejected (never their values) and the CLI's own version line.
+    "flags", "cli_version",
 }
 
 
@@ -163,7 +198,7 @@ def startup_state_fields(read_setting):
 
 
 _DIAGNOSTIC_SETTING = "cartogen_ai/debug_verbose_logging_until"
-_diagnostic_warning_shown = False
+_diagnostic_state = {"warning_shown": False}   # holder rather than a global (ruff PLW0603)
 _DEFAULT_DIAGNOSTIC_DURATION_SECONDS = 3600  # 1 hour
 
 
@@ -178,20 +213,16 @@ def enable_diagnostic_logging(duration_seconds: int = _DEFAULT_DIAGNOSTIC_DURATI
     when actively debugging; there is no Settings UI toggle for it by design."""
     if not QGIS_LOG_AVAILABLE:
         return
-    try:
+    with contextlib.suppress(Exception):
         QgsSettings().setValue(_DIAGNOSTIC_SETTING, time.time() + duration_seconds)
-    except Exception:
-        pass
 
 
 def disable_diagnostic_logging() -> None:
     """Ends diagnostic logging immediately, without waiting for it to expire."""
     if not QGIS_LOG_AVAILABLE:
         return
-    try:
+    with contextlib.suppress(Exception):
         QgsSettings().remove(_DIAGNOSTIC_SETTING)
-    except Exception:
-        pass
 
 
 def _diagnostic_logging_enabled() -> bool:
@@ -223,8 +254,7 @@ def log_diagnostic(message: str, tag: str = TAG) -> None:
     even in this explicit debugging mode."""
     if not _diagnostic_logging_enabled():
         return
-    global _diagnostic_warning_shown
-    if not _diagnostic_warning_shown:
+    if not _diagnostic_state["warning_shown"]:
         log_warning(
             "Verbose diagnostic logging is ON -- raw prompt/response/tool "
             "content may now be logged locally to QgsMessageLog, which can "
@@ -233,5 +263,5 @@ def log_diagnostic(message: str, tag: str = TAG) -> None:
             "disable_diagnostic_logging() to end it immediately instead.",
             tag=tag,
         )
-        _diagnostic_warning_shown = True
+        _diagnostic_state["warning_shown"] = True
     log_info(f"[DIAGNOSTIC] {message}", tag=tag)

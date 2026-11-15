@@ -1,6 +1,6 @@
 # Tool Reference
 
-Auto-generated from the live tool registry (203 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
+Auto-generated from the live tool registry (335 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
 
 Flags: **network-only** tools bypass the main-thread QGIS dispatcher entirely (pure HTTP, safe from any background thread); **two-phase** tools split a network fetch (background thread) from the QGIS-touching part (main thread); **task-management** tools are excluded from auto-advance in the Task Manager.
 
@@ -141,7 +141,7 @@ Save an agent plan as a re-usable JSON workflow preset. To build a recurring mon
 
 ### `export_layer`
 
-Export vector layer to file format (ESRI Shapefile, GeoJSON, GPKG, KML).
+Export a layer to a file: a vector layer to ESRI Shapefile, GeoJSON, GPKG or KML; a raster layer to GeoTIFF (format 'tif'). A relative output_path is anchored to the project folder; the reply's output_path is the real location.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
@@ -150,14 +150,32 @@ Export vector layer to file format (ESRI Shapefile, GeoJSON, GPKG, KML).
 | `output_path` | string | no |  |
 | `only_selected` | boolean | no |  |
 
+### `export_layers_to_dxf`
+
+Export one or more vector layers to a single DXF file for CAD software (AutoCAD and similar). A DXF holds geometry and layer names, not attribute tables or QGIS styling: say so if the user expects either. output_path is optional -- omit it to save under the project's data/20_processed folder (or the QGIS profile folder if the project is not saved yet); a relative path is anchored to the project folder and the reply's output_path is the real location. At most 20 layers per file. Replacing an existing file asks the user first.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_names` | array[string] | yes |  |
+| `output_path` | string | no |  |
+
+### `export_layers_to_spreadsheet`
+
+Export one or more vector layers or tables to a single spreadsheet (Excel .xlsx, or .ods) with one sheet per layer, attributes only (no styling). Use it when the user asks for an Excel or spreadsheet file; export_to_csv is for CSV. output_path is optional -- omit it to save under the project's data/20_processed folder (or the QGIS profile folder if the project is not saved yet); a relative path is anchored to the project folder and the reply's output_path is the real location. At most 20 layers per file. Replacing an existing file asks the user first.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_names` | array[string] | yes |  |
+| `output_path` | string | no |  |
+
 ### `export_temporal_animation_frames`
 
-Render one PNG frame per time step from a layer with start/end period fields already in the project -- e.g. control-area polygons over 2016-2026 -- by filtering the layer to each frame's date and exporting the current map canvas view, so the frames can be assembled into a GIF/video outside QGIS (e.g. with ffmpeg) for a native, non-HTML animation. This is the QGIS-native sibling of generate_temporal_dashboard's HTML output -- use this one when a video/GIF file is wanted instead of (or in addition to) a shareable web page. The canvas view/extent is NOT changed between frames (so the animation doesn't visually jump) -- pan/zoom to the desired extent yourself before calling this. Optionally applies a categorized style once via category_field before rendering frames. The layer's filter is restored to what it was before the call once done, even on failure.
+Animate a layer over time: render one PNG frame per time step from a layer with start/end period fields already in the project -- e.g. control-area polygons over 2016-2026 -- or from an events layer with a single date field (points that stay visible from their date onward, so the map fills up frame by frame), by filtering the layer to each frame's date and exporting the current map canvas view, so the frames can be assembled into a GIF/video outside QGIS (e.g. with ffmpeg) for a native, non-HTML animation. This is the QGIS-native sibling of generate_temporal_dashboard's HTML output -- use this one when a video/GIF file is wanted instead of (or in addition to) a shareable web page. The canvas view/extent is NOT changed between frames (so the animation doesn't visually jump) -- pan/zoom to the desired extent yourself before calling this. Optionally applies a categorized style once via category_field before rendering frames. The layer's filter is restored to what it was before the call once done, even on failure. If the layer was already made temporal (set_layer_temporal) leave start_field out: its start and end fields are used; for an events layer with a single date field, give that field as start_field.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
 | `layer_name` | string | yes |  |
-| `start_field` | string | yes | Date/text field holding when each feature's period began. |
+| `start_field` | string | no | Date/text field holding when each feature's period began (the date, for an events layer). Optional when the layer is already temporal. |
 | `end_field` | string | no | Optional date/text field holding when the period ended. A feature with no value here stays visible from its start onward. |
 | `category_field` | string | no | Optional field to categorize/color the layer by (e.g. controlling faction) before rendering frames -- applied once via apply_categorized_style. |
 | `output_dir` | string | no | Directory to write frame_0001.png, frame_0002.png, etc. Defaults to a new temp directory. |
@@ -338,12 +356,13 @@ Download OpenStreetMap vector features via Overpass API (e.g. key='amenity', val
 
 ### `search_hdx_datasets` _(network-only)_
 
-Search Humanitarian Data Exchange (HDX) for datasets by query.
+Search Humanitarian Data Exchange (HDX) for datasets by query. Results are ranked: each has a score and plain reasons about its licence (open, none stated, not open), how recently it changed and whether it lists the country asked for and has a usable file. Pass country (name or ISO3) to prefer data sets about it.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
 | `query` | string | yes |  |
 | `limit` | integer | no |  |
+| `country` | string | no | Optional country name or ISO3 code; data sets that list it rank higher. |
 
 ## Humanitarian Logistics
 
@@ -367,7 +386,7 @@ Calculate the reachable road-network area around one or more facilities (warehou
 
 ### `classify_facilities_by_access`
 
-Answer 'which facilities are within / beyond N hours (or N metres) of this origin' FAST. Runs ONE service area from origin_layer (seconds, the same engine as calculate_service_area) and labels every facility in facility_layer 'within' when it lies on or within snap_distance_m of a road reached inside travel_cost, else 'beyond'. Use THIS instead of travel_time_matrix for any 'beyond/within X of the origin' question over many facilities: travel_time_matrix ties every destination into the road graph and took ~44 minutes for 3,369 facilities. Adds a copy of the facility layer with access_class and dist_to_reach_m fields, plus the service-area layers. APPROXIMATION to state in the answer: it ignores the access leg from the road to the facility (up to snap_distance_m) and is not a per-facility routed cost; use travel_time_matrix (small destination sets only) when exact per-facility costs are needed.
+Answer 'which facilities are within / beyond N hours (or N metres) of this origin' FAST. Runs ONE service area from origin_layer (seconds, the same engine as calculate_service_area) and labels every facility in facility_layer 'within' when it lies on or within snap_distance_m of a road reached inside travel_cost, else 'beyond'. Use THIS instead of travel_time_matrix for any 'beyond/within X of the origin' question over many facilities: travel_time_matrix ties every destination into the road graph and took ~44 minutes for 3,369 facilities. Adds a copy of the facility layer with access_class and dist_to_reach_m fields, plus the service-area layers. For a DISTANCE budget (strategy 'shortest') over up to 200 facilities each facility is routed and 'within' means road distance PLUS the straight leg from the road to the facility is inside the budget; the result says method 'routed' and snap_distance_m is not used. For a time budget, or more facilities, it is an APPROXIMATION to state in the answer: it ignores the access leg from the road to the facility (up to snap_distance_m) and is not a per-facility routed cost; pass a small snap_distance_m (for example 50) so a facility far from the road is not counted as reached.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
@@ -415,11 +434,12 @@ Rank candidate hub/warehouse/facility locations by how well they serve a set of 
 
 ### `optimize_delivery_route`
 
-Find a good visiting order for a set of delivery/distribution stops -- e.g. 'what order should the truck visit these 8 distribution points'. Uses a standard nearest-neighbor + 2-opt heuristic to pick the *order* (not a guaranteed globally-optimal order). Without road_network_layer, ordering uses straight-line distance and the result is a stop order only -- do NOT draw a straight line between the stops and present it as a route on an operational map; it is not a routable path. Pass road_network_layer to make the ordering itself road-network-aware (real road distance between every pair of stops, not straight-line) and to build an actual road-snapped route line, added to the project and safe to render as a real route. speed_field/direction_field (same meaning as calculate_service_area's) only affect ordering when road_network_layer is given. Not a substitute for a full commercial VRP solver with vehicle capacity/time-window constraints.
+Find a good visiting order for a set of delivery/distribution stops -- e.g. 'what order should the truck visit these 8 distribution points'. Uses a standard nearest-neighbor + 2-opt heuristic to pick the *order* (not a guaranteed globally-optimal order). Without road_network_layer, ordering uses straight-line distance and the result is a stop order only -- do NOT draw a straight line between the stops and present it as a route on an operational map; it is not a routable path. Pass road_network_layer to make the ordering itself road-network-aware (real road distance between every pair of stops, not straight-line) and to build an actual road-snapped route line, added to the project and safe to render as a real route. speed_field/direction_field (same meaning as calculate_service_area's) only affect ordering when road_network_layer is given. Not a substitute for a full commercial VRP solver with vehicle capacity/time-window constraints. If the start (a hub, depot) and the stops are in DIFFERENT point layers, name the others in additional_stops_layers -- do not write a script to merge them first.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
 | `stops_layer` | string | yes | Point layer of stops to visit. |
+| `additional_stops_layers` | array[string] | no | Optional other point layers whose features are added to the stops (for example the depot layer when the stops are in another one). They are reprojected into stops_layer's CRS, and start_stop_name can name a stop from any of them. |
 | `start_stop_name` | string | no | Optional name (from the layer's first attribute field) of the stop to start from. Defaults to the first feature. |
 | `road_network_layer` | string | no | Optional line layer representing the road/path network. When given, visiting order uses real road-network distance (not straight-line) and a road-snapped route line is built and added to the project -- required before the output may be rendered as a route on a map. |
 | `speed_field` | string | no | Optional numeric field on road_network_layer giving per-segment speed in km/h. Only affects ordering when road_network_layer is given. |
@@ -445,6 +465,8 @@ Compute how many people, and what percentage of a population base, are BEYOND a 
 | `default_speed` | number | no | Default travel speed in km/h, used only when strategy='fastest'. Defaults to 50. |
 | `reach_geometry` | string | no | Which figure is the headline: 'concave_hull' (default), 'road_buffer' (people within reach_buffer_m of a reached road) or 'convex_hull' (an UPPER BOUND). All three are always reported in reach_figures. |
 | `reach_buffer_m` | number | no | Buffer distance in metres around the reached roads for the road-buffer figure. Defaults to 500. |
+| `speed_field` | string | no | Optional numeric field on road_network_layer giving per-segment speed in km/h, same meaning as in calculate_service_area. Pass it when the request names one (for example the speed_blocked field written by apply_network_barriers): without it, blocked or slowed roads are ignored and the people-beyond figure is wrong. Only affects routing when strategy='fastest'. |
+| `direction_field` | string | no | Optional one-way field on road_network_layer, same meaning as in calculate_service_area. |
 
 ### `score_route_incident_risk`
 
@@ -461,7 +483,7 @@ Score a planned route (or any line layer) against how close it passes to recent 
 
 ### `travel_time_matrix`
 
-Calculate road-network distance or travel time from each origin point to each destination point -- e.g. delivery distance from each warehouse to each distribution site. Returns a matrix of costs (metres for strategy='shortest' -- real-world distance whatever the layers' CRS is -- or hours for strategy='fastest') keyed by origin then destination. Requires a line layer representing the road network, not straight-line distance. Without speed_field, every segment is treated as one flat default_speed regardless of surface or condition -- when the network layer has a per-segment speed or condition field, pass it as speed_field with strategy='fastest' for a more realistic matrix. direction_field makes one-way roads one-way instead of assuming every segment is traversable both directions. SLOW for many destinations (every destination is tied into the road graph, which QGIS does by brute force; ~44 minutes for 3,369): for 'which facilities are within/beyond N of this origin' use classify_facilities_by_access instead; destination layers over 200 features use a single shortest-path tree per origin (fast; each destination is charged the cost to its projected point on the nearest road segment) when the QGIS network classes are available.
+Calculate road-network distance or travel time from each origin point to each destination point -- e.g. delivery distance from each warehouse to each distribution site. Returns a matrix of costs (metres for strategy='shortest' -- real-world distance whatever the layers' CRS is -- or hours for strategy='fastest') keyed by origin then destination. Requires a line layer representing the road network, not straight-line distance. Without speed_field, every segment is treated as one flat default_speed regardless of surface or condition -- when the network layer has a per-segment speed or condition field, pass it as speed_field with strategy='fastest' for a more realistic matrix. direction_field makes one-way roads one-way instead of assuming every segment is traversable both directions. The costs are along the road only: the result also gives access_leg_m (straight distance from each destination to its nearest road); ADD it when the question is total travel within a budget. SLOW for many destinations (every destination is tied into the road graph, which QGIS does by brute force; ~44 minutes for 3,369): for 'which facilities are within/beyond N of this origin' use classify_facilities_by_access instead; destination layers over 200 features use a single shortest-path tree per origin (fast; each destination is charged the cost to its projected point on the nearest road segment) when the QGIS network classes are available.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
@@ -523,16 +545,21 @@ Create a map print layout composition with title, legend, scalebar, north arrow,
 | `page_orientation` | string | no | 'Landscape' (default) or 'Portrait'. |
 | `output_path` | string | no | Where to export -- '.pdf' for a vector PDF, '.png'/'.jpg'/'.jpeg' for a raster image. Omit to create the layout in the project without exporting. |
 | `dpi` | integer | no | Export resolution in DPI, for both PDF and image export. Defaults to 300 (print quality). |
+| `profile` | string | no | Name of a saved map profile (a JSON file the organisation keeps in the project's cartogen_profiles folder or the QGIS profile folder) that sets page size, orientation, export preset, file name pattern and required elements. Explicit arguments beat the profile. |
+| `page_size` | string | no | Page size: 'A4' (default), 'A3', 'A2' or 'A1'. The same layout is scaled up, and the map shows the same area larger. |
+| `preset` | string | no | Export purpose instead of a dpi number: 'draft' (96), 'web' (150) or 'print' (300). An explicit dpi wins. |
+| `output_format` | string | no | Only when output_path is a FOLDER: 'pdf' (default), 'png' or 'jpg'. The file is then named <title>_<date>.<format>. |
 | `body_text` | string | no | Optional summary/sitrep text shown in a panel on the layout (e.g. priority findings, data sources). |
 | `zoom_to_layer` | string | no | Name of a layer to fit the map to its full extent before capturing it, e.g. the national boundary layer for a full-country sitrep map. Omit to use whatever extent the canvas currently shows. |
-| `template` | string | no | 'standard' (default), 'access_map' or 'sitrep'. 'access_map': for the result of a service-area / facility-access analysis. Fits the map to the reach layer when zoom_to_layer is omitted, lists the reach polygon, access points and cost-graded roads first in the legend, and (when body_text is empty) adds a short 'how to read this map' guide for the layers present. 'sitrep': a one-page situation report; body_text is the situation summary, key_figures and sources fill the KEY FIGURES and SOURCES sections, and a standing handling note (estimates, no exact locations of people or sensitive sites) and the preparation date are always added. |
+| `template` | string | no | 'standard' (default), 'access_map', 'sitrep', 'field_report', 'change_report' or 'epi_bulletin'. 'access_map': for the result of a service-area / facility-access analysis. Fits the map to the reach layer when zoom_to_layer is omitted, lists the reach polygon, access points and cost-graded roads first in the legend, and (when body_text is empty) adds a short 'how to read this map' guide for the layers present. 'sitrep': a one-page situation report; body_text is the situation summary, key_figures and sources fill the KEY FIGURES and SOURCES sections, and a standing handling note (estimates, no exact locations of people or sensitive sites) and the preparation date are always added. 'field_report' (one field: body_text is the field summary, key_figures the index readings with their dates and units) and 'change_report' (two dates: key_figures the change figures such as hectares lost, gained and stable) use the same panel with a reading guide and a standing note of their own: index values are not a yield or rate recommendation; change classes are a screening, not a survey. They keep the map where it is unless zoom_to_layer is given. 'epi_bulletin' (an epidemic bulletin: body_text is the summary, key_figures the case and rate figures with the date they were reported to, sources the data sources) uses the same panel with a METHOD AND LIMITS note of its own: rates are crude and for areas not individuals, areas under 5 cases are not shown, a cluster is not a cause. It keeps the map where it is unless zoom_to_layer is given. |
 | `key_figures` | array[object] | no | For template='sitrep': up to 8 headline figures, each copied from a tool result (never estimated or remembered), e.g. {label: 'People within 1 hour of a clinic', value: '412,000 (estimate)', source: 'population_access_gap'}. |
-| `sources` | array[string] | no | For template='sitrep': the data sources behind the figures, e.g. ['OCHA COD-AB 2024', 'WorldPop 2020']. |
+| `key_figures_from` | object | no | For template='sitrep': take the headline figures straight from a layer, e.g. {layer_name: 'admin_units', label_field: 'ADM2_EN', value_field: 'people_in_need', top_n: 3}. The numbers are read from the layer, so they cannot be mistyped; prefer this over typing figures. Any typed key_figures whose number is not found in a project layer (a value, or a total, minimum, maximum, mean or count of a numeric field) is marked 'not found in the project data' on the layout and listed in the reply. |
+| `sources` | array[string] | no | For template 'sitrep', 'field_report', 'change_report' or 'epi_bulletin': the data sources behind the figures, e.g. ['OCHA COD-AB 2024', 'WorldPop 2020']. |
 | `include_inset_map` | boolean | no | Add a small locator/inset map (zoomed out ~6x from the main map, same center) showing the main map's location within its wider region. Defaults to true. |
 
 ### `export_layout_atlas`
 
-Exports one file PER FEATURE of a coverage layer from an existing print layout -- e.g. one PDF per district, one PNG per health facility catchment -- using QgsLayoutAtlas. This is the full-atlas half of point 15 of docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md; list_layout_items/update_layout_item_text (the other half) address items within ONE layout, this generates MANY layouts (one per feature). Only works on a layout built by create_print_layout, since it re-points that layout's MAP_MAIN item to follow the atlas -- there is no addressable map item on a hand-built layout to atlas-drive. Each output file is named from filename_field's value on that feature (e.g. a district-name field), sanitized for use as a filename; a non-unique or empty field value across features will silently overwrite an earlier output with the same name, so pick a field that's actually unique per feature (a P-code, not a display name that repeats).
+Exports one file PER FEATURE of a coverage layer from an existing print layout -- e.g. one PDF per district, one PNG per health facility catchment -- using QgsLayoutAtlas. This is the full-atlas half of point 15 of docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md; list_layout_items/update_layout_item_text (the other half) address items within ONE layout, this generates MANY layouts (one per feature). Only works on a layout built by create_print_layout, since it re-points that layout's MAP_MAIN item to follow the atlas -- there is no addressable map item on a hand-built layout to atlas-drive. Each output file is named from filename_field's value on that feature (e.g. a district-name field), sanitized for use as a filename; a non-unique or empty field value across features will silently overwrite an earlier output with the same name, so pick a field that's actually unique per feature (a P-code, not a display name that repeats). A map or coverage layer tagged RESTRICTED or SENSITIVE makes the export wait for the user's confirmation.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
@@ -803,7 +830,7 @@ Supervised classification using training polygons.
 
 ### `unsupervised_classification`
 
-Unsupervised K-Means raster classification of up to the first 8 bands into num_classes spectral classes (1..num_classes; 0 = no data). Classes are statistical clusters of pixel values, NOT land-cover categories: label them yourself. Reproducible with a seed; refuses rasters over 25 million cells (clip first).
+Unsupervised K-Means raster classification of up to the first 8 bands into num_classes spectral classes (1..num_classes; 0 = no data). Classes are statistical clusters of pixel values, NOT land-cover categories: label them yourself. Reproducible with a seed; works through the raster in blocks, so memory is not the limit, and on a large raster it runs in the background so QGIS stays responsive and Stop works; a raster over 400 million cells is refused (clip it first).
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
@@ -918,15 +945,16 @@ Compute pixel-wise differential change between two temporal rasters (after minus
 
 ### `inspect_canvas_visually`
 
-Capture current map canvas view and return visual inspection context.
+LOOK at the current map: captures the map canvas as a picture you can see (at most 1,280 pixels on the long edge), sent to you right after this result together with the legend and the visible layers as text. Use it for 'what is wrong with this map', 'does it look right', 'what does the map show'. Optional extent_layer: look at that layer's extent instead of the current view (the canvas is not moved). If the model cannot see pictures you get the legend and layer list as text instead.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
 | `prompt_guidance` | string | no |  |
+| `extent_layer` | string | no | Optional: name of a layer; the picture shows that layer's extent instead of the current view. |
 
 ### `search_stac_satellite_imagery` _(network-only)_
 
-Search STAC API (Earth Search / Sentinel-2) for satellite scenes by bounding box and date range.
+Search STAC API (Earth Search / Sentinel-2) for satellite scenes by bounding box and date range. Pass max_cloud_cover (percent) when the user names a cloud limit: the filter is applied by the service, so every scene returned meets it. The reply lists only scenes the service returned (newest first); never add scenes from memory.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
@@ -934,6 +962,7 @@ Search STAC API (Earth Search / Sentinel-2) for satellite scenes by bounding box
 | `start_date` | string | yes |  |
 | `end_date` | string | yes |  |
 | `limit` | integer | no |  |
+| `max_cloud_cover` | number | no | Only scenes with eo:cloud_cover below this percent (0-100). |
 
 ## Styling & Labeling
 
@@ -960,6 +989,8 @@ Apply smart graduated choropleth style analyzing field distribution for optimal 
 | `num_classes` | integer | no | Number of classes to split the data into. Defaults to 5. Ignored if breaks is given. |
 | `opacity` | number | no | 0-100. Defaults to 75 for polygon layers (so overlapping layers/basemap underneath stay visible) and 100 for points/lines. |
 | `cluster` | string | no | Optional IASC cluster name/alias (e.g. 'WASH', 'Health') to tint the ramp toward that cluster's color instead of the auto-selected one. |
+| `color_from` | string | no | Optional start colour of an explicit ramp, as plain words ('pale yellow') or #rrggbb. Use with color_to when the user names the colours. |
+| `color_to` | string | no | Optional end colour of an explicit ramp ('dark red' or #rrggbb). Overrides the automatic ramp and cluster tint. |
 | `breaks` | array[number] | no | Optional explicit class-boundary values (e.g. operational response thresholds), sorted ascending -- when given, these define the classes directly instead of an auto-selected classification method, overriding 'mode'. Data's actual min/max become the outer class bounds. |
 
 ### `apply_graduated_symbol_style`
@@ -1096,19 +1127,21 @@ Search the live web using Gemini's native Google Search grounding for real-time,
 
 ### `geocode_and_enrich` _(network-only)_
 
-Geocode a SINGLE address/place name into lat/lon via Nominatim API. For multiple locations in one request, use geocode_batch instead -- one call per place will run out of tool-call steps before finishing a long list.
+Geocode a SINGLE address/place name into lat/lon via Nominatim API; the result also carries the place's bounding box (bbox_south_west_north_east and bbox_west_south_east_north) for tools that take an area. For multiple locations in one request, use geocode_batch instead -- one call per place will run out of tool-call steps before finishing a long list.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
 | `location_name` | string | yes |  |
+| `source_layer` | string | no | The layer the place text came from, if it came from a layer; leave out when the user typed it. A protected layer is refused: geocoding sends the text to a public server. |
 
-### `geocode_batch`
+### `geocode_batch` _(network-only)_
 
-Geocode MULTIPLE address/place names into lat/lon in a single call. Use this instead of calling geocode_and_enrich in a loop whenever more than one location needs coordinates.
+Geocode MULTIPLE address/place names into lat/lon in a single call. Use this instead of calling geocode_and_enrich in a loop whenever more than one location needs coordinates. The text is sent to a public server (OpenStreetMap Nominatim), so it is REFUSED when it comes from a protected (RESTRICTED or SENSITIVE) layer: pass source_layer with the layer the names were read from.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
 | `location_names` | array[string] | yes |  |
+| `source_layer` | string | no | The layer the place text came from, if it came from a layer; leave out when the user typed it. A protected layer is refused. |
 
 ### `openai_grounded_search` _(two-phase)_
 
@@ -1120,7 +1153,7 @@ Search the live web using OpenAI's dedicated web-search model for real-time, sou
 
 ### `search_web` _(network-only)_
 
-Search internet for real-time information or facts.
+Search internet for real-time information or facts; every hit has a URL: cite them. For a sourced, structured answer or for news use web_research. NOT for incidents, disasters or conflict events in a place: use find_incident_reports for those (named reliable sources, dates, links).
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
@@ -1189,6 +1222,7 @@ Load vector or raster file from a local path or remote URL (e.g. a GeoJSON downl
 |---|---|---|---|
 | `file_path` | string | yes |  |
 | `layer_name` | string | no |  |
+| `sublayer` | string | no | name of ONE layer/table inside a multi-layer file (GeoPackage, FileGDB, KML, GPX, SpatiaLite); omit to open the first and be told what else the file holds |
 
 ### `apply_labels`
 
@@ -1319,7 +1353,7 @@ Compute summary statistics (count, sum, mean, median, min, max, stdev, range) fo
 
 ### `find_nearest_features`
 
-For each feature in input_layer, find the nearest feature(s) in near_layer and join it (distance in meters, plus the nearest feature's attributes) -- e.g. 'nearest hospital to each village'. Creates a new layer; input_layer and near_layer are unchanged.
+For each feature in input_layer, find the nearest feature(s) in near_layer and join it (plus the nearest feature's attributes) -- e.g. 'nearest hospital to each village'. The 'distance' field is in the layer's own CRS units; distance_m is added in real metres (ellipsoidal) whenever those units are not metres, so use distance_m when the layers are in latitude/longitude. Creates a new layer; input_layer and near_layer are unchanged.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
@@ -1412,7 +1446,7 @@ Join attributes from one layer to another by a shared field value (not location 
 
 ### `load_tabular_data_as_layer`
 
-Load the FULL contents of a CSV or Excel (.xlsx/.xls) file as a real QGIS layer -- not a preview or a summary. Use this whenever the user has attached, downloaded, or referenced a spreadsheet/CSV file and wants the actual data in the project, not just a description of it. If the file has coordinate columns (e.g. latitude/longitude) or a WKT geometry column, pass x_field/y_field or wkt_field to create a real point/geometry layer; if omitted, this tool tries to auto-detect common column names on its own (for both CSV and Excel) and reports what it used -- if it can't confidently guess, it returns FIELD_SUGGESTION with the real column names instead of guessing wrong. Omit all three (or call again after a FIELD_SUGGESTION with none set) to load it as a plain non-spatial attribute table.
+Load the FULL contents of a CSV or Excel (.xlsx/.xls) file as a real QGIS layer -- not a preview or a summary. Use this whenever the user has attached, downloaded, or referenced a spreadsheet/CSV file and wants the actual data in the project, not just a description of it. If the file has coordinate columns (e.g. latitude/longitude) or a WKT geometry column, pass x_field/y_field or wkt_field to create a real point/geometry layer; if omitted, this tool tries to auto-detect common column names on its own (for both CSV and Excel) and reports what it used -- if it can't confidently guess, it returns FIELD_SUGGESTION with the real column names instead of guessing wrong. A file with no coordinate columns (a forecast, survey or 3W table) is loaded as a plain non-spatial attribute table by passing as_table=true; omitting the coordinate arguments alone just returns the suggestion again.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
@@ -1424,6 +1458,7 @@ Load the FULL contents of a CSV or Excel (.xlsx/.xls) file as a real QGIS layer 
 | `sheet_name` | string | no | Sheet name for Excel files with multiple sheets. Defaults to the first sheet. |
 | `crs` | string | no | CRS of x_field/y_field coordinates. Defaults to EPSG:4326. |
 | `delimiter` | string | no | CSV field delimiter. Defaults to ','. |
+| `as_table` | boolean | no | true: load as a plain attribute table with no geometry (a forecast, survey or 3W file). Skips coordinate detection. |
 
 ### `merge_layers`
 
@@ -1435,7 +1470,7 @@ Merge multiple vector layers into one.
 
 ### `obfuscate_sensitive_points`
 
-Displace or aggregate sensitive point locations (e.g. GBV survivors, individual IDP households, protection incidents) before they're mapped, exported, or included in any report -- a Do No Harm safeguard, and increasingly an explicit donor/ECHO compliance requirement. Recommend this as a step before add_incident_point/add_point_layer output or export_layer involving protection-flagged data goes anywhere -- never apply it silently or automatically without the user choosing to. Three methods: 'jitter' (random displacement within radius; radius is in the LAYER'S OWN CRS UNITS, not meters -- for a geographic CRS like EPSG:4326 a radius intended as '500 meters' would actually mean 500 DEGREES and scatter points across the globe, so reproject to a projected CRS first if a specific real-world distance matters), 'grid_snap' (collapses every point sharing a grid cell to that cell's centroid -- the strongest protection of the three, since it destroys individual-point identity rather than just displacing it; cell_size is also in the layer's own CRS units), or 'admin_unit_snap' (moves each point to the centroid of the admin-boundary polygon it falls within, from a separate polygon layer). The method and its parameter are always included in the output so they're disclosable in any report alongside the map.
+Displace or aggregate sensitive point locations (e.g. GBV survivors, individual IDP households, protection incidents) before they're mapped, exported, or included in any report -- a Do No Harm safeguard, and increasingly an explicit donor/ECHO compliance requirement. Recommend this as a step before add_incident_point/add_point_layer output or export_layer involving protection-flagged data goes anywhere -- never apply it silently or automatically without the user choosing to. Three methods: 'jitter' (random displacement within radius; radius is in the LAYER'S OWN CRS UNITS, not meters -- for a geographic CRS like EPSG:4326 a radius intended as '500 meters' would actually mean 500 DEGREES and scatter points across the globe, so reproject to a projected CRS first if a specific real-world distance matters), 'grid_snap' (collapses every point sharing a grid cell to that cell's centroid -- the strongest protection of the three, since it destroys individual-point identity rather than just displacing it; cell_size is also in the layer's own CRS units), or 'admin_unit_snap' (moves each point to the centroid of the admin-boundary polygon it falls within, from a separate polygon layer). The method and its parameter are always included in the output so they're disclosable in any report alongside the map. A MultiPoint feature is obfuscated part by part and written as one output point per part, with the same attributes.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
@@ -1604,6 +1639,96 @@ Split a budget the user gives across areas in proportion to need (optionally tim
 | `unit_label` | string | no | Optional label for the budget's unit (e.g. 'USD'); echoed in the result. |
 | `output_field` | string | no | Optional: write each area's amount to the layer under this field name. |
 
+## attribute_edit_tools
+
+### `add_feature_from_wkt`
+
+Add one feature to an existing layer from WKT geometry (POINT, LINESTRING, POLYGON ...). crs is the CRS of the WKT coordinates (default: the layer's own); it is transformed in code. attributes is {field: value}. The geometry type must match the layer.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes |  |
+| `wkt` | string | yes |  |
+| `attributes` | object | no |  |
+| `crs` | string | no | e.g. EPSG:4326 |
+
+### `add_field`
+
+Add an empty field to a layer. field_type: string, integer, long, double, date or datetime.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes |  |
+| `field_name` | string | yes |  |
+| `field_type` | string | no |  |
+
+### `clear_selection`
+
+Deselect all features: of one layer, or of every layer in the project when layer_name is omitted.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | no |  |
+
+### `delete_features`
+
+Delete features from a layer: those matching an expression, or the currently selected ones (only_selected). Destructive: a preview with the exact count is shown for confirmation first. Never deletes everything unless the expression says so.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes |  |
+| `expression` | string | no |  |
+| `only_selected` | boolean | no |  |
+
+### `delete_field`
+
+Delete a field (column) and all its values from a layer. Destructive: a preview is shown for confirmation first.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes |  |
+| `field_name` | string | yes |  |
+
+### `rename_field`
+
+Rename a field of a layer.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes |  |
+| `field_name` | string | yes |  |
+| `new_name` | string | yes |  |
+
+### `select_all_features`
+
+Select every feature of a layer.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes |  |
+
+### `select_by_expression`
+
+Select features of a layer with any QGIS expression (for example "population" > 1000 AND "type" = 'school'). mode: replace (default), add, remove or intersect with the current selection.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes |  |
+| `expression` | string | yes |  |
+| `mode` | string | no | replace, add, remove or intersect |
+
+### `set_attribute_value`
+
+Set one field to a value on specific features: pick them by feature_id or by an expression. Numeric fields need numbers; a typo is refused, not turned into NULL. Use the string null to clear a value. Changes data: a preview with the count is shown first.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes |  |
+| `field` | string | yes |  |
+| `value` | string | yes |  |
+| `feature_id` | integer | no |  |
+| `expression` | string | no |  |
+
 ## barrier_tools
 
 ### `apply_network_barriers`
@@ -1620,6 +1745,20 @@ Put blocked or degraded places into a road network for routing: destroyed bridge
 | `speed_field` | string | no | Optional existing numeric speed field (km/h) to start from, e.g. from build_composite_impedance_field. |
 | `output_field` | string | no | Name of the new speed field. Default 'barrier_speed'. |
 
+## batch_tool
+
+### `run_processing_batch`
+
+Run ONE approved Processing algorithm over several layers (1 to 20), one run per layer, with the same settings for each, and put the results together in a new layer group. For example buffer 5 layers by 100 m, or compute slope for 8 rasters. `layers` are layer names; `parameters` are the settings shared by all runs (not the input and not an output); `input_parameter` names the algorithm's input (default INPUT). Each result layer is named <layer>_<algorithm> and is temporary. A layer that fails does not stop the others: the reply lists each failure and its reason. Algorithms that change your own layers (selections) are refused. The group name must be new. Stop ends the batch and the reply says how far it got.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `algorithm_id` | string | yes | An approved algorithm id such as native:buffer. |
+| `layers` | array[string] | yes | 1 to 20 layer names, each once. |
+| `parameters` | object | no | Settings shared by all runs, for example {"DISTANCE": 100}. |
+| `input_parameter` | string | no | The algorithm's input parameter name (default INPUT). |
+| `group_name` | string | no | Name of the new layer group (default <algorithm>_batch); it must not exist yet. |
+
 ## cartographic_advisory_tools
 
 ### `recommend_visualization_method`
@@ -1631,6 +1770,26 @@ Recommends which styling tool fits a layer/field's actual data semantics -- geom
 | `layer_name` | string | yes |  |
 | `field` | string | no | Optional. Omit for a reference/location-only map with no field to style by. |
 | `intended_message` | string | no | Optional free-text hint, e.g. 'show which districts have the worst access gap' or 'show route status'. Used only to explain a recommendation more specifically -- never to override what the data itself actually supports. |
+
+## cluster_scan_tool
+
+### `detect_spatial_clusters`
+
+Find the most likely CLUSTER of excess cases with Kulldorff's circular spatial scan statistic (Poisson model): it tries circles of every size around every area, scores each by how many more cases it holds than its population would give, and reports the best circle with its centre, radius, cases, expected cases, relative risk and a Monte Carlo p-value (how often chance alone does as well), plus further non-overlapping circles that are also significant. Writes the circles to a NEW layer (the input is never changed). Needs a whole-number case field and a population field on every area, a projected CRS, and numpy (ships with QGIS). Use it for 'is this a real cluster', 'where is the most likely cluster', outbreak or incident clustering; it shows where cases exceed population, never why. max_pop_fraction (default 0.5, the largest allowed) caps a cluster's share of the population. At most 1,500 areas.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes |  |
+| `case_field` | string | yes | Whole-number case counts per area. |
+| `population_field` | string | yes | Population at risk per area (above zero). |
+| `model` | string | no | Only 'poisson' is built. |
+| `max_pop_fraction` | number | no | Largest share of the population a cluster may hold, 0.01 to 0.5 (default 0.5). |
+| `max_radius` | number | no | Largest cluster radius in layer units (default: no limit besides the population cap). |
+| `monte_carlo` | integer | no | Random re-draws for the p-value, 99 to 9999 (default 999). |
+| `seed` | integer | no | Random seed (default 1); the same seed gives the same numbers on the same numpy version. |
+| `max_clusters` | integer | no | Most clusters to report, 1 to 20 (default 5). |
+| `alpha` | number | no | Significance level for secondary clusters (default 0.05). |
+| `output_layer_name` | string | no | Name of the new layer (default '<layer>_scan_clusters'). |
 
 ## confidence_tools
 
@@ -1651,6 +1810,43 @@ Tags a layer with its epistemic-status/confidence level -- OBSERVED (directly re
 | `layer_name` | string | yes |  |
 | `level` | string | yes | OBSERVED, DERIVED, MODELED, INFERRED, or UNKNOWN. |
 | `reason` | string | no | Optional short reason, e.g. 'buffer output, no field verification' or 'population estimate, WorldPop 2025 raster'. |
+
+## copy_features_tool
+
+### `copy_features_between_layers`
+
+Copy features from one vector layer into another existing layer of the SAME geometry type (point, line or polygon; a mismatch is refused): the selected features (default when some are selected), those matching filter_expression, or all of them. field_mapping is {target field: source field}; fields with the same name are matched automatically, the rest stay empty, and a value that does not fit the target field's type stops the copy with nothing changed. A different CRS is transformed to the target's. Changes the target layer: a preview with the mapping is shown for confirmation first, the edit is one undoable step (undo_manual_edit), and the source layer is never changed.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `source_layer` | string | yes | The vector layer to copy from. |
+| `target_layer` | string | yes | The existing vector layer to copy into (same geometry type). |
+| `only_selected` | boolean | no | Copy only the selected features (default: yes when the source has a selection, else all). |
+| `filter_expression` | string | no | A QGIS expression: copy the features it is true for (instead of the selection). |
+| `field_mapping` | object | no | {target field: source field}; unnamed target fields match a source field of the same name. |
+
+## corridor_tools
+
+### `generate_contours`
+
+Make contour lines from a DEM raster layer at a fixed elevation interval (in the DEM's own elevation units, normally metres), as a NEW LINE LAYER with an 'ELEV' field -- the usual meaning of 'draw / make / create contour lines of the DEM, every 100'. Use set_raster_relief instead only when the user wants the raster itself shown as contours (render / style) without a new layer. The interval is the vertical spacing between lines, NOT the accuracy of the terrain: the result reports the DEM's pixel size and source so the user can judge what the lines can show. Refuses very large rasters. When the request names a DEM that is already in the project ("the dem", "smoke_dem"), call this directly with that layer: do not fetch a new DEM and do not plan a fetch first.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `raster_layer` | string | yes | Name of the DEM raster layer. |
+| `interval` | number | no | Elevation step between contour lines, default 10. |
+| `band` | integer | no | Band number, default 1. |
+| `output_name` | string | no |  |
+
+### `split_lines_by_zones`
+
+Split a line layer (a road, a highway, a pipeline) by a polygon layer of zones (exclusion zones, flood areas, buffers) into compromised pieces (inside any zone) and clear pieces (outside every zone), style them red and green, and report both the total passable length in km and the longest continuous passable segment in km (they are different numbers). Lengths are ellipsoidal. Connected line features are joined first, so a road stored as many OSM segments counts as one continuous road. Creates a new layer; the inputs are not changed.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `line_layer` | string | yes | Name of the line layer. |
+| `zone_layer` | string | yes | Name of the polygon layer (for example the checkpoint buffers). |
+| `output_name` | string | no | Optional name of the result layer. |
 
 ## critical_link_tools
 
@@ -1688,6 +1884,125 @@ Exports everything Cartogen AI has stored for this project and this machine -- p
 |---|---|---|---|
 | `output_path` | string | yes | Full file path to write the JSON export to, e.g. 'C:/Users/me/Desktop/cartogen_data_export.json'. |
 
+## data_layer_tools
+
+### `add_postgis_layer`
+
+Add a PostGIS table or view to the project as a layer, using a database connection already saved in QGIS (Browser panel > PostgreSQL). Give the connection name, schema and table; geometry_column and key_column are only needed when the table has several geometry columns or no primary key. Read-only data access: it adds a layer, it changes nothing in the database. Use execute_read_only_sql for a query instead of a whole table.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `connection_name` | string | yes |  |
+| `table` | string | yes |  |
+| `schema` | string | no |  |
+| `geometry_column` | string | no |  |
+| `key_column` | string | no |  |
+| `layer_name` | string | no |  |
+
+### `create_virtual_layer`
+
+Create a virtual layer: a live SQL (SQLite/SpatiaLite) query over the layers in the project, for example SELECT a.name, count(b.id) AS n FROM districts a JOIN points b ON ST_Contains(a.geometry, b.geometry) GROUP BY a.name. Reference layers by their project layer name. Only a single SELECT is accepted; paths, URLs, comments, ATTACH and other statements are refused. The layer is not saved to disk and follows the source layers.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes |  |
+| `sql` | string | yes |  |
+| `geometry_column` | string | no | name of the geometry column in the result, if it is not detected |
+
+### `load_layer_definition`
+
+Load a QGIS layer definition file (.qlr) into the project: the layers it holds come with their styles. The layers read their own data sources, so a .qlr is only as safe as the files and services it points to.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `file_path` | string | yes |  |
+
+### `package_layers_offline`
+
+Package vector layers into ONE GeoPackage file for offline use or hand-over, keeping their styles and metadata (QGIS native:package). layer_names is the list of vector layers; file_path ends in .gpkg. only_selected packs just the selected features. An existing file is only replaced after confirmation. Raster layers are not packaged.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_names` | array[string] | yes |  |
+| `file_path` | string | yes |  |
+| `only_selected` | boolean | no |  |
+
+### `save_layer_definition`
+
+Save chosen layers of the project, with their styles, to a QGIS layer definition file (.qlr) that can be loaded into other projects. layer_names is the list of layers. An existing file is only replaced after confirmation.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_names` | array[string] | yes |  |
+| `file_path` | string | yes |  |
+
+## data_source_tools
+
+### `add_basemap`
+
+Add a background map to the QGIS project from a fixed list: openstreetmap, opentopomap, satellite (Esri imagery), esri streets, carto light, carto dark. The layer is placed at the bottom of the layer tree. Tiles are loaded by QGIS directly from the provider.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `basemap` | string | yes | openstreetmap, topo, satellite, esri streets, carto light, carto dark |
+
+### `add_web_layer`
+
+Add a web map or feature service to the project. service_type: xyz (tile URL with {z}/{x}/{y}), wms, wmts, wfs or arcgis_feature. Only https URLs are accepted. wms/wmts need layer (the service layer name), wmts also tile_matrix_set, wfs needs layer (typename).
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `service_type` | string | yes |  |
+| `url` | string | yes |  |
+| `layer_name` | string | no |  |
+| `layer` | string | no | service layer / typename |
+| `crs` | string | no |  |
+| `image_format` | string | no |  |
+| `tile_matrix_set` | string | no |  |
+| `style` | string | no |  |
+
+### `create_empty_layer`
+
+Create a new EMPTY vector layer (or a table with no geometry) with the fields you choose, ready for digitising. geometry_type: point, line, polygon, multipoint, multiline, multipolygon or none. fields: list of {name, type} with type string, integer, long, double, date or datetime. By default a scratch (in-memory) layer is added; give file_path ending .gpkg, .shp or .geojson to create a file.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes |  |
+| `geometry_type` | string | yes |  |
+| `fields` | array[object] | no |  |
+| `crs` | string | no | e.g. EPSG:4326 (default) |
+| `file_path` | string | no | optional .gpkg/.shp/.geojson to create on disk |
+
+### `find_broken_layers`
+
+List the project layers whose data source cannot be read (moved or deleted file, lost drive) with the path they point to. Read-only.
+
+_No parameters._
+
+### `repair_layer_source`
+
+Point a broken layer at its data again. Give new_path if you know where the file is; otherwise the project folder (and search_folder, if given) is searched for a file with the same name. One match is applied; several are listed so you can choose one.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes |  |
+| `new_path` | string | no |  |
+| `search_folder` | string | no |  |
+
+### `save_layer_as`
+
+Save a vector layer to a file in another CRS and/or with only some fields and/or only the selected features (the QGIS 'Save As' options). format: gpkg, shp, geojson or kml. The original layer is not changed and the new file is NOT added to the project unless add_to_project is true.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes |  |
+| `output_path` | string | yes |  |
+| `format` | string | yes |  |
+| `crs` | string | no | target CRS, e.g. EPSG:4326; omit to keep the layer's CRS |
+| `fields` | array[string] | no | field names to keep; omit for all |
+| `only_selected` | boolean | no |  |
+| `add_to_project` | boolean | no |  |
+
 ## dataset_status_tools
 
 ### `advance_dataset_status`
@@ -1720,6 +2035,136 @@ Start QA-gate lifecycle tracking on a layer that isn't tracked yet, tagging it w
 | `layer_name` | string | yes |  |
 | `status` | string | no | Starting status. One of INGESTED, STAGED, VALIDATED, ANALYSIS_READY, CARTOGRAPHY_READY, PUBLICATION_READY. Defaults to INGESTED. |
 | `note` | string | no | Optional note explaining why tracking starts at this status. |
+
+## dem_tools
+
+### `fetch_dem`
+
+Download elevation (a DEM raster) for an area from the Copernicus DEM GLO-30 open dataset (about 30 m, no account or key needed) and add it to the project. Give the area as a layer name (its extent), as a bounding box in degrees (west, south, east, north), or as a centre point (lat, lon) with radius_km. The result is a surface model (includes buildings/trees), not bare earth, about 30 m resolution; the reply records source, tiles used, retrieval date, vertical datum and the required attribution. Refuses very large areas. Use generate_contours or slope_analysis on the result. ONLY for an area with no DEM in the project yet: when the request names a DEM layer that is already loaded ("the dem", "smoke_dem"), use that layer and do not call this.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | no | Name of a layer whose extent defines the area. |
+| `west` | number | no |  |
+| `south` | number | no |  |
+| `east` | number | no |  |
+| `north` | number | no |  |
+| `lat` | number | no | Centre latitude (with lon and radius_km). |
+| `lon` | number | no | Centre longitude. |
+| `radius_km` | number | no | Half-width of the square around the centre, km. |
+| `output_path` | string | no | Optional GeoTIFF path; relative paths are anchored to the project folder. |
+| `output_name` | string | no | Optional layer name. |
+
+## edit_ops_tools
+
+### `change_field_type`
+
+Change the data type of a field to string, integer, long or double, converting the values. Values that cannot be converted become NULL and numbers lose their fraction when going to integer: the preview says how many. The field moves to the end of the table.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes |  |
+| `field` | string | yes |  |
+| `new_type` | string | yes |  |
+
+### `merge_features`
+
+Merge (union) several features of a layer into one: those matching an expression or the selected ones. The first feature keeps its attributes and gets the combined geometry; the others are deleted. Needs at least two features. Destructive: a preview is shown first.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes |  |
+| `expression` | string | no | QGIS expression choosing the features |
+| `only_selected` | boolean | no | use the currently selected features instead |
+
+### `redo_manual_edit`
+
+Redo the last undone edit step on a layer that is in edit mode.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes |  |
+
+### `set_layer_editing`
+
+Start editing a layer, save its edits, or discard them (action: start, save or discard). Discarding unsaved edits is destructive and needs confirmation.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes |  |
+| `action` | string | yes | start, save or discard |
+
+### `set_layer_filter`
+
+Set or clear a layer's filter (definition query): only features matching the filter are shown and used. The filter is a plain condition in the data source's own syntax, such as "population" > 1000. Statements, comments and semicolons are refused. clear=true removes the filter. The data is not changed.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes |  |
+| `filter` | string | no |  |
+| `clear` | boolean | no |  |
+
+### `split_features_by_line`
+
+Cut features of a polygon or line layer along a line given as WKT (LINESTRING(x1 y1, x2 y2, ...)) in the layer's CRS or in the CRS given. Splits the features matching an expression or the selected ones that the line crosses. Changes data: a preview is shown first.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes |  |
+| `expression` | string | no | QGIS expression choosing the features |
+| `only_selected` | boolean | no | use the currently selected features instead |
+| `line_wkt` | string | yes |  |
+| `crs` | string | no | e.g. EPSG:4326 |
+
+### `transform_features`
+
+Move, rotate and/or scale features of a layer: those matching an expression, or the selected ones (only_selected). move_x and move_y are in the layer's units, rotate_degrees is clockwise about each feature's centre, scale_factor scales about each feature's centre. Changes geometry: a preview with the exact count is shown for confirmation first.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes |  |
+| `expression` | string | no | QGIS expression choosing the features |
+| `only_selected` | boolean | no | use the currently selected features instead |
+| `move_x` | number | no |  |
+| `move_y` | number | no |  |
+| `rotate_degrees` | number | no |  |
+| `scale_factor` | number | no |  |
+
+### `undo_manual_edit`
+
+Undo the last edit step on a layer that is in edit mode (the layer's own undo history, including edits made by hand). Use undo_last_operation for assistant operations on a layer not in edit mode.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes |  |
+
+## elevation_tools
+
+### `set_layer_elevation`
+
+Change a layer's elevation settings (used by elevation profiles and 3D views). Raster: enabled, mode 'surface' (the cells are heights) or 'fixed_range', band, z_offset, z_scale. Vector (no on/off switch): clamping 'absolute', 'relative' or 'terrain', z_offset, z_scale, extrusion (metres). Only the values you give are changed; the result lists the settings read back.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes |  |
+| `enabled` | boolean | no |  |
+| `mode` | string | no |  |
+| `band` | integer | no |  |
+| `z_offset` | number | no |  |
+| `z_scale` | number | no |  |
+| `clamping` | string | no |  |
+| `extrusion` | number | no |  |
+
+### `set_project_terrain`
+
+Set the project's terrain used by elevation profiles and 3D views: source 'flat' (optional offset) or 'dem' (a raster layer, optional offset and scale). Stored in the project; nothing is written to the data.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `source` | string | yes |  |
+| `layer_name` | string | no |  |
+| `offset` | number | no |  |
+| `scale` | number | no |  |
 
 ## engineering_tools
 
@@ -1758,6 +2203,94 @@ Convert a user-supplied latitude/longitude in degrees-minutes-seconds (DMS) to a
 | Parameter | Type | Required | Description |
 |---|---|---|---|
 | `location` | string | yes | DMS latitude and longitude, including N/S and E/W hemispheres. |
+
+## event_data_tools
+
+### `fetch_ucdp_conflict_events` _(two-phase)_
+
+Fetch organised-violence events (state-based conflict, non-state conflict, one-sided violence against civilians) from UCDP, the Uppsala Conflict Data Program's Candidate Events dataset, filtered by country name, bounding box and dates, and load them as a point layer with deaths (best, low, high estimates), conflict name, location precision and event clarity. Free, no API key; downloaded from ucdp.uu.se and cached for 12 hours. NOT live: candidate data is preliminary and lags real time by weeks, so always state the dataset's latest event date. IMPORTANT: bbox is [min_lon, min_lat, max_lon, max_lat]. Dates are 'YYYY-MM-DD'. Re-running REPLACES the layer's features. Cite UCDP (CC BY 4.0).
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `country` | string | no | Country name or part of it, e.g. 'Yemen' or 'Sudan'. Omit for all countries. |
+| `bbox` | array[number] | no | Optional [min_lon, min_lat, max_lon, max_lat] in WGS84 degrees. |
+| `start_date` | string | no | Earliest event date, 'YYYY-MM-DD'. |
+| `end_date` | string | no | Latest event date, 'YYYY-MM-DD'. |
+| `min_deaths` | integer | no | Only events with at least this many deaths (UCDP best estimate). Defaults to 0. |
+| `max_events` | integer | no | Most events to load (newest first). Defaults to 1000, at most 5000. |
+| `layer_name` | string | no | Name for the layer. Defaults to 'UCDP Conflict Events'. |
+
+### `fetch_usgs_earthquakes` _(two-phase)_
+
+Fetch recent earthquakes from the USGS (United States Geological Survey) for an optional bounding box and load them as a point layer coloured by magnitude band, with magnitude, depth, time, alert level, tsunami flag and a link per event. Free, no API key. IMPORTANT: bbox is [min_lon, min_lat, max_lon, max_lat], same convention as fetch_nasa_eonet_events. Defaults: last 7 days, magnitude 4.5 or more, up to 1000 events. Re-running REPLACES the layer's features, so it is safe to schedule.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `bbox` | array[number] | no | Optional [min_lon, min_lat, max_lon, max_lat] in WGS84 degrees. Omit for global coverage. |
+| `days` | integer | no | How many days back (1 to 365). Defaults to 7. |
+| `min_magnitude` | number | no | Smallest magnitude to include. Defaults to 4.5. |
+| `max_events` | integer | no | Most events to return (newest first). Defaults to 1000, at most 5000. |
+| `layer_name` | string | no | Name for the layer. Defaults to 'USGS Earthquakes'. |
+
+## fact_check_tools
+
+### `search_fact_checks` _(network-only)_
+
+Look up whether a CLAIM, VIDEO, PHOTO or RUMOUR has recently been fact-checked, in the published feeds of named fact-checking outlets (Snopes, PolitiFact, FactCheck.org, Full Fact, Lead Stories and the Arabic-language Fatabyyano). Use it when the user asks 'is this true', 'was this video really from <place>', 'has this been debunked' or wants to verify a social-media report before mapping it. Give the distinctive words of the claim (place, event, person), not a whole sentence. Returns each matching check with the outlet, date, link and a short summary, and ALWAYS says which outlets answered or failed and that this covers only each outlet's newest entries: no match is NOT evidence that a claim is true, false or unchecked, so never say that. Reuters, AFP, Africa Check and AP cannot be asked (they refuse automated requests). Quote the outlet's conclusion as theirs and give the link; do not add your own verdict.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `query` | string | yes | Distinctive words of the claim, e.g. 'Hodeidah port strike video' or 'Taiz protest'. |
+| `days` | integer | no | Only checks published in the last N days (default 60). |
+| `max_results` | integer | no | Most matches to return, 1-50 (default 15). |
+| `sources` | array[string] | no | Optional subset of ['snopes', 'politifact', 'factcheck_org', 'full_fact', 'lead_stories', 'fatabyyano']; default all. |
+
+## field_rules_tools
+
+### `add_virtual_field`
+
+Add a virtual (calculated) field to a layer: its value is computed from a QGIS expression every time the layer is read, and nothing is written into the data file, so it can never be out of date. For example density = "population" / $area. field_type: string, integer, long, double, date or datetime. The expression must be valid and evaluate on the first feature. Stored with the project, not in the file. Remove it with remove_virtual_field.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes | The vector layer. |
+| `name` | string | yes | The new field's name (letters, digits, underscore, spaces). |
+| `field_type` | string | no | string, integer, long, double, date or datetime (default string). |
+| `expression` | string | yes | The QGIS expression that gives the value. |
+
+### `remove_virtual_field`
+
+Remove a virtual field made with add_virtual_field. Only virtual fields can be removed this way; a real column is never touched (use delete_field for that, which asks first).
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes |  |
+| `name` | string | yes | The virtual field's name. |
+
+### `set_default_value`
+
+Set or remove the default value of a field: a QGIS expression QGIS evaluates to fill the field of every NEW feature (for example now(), @user_account_name or a number). apply_on_update also re-evaluates it whenever the feature is edited. An empty expression removes the default. Existing features are not changed. Stored with the project, not in the data file.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes | The vector layer. |
+| `field` | string | yes | The field that gets the default. |
+| `expression` | string | yes | The QGIS expression; empty text removes the default. |
+| `apply_on_update` | boolean | no | Also re-evaluate when the feature is edited (default false). |
+
+### `set_field_constraint`
+
+Set or remove the rules QGIS enforces on a field: not_null, unique and/or an expression (with a description shown when it fails), hard (blocks the value) or soft (warns). A rule that is given is set (true / a text) or removed (false / an empty text); one that is left out is untouched. The reply reads the rules back and checks the existing features against them: how many break them is reported, nothing is changed. Stored with the project, not in the data file.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes | The vector layer. |
+| `field` | string | yes | The field the rules are on. |
+| `not_null` | boolean | no | true: the value may not be empty; false: remove that rule. |
+| `unique` | boolean | no | true: no two features may have the same value; false: remove that rule. |
+| `expression` | string | no | A QGIS expression that must be true, for example "population" >= 0; empty text removes it. |
+| `description` | string | no | The message shown when the expression fails. |
+| `strength` | string | no | hard (default) blocks the value, soft only warns. |
 
 ## hazard_monitoring_tools
 
@@ -1808,6 +2341,41 @@ Fetch live hazard data (NASA active fires, NASA EONET natural events, GDACS disa
 | `include_eonet` | boolean | no | Include NASA EONET natural events. Defaults to true. |
 | `include_disasters` | boolean | no | Include GDACS disaster alerts. Defaults to true. |
 
+## health_rates_tool
+
+### `calculate_health_rates`
+
+Compute disease or incident RATES for areas from a case count and a population: the crude rate per 100,000 (or per), its 95% interval, the RELATIVE RISK (area rate over the overall rate), the indirectly standardised ratio SMR (observed over expected, ONLY when you supply an expected-count field: this tool never invents expected counts, so age or sex adjustment must come from you), and a global empirical-Bayes SMOOTHED rate that steadies small areas. method chooses the headline `value` ('crude', 'smr' or 'eb'). Every area with cases below 5 (min_cases) or a population below min_population gets a small-number flag and an EMPTY `value_shown`, so a map made from value_shown never shows an unstable figure. Writes a NEW layer; the input is never changed. Needs a whole-number case field and a population field above zero on every area.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes |  |
+| `case_field` | string | yes | Whole-number case counts per area. |
+| `population_field` | string | yes | Population at risk per area (above zero). |
+| `method` | string | no | crude (default), smr (needs expected_field) or eb (smoothed). |
+| `expected_field` | string | no | Expected case counts you computed (for example by age and sex standardisation). Required for method='smr'. |
+| `per` | number | no | Rate denominator (default 100000). |
+| `min_population` | number | no | Flag areas with a smaller population (default: no population floor). |
+| `min_cases` | integer | no | Flag areas with fewer cases than this (default 5). |
+| `output_layer_name` | string | no | Name of the new layer (default '<layer>_rates'). |
+
+## hotspot_tool
+
+### `analyze_hotspots_gi_star`
+
+Find statistically significant HOT SPOTS (clusters of high values) and COLD SPOTS (clusters of low values) of a numeric field with Getis-Ord Gi*: a z-score and p-value per feature, an optional false-discovery (Benjamini-Hochberg) correction, and a class 'Hot spot 99%' / 'Hot spot 95%' / 'Hot spot 90%' / 'Cold spot ...' / 'Not significant', written to a NEW layer (the input is never changed). This is a significance TEST on the field's values, not a density map: for a density surface of where points are concentrated use hotspot_analysis. weights: 'queen' or 'rook' (polygon layers), 'knn' (pass k) or 'distance' (a band in layer units, projected CRS only, pass distance); each feature counts itself as part of its own neighbourhood. Needs a number on every feature (it refuses and says how many are missing); at most 5,000 features. A hot spot means high values near high values, not a cause: do not describe it as an outbreak or a threat without other evidence.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes |  |
+| `field` | string | yes | A numeric field (a count, a rate, an index). |
+| `weights` | string | no | queen (default), rook, knn or distance. |
+| `k` | integer | no | For weights='knn': how many nearest neighbours each feature counts besides itself. |
+| `distance` | number | no | For weights='distance': the band in the layer's units (projected CRS). |
+| `fdr` | boolean | no | Apply the Benjamini-Hochberg false-discovery correction (default true). |
+| `alpha` | number | no | The weakest significance reported: 0.05 (default) reports 99% and 95% spots, 0.10 adds 90%, 0.01 reports only 99%. |
+| `output_layer_name` | string | no | Name of the new layer (default '<layer>_gi_star'). |
+
 ## humanitarian_look_tools
 
 ### `apply_humanitarian_look`
@@ -1820,6 +2388,21 @@ Style a layer's analysis-result field the way humanitarian maps expect, after ca
 | `look` | string | yes | severity: a 0-1 composite severity score (calculate_severity_index, calculate_damage_exposure_severity): five equal-interval classes, yellow to dark red, the same classes the tools report; people_in_need: a people / population count (calculate_population_in_need): quantile classes in purple; exposure: an exposed-population count: quantile classes in orange-brown; allocation: an allocation amount (calculate_allocation_envelope): quantile classes in green; presence_gap: the gap / covered / unmatched status from calculate_presence_gap; jiaf_severity: a JIAF 2 severity PHASE 1-5 (jf_pre_sev, jf_fin_sev): phase colours 1 none/minimal to 5 catastrophic; a unit with no phase is drawn grey as not assessed; jiaf_review_pin: JIAF 2 PiN review status (jf_pin_st): which units have no flag, were closed in bulk, were decided, or still wait for the group; jiaf_review_severity: JIAF 2 severity review status (jf_sev_st): preliminary accepted, decided, pending the group, or incomplete sector coverage; jiaf_count: a small JIAF 2 count per unit (jf_npinfl, jf_nsevfl, jf_nsec40, jf_nsev45): how many flags or sectors; zero its own class; ipc_phase: an IPC acute food insecurity phase 1-5 (ipc_phase from import_humanitarian_table): the IPC phase colours; an area with no phase is grey, not phase 1; inform_risk: an INFORM score on its 0-10 scale (inf_risk, inf_haz, inf_vuln, inf_coping): the five published classes very low to very high; damage_class: UNOSAT damage classes on a point layer (destroyed, severe, moderate, possible, none), matched on the file's own wording such as 'Severe Damage'; measure: any measured number (zonal mean, road speed, impedance cost): five quantile classes light to dark blue, low to high; rank: a rank field (calculate_mcda_ranking, <prefix>_rank): the top_k units dark, the next top_k mid, the rest pale |
 | `field` | string | yes | The result field to style. |
 | `top_k` | integer | no | For look='rank': how many top-ranked units to emphasise. Defaults to 10. |
+
+## identify_tool
+
+### `identify_at_point`
+
+Say what is at a coordinate, as the Identify tool does on the map but without a click: the attributes of the features of the vector layers under the point and the cell value of each band of the raster layers. x and y are in `crs` (default: the project CRS). By default the visible layers are checked; `layers` names others. Give a `radius` (in the units of that CRS: metres for a projected CRS, degrees for a geographic one) to find points and lines near the coordinate: without it only features exactly under the point match. At most 50 features are returned in total and the reply says when more matched. Read-only.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `x` | number | yes | X (longitude or easting) in `crs`. |
+| `y` | number | yes | Y (latitude or northing) in `crs`. |
+| `crs` | string | no | The CRS of x and y, for example EPSG:4326 (default: the project CRS). |
+| `layers` | array[string] | no | Layer names to look at (default: all visible layers). |
+| `radius` | number | no | Search radius in the CRS's units (default 0: only what is exactly under the point). Vector layers only. |
+| `max_features` | integer | no | Fewest features wanted, 1 to 50 (default 50). 50 is the most that is ever returned. |
 
 ## impedance_tools
 
@@ -1836,6 +2419,34 @@ Builds a single blended per-segment speed field on a road network layer -- combi
 | `dem_layer` | string | no | Optional DEM raster layer. When given, each segment's endpoints are sampled for elevation and a slope penalty applied -- steeper segments get a lower effective speed. |
 | `output_field` | string | no | Name of the new field to write the blended speed (km/h) into. Defaults to 'impedance_cost'. |
 | `dem_vertical_unit` | string | no | Vertical unit of the DEM's elevation values: 'm' (default), 'ft' or 'us_ft'. A raster does not carry it. |
+
+## in_place_tool
+
+### `run_algorithm_in_place`
+
+Apply an approved Processing algorithm that supports editing in place (for example native:smoothgeometry, native:translategeometry, native:simplifygeometries) DIRECTLY to a vector layer instead of making a new layer. selected_only true changes only the selected features, false changes every feature. `parameters` are the algorithm's settings (not the input or output). Changes your data: a preview with the exact feature count is shown first, the change is ONE undoable step (undo_manual_edit) and stays UNSAVED in the layer's edit session until you save it (set_layer_editing). Your selection is put back afterwards.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `algorithm_id` | string | yes | An approved algorithm id that supports in-place editing, e.g. native:smoothgeometry. |
+| `layer_name` | string | yes | The vector layer to change. |
+| `selected_only` | boolean | yes | true: only the selected features; false: every feature. |
+| `parameters` | object | no | The algorithm's settings, for example {"ITERATIONS": 2}. |
+
+## incident_search_tools
+
+### `find_incident_reports` _(two-phase)_
+
+Find incident and hazard reports for a country / place and a time window from a FIXED list of reliable sources, with the source, its rating and a link on every record: GDACS (UN alerts), USGS (earthquakes), NASA EONET (storms, fires, volcanoes, floods), UCDP (armed conflict events; preliminary, weeks old) and ReliefWeb (declared disasters; listed, not mapped). Records with a position are loaded as a point layer. Use this INSTEAD of search_web for 'what incidents / disasters / conflict events happened in <place>' questions. News is searched only when sources includes 'news' (unverified headlines, placed by the place named in the headline, lowest rating); fact-checkers and social media are never searched. The reply lists every source that could not be asked: always say which sources were checked and that an empty result is not proof nothing happened. Free, no keys. IMPORTANT: give a country (or place name) and/or bbox [min_lon, min_lat, max_lon, max_lat]; days is 1 to 365 (default 30). Re-running REPLACES the layer's features.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `country` | string | no | Country or place name, e.g. 'Yemen' or 'Sudan'. Matched by name against each source. |
+| `bbox` | array[number] | no | Optional [min_lon, min_lat, max_lon, max_lat] in WGS84 degrees. |
+| `days` | integer | no | How many days back (1 to 365). Defaults to 30. |
+| `sources` | array[string] | no | Optional subset of: gdacs, usgs, eonet, ucdp, reliefweb, news. Default: the five agency sources. Add 'news' (or use only ['news']) when the user asks for NEWS or media reports. |
+| `max_reports` | integer | no | Most records to return (newest first). Defaults to 200, at most 500. |
+| `layer_name` | string | no | Name for the layer. Defaults to 'Incident reports'. |
 
 ## jiaf_engine
 
@@ -1989,6 +2600,406 @@ Record the multi-partner group's JIAF 2 decisions for flagged units (support for
 | `severity_decisions` | array[object] | no |  |
 | `replace` | boolean | no | Replace all stored decisions instead of merging. |
 
+## land_cover_look_tool
+
+### `apply_land_cover_look`
+
+Colour a land-cover or change layer the way the standard does. scheme 'esa_worldcover': the official ESA WorldCover class colours on a classified raster, or on a vector field (pass field) holding the class code (10, 20 ... 100) or the class name. scheme 'change_classes': loss, stable and gain (-1, 0, 1 or those words) in orange, grey and purple, never red and green. scheme 'protected_area_hatch': a diagonal hatch with an outline on a polygon layer, so what is underneath stays visible. The legend carries each class name and code. Values that are not a class are drawn grey and named in the reply; nothing is silently recoloured. This only changes how the layer is drawn.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes |  |
+| `scheme` | string | yes | esa_worldcover, change_classes or protected_area_hatch. |
+| `field` | string | no | For a VECTOR layer with esa_worldcover or change_classes: the field holding the class code or class name. Not used for a raster or for protected_area_hatch. |
+
+## layer_display_tools
+
+### `add_feature_action`
+
+Add an action to a layer's feature action menu that OPENS A WEB ADDRESS built from the feature's values (action_type open_url, url starting with http:// or https://, with [% expression %] fields, for example https://en.wikipedia.org/wiki/[% "name" %]). Actions that run a command, Python code or a program are REFUSED by policy: they run on the user's computer on every click. Stored with the project.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes | The vector layer. |
+| `name` | string | yes | The label shown in the action menu. |
+| `action_type` | string | yes | open_url (the only type that is added; command types are refused). |
+| `url` | string | no | http(s) address, may contain [% expression %] fields. |
+
+### `set_conditional_formatting`
+
+Colour the cells of a layer's attribute table by rules: each rule is a QGIS expression condition (@value is the cell's value, or use any field) and a background_color and/or text_color, for one field, or for whole rows when `field` is left out. For example {"condition": "@value > 1000", "background_color": "#ffcccc"}. The rules replace the ones already set for that field (or the row rules); an empty list is not accepted, use clear true to remove them. Stored with the project, not in the data file. Display only: no data changes.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes | The vector layer. |
+| `field` | string | no | The field to colour; leave out to colour whole rows. |
+| `rules` | array[object] | no | [{condition, background_color, text_color, name}], 1 to 20 rules, the first that matches wins. |
+| `clear` | boolean | no | true: remove the rules of that field (or the row rules) instead of setting any. |
+
+### `set_map_tip`
+
+Set the map tip of a layer: the HTML bubble shown when the pointer rests on a feature, written with [% expression %] fields, for example '<b>[% "name" %]</b><br>Population [% "pop" %]'. Only plain HTML and expression fields are allowed: script, frame, object, embed, form, link, meta and base tags, event handlers and javascript: addresses are refused. An empty template removes the tip. Stored with the project. Map tips only show while View > Show Map Tips is on, which this tool does not change.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes | The vector layer. |
+| `template` | string | yes | HTML with [% expression %] fields; empty text removes the map tip. |
+
+## layout_chart_profile_tools
+
+### `add_layout_chart`
+
+Add a chart to a print layout: chart_type 'bar', 'line' or 'pie' of layer_name, with x_field (the categories) and y_field (the values), both plain field names. Position and size in millimetres. A chart item draws the layer's own features, so it follows the layer.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layout_name` | string | yes |  |
+| `layer_name` | string | yes |  |
+| `chart_type` | string | no |  |
+| `x_field` | string | yes |  |
+| `y_field` | string | yes |  |
+| `x_mm` | number | no |  |
+| `y_mm` | number | no |  |
+| `width_mm` | number | no |  |
+| `height_mm` | number | no |  |
+| `item_id` | string | no |  |
+
+### `add_layout_elevation_profile`
+
+Add an elevation profile to a print layout along a straight line from (start_x, start_y) to (end_x, end_y) in the project CRS. layer_names are the layers to profile; each needs elevation turned on first (set_layer_elevation). Give either start/end coordinates or along_layer, the name of a LINE layer (a road, a river): the profile then runs from the first to the last vertex of its selected feature, or its first feature. Position and size in millimetres.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layout_name` | string | yes |  |
+| `layer_names` | array[string] | yes |  |
+| `start_x` | number | no |  |
+| `start_y` | number | no |  |
+| `end_x` | number | no |  |
+| `end_y` | number | no |  |
+| `x_mm` | number | no |  |
+| `y_mm` | number | no |  |
+| `width_mm` | number | no |  |
+| `height_mm` | number | no |  |
+| `item_id` | string | no |  |
+| `along_layer` | string | no |  |
+
+## layout_extra_tools
+
+### `add_overview_map`
+
+Show where one layout map is looking on another map (a locator or overview inset): overview_map_id is the map that draws the frame (the small inset), extent_map_id is the map whose extent the frame shows (default MAP_MAIN). To create the inset too, give inset_box {x_mm, y_mm, width_mm, height_mm}; it is zoomed out around the main map. color and width_mm style the frame.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layout_name` | string | yes |  |
+| `overview_map_id` | string | no |  |
+| `extent_map_id` | string | no |  |
+| `color` | string | no |  |
+| `width_mm` | number | no |  |
+| `inset_box` | object | no |  |
+
+### `set_layout_atlas`
+
+Turn a print layout into an atlas: one page per feature of coverage_layer. page_name_field names each page, sort_field orders them, filter_expression keeps only some features (a QGIS expression), hide_coverage hides the coverage layer outside the current feature, margin_percent pads the map around each feature, scaling is auto, fixed or predefined, map_item_id is the map that follows the atlas (default MAP_MAIN). disable=true switches the atlas off. Export it with export_layout_atlas.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layout_name` | string | yes |  |
+| `coverage_layer` | string | no |  |
+| `page_name_field` | string | no |  |
+| `sort_field` | string | no |  |
+| `filter_expression` | string | no |  |
+| `hide_coverage` | boolean | no |  |
+| `margin_percent` | number | no |  |
+| `scaling` | string | no |  |
+| `map_item_id` | string | no |  |
+| `disable` | boolean | no |  |
+
+### `set_layout_guides_grid`
+
+Set a print layout's alignment aids: guides (a list of {orientation: horizontal|vertical, position_mm}; replaces the guides on the first page), clear_guides=true to remove them, grid_mm for the snapping grid spacing, snap_to_grid and snap_to_guides to switch snapping on or off. These affect how items snap when edited; they do not print.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layout_name` | string | yes |  |
+| `guides` | array[object] | no |  |
+| `clear_guides` | boolean | no |  |
+| `grid_mm` | number | no |  |
+| `snap_to_grid` | boolean | no |  |
+| `snap_to_guides` | boolean | no |  |
+
+## layout_item_tools
+
+### `add_layout_item`
+
+Add one item to a print layout that already exists (see list_layouts): a text label, a picture from a local image file (png, jpg, svg), a shape (rectangle, ellipse, triangle), an arrow, or an attribute table of a vector layer. Position and size are in millimetres from the page's top-left corner (an A4 landscape page is 297 x 210). An arrow is given by its start and end points instead of a box. Give the item an item_id to find it again; list_layout_items shows what is there. HTML frames and pictures from a web address are refused on purpose.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layout_name` | string | yes |  |
+| `kind` | string | yes | label, picture, shape, arrow or table |
+| `item_id` | string | no | Letters, digits, space, - and _ (max 64). Generated if omitted. |
+| `x_mm` | number | no |  |
+| `y_mm` | number | no |  |
+| `width_mm` | number | no |  |
+| `height_mm` | number | no |  |
+| `text` | string | no |  |
+| `font_size` | number | no |  |
+| `font_color` | string | no |  |
+| `picture_path` | string | no |  |
+| `shape` | string | no |  |
+| `fill_color` | string | no |  |
+| `outline_color` | string | no |  |
+| `outline_width_mm` | number | no |  |
+| `from_x_mm` | number | no |  |
+| `from_y_mm` | number | no |  |
+| `to_x_mm` | number | no |  |
+| `to_y_mm` | number | no |  |
+| `layer_name` | string | no | For a table: the vector layer. |
+| `fields` | array[string] | no | For a table: the columns to show. |
+| `max_rows` | integer | no | For a table: rows to show (default 10, at most 200). |
+
+### `edit_layout_item`
+
+Change or remove one item of a print layout by its id (list_layout_items shows the ids): move it (x_mm, y_mm), resize it (width_mm, height_mm), rotate it (rotation in degrees), switch its frame on or off (frame), or remove it (remove=true). Give only what should change.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layout_name` | string | yes |  |
+| `item_id` | string | yes |  |
+| `x_mm` | number | no |  |
+| `y_mm` | number | no |  |
+| `width_mm` | number | no |  |
+| `height_mm` | number | no |  |
+| `rotation` | number | no |  |
+| `frame` | boolean | no |  |
+| `remove` | boolean | no |  |
+
+### `export_layout`
+
+Export an existing print layout to a file: .pdf, .png, .jpg, .tif (image) or .svg (vector). dpi applies to PDF and images (default 150). Replacing an existing file needs confirmation. create_print_layout can export while it builds; this exports a layout that already exists. The result lists any RESTRICTED or SENSITIVE layer the map draws and any missing title, legend, scale bar or north arrow in export_warnings: tell the user. A map that draws a RESTRICTED or SENSITIVE layer waits for the user's confirmation before it is written. purpose='publication' is for a file that will be shared outside the team: it is refused while the layout lacks a mandatory element or draws a protected layer, unless the user gives a reason (ask them; pass it as override_reason) and confirms.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layout_name` | string | yes |  |
+| `output_path` | string | yes |  |
+| `dpi` | integer | no |  |
+| `preset` | string | no | export purpose instead of a dpi number: 'draft' (96), 'web' (150) or 'print' (300). An explicit dpi wins. |
+| `output_format` | string | no | only when output_path is a FOLDER: pdf (default), png, jpg, tif or svg; the file is then named <layout>_<date>.<format> |
+| `world_file` | boolean | no | image exports: also write a world file (.pgw, .jgw, .tfw) so GIS software can place the picture |
+| `geopdf` | boolean | no | pdf exports: write a georeferenced PDF (needs the GDAL PDF driver) |
+| `purpose` | string | no | 'publication' only when the user says the file will be shared outside the team; omit for drafts |
+| `override_reason` | string | no | with purpose='publication': the USER's stated reason for exporting despite problems. Never invent one; ask. |
+
+### `load_layout_template`
+
+Create a new print layout from a template file (.qpt) made by save_layout_template or QGIS. The new layout gets new_layout_name, which must not be taken. A template that contains an HTML frame is refused (it would run web content).
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `template_path` | string | yes |  |
+| `new_layout_name` | string | yes |  |
+
+### `save_layout_template`
+
+Save a print layout as a reusable template file (.qpt) that load_layout_template can turn into a new layout later, in this or another project. Replacing an existing file needs confirmation.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layout_name` | string | yes |  |
+| `output_path` | string | yes | Ends in .qpt |
+
+### `set_layout_map`
+
+Set what a print layout's map shows: the scale (scale = the denominator, 250000 for 1:250,000), the extent (extent_layer = zoom to a layer, or bbox = [min_lon, min_lat, max_lon, max_lat] in degrees), the rotation in degrees, lock_layers=true to freeze the layers the map shows now so later changes in the project do not alter the layout, or map_theme to follow a saved map theme. Works on MAP_MAIN unless map_item_id names another map. If both an extent and a scale are given, the extent is set first and the scale applied around its centre.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layout_name` | string | yes |  |
+| `map_item_id` | string | no |  |
+| `scale` | number | no |  |
+| `rotation` | number | no |  |
+| `extent_layer` | string | no |  |
+| `bbox` | array[number] | no |  |
+| `lock_layers` | boolean | no |  |
+| `map_theme` | string | no |  |
+
+### `set_layout_page`
+
+Change a print layout's page: size (A0 to A5, Letter, Legal, Tabloid), orientation (landscape or portrait) and the number of pages (1 to 20; new pages copy the size). Items already on the page keep their positions: move them with edit_layout_item if the new size needs it.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layout_name` | string | yes |  |
+| `size` | string | no |  |
+| `orientation` | string | no |  |
+| `pages` | integer | no |  |
+
+## line_edit_tools
+
+### `offset_curve`
+
+Make a parallel copy of every line of a line layer at `distance` (layer units; positive to the left of the line's direction, negative to the right) as a NEW layer; the input is not changed. join is round (default), miter or bevel. Attributes are copied. Lines that cannot be offset by that distance (for example a tight bend inwards) are counted in the reply.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes | A line layer. |
+| `distance` | number | yes | Offset distance in the layer's units; negative = the other side. |
+| `join` | string | no | Corner style (default round). |
+| `segments` | integer | no | Segments per quarter circle for round joins, 1 to 64 (default 8). |
+| `miter_limit` | number | no | Miter limit, 1 or more (default 2). |
+| `output_name` | string | no | Name of the new layer (default <layer>_offset). |
+
+### `reshape_geometry`
+
+Reshape one feature of a line or polygon layer with a line drawn across it: line_wkt (a LINESTRING in the layer's CRS) cuts a new edge where it enters and leaves the feature, as QGIS's Reshape tool does. A line that does not cross the feature changes nothing and the reply says so. Changes geometry: a preview is shown for confirmation first, the edit is one undoable step (undo_manual_edit), and a result that would make a valid geometry invalid is refused.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes | A line or polygon layer. |
+| `feature_id` | integer | yes | The feature's id (the QGIS feature id). |
+| `line_wkt` | string | yes | The reshaping line as WKT in the layer's CRS, for example LINESTRING(-1 5, 5 7, 11 5). |
+
+### `reverse_line`
+
+Reverse the direction of the lines of a line layer (the first vertex becomes the last): all features, or only feature_ids. Use it when a one-way street, a river or a pipeline points the wrong way. Changes geometry: a preview with the number of features is shown for confirmation first, and the edit is one undoable step (undo_manual_edit).
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes | A line layer. |
+| `feature_ids` | array[integer] | no | Only these features (default: all). |
+
+### `trim_extend_lines`
+
+Close small gaps and overshoots between lines of a line layer: the two ends of every line move onto the nearest point of ANOTHER line when that point is within `tolerance` (layer units): a line that stops short is extended to it, a line that overshoots is trimmed back to where they cross. Only line ends move; no vertex is added or removed. Changes geometry: a preview with the number of ends that would move is shown for confirmation first, and the edit is one undoable step (undo_manual_edit).
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes | A line layer. |
+| `tolerance` | number | yes | The largest move of one end, in the layer's units (degrees on a geographic layer). |
+
+## management_zones_tool
+
+### `create_zoning_map`
+
+Divide a field or area into 2 to 8 zones of similar values (3 to 5 is usual for management zones) from one or more index rasters already in the project, for example NDVI, NDRE or any single-band raster: seeded k-means on the standardised bands, an optional smoothing pass, and merging of patches smaller than min_zone_area_ha into the neighbouring zone with the nearest mean. `rasters` is a list of 1 to 5 layer names (or 'layer name@band'). Zone 1 is the lowest mean of the first raster. Adds a polygon layer with one feature per zone and the mean of each raster in its legend label. The zones describe differences in the index values only: this tool gives NO yield forecast and NO fertiliser or input-rate recommendation. The rasters must share one pixel grid (or pass align_to_first); the raster must be at most 4 million cells (clip first).
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `rasters` | array[string] | yes | 1 to 5 raster layers to cluster on (names or 'name@band'). |
+| `n_zones` | integer | no | Number of zones, 2 to 8 (default 3). |
+| `min_zone_area_ha` | number | no | Patches smaller than this are merged into a neighbouring zone (default: 1 percent of the valid area; 0 keeps every patch). |
+| `smooth` | boolean | no | Run one 3 x 3 majority pass first to remove isolated cells (default false). |
+| `seed` | integer | no | Random seed for the clustering (default 0); the same seed gives the same zones. |
+| `output_name` | string | no | Name of the polygon layer (default management_zones). |
+| `align_to_first` | boolean | no | If the rasters are not on one pixel grid, warp the others onto the first raster's grid (its CRS, extent and cell size) instead of refusing. The result says which raster was the reference and the resampling used. Default false: refuse. |
+| `resampling` | string | no | With align_to_first: 'bilinear' (default, for continuous values such as reflectance), 'nearest' (for classes or counts) or 'cubic'. |
+
+## map_view_tools
+
+### `assign_layer_crs`
+
+Tell QGIS what CRS a layer's coordinates are ALREADY in ('Assign projection'). This does NOT move or reproject the data: choosing the wrong CRS places the layer in the wrong location. Use only when the layer's CRS is missing or known to be wrong. A preview is shown for confirmation first.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes |  |
+| `crs` | string | yes |  |
+
+### `create_bookmark`
+
+Save a spatial bookmark in the project: of a layer's extent (layer_name), of an explicit extent [xmin, ymin, xmax, ymax] in crs, or of the current map view when neither is given.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `name` | string | yes |  |
+| `layer_name` | string | no |  |
+| `extent` | array[number] | no |  |
+| `crs` | string | no |  |
+
+### `create_layer_group`
+
+Create a layer group in the layer tree (optionally inside another group) and optionally move layers into it.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `group_name` | string | yes |  |
+| `layer_names` | array[string] | no |  |
+| `parent_group` | string | no |  |
+
+### `go_to_bookmark`
+
+Zoom the map to a saved spatial bookmark by name.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `name` | string | yes |  |
+
+### `list_bookmarks`
+
+List the spatial bookmarks saved in the project. Read-only.
+
+_No parameters._
+
+### `measure_distance`
+
+Measure on the ellipsoid along a path of points [[x, y], ...] given in crs (default EPSG:4326): total length in metres and kilometres, and for exactly two points the bearing in degrees. With close_polygon=true the points are a polygon and its area in square metres and hectares is returned too.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `points` | array[array] | yes |  |
+| `crs` | string | no |  |
+| `close_polygon` | boolean | no |  |
+
+### `move_layers_to_group`
+
+Move existing layers into an existing layer group.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `group_name` | string | yes |  |
+| `layer_names` | array[string] | yes |  |
+
+### `set_group_options`
+
+Show or hide a whole layer group, collapse or expand it, and/or make its layers mutually exclusive (only one visible at a time).
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `group_name` | string | yes |  |
+| `visible` | boolean | no |  |
+| `expanded` | boolean | no |  |
+| `mutually_exclusive` | boolean | no |  |
+
+### `set_map_view`
+
+Move the map canvas: set the scale (denominator, e.g. 25000 for 1:25 000), zoom to an extent [xmin, ymin, xmax, ymax] in crs (default EPSG:4326), centre on a point [x, y] in crs, and/or rotate the map in degrees. Several can be combined.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `scale` | string | no |  |
+| `extent` | array[number] | no |  |
+| `center` | array[number] | no |  |
+| `crs` | string | no |  |
+| `rotation` | number | no |  |
+
+### `set_project_crs`
+
+Set the project (map) CRS, for example EPSG:3857. Layers are reprojected on the fly for display; no layer data is changed.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `crs` | string | yes |  |
+
+### `set_project_properties`
+
+Set the project title and/or project variables (a {name: value} object usable as @name in expressions).
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `title` | string | no |  |
+| `variables` | object | no |  |
+
 ## mcda_tools
 
 ### `calculate_mcda_ranking`
@@ -2005,6 +3016,66 @@ Rank areas (or any features) on several weighted criteria and test how much the 
 | `trials` | integer | no | Number of perturbation trials, default 500, maximum 5000. |
 | `seed` | integer | no | Random seed for the perturbation. Omit for a generated one (returned). |
 | `output_prefix` | string | no | Optional: write <prefix>_score, <prefix>_rank, <prefix>_rank_min, <prefix>_rank_max to the layer. |
+
+## model_tool
+
+### `run_processing_model`
+
+Run a model made in QGIS's graphical modeler (a .model3 file in the project folder, so save the project first). It is run ONLY if every step is an approved algorithm: a model that contains a Python script, another model, an unapproved algorithm, one that changes your own layers, or an expression that calls a denied function is REFUSED and the reply names the step and the algorithm. `inputs` gives the model's inputs ({input name: layer name or value}); outputs always become temporary new layers in the project, and a model that writes a folder or file is refused. The run keeps the window painting but cannot be stopped with Stop.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `model_file` | string | yes | Name of the .model3 file in the project folder (or a path inside it). |
+| `inputs` | object | no | {input name: layer name or plain value} for the model's inputs. |
+| `output_name` | string | no | Name for the result layer(s) (default: the model's name). |
+
+## new_layer_tools
+
+### `add_3d_tiles_layer`
+
+Add a 3D Tiles tileset (a tileset.json, local or https) as a tiled scene layer. Only https URLs are accepted.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `source` | string | yes |  |
+| `layer_name` | string | no |  |
+
+### `add_point_cloud_layer`
+
+Add a point cloud (.las, .laz, .copc.laz, or an EPT dataset's ept.json) from a local file as a layer. Read-only: the file is not changed.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `file_path` | string | yes |  |
+| `layer_name` | string | no |  |
+
+### `add_vector_tile_layer`
+
+Add a vector tile layer: an https XYZ service URL containing {z}/{x}/{y}, or a local .mbtiles / .vtpk file. Only https URLs are accepted.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `source` | string | yes |  |
+| `layer_name` | string | no |  |
+| `min_zoom` | integer | no |  |
+| `max_zoom` | integer | no |  |
+
+## parts_edit_tool
+
+### `edit_parts_and_rings`
+
+Add or delete a part, or cut, fill or delete a hole (ring), in one feature of a line or polygon layer. action 'add_ring' cuts a hole given as geometry_wkt (a POLYGON inside the feature); 'fill_ring' fills the hole that contains the point x, y; 'delete_ring' deletes hole number ring_index (1, 2, ...; part_index chooses the part, default 0); 'add_part' adds geometry_wkt (a POLYGON, or a LINESTRING on a line layer) as a new part and needs a multi-part layer; 'delete_part' removes part number part_index (not the last part). Coordinates are in the layer's CRS. Changes geometry: a preview is shown for confirmation first, the edit is one undoable step (undo_manual_edit), and a change that would make a valid geometry invalid is refused.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes | A line or polygon layer. |
+| `feature_id` | integer | yes | The feature's id (the QGIS feature id). |
+| `action` | string | yes | add_part, add_ring, fill_ring, delete_part or delete_ring. |
+| `geometry_wkt` | string | no | add_part / add_ring: the shape as WKT in the layer's CRS, for example POLYGON((3 3,3 7,7 7,7 3,3 3)). |
+| `part_index` | integer | no | delete_part: the part; delete_ring / fill_ring: the part holding the hole (default 0 / any). |
+| `ring_index` | integer | no | delete_ring: the hole number, 1 or more (0 is the outer boundary). |
+| `x` | number | no | fill_ring: x of a point inside the hole (layer CRS). |
+| `y` | number | no | fill_ring: y of a point inside the hole (layer CRS). |
 
 ## pcode_validation_tools
 
@@ -2029,15 +3100,179 @@ Check that every P-code value in a layer is unique across its features -- flags 
 
 ## processing_allowlist_tools
 
+### `find_processing_algorithm`
+
+Search the approved QGIS Processing algorithms by a few words (for example 'densify', 'polygons to lines', 'smooth') and get each match's id, name and exact parameter names with types and defaults, ready for run_allowlisted_processing_algorithm. Read-only. With algorithm_id set, returns just that algorithm's parameters.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `query` | string | no |  |
+| `algorithm_id` | string | no |  |
+| `family` | string | no | Browse one family instead of searching: geometry, table, analysis, expression, raster, mixed, grass or mesh. Lists id, name and what each is for. |
+
 ### `run_allowlisted_processing_algorithm`
 
 Runs one QGIS Processing algorithm from a fixed, pre-approved list -- prefer this over execute_pyqgis_script when the task is achievable via a single Processing algorithm that isn't already covered by a dedicated tool. It calls only the named, pre-approved algorithm with the given parameters and never accepts a FORMULA or EXTRA (raw backend arguments) parameter; algorithms that evaluate free-form expressions as code (such as the GDAL raster calculator) are not on the list. Only algorithms already used elsewhere in this codebase are allowed -- an unlisted algorithm id is rejected outright, not run. Output is always kept in-memory as a new project layer (auto-named), never written to a file path -- use a dedicated export tool (export_layer, export_to_csv) afterward if a file is actually needed. Don't specify the output (destination) parameters yourself -- they are set automatically and any value you give is ignored. An unknown parameter name is rejected before the algorithm runs, with the list of valid names; an algorithm with several outputs returns each as its own layer (additional_outputs); native:selectbylocation changes the selection of the existing layer instead of creating one. Any string parameter value matching a currently-loaded layer's name is automatically resolved to that layer; every other value is passed through as-is.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
-| `alg_id` | string | yes | Processing algorithm id, e.g. 'native:buffer'. Must be one of: ['gdal:cliprasterbymasklayer', 'gdal:merge', 'gdal:pansharp', 'native:aspect', 'native:buffer', 'native:cellstatistics', 'native:centroids', 'native:clip', 'native:convexhull', 'native:countpointsinpolygon', 'native:creategrid', 'native:dbscanclustering', 'native:delaunaytriangulation', 'native:difference', 'native:dissolve', 'native:extractbylocation', 'native:fixgeometries', 'native:hillshade', 'native:intersection', 'native:joinattributesbylocation', 'native:joinattributestable', 'native:joinbynearest', 'native:kmeansclustering', 'native:mergevectorlayers', 'native:multiparttosingleparts', 'native:rastersampling', 'native:reclassifybytable', 'native:reprojectlayer', 'native:selectbylocation', 'native:serviceareafrompoint', 'native:shortestpathpointtolayer', 'native:shortestpathpointtopoint', 'native:simplifygeometries', 'native:slope', 'native:symmetricaldifference', 'native:union', 'native:voronoipolygons', 'native:zonalstatisticsfb', 'qgis:heatmapkerneldensityestimation', 'qgis:idwinterpolation', 'qgis:statisticsbycategories', 'qgis:tininterpolation'] |
+| `alg_id` | string | yes | Processing algorithm id, e.g. 'native:buffer'. Must be an approved id; call find_processing_algorithm to search the approved list by words and see each algorithm's exact parameter names. |
 | `params` | object | yes | Flat dict of algorithm parameters, e.g. {"INPUT": "my_layer", "DISTANCE": 500}. String values matching a loaded layer's name are resolved to that layer automatically. |
 | `new_layer_name` | string | no | Name to give the algorithm's output layer once added to the project. Defaults to '<alg_id>_output' if omitted -- and an omitted name is treated as a signal that this output is an internal/scratch step (e.g. a reprojection before a buffer), so it's added to the project hidden (unchecked in the layer tree) rather than cluttering the visible map. Give this an explicit name whenever the output IS the deliverable you want the user to see. |
+
+## project_ops_tools
+
+### `add_text_annotation`
+
+Put a text note on the map at x, y (in crs, default EPSG:4326). It is kept in the project's annotation layer.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `text` | string | yes |  |
+| `x` | number | yes |  |
+| `y` | number | yes |  |
+| `crs` | string | no |  |
+
+### `create_relation`
+
+Create a 1-N relation between two layers: parent_layer.parent_field is referenced by child_layer.child_field (for example districts.pcode and schools.district_pcode). The relation is stored in the project.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `name` | string | yes |  |
+| `parent_layer` | string | yes |  |
+| `parent_field` | string | yes |  |
+| `child_layer` | string | yes |  |
+| `child_field` | string | yes |  |
+
+### `get_layer_metadata`
+
+Read a layer's metadata: title, abstract, licenses, rights, keywords and contacts.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes |  |
+
+### `list_relations`
+
+List the project's relations between layers.
+
+_No parameters._
+
+### `remove_annotations`
+
+Remove all text annotations from the map. Destructive: a preview with the count is shown first.
+
+_No parameters._
+
+### `rename_layer_group`
+
+Rename a layer group in the layer tree.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `group_name` | string | yes |  |
+| `new_name` | string | yes |  |
+
+### `set_layer_metadata`
+
+Set a layer's metadata: title, abstract, license, rights, keywords (a list of words) and one contact (name, organization, email). Fields you leave out are kept. The metadata is stored in the project (save the project to keep it).
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes |  |
+| `title` | string | no |  |
+| `abstract` | string | no |  |
+| `license` | string | no |  |
+| `rights` | string | no |  |
+| `keywords` | array[string] | no |  |
+| `contact_name` | string | no |  |
+| `contact_organization` | string | no |  |
+| `contact_email` | string | no |  |
+
+### `set_layer_temporal`
+
+Make a vector layer time-aware: give the date or date-time field (start_field) and optionally an end_field for features that last a period. Set clear=true to switch it off. The fields must be of date or date-time type.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes |  |
+| `start_field` | string | no |  |
+| `end_field` | string | no |  |
+| `clear` | boolean | no |  |
+
+### `set_project_time_range`
+
+Set the project's temporal range (the period the temporal controller covers). start and end are dates such as 2026-03-01 or 2026-03-01T12:00:00.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `start` | string | yes |  |
+| `end` | string | yes |  |
+
+### `set_snapping_options`
+
+Set the project's snapping: enabled, snap_type (vertex, segment, vertex and segment, centroid, middle of segment, line endpoint, area), tolerance, units (pixels or project units), mode (all layers, active layer, advanced) and topological editing. Options you leave out are kept.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `enabled` | boolean | no |  |
+| `snap_type` | string | no |  |
+| `tolerance` | number | no |  |
+| `units` | string | no |  |
+| `mode` | string | no |  |
+| `topological_editing` | boolean | no |  |
+
+### `zoom_history`
+
+Zoom the map canvas to the previous or the next extent in its history (like the Zoom Last / Zoom Next buttons). direction: previous or next.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `direction` | string | yes | previous or next |
+
+## project_settings_tools
+
+### `define_custom_crs`
+
+Check a custom coordinate system given as a PROJ string (+proj=tmerc +lat_0=0 ...) or a WKT, and optionally make it the project CRS. QGIS validates it first; an invalid definition is refused. It is used for THIS project only: it is not added to the shared custom-CRS database of the user's QGIS. The reply gives its units and whether it is geographic.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `name` | string | yes | A label for the reply (a custom CRS has no stored name here). |
+| `definition` | string | yes | A PROJ string starting +proj= or a WKT starting PROJCRS[ / GEOGCRS[. |
+| `use_as_project_crs` | boolean | no | Also make it the project's CRS (default false). |
+
+### `set_canvas_decoration`
+
+Switch a map-canvas decoration on or off and place it: kind title, copyright, scale_bar, north_arrow or grid; placement bottom_left, top_left, top_right, bottom_right, top_center or bottom_center; text for the title and the copyright. These are saved as project properties which QGIS reads when the project is opened, so save the project and reopen it (or use the View > Decorations menu) to see the change. Hand-verified only: the canvas is not available to automatic tests. No layer data changes.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `kind` | string | yes | title, copyright, scale_bar, north_arrow or grid. |
+| `enabled` | boolean | no | true to show it, false to hide it. |
+| `placement` | string | no | Where it sits on the canvas. |
+| `text` | string | no | The words for the title or the copyright (those two kinds only). |
+
+### `set_project_measurement`
+
+Set the project's ellipsoid (for example WGS84, EPSG:7030, or NONE for flat planimetric measurement), distance units and area units: what the measuring tools and the layout use. distance_units: meters, kilometers, feet, yards, miles, nautical miles or degrees. area_units: square meters, square kilometers, hectares, acres, square feet, square yards, square miles or square degrees. The values are read back. Stored with the project; no layer data changes.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `ellipsoid` | string | no | An ellipsoid name or code (WGS84, EPSG:7030, ...) or NONE. |
+| `distance_units` | string | no | meters, kilometers, feet, yards, miles, nautical miles or degrees. |
+| `area_units` | string | no | square meters, square kilometers, hectares, acres, square feet, square yards, square miles or square degrees. |
+
+### `set_project_transform_context`
+
+Choose the datum transformation the PROJECT uses between two coordinate systems, or list the choices. Without operation_id it only LISTS the coordinate operations PROJ offers between source_crs and dest_crs (name, accuracy in metres, whether its grid files are installed, and which one the project uses now); the choice can move points by metres, for example between EPSG:4326 and a local datum. With operation_id (an id from that listing) a preview is shown for confirmation first, then the project uses it for every layer. Only an operation QGIS lists for that pair is accepted. Stored with the project.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `source_crs` | string | yes | The source CRS, for example EPSG:4326. |
+| `dest_crs` | string | yes | The destination CRS, for example EPSG:32636. |
+| `operation_id` | string | no | An id from the listing (an authority code like EPSG:1150, or the operation's PROJ text); leave out to list. |
 
 ## project_tidy_tools
 
@@ -2047,13 +3282,13 @@ Find and repair clutter left in a project by older Cartogen AI builds: (1) the s
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
-| `apply` | boolean | no | false (default): report only. true: hide duplicate copies, restyle population rasters and save scratch layers. |
+| `apply` | boolean | no | false (default): report only. true: ask the user to confirm, then hide duplicate copies, restyle population rasters and save scratch layers. |
 
 ## provenance_tools
 
 ### `get_provenance_record`
 
-Read a layer's machine-readable provenance record without writing anything to disk: the QGIS version, its full tool-execution lineage (what tool chain produced/modified it, see get_layer_lineage-tracked history), and its QA-gate lifecycle status/history/checks (see get_dataset_status). Use this to inspect provenance in-conversation; use write_provenance_sidecar instead to save it as a real JSON file.
+Read a layer's machine-readable provenance record without writing anything to disk: the QGIS version, its full tool-execution lineage (what tool chain produced/modified it, see get_layer_lineage-tracked history), where fetched data came from (sources), the automatic result checks stored after each analysis (result_checks), and the manual lifecycle gate (qa_status: status/history/checks, empty unless set with the status tools; see get_dataset_status). The last two are different records: an empty qa_status does not mean no checks ran. Use this to inspect provenance in-conversation; use write_provenance_sidecar instead to save it as a real JSON file.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
@@ -2068,6 +3303,32 @@ Write a layer's machine-readable provenance record (QGIS version, tool-execution
 | `layer_name` | string | yes |  |
 | `output_path` | string | no | Optional explicit file path for the sidecar. Omit to derive one from the layer's own source, or fall back to Desktop. |
 
+### `write_workflow_report`
+
+Write a verified workflow report (Markdown) for one or more result layers, built only from what the plugin recorded: result checks (failed ones first), data sources with licence/date/coverage, the steps that made the layers in order with their parameters (a rerun recipe), and the assumptions and limitations, including every gap (layers never checked, origin unknown). Pass the layer(s) that hold the final answer; upstream layers are followed through lineage. Use it for 'document how this result was made', 'method note' or 'show the evidence for this map'. It does not prove a rerun gives the same numbers.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `title` | string | yes |  |
+| `layer_names` | array[string] | yes | The result layer(s) to document. |
+| `assumptions` | array[string] | no | Optional assumptions or limits the analyst states (one sentence each); added to the report as given. |
+| `output_path` | string | no | Optional file path (.md). Omit for Desktop. |
+
+## public_health_look_tool
+
+### `apply_public_health_look`
+
+Draw the public-health look on a layer. look 'rate': a single-hue (blue) quantile map of a rate field (default field value_shown, from calculate_health_rates), with areas whose figure is suppressed for small numbers drawn as a grey hatch labelled 'Suppressed (n < 5)'; the legend title is 'Rate per 100,000; suppressed where n < 5'. look 'cluster': a black line with a narrower white line on top and no fill, never red, for the circles from detect_spatial_clusters. look 'lisa': the Local Moran classes (field lisa_class). look 'hotspot': the Getis-Ord hot and cold spot classes (field gi_class). No class is red or green. This only changes how the layer is drawn; it never changes data.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes |  |
+| `look` | string | yes | rate, cluster, lisa or hotspot. |
+| `field` | string | no | The field to draw. Defaults: value_shown for rate, lisa_class for lisa, gi_class for hotspot. Not used for cluster. |
+| `classes` | integer | no | For look 'rate': number of quantile classes, 2 to 5 (default 5). |
+| `per` | number | no | For look 'rate': the rate denominator named in the legend (default 100000). |
+| `min_cases` | integer | no | For look 'rate': the small-number threshold named in the legend (default 5); use the same value as calculate_health_rates. |
+
 ## qa_checklist_tools
 
 ### `generate_map_product_qa_checklist`
@@ -2079,6 +3340,96 @@ Assembles a QA checklist for one map product -- a layer, optionally paired with 
 | `layer_name` | string | yes |  |
 | `layout_name` | string | no | Optional print layout built for this product (from create_print_layout) -- checked for the mandatory MAP_MAIN/TITLE/LEGEND/SCALEBAR/NORTH_ARROW elements. Omit to skip the cartography section. |
 | `output_path` | string | no | Optional exported file path (e.g. create_print_layout's own output_path) to verify it actually exists on disk with real content. Omit to skip the export-integrity section. |
+
+## raster_calculator_tool
+
+### `raster_calculator`
+
+Raster calculator (map algebra): computes a new raster from one or more raster layers in the project with an expression, using QGIS's own raster calculator. Write each layer as "layer name@band" in double quotes (band numbers start at 1), for example "dem@1" > 100 (a 0/1 mask of cells above 100), ("nir@1" - "red@1") / ("nir@1" + "red@1"), or "slope@1" < 15 AND "landcover@1" = 2. Allowed: numbers, + - * / ^, comparisons (< > = != <= >=), AND, OR, brackets and the functions sqrt sin cos tan asin acos atan ln log10 abs min max. Anything else is refused before QGIS runs. The first layer named sets the output extent and cell size by default. Adds a NEW raster layer (default name 'raster_calc'); no input layer is changed. Cells where any input is NoData stay NoData.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `expression` | string | yes | Raster expression, layers written as "layer name@band". |
+| `new_layer_name` | string | no | Name for the result layer (default 'raster_calc'). |
+
+## raster_change_tool
+
+### `calculate_change_matrix`
+
+From-to change matrix between two CLASS rasters (for example land cover in two years): how many cells, hectares and percent moved from each class to each other class, plus per-class persistence, loss, gain and net change. 'What changed between these two land-cover rasters', 'how much forest was lost to cropland'. Give raster_a (before) and raster_b (after), and optionally `classes` naming the values ({"10": "Tree cover", "40": "Cropland"}). Class values must be whole numbers (a continuous raster must be reclassified first; at most 50 classes). Cells that are NoData in either raster are left out. Hectares come from the CRS: exact for a projected raster, approximate (sphere, row by row) for a geographic one. Adds two table layers (the transitions and a per-class summary) and a bar chart of the net change per class. The rasters must share one pixel grid (or pass align_to_first, which resamples with nearest neighbour).
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `raster_a` | string | yes | The earlier class raster (layer name, or 'layer name@band'). |
+| `raster_b` | string | yes | The later class raster. |
+| `classes` | object | no | Optional names: {value: name}, for example {"1": "Forest"}. |
+| `output_name` | string | no | Name of the transitions table (default change_matrix); the summary is <name>_summary. |
+| `chart` | boolean | no | Also make the bar chart (default true). |
+| `align_to_first` | boolean | no | If the rasters are not on one grid, warp raster_b onto raster_a's grid with nearest-neighbour resampling. |
+| `resampling` | string | no | With align_to_first: 'nearest' (default, right for classes), 'bilinear' or 'cubic' (they blend classes; not advised). |
+
+## raster_inspect_tools
+
+### `build_pyramids`
+
+Build pyramids (overviews) for a raster layer so a big raster draws fast when zoomed out: smaller copies are written to a sidecar .ovr file NEXT TO the raster, which itself is never rewritten. levels is a list such as [2, 4, 8] (default: halving while the smaller side stays at least 256 cells; a raster under 512 cells needs none); method is average (default, for continuous data), nearest, gauss, cubic or mode (for classified rasters). If an .ovr file already exists a preview asks before it is replaced. The number of levels is read back.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes | The raster layer (a local file). |
+| `levels` | array[integer] | no | Overview factors, increasing, each 2 or more (default: chosen from the raster's size). |
+| `method` | string | no | Resampling: average (default), nearest, gauss, cubic or mode. |
+
+### `get_raster_value`
+
+Read the value of a raster layer at a coordinate: every band (or only `band`) and the column and row of the cell it falls in. x and y are in `crs` (default: the project CRS). A point outside the raster is reported, and a NoData cell comes back as null. Read-only. To look at vector layers and rasters together at a point use identify_at_point.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes | The raster layer. |
+| `x` | number | yes | X (longitude or easting) in `crs`. |
+| `y` | number | yes | Y (latitude or northing) in `crs`. |
+| `band` | integer | no | One band number, 1-based (default: all bands). |
+| `crs` | string | no | The CRS of x and y, for example EPSG:4326 (default: the project CRS). |
+
+### `raster_attribute_table`
+
+Read the attribute table of a classified raster (value, class name, colour, pixel count and so on), the table QGIS shows under Layer Properties > Attribute Table. Many rasters have none and the reply says so. At most 200 rows are returned and the reply says when there are more. Read-only.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes | The raster layer (a file). |
+| `band` | integer | no | The band, 1-based (default 1). |
+
+## raster_series_tool
+
+### `raster_time_series_stats`
+
+Per-pixel statistics over a time series of rasters already in the project: 'mean' (average of the valid values), 'trend' (straight-line slope in value units per YEAR, for example NDVI change per year; needs `times`, one per raster, and at least 3 rasters) or 'anomaly' (z-score of one raster against the mean and standard deviation of the baseline rasters: how unusual is this month compared with the other years). `rasters` is an ordered list of layer names (or 'layer name@band'). For a trend give `times` as years, dates ('2021-06-15') or numbers of years. For an anomaly the `target` raster (default: the last) is compared with the `baseline` rasters (default: all the others, at least 3). Cells with too few valid observations are NoData. The rasters must share one pixel grid (or pass align_to_first). It reports the slope, not its statistical significance. Adds a new raster layer.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `rasters` | array[string] | yes | Raster layer names in time order (max 60). |
+| `statistic` | string | no | mean, trend or anomaly (default mean). |
+| `times` | array[['string', 'number']] | no | Trend only: the time of each raster, in the same order: a year, a date such as 2021-06-15, or a number of years. |
+| `target` | string | no | Anomaly only: the raster to score (default: the last one in `rasters`). |
+| `baseline` | array[string] | no | Anomaly only: the baseline rasters (default: all the others). |
+| `min_observations` | integer | no | Fewest valid values a cell needs (defaults: 1 for mean, 3 for trend and for the baseline). |
+| `output_name` | string | no | Name of the new layer (default ts_mean, ts_trend or ts_anomaly). |
+| `align_to_first` | boolean | no | If the rasters are not on one pixel grid, warp the others onto the first raster's grid (its CRS, extent and cell size) instead of refusing. The result says which raster was the reference and the resampling used. Default false: refuse. |
+| `resampling` | string | no | With align_to_first: 'bilinear' (default, for continuous values such as reflectance), 'nearest' (for classes or counts) or 'cubic'. |
+
+## renderer_tool
+
+### `set_renderer`
+
+Change HOW a layer is drawn with a special renderer: merged_features (touching lines or polygons drawn as one shape, keeping the current look), inverted_polygons (paint everything OUTSIDE the polygons, keeping the current look), embedded (use the symbol stored in each feature, as in DXF or KML data), no_symbols (draw nothing, so only labels or the selection show), 2_5d (pseudo-3D polygons; options roof_color, wall_color, shadow) or single_symbol (back to one plain symbol). The data is never touched, and the previous style is saved in the layer's style manager as 'before <kind>' so it can be restored from the layer's Styles menu. The new renderer type is read back in the reply. Stored with the project.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes | The vector layer. |
+| `kind` | string | yes | merged_features, inverted_polygons, embedded, no_symbols, 2_5d or single_symbol. |
+| `options` | object | no | 2_5d only: roof_color, wall_color (a name or #rrggbb), shadow (true / false). |
 
 ## representation_tools
 
@@ -2176,6 +3527,56 @@ Tags a layer with a sensitivity/disclosure classification -- PUBLIC, INTERNAL, R
 | `level` | string | yes | PUBLIC, INTERNAL, RESTRICTED, or SENSITIVE. |
 | `reason` | string | no | Optional short reason shown in the export warning, e.g. 'contains individual beneficiary GPS coordinates'. |
 
+## spatial_stats_tool
+
+### `calculate_spatial_autocorrelation`
+
+Test whether a numeric field is spatially clustered (similar values near each other), alternating (high next to low) or no different from a random arrangement: global Moran's I with a permutation p-value, and with write_local=true the Local Moran's I (LISA) per feature as a NEW layer with lisa_i, lisa_p and lisa_class (HH high among high, LL low among low, HL a high outlier among low, LH a low outlier among high, or 'not significant'). weights: 'queen' or 'rook' (polygon layers, from shared boundaries), 'knn' (k nearest, pass k) or 'distance' (a distance band in layer units, projected CRS only, pass distance). Needs a number on every feature (it refuses and says how many are missing). At most 5,000 features. The input layer is never changed. Evidence of a pattern, not of its cause; the local p-values are not corrected for testing every feature.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes |  |
+| `field` | string | yes | A numeric field. |
+| `weights` | string | no | queen (default), rook, knn or distance. |
+| `k` | integer | no | For weights='knn': how many nearest neighbours each feature counts (for example 5). |
+| `distance` | number | no | For weights='distance': the band in the layer's units (projected CRS). |
+| `permutations` | integer | no | Shuffles for the p-value, 99 to 9999 (default 999). |
+| `seed` | integer | no | Random seed (default 1); the same seed gives the same numbers. |
+| `write_local` | boolean | no | Also add a new layer with the Local Moran result per feature (default false). |
+| `alpha` | number | no | Significance level for the local classes (default 0.05). |
+| `output_name` | string | no | Name of the local-result layer (default '<layer>_lisa'). |
+
+## spectral_index_tool
+
+### `calculate_spectral_index`
+
+Calculate a spectral index raster from band layers: NDVI (vegetation greenness), NDWI and MNDWI (open water), NDRE (crop chlorophyll), NDMI (vegetation moisture), NBR (burn severity), SAVI (vegetation over bare soil, with a soil factor), EVI (dense canopy, reflectance 0 to 1) and BSI (bare soil). Give `index` and `bands`: a mapping from each band role to a raster layer name, or 'layer name@3' for band 3 of a multi-band layer. Roles per index -- NDVI: nir, red; NDWI: green, nir; MNDWI: green, swir1; NDRE: nir, rededge; NDMI: nir, swir1; NBR: nir, swir2; SAVI: nir, red; EVI: nir, red, blue; BSI: blue, red, nir, swir1. Nothing guesses which band is which: Sentinel-2 B8 is nir, B4 red, B3 green, B2 blue, B5 rededge, B11 swir1, B12 swir2; Landsat 8 band 5 is nir, 4 red, 3 green, 2 blue, 6 swir1, 7 swir2. The bands must share one pixel grid (or pass align_to_first). Cells where an input is NoData or the formula divides by zero are NoData, not 0. Adds a new single-band raster named after the index (or output_name); follow up with apply_raster_stretch for a readable ramp.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `index` | string | yes | Which index to compute. |
+| `bands` | object | yes | Band role -> raster layer name (or 'layer name@band'). Example for SAVI: {"nir": "B8", "red": "B4"}. |
+| `output_name` | string | no | Name of the new layer (default: the index name). |
+| `soil_factor` | number | no | SAVI only: the soil brightness factor L, default 0.5 (0 gives NDVI, 1 for very sparse vegetation). |
+| `align_to_first` | boolean | no | If the rasters are not on one pixel grid, warp the others onto the first raster's grid (its CRS, extent and cell size) instead of refusing. The result says which raster was the reference and the resampling used. Default false: refuse. |
+| `resampling` | string | no | With align_to_first: 'bilinear' (default, for continuous values such as reflectance), 'nearest' (for classes or counts) or 'cubic'. |
+
+## stac_load_tool
+
+### `load_stac_assets` _(two-phase)_
+
+Download Sentinel-2 satellite band images (Earth Search, no key) for the user's AREA ONLY and add them to the project: only the part of each band image that covers the area is downloaded, so a few megabytes instead of a whole scene. Give the area as `bbox` (WGS84 min_lon, min_lat, max_lon, max_lat) or `layer_name` (that layer's extent), a date range, and the bands in `assets` (blue, green, red, nir, nir08, rededge1-3, swir16, swir22, coastal, nir09, scl; at most 6). max_cloud (percent, default 20) and limit (1 to 3 scenes, default 1, newest first). A preview lists the scenes, the bands and the estimated size first; nothing is downloaded until it is confirmed, and the confirmed call fetches exactly the scenes the preview named. Each file gets a provenance record and the Copernicus Sentinel licence notice. Landsat and the elevation model are not supported (they need AWS credentials). To only LIST scenes use search_stac_satellite_imagery.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `bbox` | array[number] | no | WGS84 [min_lon, min_lat, max_lon, max_lat]; or use layer_name. |
+| `layer_name` | string | no | A project layer whose extent is the area. |
+| `start_date` | string | yes | YYYY-MM-DD |
+| `end_date` | string | yes | YYYY-MM-DD |
+| `assets` | array[string] | yes | Band names such as red, nir, swir16 (1 to 6). |
+| `max_cloud` | number | no | Largest cloud cover in percent (default 20). |
+| `limit` | integer | no | Number of scenes, 1 to 3 (default 1). |
+
 ## survey_tools
 
 ### `aggregate_survey_indicator`
@@ -2194,6 +3595,150 @@ Summarise survey records into one figure per area (admin unit, camp, ...): the w
 | `confidence` | number | no | Confidence level of the intervals, default 0.95. |
 | `design_effect` | number | no | Design effect from the survey design (>= 1); divides the effective sample size. Default 1 (no clustering adjustment). |
 | `output_table_name` | string | no | Optional name for a results table layer. |
+
+## symbology_extra_tools
+
+### `apply_saved_symbol`
+
+Give a vector layer a symbol from your personal symbol library by name. The symbol kind must fit the layer (marker for points, line for lines, fill for polygons). A layer that uses categories or graduated colours is only switched to the single symbol after confirmation.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes |  |
+| `name` | string | yes |  |
+
+### `list_saved_symbols`
+
+List the symbols in your personal QGIS symbol library (name and kind: marker, line or fill).
+
+_No parameters._
+
+### `save_symbol_to_library`
+
+Save a vector layer's (single) symbol into your personal QGIS symbol library under a name, optionally with tags, so it can be reused on other layers and in other projects. An existing symbol with the same name is only replaced after confirmation.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes |  |
+| `name` | string | yes |  |
+| `tags` | array[string] | no |  |
+
+### `set_label_callout`
+
+Add or change callouts (lines from a label to its feature) and a text mask (a clear halo that hides what is behind the text) on a layer that already has simple labels (apply_labels). enabled switches callouts on or off; style is simple or manhattan; color and width_mm style the line; mask and mask_size_mm control the mask.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes |  |
+| `enabled` | boolean | no |  |
+| `style` | string | no | simple or manhattan |
+| `color` | string | no |  |
+| `width_mm` | number | no |  |
+| `mask` | boolean | no |  |
+| `mask_size_mm` | number | no |  |
+
+### `set_layer_diagram`
+
+Draw a pie or bar diagram on every feature of a vector layer from numeric fields (kind: pie, bar or histogram; fields: 1 to 8 numeric field names; size_mm; optional colors, one per field). clear=true removes the diagrams.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes |  |
+| `kind` | string | no |  |
+| `fields` | array[string] | no |  |
+| `size_mm` | number | no |  |
+| `colors` | array[string] | no |  |
+| `clear` | boolean | no |  |
+
+### `set_point_marker`
+
+Use an SVG picture or a single font character as the marker of a POINT layer. kind=svg needs svg_path (a local .svg file, or a name from QGIS's own SVG library such as arrows/Arrow_01.svg; URLs are refused); kind=font needs font_family and character. size_mm and color are optional. The layer must use a single symbol.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes |  |
+| `kind` | string | yes | svg or font |
+| `svg_path` | string | no |  |
+| `font_family` | string | no |  |
+| `character` | string | no |  |
+| `size_mm` | number | no |  |
+| `color` | string | no |  |
+
+### `set_raster_relief`
+
+Draw a raster (for example a DEM) as a hillshade (style=hillshade; azimuth 0-360, altitude 0-90, z_factor) or as contour lines (style=contour; interval and optional index_interval, in the raster's units). band defaults to 1. This changes how the raster is DISPLAYED, not its data: it creates no layer and no file, so these contour lines cannot be selected, measured, labelled or exported. When the user wants contour lines as data ('draw / make / create contour lines of the DEM, every 100 m') use generate_contours; use this tool for 'render / style / show the DEM as contours or hillshade'. For a hillshade FILE use the hillshade analysis tool.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes |  |
+| `style` | string | yes | hillshade or contour |
+| `azimuth` | number | no |  |
+| `altitude` | number | no |  |
+| `z_factor` | number | no |  |
+| `interval` | number | no |  |
+| `index_interval` | number | no |  |
+| `band` | integer | no |  |
+
+### `set_rule_based_labels`
+
+Label a vector layer with RULES instead of one style: each rule has a field to show, an optional filter (a QGIS expression such as "population" > 10000), a font size and colour, and optional scales (min_scale = zoomed-out limit as a denominator, max_scale = zoomed-in limit). Up to 20 rules. This replaces the layer's current labels. clear=true removes the layer's labels (no rules needed). To get the previous labels back after a change, use undo_last_operation.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes |  |
+| `rules` | array[object] | no |  |
+| `clear` | boolean | no |  |
+
+## symbology_tools
+
+### `set_label_style`
+
+Style the labels already on a vector layer (add them first with apply_labels): font colour and size, bold, italic, the halo around the text (on/off, colour, size), placement (around_point, over_point, horizontal, free, curved, parallel), the scales between which labels show (visible_zoomed_out_to = the smallest scale such as 250000 for 1:250,000, visible_zoomed_in_to = the largest such as 5000), and show_labels to switch labels on or off. Give only what should change. Rule-based labeling is reported, not changed.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes |  |
+| `font_color` | string | no |  |
+| `font_size` | number | no | Points, 1 to 120. |
+| `bold` | boolean | no |  |
+| `italic` | boolean | no |  |
+| `halo` | boolean | no | Draw a halo (buffer) round the text. |
+| `halo_color` | string | no |  |
+| `halo_size_mm` | number | no | 0 to 10. |
+| `placement` | string | no |  |
+| `visible_zoomed_out_to` | number | no | Scale denominator, e.g. 250000. |
+| `visible_zoomed_in_to` | number | no | Scale denominator, e.g. 5000. |
+| `show_labels` | boolean | no |  |
+
+### `set_layer_symbol`
+
+Change how a vector layer's symbols are drawn beyond colour: outline colour and width, line pattern (solid, dashed, dotted, dash_dot), marker shape (circle, square, diamond, triangle, star, cross, x, pentagon, hexagon, heart, arrow) and size, fill pattern (solid, none, hatch_forward, hatch_backward, horizontal, vertical, cross, diagonal_cross, dots_dense, dots_sparse) and opacity. Give only what should change; everything else stays. Colours can be hex or plain words ('dark red'). On a categorized, graduated or rule-based layer it keeps the classification colours and sizes: fill_color and marker_size_mm are refused there (use the style tool that made the classes). Only simple symbols are changed; an SVG or font marker is reported, not overwritten.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes |  |
+| `fill_color` | string | no |  |
+| `outline_color` | string | no |  |
+| `outline_width_mm` | number | no | 0 to 20; 0.26 is a thin line, 1 a thick one. |
+| `opacity_percent` | number | no | 0 to 100 for the whole layer. |
+| `marker_shape` | string | no |  |
+| `marker_size_mm` | number | no | 0.1 to 100. |
+| `line_style` | string | no | Pattern of a line or of a polygon outline. |
+| `fill_style` | string | no | Pattern of a polygon fill, for example hatch_forward. |
+
+### `set_raster_style`
+
+Change how a raster layer is displayed: mode='unique_values' gives one colour per distinct cell value (for land cover, classes, zones; refused above 256 distinct values), resampling (nearest keeps blocky cells, bilinear or cubic smooth them), opacity_percent, and no-data: nodata_min/nodata_max make cells in that range transparent (both ends are INCLUDED: for 'below 0' give nodata_max just under 0, such as -0.000001), clear_nodata=true restores the file's own no-data. Give only what should change. Display only; the cell values are not changed. For a continuous colour ramp use apply_raster_stretch.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes |  |
+| `mode` | string | no | 'unique_values' |
+| `resampling` | string | no | nearest, bilinear or cubic |
+| `opacity_percent` | number | no |  |
+| `nodata_min` | number | no |  |
+| `nodata_max` | number | no |  |
+| `clear_nodata` | boolean | no |  |
 
 ## table_importers
 
@@ -2224,8 +3769,27 @@ Split an area of interest into a grid of square mapping tasks for remote or crow
 | `cell_size_m` | number | no | Task width in metres (minimum 100). Default 2000. |
 | `priority_points_layer` | string | no | Optional point (or other vector) layer; the priority value is the number of its features in each cell. |
 | `population_raster_layer` | string | no | Optional population raster; the priority value is the sum of its cells in each task. Ignored if priority_points_layer is given. |
+| `aoi_where` | string | no | Optional QGIS expression (e.g. "ADM1_EN" = 'Aden') limiting the area to matching features of aoi_layer. Use this instead of filtering the source layer, which would hide features from the whole project. |
 | `output_layer_name` | string | no | Name of the new task layer. Default 'mapping_tasks'. |
 | `export_geojson_path` | string | no | Optional file path for the GeoJSON export. Use 'auto' to write into the system temp folder. |
+
+## tool_discovery
+
+### `find_tools`
+
+Look up which tools can do a step you were not given a tool for (for example 'contour lines', 'split a line by polygons', 'download elevation'). Returns the best matching tool names with a one-line description each, and makes them available for the rest of this request. Use it BEFORE writing a script. It only searches; it changes nothing.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `need` | string | yes | The operation you need, in plain English words, even when the user wrote in another language (tool names and descriptions are English, so an Arabic or French phrase finds nothing). Name the operation, not the goal: 'graduated colour style for polygons by a number', 'clip lines to polygons', 'count points in each polygon', 'turn a layer on and off'. |
+
+### `run_steps`
+
+Run several tool calls in order in ONE step instead of one model turn each. Use it only when you already know every argument of the whole chain (for example you choose the output layer names yourself). Each step is {tool, arguments}; an argument may be the whole-string reference "$2.layer_name" (field `layer_name` of step 2's result) or "$prev.layer_name". Steps run one at a time through the normal tool path, so confirmations and safety checks still apply; the run STOPS at the first error or the first call waiting for the user's Confirm and reports exactly which steps ran. At most 8 steps; no deleting tools; do not nest run_steps. If a later step depends on something you must look at first, make separate calls instead.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `steps` | array[object] | yes | Ordered steps. |
 
 ## tool_operations_tools
 
@@ -2249,13 +3813,13 @@ List every registered tool classified under one operation-type category (READ, C
 
 ### `get_turn_transaction_log`
 
-List every tool call made so far during THIS turn (this one user request), each tagged with its operation type and, when it added a new layer, whether it can be undone with undo_last_operation. Use this before undo_last_operation to see what's actually available to undo -- it does not reach back into earlier turns/messages, only the current one.
+List every tool call made so far during THIS turn (this one user request), each tagged with its operation type and, when it added a new layer, whether it can be undone with undo_last_operation. Use this before undo_last_operation to see what's actually available to undo. Also lists undoable calls from the last few earlier messages (marked earlier_turn).
 
 _No parameters._
 
 ### `undo_last_operation`
 
-Reverse the most recent undoable tool call made THIS turn (see get_turn_transaction_log to check what qualifies first). Covers: a call that added a new layer (removes it); remove_layer (restores the removed layer and its data); field_calculator/calculate_area/calculate_length (restores the field's prior values, or deletes it if it didn't exist before); apply_categorized_style/apply_graduated_style/apply_graduated_symbol_style (restores the prior style); set_dataset_status/set_layer_sensitivity/set_layer_confidence/run_query (restores the prior value). It cannot undo load_project or any other in-place edit not in that list -- a real, separate, still-open gap, not something this tool silently skips without saying so. Destructive action requiring UI confirmation.
+Reverse the most recent undoable tool call: one made this turn, or if there is none, the latest one from the last few earlier messages (the user just says 'undo that'; see get_turn_transaction_log to check what qualifies first). Call this tool for any 'undo' request instead of clearing or re-setting the thing by hand. Covers: a call that added a new layer (removes it); remove_layer (restores the removed layer and its data); field_calculator/calculate_area/calculate_length (restores the field's prior values, or deletes it if it didn't exist before); apply_categorized_style/apply_graduated_style/apply_graduated_symbol_style (restores the prior style); set_dataset_status/set_layer_sensitivity/set_layer_confidence/run_query/set_layer_filter (restores the prior value); labels, callouts, diagrams, point markers, raster relief, saved symbols, layer elevation and layer time settings (restores the prior setting); delete_features (puts the deleted features back); add_field (removes the new field again, but only while it is still empty: once it holds values undo refuses and says so). It cannot undo load_project or any other in-place edit not in that list -- a real, separate, still-open gap, not something this tool silently skips without saying so. Destructive action requiring UI confirmation.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
@@ -2277,6 +3841,68 @@ Evaluate an anticipatory-action trigger rule against forecast values already in 
 | `date_field` | string | no | Field with the date the forecast is valid for. Required with lead_days. |
 | `lead_days` | number | no | Only count forecast rows dated from as_of to as_of + lead_days. |
 | `as_of` | string | no | ISO date the lead window starts from. Default today. |
-| `probability_field` | string | no | Optional numeric field (0-1) with the forecast probability of the value. |
-| `min_probability` | number | no | With probability_field: minimum probability (0-1) for a row to count. |
+| `probability_field` | string | no | Optional numeric field with the forecast probability of the value (0-1, or 0-100 with probability_scale='percent'). |
+| `min_probability` | number | no | With probability_field: minimum probability for a row to count, in the same unit as the field (0-1, or 0-100 when probability_scale is 'percent', e.g. 70 for 70%). |
+| `probability_scale` | string | no | 'fraction' (default): probability_field and min_probability are 0-1. 'percent': both are 0-100. |
 | `min_exceedances` | integer | no | Exceeding forecast rows needed to activate a unit. Default 1. |
+
+## vertex_edit_tool
+
+### `edit_vertices`
+
+Add, move or delete one vertex of one feature of a line or polygon layer: action 'delete' removes a vertex, 'move' moves it to x, y, 'add' puts a new vertex on the segment nearest x, y (the shape does not change). Choose the feature by feature_id and the vertex by index (0-based; a polygon ring is closed, so a square has 5 vertices and the first and last are the same corner) or by the position nearest it (near_x, near_y, optionally within tolerance). Coordinates are in the layer's CRS. Changes geometry: a preview is shown for confirmation first, the edit is one undoable step (undo_manual_edit), and a change that would make a valid geometry invalid is refused.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes | A line or polygon layer. |
+| `feature_id` | integer | yes | The feature's id (the QGIS feature id). |
+| `action` | string | yes | add, move or delete. |
+| `index` | integer | no | The vertex to move or delete, 0-based over the whole geometry. |
+| `near_x` | number | no | Instead of index: pick the vertex nearest this x (layer CRS). |
+| `near_y` | number | no | Instead of index: pick the vertex nearest this y (layer CRS). |
+| `tolerance` | number | no | With near_x/near_y: refuse if the nearest vertex is farther than this (layer units). |
+| `x` | number | no | move: the new x; add: the x of the point near which the vertex is added. |
+| `y` | number | no | move: the new y; add: the y of the point near which the vertex is added. |
+
+## watershed_tools
+
+### `delineate_watershed`
+
+Delineate the watershed upstream of an outlet point on a DEM in the project and MEASURE it: basin area, longest hydraulic flow path, H (elevation drop along it), main-channel slope and the Kirpich time of concentration. Adds the basin, flow path and outlet to the project. location is DMS ('32°01'47.39"N, 35°48'21.00"E') or 'lat, lon'. Needs an elevation raster that covers the point (fetch_dem first if none). It does NOT invent rainfall intensity or a runoff coefficient: the reply says which design inputs the user must give, then use calculate_rational_watershed_peak_flow for the peak flow.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `location` | string | no | Outlet as DMS or 'lat, lon'. |
+| `lat` | number | no |  |
+| `lon` | number | no |  |
+| `dem_layer` | string | no | Name of the DEM raster; default: a raster in the project that covers the point. |
+| `return_period_years` | number | no | Design return period, used to word the design-input request. |
+| `radius_km` | number | no | Half-width of the window read around the outlet (default 8, at most 15). |
+| `snap_distance_m` | number | no | How far the outlet may move onto the derived channel (default 300). |
+| `layer_prefix` | string | no | Prefix for the new layers (default 'Watershed'). |
+
+## web_research_tools
+
+### `web_research` _(network-only)_
+
+Search the internet and get back real results with their SOURCES: title, URL, outlet, date and snippet. kind='web' for pages, kind='news' for recent news articles (last 1 to 30 days). Use this whenever the user wants information from the internet 'with the source', news, or a fact you cannot know. The answer must cite the returned URLs and must not add facts the results do not contain. For a MAP of incidents from the news use find_incident_reports with sources=['news'] instead.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `query` | string | yes | What to look up, in a few clear words. |
+| `kind` | string | no | 'web' (default) or 'news'. |
+| `max_results` | integer | no | How many results (default 8, at most 25). |
+| `days` | integer | no | For kind='news': how many days back (1 to 30, default 7). |
+
+## workflow_file_tools
+
+### `export_workflow_file`
+
+Save the steps that made one or more result layers as a shareable workflow file (.cgworkflow.json) that a colleague can open, read and run on their own layers. Built only from the recorded history of the named layers: the tools used, their arguments, and the data sources. Layers the analysis started from become named roles that the colleague maps to their own layers; no data, file paths or credentials are written. A step that cannot be shared (a tool not on the shareable list, or an argument that looks like a file path) is left out and reported. The user sees the whole file and confirms before anything is written. output_path is optional: omit it to save under the project's exports/workflows folder.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_names` | array[string] | yes | The result layer(s) whose history to export. |
+| `name` | string | no | A short title for the workflow. |
+| `description` | string | no | One or two sentences on what it does. |
+| `output_path` | string | no |  |

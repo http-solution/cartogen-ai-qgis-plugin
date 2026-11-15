@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 cartogen_ai.core.services -- Core agent orchestration services.
 
@@ -20,13 +19,13 @@ from .learning import (
 )
 
 __all__ = [
+    "AgentQgsTask",
+    "ToolRouter",
+    "build_refinement_messages",
+    "detect_correction",
+    "maybe_infer_preferences",
+    "parse_refinement_response",
+    "record_correction_rule",
     "refine",
     "should_refine",
-    "build_refinement_messages",
-    "parse_refinement_response",
-    "ToolRouter",
-    "AgentQgsTask",
-    "maybe_infer_preferences",
-    "detect_correction",
-    "record_correction_rule",
 ]

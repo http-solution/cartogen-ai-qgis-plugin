@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Process-isolation boundary for `execute_pyqgis_script`
 (IMPLEMENTATION_TRACKER.md §1.11; docs/EXECUTE_PYQGIS_SCRIPT_ISOLATION_SCOPE_2026-09-24.md,
@@ -23,10 +22,9 @@ explicitly deferred to a later phase in the scoping doc; this module does not sp
 raster layers beyond letting them serialize into the project file unconditionally.
 
 Known, documented limitations (not silently claimed as fixed):
-- A script that mutates an EXISTING file-backed (non-memory) layer writes to the same file the
-  live process still has open -- the isolation boundary does not solve concurrent-access
-  semantics for that case, only credential/process isolation. No different from the same file
-  being edited by an external program while QGIS has it open.
+- Local-file vector and raster layers are handed to the worker as COPIES in the temp directory (audit A06), so a script cannot
+  modify the user's files; edits it makes to such a layer are discarded, not reconciled. Database/web-service layers have no file
+  to copy; they are locked read-only in the scratch project (#220).
 - Layer removal/reordering/style edits made by a script are not reconciled back into the live
   project -- only new layers (added) and existing MEMORY layers' feature data (since that's the
   one case where the pre-serialize export step already builds a mapping to reconcile) are synced
@@ -34,10 +32,11 @@ Known, documented limitations (not silently claimed as fixed):
   no iface/canvas/selection access, so the realistic pattern is "read some layers, add a new
   computed one" or "add features to an existing memory layer this turn already created").
 """
+import contextlib
 import json
 import os
 import shutil
-import subprocess
+import subprocess  # nosec B404 (fixed argv list, no shell)
 import sys
 import tempfile
 import threading
@@ -62,6 +61,12 @@ from ...logger import log_event
 _JOB_TIMEOUT_SECONDS = 60
 # A crashed/never-starting worker must not hang the caller either.
 _WORKER_START_TIMEOUT_SECONDS = 30
+
+def _features(layer, label):
+    """layer.getFeatures() sliced so QGIS keeps repainting and Stop works (tools/_chunked.py); imported when called."""
+    from ... import _chunked
+    return _chunked.features(layer, label)
+
 
 
 def find_python_interpreter():
@@ -206,7 +211,7 @@ def _plugin_parent_dir():
     # cartogen_ai has no top-level __init__.py (a namespace package), so
     # __file__ is None -- __path__[0] is the actual on-disk package directory
     # in both layouts (installed as a QGIS plugin folder, or this repo's src/).
-    package_dir = Path(list(cartogen_ai.__path__)[0]).resolve()
+    package_dir = Path(next(iter(cartogen_ai.__path__))).resolve()
     return str(package_dir.parent)
 
 
@@ -287,9 +292,75 @@ def _build_scratch_project(tempdir):
             layer.setDataSource(gpkg_path, layer.name(), "ogr")
             memory_layer_ids.append(layer_id)
 
+    repointed = _copy_file_backed_layers(scratch, live, tempdir, set(memory_layer_ids))
+    _lock_uncopyable_layers(scratch, set(memory_layer_ids) | set(repointed))
+
     scratch_path = os.path.join(tempdir, "scratch_project.qgz")
     scratch.write(scratch_path)
     return scratch_path, memory_layer_ids
+
+
+def local_file_path(source):
+    """The on-disk file a layer source string points at ("path" or "path|layername=x"), or None when it is not a local file
+    (database, web service, virtual layer, vsicurl...). Pure apart from the existence check."""
+    if not source:
+        return None
+    text = str(source).split("|", 1)[0]
+    if "://" in text or text.startswith("/vsi") or text.lower().startswith(("dbname=", "pg:", "wfs:", "url=")):
+        return None
+    return text if os.path.isfile(text) else None
+
+
+def _copy_file_backed_layers(scratch, live, tempdir, already_handled):
+    """Rc20 audit A06: the scratch project used to reference the SAME files as the live project, so a script that opened an
+    existing layer for editing wrote straight into the user's data (no undo, concurrent with the live layer's own handle). Every
+    local-file vector layer is now exported to a GeoPackage in `tempdir` and every local-file raster copied there, and the
+    scratch layer repointed at the copy: the worker can read everything and damage nothing. Layers backed by a database or web
+    service are NOT copied (they have no file to copy) and remain writable by the script. Returns the ids repointed."""
+    repointed = []
+    for layer_id, layer in list(scratch.mapLayers().items()):
+        if layer_id in already_handled:
+            continue
+        try:
+            if not hasattr(layer, "providerType"):
+                continue
+            provider = layer.providerType()
+            live_layer = live.mapLayer(layer_id) or layer
+            path = local_file_path(live_layer.source())
+            if path is None:
+                continue
+            if provider == "ogr":
+                copy_path = os.path.join(tempdir, f"ro_{layer_id}.gpkg")
+                _export_layer_to_gpkg(live_layer, copy_path)
+                layer.setDataSource(copy_path, layer.name(), "ogr")
+            elif provider == "gdal":
+                copy_path = os.path.join(tempdir, f"ro_{layer_id}{os.path.splitext(path)[1]}")
+                shutil.copy2(path, copy_path)
+                layer.setDataSource(copy_path, layer.name(), "gdal")
+            else:
+                continue
+            repointed.append(layer_id)
+        except Exception as exc:   # a layer that cannot be copied stays as-is rather than failing the whole script run
+            log_event("script_isolation", tag="Tools", status="copy_skipped", error=True, error_class=type(exc).__name__)
+    return repointed
+
+
+def _lock_uncopyable_layers(scratch, handled):
+    """Marks every vector layer that is neither a copy nor a re-exported memory layer read-only in the scratch project (#220, A06).
+
+    Database and web-service layers have no file to copy, so the worker reaches the real source. Read-only is written into the
+    scratch project file, so startEditing() refuses in the worker and a script can read the layer but not change it. A script's own
+    new layers are unaffected. Returns the ids locked. A layer that rejects the flag is left as it was and logged."""
+    locked = []
+    for layer_id, layer in list(scratch.mapLayers().items()):
+        if layer_id in handled or not hasattr(layer, "setReadOnly") or not hasattr(layer, "providerType"):
+            continue
+        try:
+            layer.setReadOnly(True)
+            locked.append(layer_id)
+        except Exception as exc:
+            log_event("script_isolation", tag="Tools", status="lock_skipped", error=True, error_class=type(exc).__name__)
+    return locked
 
 
 # --- result adoption ---------------------------------------------------------------------------------------------------------
@@ -338,7 +409,7 @@ def _layer_signature(layer, skip_fields=()):
     skip = {n.lower() for n in skip_fields}
     keep = [i for i, fld in enumerate(layer.fields()) if fld.name().lower() not in skip]
     rows = []
-    for f in layer.getFeatures():
+    for f in _features(layer, "Script: snapshotting a layer"):
         geom = f.geometry()
         wkb = bytes(geom.asWkb()).hex() if geom is not None and not geom.isEmpty() else ""
         attrs = f.attributes()
@@ -361,6 +432,8 @@ def _detach_vector_layer(layer):
     from qgis.core import QgsFeature, QgsVectorLayer, QgsWkbTypes
     geometry = QgsWkbTypes.displayString(layer.wkbType()) if layer.isSpatial() else "none"
     copy = QgsVectorLayer(geometry, layer.name(), "memory")
+    if not copy.isValid():
+        raise RuntimeError("could not create the memory copy of the layer")
     if layer.isSpatial():
         copy.setCrs(layer.crs())
     provider = copy.dataProvider()
@@ -368,7 +441,7 @@ def _detach_vector_layer(layer):
         raise RuntimeError("could not copy the field definitions")
     copy.updateFields()
     features = []
-    for src in layer.getFeatures():
+    for src in _features(layer, "Script: copying a layer"):
         dst = QgsFeature(copy.fields())
         dst.setGeometry(src.geometry())
         dst.setAttributes(src.attributes())
@@ -377,11 +450,10 @@ def _detach_vector_layer(layer):
     if not ok:
         raise RuntimeError("could not copy the features")
     copy.updateExtents()
-    try:
+    # the data matters more than the symbology
+    with contextlib.suppress(Exception):
         if layer.renderer() is not None:
             copy.setRenderer(layer.renderer().clone())
-    except Exception:
-        pass            # the data matters more than the symbology
     return copy
 
 
@@ -436,10 +508,14 @@ def _replace_memory_layer(live_layer, result_layer):
         try:
             load(original_fields, original_features)
         except Exception as second:
-            raise RuntimeError(f"update failed ({first}) and the original could not be restored ({second})")
-        raise RuntimeError(f"update failed and the original was restored: {first}")
+            raise RuntimeError(f"update failed ({first}) and the original could not be restored ({second})") from second
+        raise RuntimeError(f"update failed and the original was restored: {first}") from first
     live_layer.updateExtents()
     live_layer.triggerRepaint()
+
+
+# Most features of a file-backed layer compared after a script run (see _reconcile_results); above this the check is skipped.
+FILE_LAYER_CHECK_MAX_FEATURES = 50000
 
 
 def _reconcile_results(result_project_path, pre_call_layer_ids, memory_layer_ids):
@@ -466,10 +542,7 @@ def _reconcile_results(result_project_path, pre_call_layer_ids, memory_layer_ids
             continue
         try:
             if source_is_under(layer.source(), scratch_dir):
-                if hasattr(layer, "bandCount"):
-                    adopted = _keep_raster(layer)
-                else:
-                    adopted = _detach_vector_layer(layer)
+                adopted = _keep_raster(layer) if hasattr(layer, "bandCount") else _detach_vector_layer(layer)
             else:
                 adopted = layer.clone()
         except Exception as e:
@@ -494,6 +567,27 @@ def _reconcile_results(result_project_path, pre_call_layer_ids, memory_layer_ids
             problems.append(f"changes to layer '{live_layer.name()}' were not applied: {e}")
             continue
         memory_layers_updated.append(live_layer.name())
+
+    # A layer stored in a file is deliberately NOT written back: the worker edits a COPY of it (rc20 audit A06), so the user's data
+    # cannot be damaged by a script. But the script's own reply then says it changed the layer. rc40 hand test OI-145 (2026-10-14): a
+    # script that renamed a feature and moved a vertex of the GeoPackage layer smoke_points reported success, the live layer was
+    # unchanged, and nothing said so. Compare the copy with the live layer and say it plainly. Large layers are skipped (the
+    # comparison reads every feature), which is stated nowhere because a skipped layer is no worse than before.
+    for layer_id, result_layer in result_scratch.mapLayers().items():
+        if layer_id not in pre_call_layer_ids or layer_id in memory_layer_ids:
+            continue
+        live_layer = live.mapLayer(layer_id)
+        if live_layer is None or not (hasattr(live_layer, "getFeatures") and hasattr(result_layer, "getFeatures")):
+            continue
+        try:
+            if live_layer.featureCount() > FILE_LAYER_CHECK_MAX_FEATURES or _same_content(live_layer, result_layer):
+                continue
+        except Exception as e:                                   # a comparison that cannot run must not break the script's result
+            log_event("isolated_script_file_layer_check_failed", tag="ScriptIsolation", error_class=type(e).__name__, error=True)
+            continue
+        problems.append(f"your changes to the layer '{live_layer.name()}' were NOT applied: it is stored in a file or database, and a script "
+                        "works on a copy of such a layer. Change it with an editing tool (for example the field calculator) or have the "
+                        "script write a new layer")
 
     return new_layers_added, memory_layers_updated, problems
 
@@ -557,7 +651,7 @@ class _IsolationWorker:
             }
         env = _build_worker_environment()
         try:
-            self._proc = subprocess.Popen(
+            self._proc = subprocess.Popen(  # noqa: S603  # nosec B603 (fixed argv list, no shell, no user input in the command)
                 [interpreter, "-m", "cartogen_ai.core.agent.services._script_isolation_worker"],
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
@@ -617,11 +711,9 @@ class _IsolationWorker:
     def _kill(self):
         if self._proc is None:
             return
-        try:
+        with contextlib.suppress(Exception):
             self._proc.kill()
             self._proc.wait(timeout=5)
-        except Exception:
-            pass
         self._proc = None
 
     def _kill_and_drain_stderr(self):
@@ -737,13 +829,33 @@ def run_isolated_script(script: str) -> dict:
                 updated_memory_layers=len(updated_memory_layers),
                 problems=len(problems),
             )
-        reply = {"success": True, "result": response.get("result")}
-        if problems:
-            # Never a clean success when part of the script's work could not be brought back (#145 / #146).
-            reply["warning"] = "Part of the script's changes could not be applied to your project: " + "; ".join(problems)
-        return reply
+        return script_reply(response.get("result"), new_layers, updated_memory_layers, problems)
     finally:
         shutil.rmtree(tempdir, ignore_errors=True)
+
+
+def script_reply(script_result, new_layers, updated_memory_layers, problems):
+    """The tool reply for a script run in isolation. Pure.
+
+    GitHub #145/#146, rc48 OI-145 (2026-10-23 evidence t35): a script that edited a file-backed layer got `success: true` with the "NOT applied"
+    text only in a side field, and the model's answer showed the edit as done (a table of "Updated Value"s). When none of the script's
+    changes could be brought back, the call is a failure that says so; when only some could, the success carries a `partially_applied` flag
+    and the warning. A script that only read data has no problems and is untouched."""
+    applied = bool(new_layers or updated_memory_layers)
+    if problems and not applied:
+        return {"success": False, "applied": False, "script_result": script_result,
+                "error": "NOT applied: none of the script's changes reached your project. " + "; ".join(problems)}
+    reply = {"success": True, "result": script_result}
+    if new_layers:
+        # rc40 hand test OI-145: a script's new layer is a temporary (memory) layer and was empty after save, close and reopen,
+        # with nothing in the reply to warn of it.
+        reply["note"] = (f"New layer(s) {', '.join(repr(n) for n in new_layers)} are temporary: they are lost when the project is closed "
+                         "unless they are saved to a file (ask to tidy the project layers, or export them).")
+    if problems:
+        # Never a clean success when part of the script's work could not be brought back (#145 / #146).
+        reply["partially_applied"] = True
+        reply["warning"] = "Part of the script's changes could not be applied to your project: " + "; ".join(problems)
+    return reply
 
 
 def has_uncommitted_edits():

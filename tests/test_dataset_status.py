@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Tests for models/dataset_status.py -- the QA-gate lifecycle state machine
 that closes point 2 of docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md
 (first pass: the state machine + sequential gate + one real automated check,
@@ -41,7 +40,7 @@ class FakeLayer:
         self._name = name
         self._props = {}
         if is_vector:
-            self.getFeatures = lambda: []
+            self.getFeatures = list
 
     def name(self):
         return self._name

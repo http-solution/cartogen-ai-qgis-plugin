@@ -1,10 +1,9 @@
-# -*- coding: utf-8 -*-
 """rc7 smoke test F22: the other fetch tools (geoBoundaries, HDX, building footprints) ask before a large download.
 
 The rule: a server-reported size above the user's threshold stops the tool with a message telling the model to ask,
 and only allow_large_download=true proceeds. No reported size is not blocked."""
 import unittest
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from cartogen_ai.core.agent.tools import humanitarian_tools as ht
 
@@ -53,7 +52,7 @@ class TestGeoBoundariesAsksBeforeDownloading(unittest.TestCase):
 
         class _Resp:
             def __init__(self, body): self.body = body
-            def read(self): return self.body
+            def read(self, amt=-1): return self.body
             def __enter__(self): return self
             def __exit__(self, *a): return False
 
@@ -66,6 +65,48 @@ class TestGeoBoundariesAsksBeforeDownloading(unittest.TestCase):
             res = ht.fetch_geoboundaries_network_phase("ZZZ", "ADM9")
         self.assertIn("allow_large_download=true", res["error"])
         opener.assert_not_called()          # nothing was downloaded
+
+
+class TestGeoboundariesFailureNamesTheStage(unittest.TestCase):
+    """The unexplained 2026-10-13 tester failure: one message covered both requests. The lookup and the file download are told apart now."""
+
+    def setUp(self):
+        from cartogen_ai.core.agent.tools import humanitarian_tools as ht
+        self.ht = ht
+        if hasattr(ht._LOOKUP_CACHE, "clear"):
+            ht._LOOKUP_CACHE.clear()
+
+    class _Resp:
+        def __init__(self, body): self.body = body
+        def read(self, amt=-1): return self.body
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+
+    def test_a_failed_lookup_keeps_the_api_request_wording(self):
+        ht = self.ht
+        with patch.object(ht, "_qgis_urlopen", side_effect=OSError("network unreachable")):
+            res = ht.fetch_geoboundaries_network_phase("QQQ", "ADM1")
+        self.assertIn("geoBoundaries lookup failed", res["error"])
+        self.assertIn("geoboundaries.org", res["error"])        # names the site, in a sentence a person can act on
+
+    def test_a_failed_file_download_names_the_stage_the_host_and_the_exception(self):
+        ht = self.ht
+        api = b'{"gjDownloadURL": "https://raw.githubusercontent.com/x/y/z.geojson", "boundaryName": "Q"}'
+        failing = MagicMock()
+        failing.open.side_effect = OSError("proxy refused")
+        with patch.object(ht, "_qgis_urlopen", return_value=self._Resp(api)), \
+             patch.object(ht, "_is_safe_url", return_value=None), \
+             patch.object(ht, "_content_length", return_value=1000), \
+             patch.object(ht, "_build_safe_opener", return_value=failing):
+            res = ht.fetch_geoboundaries_network_phase("QQQ", "ADM2")
+        msg = res["error"]
+        self.assertIn("Do NOT substitute", msg)       # Jordan ADM1 hand test: the model drew 12 capitals from memory after both downloads failed
+        self.assertIn("boundary file could not be downloaded", msg)
+        self.assertIn("raw.githubusercontent.com", msg)
+        self.assertIn("OSError", msg)
+        self.assertIn("lookup", msg)                      # says the lookup itself worked
+        self.assertNotIn("API request failed", msg)
+        self.assertNotIn("?", msg.split("Do NOT")[0])         # no link with a query string in the message
 
 
 if __name__ == "__main__":

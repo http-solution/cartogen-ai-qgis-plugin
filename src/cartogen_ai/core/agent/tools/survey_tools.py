@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Weighted survey indicators per area, with small-cell suppression (H6, docs/HUMANITARIAN_WORKFLOW_GAP_ANALYSIS_2026-10-04.md).
 
@@ -18,7 +17,9 @@ Pure logic is unit tested offline; the layer work needs QGIS (tests/test_survey_
 import math
 import statistics
 
+from ... import _chunked as _ck
 from .registry import register_tool
+from ._layer_checks import require_valid_layer
 
 try:
     from qgis.core import QgsFeature, QgsProject, QgsVectorLayer
@@ -82,9 +83,9 @@ def wilson_interval(p, n_eff, z):
 def weighted_mean_interval(values, weights, z, design_effect=1.0):
     """(mean, low, high, n_eff) for a weighted mean, using the weighted variance and Kish n_eff / design_effect. Pure."""
     total = sum(weights)
-    mean = sum(v * w for v, w in zip(values, weights)) / total
+    mean = sum(v * w for v, w in zip(values, weights, strict=False)) / total
     n_eff = kish_effective_n(weights) / design_effect
-    var = sum(w * (v - mean) ** 2 for v, w in zip(values, weights)) / total
+    var = sum(w * (v - mean) ** 2 for v, w in zip(values, weights, strict=False)) / total
     if n_eff <= 1:
         return (mean, None, None, n_eff)
     half = z * math.sqrt(var / n_eff)
@@ -190,6 +191,10 @@ def _layer(name):
         },
         "required": ["layer_name", "group_field", "indicator_field"],
     },
+    keywords=[
+        "survey results by", "survey indicator", "weighted survey", "survey weights", "household survey results",
+        "proportion of households", "share of households", "percentage of households",
+    ],
 )
 def aggregate_survey_indicator(layer_name, group_field, indicator_field, kind="proportion", positive_values=None, weight_field=None,
                                min_n=DEFAULT_MIN_N, confidence=0.95, design_effect=1.0, output_table_name=None):
@@ -209,7 +214,7 @@ def aggregate_survey_indicator(layer_name, group_field, indicator_field, kind="p
             return {"error": f"{label} '{field}' not found in '{layer_name}'. Fields: {names}"}
 
     records = []
-    for feat in layer.getFeatures():
+    for feat in _ck.features(layer, "Survey: reading features"):
         rec = {"group": feat[group_field], "value": feat[indicator_field]}
         rec["weight"] = feat[weight_field] if weight_field else None
         records.append(rec)
@@ -239,6 +244,7 @@ def aggregate_survey_indicator(layer_name, group_field, indicator_field, kind="p
     if output_table_name and shown:
         table = QgsVectorLayer("None?field=group:string&field=respondents:integer&field=estimate:double&field=ci_low:double"
                                "&field=ci_high:double&field=effective_n:double", output_table_name, "memory")
+        require_valid_layer(table)
         feats = []
         for g in shown:
             f = QgsFeature(table.fields())

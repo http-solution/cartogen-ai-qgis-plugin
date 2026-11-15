@@ -10,6 +10,10 @@ by hand; if you add or move a doc, update both.
 |---|---|
 | [USER_GUIDE.md](USER_GUIDE.md) | Chat, Task Manager, memory, file attachments, settings |
 | [TOOLS_REFERENCE.md](TOOLS_REFERENCE.md) | All 165 tools, auto-generated from the live registry — see `generate_tools_reference.py` below |
+| [WORKFLOW_FILES.md](WORKFLOW_FILES.md) | Sharing an analysis as a workflow file: export, open, what it can and cannot do, the file format |
+| [DASHBOARD.md](DASHBOARD.md) | The project status dashboard: what feeds it, how it is refreshed, how "verified by hand" is counted |
+| [HAND_TEST_PACKAGE_1.18.5.md](HAND_TEST_PACKAGE_1.18.5.md) | How to run the hand-test rows W1 to W12 for the 1.18.5 features: order, evidence layout, scripts, how each row is judged |
+| [../site/](../site/) | The documentation site's generator and authored pages. It mirrors the living documents listed here and generates the tool reference, task register table and a document index; run `python site/build.py --check` to build it |
 
 ## Security & compliance
 
@@ -25,6 +29,7 @@ by hand; if you add or move a doc, update both.
 | Doc | Covers |
 |---|---|
 | [IMPLEMENTATION_TRACKER.md](IMPLEMENTATION_TRACKER.md) | **Start here for "what's open right now."** Living doc consolidating every genuinely open item, kept current as things resolve |
+| [SNAPSHOTS.md](SNAPSHOTS.md) | Generated list of every frozen dated or per-release doc (history, not current state); `python tools/docs_index.py` |
 | [BUG_TRACKER.md](BUG_TRACKER.md) | Living, in-repo bug tracker — currently-open real defects only, plus the known sandbox test-artifact baseline |
 | [RELEASE_SMOKE_TEST.md](RELEASE_SMOKE_TEST.md) | ~15-minute manual checklist to run in a real QGIS session before each release |
 | [QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md](QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md) | 27-point production-readiness architecture review |

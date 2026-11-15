@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Mapping task grid for remote/crowd mapping (H2, docs/HUMANITARIAN_WORKFLOW_GAP_ANALYSIS_2026-10-04.md).
 
@@ -15,10 +14,12 @@ written without a local QGIS).
 """
 import json
 import math
-import os
 import tempfile
 
+from ... import _chunked as _ck
+from ._paths import safe_file_stem, unique_path
 from .registry import register_tool
+from ._layer_checks import require_valid_layer
 
 try:
     from qgis.core import (QgsCoordinateReferenceSystem, QgsCoordinateTransform, QgsFeature, QgsGeometry,
@@ -44,6 +45,80 @@ def validate_options(cell_size_m, max_tasks=MAX_TASKS):
     if size < MIN_CELL_SIZE_M:
         return f"cell_size_m must be at least {MIN_CELL_SIZE_M:g} m."
     return None
+
+
+_SIZE_STEPS = (1, 1.5, 2, 2.5, 3, 4, 5, 6, 8)      # times a power of ten: round sizes a person can say, remember and plan field work around
+_LARGEST_SIZE_M = 10_000_000
+
+
+def size_ladder():
+    """The round cell sizes (metres) a refusal may suggest, increasing from MIN_CELL_SIZE_M: 100, 150, 200, 250, 300, 400, 500, 600, 800, 1000, ... Pure."""
+    sizes, power = [], 100
+    while power <= _LARGEST_SIZE_M:
+        sizes.extend(step * power for step in _SIZE_STEPS)
+        power *= 10
+    return [int(s) if float(s).is_integer() else s for s in sizes if s >= MIN_CELL_SIZE_M]
+
+
+def size_text(size_m):
+    """'500 m', '1 km', '2.5 km', '15 km'. Pure."""
+    return f"{size_m:g} m" if size_m < 1000 else f"{size_m / 1000:g} km"
+
+
+def suggest_cell_size(width_m, height_m, cell_size_m, limit=MAX_TASKS):
+    """(size, cells): the smallest round size not below `cell_size_m` whose grid over a width x height box has at most `limit` cells, and that cell count; the
+    size asked for when it already fits; (None, None) when no size up to the largest fits. The count is for the bounding box, so it is an upper bound for an
+    irregular outline. Pure."""
+    if estimated_cells(width_m, height_m, cell_size_m) <= limit:
+        return cell_size_m, estimated_cells(width_m, height_m, cell_size_m)
+    for size in size_ladder():
+        if size >= cell_size_m:
+            cells = estimated_cells(width_m, height_m, size)
+            if cells <= limit:
+                return size, cells
+    return None, None
+
+
+def suggest_size_from_count(cell_size_m, task_count, limit=MAX_TASKS):
+    """(size, about how many tasks) when a grid made `task_count` tasks at `cell_size_m` and the limit is `limit`. Tasks go with one over the size squared,
+    so the size must grow by the square root of the excess; the count is about, because cells along the outline do not scale exactly. (None, None) if none fits. Pure."""
+    needed = cell_size_m * (task_count / limit) ** 0.5
+    for size in size_ladder():
+        if size >= needed and size > cell_size_m:
+            return size, max(1, round(task_count * (cell_size_m / size) ** 2))
+    return None, None
+
+
+_PART_AT_A_TIME = "Or make the grid for part of the area at a time (aoi_where picks which features of the area layer to use)."
+
+
+def too_many_cells_message(cell_size_m, needed, width_m, height_m):
+    """The refusal when the bounding box alone needs far more cells than the limit, with a size that would work and the other way out. Pure."""
+    size, cells = suggest_cell_size(width_m, height_m, cell_size_m)
+    head = f"A {size_text(cell_size_m)} grid over this area needs about {needed:,} cells, far above the {MAX_TASKS:,} task limit. No grid was made. "
+    if size is None:
+        return head + "Use a larger cell_size_m. " + _PART_AT_A_TIME
+    return (head + f"Use a larger cell_size_m: {size_text(size)} gives at most about {cells:,} cells (fewer once the grid is cut to the area's outline). "
+            + _PART_AT_A_TIME)
+
+
+def refusal_result(cell_size_m, needed, width_m, height_m):
+    """The error result for too_many_cells_message, with the suggestion as numbers the assistant can offer back. Pure."""
+    found = {"error": too_many_cells_message(cell_size_m, needed, width_m, height_m)}
+    size, cells = suggest_cell_size(width_m, height_m, cell_size_m)
+    if size is not None:
+        found.update({"suggested_cell_size_m": size, "suggested_cells": cells})
+    return found
+
+
+def too_many_tasks_result(cell_size_m, task_count):
+    """The error result when the grid, after cutting to the outline, made more than MAX_TASKS tasks. Pure."""
+    size, about = suggest_size_from_count(cell_size_m, task_count)
+    head = f"This would create {task_count:,} tasks, above the limit of {MAX_TASKS:,}. No grid was made. "
+    if size is None:
+        return {"error": head + "Use a larger cell_size_m. " + _PART_AT_A_TIME}
+    return {"error": head + f"Use a larger cell_size_m: {size_text(size)} would give about {about:,} tasks. " + _PART_AT_A_TIME,
+            "suggested_cell_size_m": size, "suggested_cells": about}
 
 
 def estimated_cells(width_m, height_m, cell_size_m):
@@ -113,16 +188,42 @@ def _copy_transformed(geom, src, dst):
     return out
 
 
-def _aoi_union(layer):
-    geoms = [f.geometry() for f in layer.getFeatures() if f.geometry() is not None and not f.geometry().isEmpty()]
+def _aoi_union(layer, where=None):
+    """Union of the area's polygons; `where` (a QGIS expression) keeps only matching features so the source layer need not be filtered."""
+    from qgis.core import QgsExpression
+    expression = QgsExpression(where) if where else None
+    if expression is not None and expression.hasParserError():
+        raise ValueError(f"aoi_where is not a valid QGIS expression: {expression.parserErrorString()}")
+    from qgis.core import QgsExpressionContext, QgsExpressionContextUtils
+    context = QgsExpressionContext(QgsExpressionContextUtils.globalProjectLayerScopes(layer)) if expression is not None else None
+    geoms = []
+    for f in _ck.features(layer, "Task grid: reading features"):
+        if f.geometry() is None or f.geometry().isEmpty():
+            continue
+        if expression is not None:
+            context.setFeature(f)
+            if not expression.evaluate(context):
+                continue
+        geoms.append(f.geometry())
     return QgsGeometry.unaryUnion(geoms) if geoms else None
+
+
+def _aoi_union_or_error(aoi, aoi_layer, aoi_where):
+    """(union, None) or (None, {"error": ...}) so the tool body stays a straight line."""
+    try:
+        union = _aoi_union(aoi, aoi_where)
+    except ValueError as e:
+        return None, {"error": str(e)}
+    if union is None:
+        return None, {"error": f"'{aoi_layer}' has no usable polygons" + (f" matching {aoi_where}." if aoi_where else ".")}
+    return union, None
 
 
 def _point_counts(cells_metric, points_layer, metric):
     """Number of points of points_layer inside each cell geometry (metric CRS)."""
     index = QgsSpatialIndex()
     pts = {}
-    for f in points_layer.getFeatures():
+    for f in _ck.features(points_layer, "Task grid: reading features"):
         g = f.geometry()
         if g is None or g.isEmpty():
             continue
@@ -142,6 +243,7 @@ def _raster_sums(cells_metric, raster_layer, metric):
     """Sum of a raster over each cell through native:zonalstatisticsfb. Returns a list, or raises."""
     import processing
     zones = QgsVectorLayer(f"Polygon?crs={metric.authid()}&field=i:integer", "zones", "memory")
+    require_valid_layer(zones)
     feats = []
     for i, g in enumerate(cells_metric):
         f = QgsFeature(zones.fields())
@@ -153,7 +255,7 @@ def _raster_sums(cells_metric, raster_layer, metric):
         "INPUT": zones, "INPUT_RASTER": raster_layer, "RASTER_BAND": 1, "COLUMN_PREFIX": "t_", "STATISTICS": [1],
         "OUTPUT": "memory:"})
     out_layer = result["OUTPUT"]
-    by_i = {f["i"]: f["t_sum"] for f in out_layer.getFeatures()}
+    by_i = {f["i"]: f["t_sum"] for f in _ck.features(out_layer, "Task grid: reading features")}
     return [None if by_i.get(i) is None else float(by_i[i]) for i in range(len(cells_metric))]
 
 
@@ -173,14 +275,21 @@ def _raster_sums(cells_metric, raster_layer, metric):
             "cell_size_m": {"type": "number", "description": "Task width in metres (minimum 100). Default 2000."},
             "priority_points_layer": {"type": "string", "description": "Optional point (or other vector) layer; the priority value is the number of its features in each cell."},
             "population_raster_layer": {"type": "string", "description": "Optional population raster; the priority value is the sum of its cells in each task. Ignored if priority_points_layer is given."},
+            "aoi_where": {"type": "string", "description": "Optional QGIS expression (e.g. \"ADM1_EN\" = 'Aden') limiting the area to matching features of aoi_layer. Use this instead of filtering the source layer, which would hide features from the whole project."},
             "output_layer_name": {"type": "string", "description": "Name of the new task layer. Default 'mapping_tasks'."},
             "export_geojson_path": {"type": "string", "description": "Optional file path for the GeoJSON export. Use 'auto' to write into the system temp folder."},
         },
         "required": ["aoi_layer"],
     },
+    # Remote mapping tasks (see tools/task_grid_tools.py). No bare "grid" or "tasks": they appear in unrelated requests.
+    keywords=[
+        "tasking manager", "mapping task", "task grid", "mapswipe", "remote mapping", "crowd mapping", "mapathon",
+        "split the area into", "divide the area into",
+        "squares for the mappers", "kilometre squares", "kilometer squares", "km squares", "grid for the mappers",
+    ],
 )
 def generate_mapping_task_grid(aoi_layer, cell_size_m=2000, priority_points_layer=None, population_raster_layer=None,
-                               output_layer_name="mapping_tasks", export_geojson_path=None):
+                               output_layer_name="mapping_tasks", export_geojson_path=None, aoi_where=None):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
     problem = validate_options(cell_size_m)
@@ -203,9 +312,9 @@ def generate_mapping_task_grid(aoi_layer, cell_size_m=2000, priority_points_laye
         if raster is None or not hasattr(raster, "bandCount"):
             return {"error": f"Raster layer '{population_raster_layer}' not found"}
 
-    union = _aoi_union(aoi)
-    if union is None:
-        return {"error": f"'{aoi_layer}' has no usable polygons."}
+    union, problem = _aoi_union_or_error(aoi, aoi_layer, aoi_where)
+    if problem:
+        return problem
 
     wgs = QgsCoordinateReferenceSystem("EPSG:4326")
     centre = _transform(aoi.crs(), wgs).transform(union.boundingBox().center())
@@ -215,8 +324,7 @@ def generate_mapping_task_grid(aoi_layer, cell_size_m=2000, priority_points_laye
     box = union_m.boundingBox()
     needed = estimated_cells(box.width(), box.height(), size)
     if needed > MAX_TASKS * 4:
-        return {"error": f"A {size:g} m grid over this area needs about {needed} cells, far above the {MAX_TASKS} task limit. "
-                         "Use a larger cell_size_m."}
+        return refusal_result(size, needed, box.width(), box.height())
 
     full_area = size * size
     kept = []
@@ -230,7 +338,7 @@ def generate_mapping_task_grid(aoi_layer, cell_size_m=2000, priority_points_laye
     if not kept:
         return {"error": "The grid produced no tasks; check the area and cell_size_m."}
     if len(kept) > MAX_TASKS:
-        return {"error": f"This would create {len(kept)} tasks, above the limit of {MAX_TASKS}. Use a larger cell_size_m."}
+        return too_many_tasks_result(size, len(kept))
 
     pieces = [p for _c, p in kept]
     values, value_note = [None] * len(kept), None
@@ -251,9 +359,10 @@ def generate_mapping_task_grid(aoi_layer, cell_size_m=2000, priority_points_laye
 
     out = QgsVectorLayer("Polygon?crs=EPSG:4326&field=task_id:string&field=area_km2:double&field=value:double&field=priority:string",
                          output_layer_name, "memory")
+    require_valid_layer(out)
     to_wgs = _transform(metric, wgs)
     features, geojson = [], []
-    for (cell, piece), value, klass in zip(kept, values, classes):
+    for (cell, piece), value, klass in zip(kept, values, classes, strict=False):
         geom = QgsGeometry(piece)
         geom.transform(to_wgs)
         props = {"task_id": task_id(cell["col"], cell["row"]), "area_km2": round(piece.area() / 1e6, 4),
@@ -285,7 +394,9 @@ def generate_mapping_task_grid(aoi_layer, cell_size_m=2000, priority_points_laye
     if export_geojson_path:
         path = export_geojson_path
         if path == "auto":
-            path = os.path.join(tempfile.gettempdir(), f"{output_layer_name}.geojson")
+            # PLAN-012 item 2: the layer name is model-supplied; it used to go into the path as it was, so "../x" wrote outside the temp
+            # folder and a repeat run overwrote the first file.
+            path = unique_path(tempfile.gettempdir(), safe_file_stem(output_layer_name, "mapping_tasks"), ".geojson")
         try:
             with open(path, "w", encoding="utf-8") as fh:
                 fh.write(to_geojson(geojson))

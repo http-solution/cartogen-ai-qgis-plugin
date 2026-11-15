@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Live Hazard Monitoring tools for Cartogen AI.
 
@@ -22,6 +21,7 @@ otherwise a 5-minute schedule would litter the project with duplicate layers wit
 This is new behavior humanitarian_tools.py's one-shot fetch tools don't need.
 """
 
+import contextlib
 import csv
 import io
 import json
@@ -31,7 +31,9 @@ import urllib.error
 from datetime import datetime, timezone
 
 from .registry import register_tool
+from ._paths import resolve_output_path
 from ._edit_session import EditError
+from ._layer_checks import empty_fetch_result
 from ....infrastructure.auth import CredentialManager
 from ....infrastructure.settings_keys import PROJECT_PROPERTY_FETCHED_AT
 from ...models.confidence import set_layer_confidence
@@ -40,6 +42,8 @@ from ...models.confidence import set_layer_confidence
 # network hiccup or 5xx failed the whole tool call outright, on tools specifically designed
 # to be re-run on a recurring schedule (see module docstring).
 from ._urllib_retry import urlopen_with_retry
+from ...net import build_request as _net_build_request
+from ...net import read_capped as _read_capped
 
 try:
     from qgis.core import QgsProject, QgsVectorLayer, QgsFeature, QgsGeometry, QgsPointXY
@@ -65,11 +69,9 @@ def _style_hazard(layer, kind):
     """A readable default look for a newly created hazard layer (alert-level colours for GDACS, one small dot for fires,
     category colours for EONET) instead of QGIS's random single colour. Only on creation, so a re-fetch that replaces the
     features keeps whatever styling the user has since applied. Cosmetic; never raises."""
-    try:
+    with contextlib.suppress(Exception):
         from .humanitarian_style import style_hazard_layer
         style_hazard_layer(layer, kind)
-    except Exception:
-        pass
 
 def _stamp_fetched_at(layer):
     layer.setCustomProperty(FETCHED_AT_PROPERTY_KEY, datetime.now(timezone.utc).isoformat())
@@ -220,9 +222,9 @@ def fetch_nasa_active_fires_network_phase(bbox, days=1, min_confidence="nominal"
     url = f"https://firms.modaps.eosdis.nasa.gov/api/area/csv/{api_key}/{source}/{area}/{days}"
 
     try:
-        req = urllib.request.Request(url, headers={'User-Agent': 'QGIS-AI-Assistant'})
+        req = _net_build_request(url, headers={'User-Agent': 'QGIS-AI-Assistant'})
         with urlopen_with_retry(req, timeout=30) as response:
-            csv_text = response.read().decode()
+            csv_text = _read_capped(response).decode()
     except Exception as e:
         return {"error": f"NASA FIRMS API request failed: {e}"}
 
@@ -337,6 +339,9 @@ def add_nasa_active_fires_layer_main_thread_phase(fetch_result, layer_name="NASA
         },
         "required": ["bbox"],
     },
+    keywords=[
+        "active fire", "live fire", "fire detection", "current wildfire", "wildfire location", "fire alert", "wildfire",
+    ],
 )
 def fetch_nasa_active_fires(bbox, days=1, min_confidence="nominal", layer_name="NASA Active Fires"):
     fetch_result = fetch_nasa_active_fires_network_phase(bbox, days, min_confidence)
@@ -380,9 +385,9 @@ def fetch_nasa_eonet_events_network_phase(bbox=None, category=None, days=20, sta
     url = f"{_EONET_BASE_URL}?{urllib.parse.urlencode(params)}"
 
     try:
-        req = urllib.request.Request(url, headers={'User-Agent': 'QGIS-AI-Assistant'})
+        req = _net_build_request(url, headers={'User-Agent': 'QGIS-AI-Assistant'})
         with urlopen_with_retry(req, timeout=30) as response:
-            data = json.loads(response.read().decode())
+            data = json.loads(_read_capped(response).decode())
     except Exception as e:
         return {"error": f"NASA EONET API request failed: {e}"}
     # A real live crash traced this exact shape (2026-09-13): the request/decode above
@@ -435,6 +440,8 @@ def add_nasa_eonet_events_layer_main_thread_phase(fetch_result, layer_name="NASA
 
     created = False
     layer = _find_layer_by_name(layer_name)
+    if layer is None and not fetch_result.get("events"):
+        return empty_fetch_result(layer_name, "EONET events")
     if layer is None:
         layer = QgsVectorLayer(
             # event_id: same fix and same rationale as GDACS's identical field, added
@@ -501,6 +508,10 @@ def add_nasa_eonet_events_layer_main_thread_phase(fetch_result, layer_name="NASA
         },
         "required": [],
     },
+    keywords=[
+        "natural event", "live event", "current event", "live hazard", "current hazard", "natural incident", "live incident",
+        "ongoing hazard", "what hazards", "hazard incident", "hazard", "incident",
+    ],
 )
 def fetch_nasa_eonet_events(bbox=None, category=None, days=20, status="open", layer_name="NASA EONET Events"):
     fetch_result = fetch_nasa_eonet_events_network_phase(bbox, category, days, status)
@@ -513,6 +524,28 @@ def fetch_nasa_eonet_events(bbox=None, category=None, days=20, status="open", la
 
 _GDACS_EVENTLIST_URL = "https://www.gdacs.org/gdacsapi/api/events/geteventlist/SEARCH"
 _GDACS_ALERT_RANK = {"green": 0, "orange": 1, "red": 2}
+
+
+def _gdacs_event_list():
+    """(parsed JSON, None) or (None, plain-language failure). 1.18.3 hand test A7: the bare SEARCH URL answered HTTP 400 once on the owner's
+    machine (it answers 200 from elsewhere), so a 400 is retried once with the documented query parameters spelled out. The failure text
+    names the site and the kind of failure and never quotes the exception, which can hold a full link."""
+    from ...net import describe_download_failure
+    explicit = _GDACS_EVENTLIST_URL + "?" + urllib.parse.urlencode({"eventlist": "EQ;TC;FL;VO;DR;WF", "alertlevel": "Green;Orange;Red"}, safe=";")
+    last = None
+    for url in (_GDACS_EVENTLIST_URL, explicit):
+        try:
+            req = _net_build_request(url, headers={'User-Agent': 'QGIS-AI-Assistant'})
+            with urlopen_with_retry(req, timeout=30) as response:
+                return json.loads(_read_capped(response).decode()), None
+        except urllib.error.HTTPError as e:
+            last = e
+            if e.code != 400:
+                break
+        except Exception as e:
+            last = e
+            break
+    return None, f"GDACS API request failed. {describe_download_failure(last, _GDACS_EVENTLIST_URL)}"
 
 
 def fetch_gdacs_disaster_alerts_network_phase(bbox=None, min_alert_level="Orange", country=None):
@@ -543,12 +576,9 @@ def fetch_gdacs_disaster_alerts_network_phase(bbox=None, min_alert_level="Orange
     min_rank = _GDACS_ALERT_RANK.get(str(min_alert_level).strip().lower(), 1)
     country_needle = str(country).strip().lower() if country else None
 
-    try:
-        req = urllib.request.Request(_GDACS_EVENTLIST_URL, headers={'User-Agent': 'QGIS-AI-Assistant'})
-        with urlopen_with_retry(req, timeout=30) as response:
-            data = json.loads(response.read().decode())
-    except Exception as e:
-        return {"error": f"GDACS API request failed: {e}"}
+    data, failure = _gdacs_event_list()
+    if failure:
+        return {"error": failure}
     # See fetch_nasa_eonet_events_network_phase's identical comment above -- same real
     # live crash, same fix, GDACS's own docs already warn its data "may require further
     # validation" so a malformed non-dict body here is a real, not hypothetical, risk.
@@ -603,6 +633,8 @@ def add_gdacs_disaster_alerts_layer_main_thread_phase(fetch_result, layer_name="
 
     created = False
     layer = _find_layer_by_name(layer_name)
+    if layer is None and not fetch_result.get("alerts"):
+        return empty_fetch_result(layer_name, "GDACS alerts")
     if layer is None:
         layer = QgsVectorLayer(
             # event_id (added 2026-09-24, live report: "buffer 5 km around active GDACS
@@ -680,6 +712,21 @@ def add_gdacs_disaster_alerts_layer_main_thread_phase(fetch_result, layer_name="
         },
         "required": [],
     },
+    # Added 2026-09-13, live user report: "show live incedent in jordan... natural, crime,
+    # haszard" -- fetch_gdacs_disaster_alerts scored zero relevance for this phrasing (its
+    # description names specific hazard TYPES -- earthquakes, floods, wildfires -- but never
+    # the generic words "disaster"/"hazard"/"incident" a real user reaches for first). The
+    # single-word "hazard"/"disaster"/"incident"/"wildfire" entries below exist specifically so
+    # _expand_query_with_fuzzy_corrections() (see its docstring) has something to land a
+    # corrected "haszard"->"hazard" or "incedent"->"incident" on -- bare-substring matching
+    # alone still can't see a misspelled word, but the fuzzy-correction pass runs before this
+    # check and appends the corrected form to the string these aliases are matched against.
+    # rule 48 (prompts.py) is the complementary fix for when the tool IS already a candidate
+    # but the model doesn't know to reach for it.
+    keywords=[
+        "disaster alert", "current disaster", "live disaster", "ongoing disaster", "disaster incident", "hazard alert",
+        "what disasters", "natural disaster", "hazard", "disaster", "emergency",
+    ],
 )
 def fetch_gdacs_disaster_alerts(bbox=None, min_alert_level="Orange", country=None, layer_name="GDACS Disaster Alerts"):
     fetch_result = fetch_gdacs_disaster_alerts_network_phase(bbox, min_alert_level, country)
@@ -714,6 +761,7 @@ def fetch_gdacs_disaster_alerts(bbox=None, min_alert_level="Orange", country=Non
 )
 def generate_situation_dashboard(bbox, output_path=None, title=None,
                                   include_fires=True, include_eonet=True, include_disasters=True):
+    output_path = resolve_output_path(output_path)   # rc22 smoke N3/N8/N9: anchor relative paths to the project (see _paths.py)
     bbox_error = _validate_bbox(bbox)
     if bbox_error:
         return {"error": bbox_error}
@@ -738,7 +786,7 @@ def generate_situation_dashboard(bbox, output_path=None, title=None,
             layers_config.append({
                 "layer_name": fires["layer_name"],
                 "popup_fields": ["confidence", "brightness", "frp", "acq_date", "acq_time"],
-                "popup_labels": ["Confidence", "Brightness", "Fire Radiative Power", "Date", "Time"],
+                "popup_labels": dict(zip(["confidence", "brightness", "frp", "acq_date", "acq_time"], ["Confidence", "Brightness", "Fire Radiative Power", "Date", "Time"], strict=True)),
             })
 
     if include_eonet:
@@ -749,7 +797,7 @@ def generate_situation_dashboard(bbox, output_path=None, title=None,
             layers_config.append({
                 "layer_name": eonet["layer_name"],
                 "popup_fields": ["title", "category", "date"],
-                "popup_labels": ["Event", "Category", "Date"],
+                "popup_labels": dict(zip(["title", "category", "date"], ["Event", "Category", "Date"], strict=True)),
             })
 
     if include_disasters:
@@ -760,7 +808,7 @@ def generate_situation_dashboard(bbox, output_path=None, title=None,
             layers_config.append({
                 "layer_name": disasters["layer_name"],
                 "popup_fields": ["name", "alert_level", "description", "country"],
-                "popup_labels": ["Event", "Alert Level", "Description", "Country"],
+                "popup_labels": dict(zip(["name", "alert_level", "description", "country"], ["Event", "Alert Level", "Description", "Country"], strict=True)),
             })
 
     if not layers_config:

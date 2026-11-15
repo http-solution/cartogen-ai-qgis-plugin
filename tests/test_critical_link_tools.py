@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """H9 critical links: the tree-load accumulation and class bounds, offline. The graph work needs QGIS (tests/test_critical_link_tools_live.py)."""
 import itertools
 import random
@@ -12,9 +11,10 @@ INF = 1.0e308
 def _brute(parents, costs, weights):
     """Load per edge by walking every destination's path to the root."""
     loads = {}
-    for v, w in weights.items():
-        if costs[v] >= cl.UNREACHABLE:
+    for start, w in weights.items():
+        if costs[start] >= cl.UNREACHABLE:
             continue
+        v = start
         while parents[v] >= 0:
             loads[v] = loads.get(v, 0.0) + w
             v = parents[v]

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 File-attachment reading for the chat dock's "attach a file" flow.
 
@@ -101,7 +100,7 @@ def read_attached_file(path):
             )
             return {"text": text, "is_image": False}, None
 
-        with open(path, "r", encoding="utf-8", errors="ignore") as f:
+        with open(path, encoding="utf-8", errors="ignore") as f:
             return {"text": f.read(), "is_image": False}, None
     except ImportError as e:
         return None, (

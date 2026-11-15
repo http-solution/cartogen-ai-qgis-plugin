@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Which Processing algorithm ids the source references. Pure (no QGIS), shared by the offline test and the live registry diagnostic."""
 import os
 import re

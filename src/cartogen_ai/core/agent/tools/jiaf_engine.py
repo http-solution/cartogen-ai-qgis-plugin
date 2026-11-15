@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """JIAF 2 analysis support, stage 3: the preliminary calculations the July 2024 manual makes mechanical
 (docs/JIAF2_ANALYSIS_SUPPORT_PLAN_2026-10-04.md, sections 2, 4 and 6).
 
@@ -40,6 +39,7 @@ the final result and the justification are separate fields throughout (see jiaf_
 import csv
 import os
 
+from ... import _chunked as _ck
 from .registry import register_tool
 from ._edit_session import EditError, add_numeric_field, edit_command, set_value
 from . import jiaf_rules as rules
@@ -84,7 +84,7 @@ READINGS = [
 
 
 def readings_for(settings):
-    return READINGS_OCHA if settings["rules_profile"] == rules.PROFILE_ID else ["manual_reading profile (this module's INTERPRETATION of the manual, not OCHA's rules; for comparison only):"] + READINGS
+    return READINGS_OCHA if settings["rules_profile"] == rules.PROFILE_ID else ["manual_reading profile (this module's INTERPRETATION of the manual, not OCHA's rules; for comparison only):", *READINGS]
 
 
 # ------------------------------------------------------------------ pure --
@@ -301,6 +301,27 @@ def rank_of_value(ranked, value):
     return "other"
 
 
+def _compare_stored_flags(u, pf, sf, flag_check):
+    """Adds one unit's worksheet-cached flag columns (when the file has them) to `flag_check`, compared with the recomputed flags."""
+    for kind, flags, got in (("pin", pf, u["stored"].get("pin_flags")), ("severity", sf, u["stored"].get("severity_flags"))):
+        for n, was in (got or {}).items():
+            key = str(n)
+            mine = flags.get(n) if isinstance(n, int) else flags.get(6)
+            if mine is None:
+                continue
+            if isinstance(n, str):  # 6a / 6b: compare with the matching part of flag 6
+                part = (mine.get("parts") or {}).get("highest" if n == "6a" else "second_highest")
+                fired = bool(part and part["fired"])
+            else:
+                fired = bool(mine["fired"])
+            c = flag_check[kind].setdefault(key, {"compared": 0, "agree": 0, "disagree": []})
+            c["compared"] += 1
+            if fired == was:
+                c["agree"] += 1
+            else:
+                c["disagree"].append({"unit": u["admin2_code"], "worksheet": was, "computed": fired})
+
+
 def analyze(units, previous_units=None, overrides=None):
     """The full preliminary analysis of validated units (see validate_units). Returns a dict with per-unit rows and totals."""
     settings = merge_settings(overrides)
@@ -365,23 +386,7 @@ def analyze(units, previous_units=None, overrides=None):
                 totals["units_without_worksheet_preliminary_pin"] += 1
             else:
                 totals["worksheet_preliminary_pin"] += gated
-        for kind, flags, got in (("pin", pf, u["stored"].get("pin_flags")), ("severity", sf, u["stored"].get("severity_flags"))):
-            for n, was in (got or {}).items():
-                key = str(n)
-                mine = flags.get(n) if isinstance(n, int) else flags.get(6)
-                if mine is None:
-                    continue
-                if isinstance(n, str):  # 6a / 6b: compare with the matching part of flag 6
-                    part = (mine.get("parts") or {}).get("highest" if n == "6a" else "second_highest")
-                    fired = bool(part and part["fired"])
-                else:
-                    fired = bool(mine["fired"])
-                c = flag_check[kind].setdefault(key, {"compared": 0, "agree": 0, "disagree": []})
-                c["compared"] += 1
-                if fired == was:
-                    c["agree"] += 1
-                else:
-                    c["disagree"].append({"unit": u["admin2_code"], "worksheet": was, "computed": fired})
+        _compare_stored_flags(u, pf, sf, flag_check)
         if psev is not None:
             sev_dist[psev] = sev_dist.get(psev, 0) + 1
         if psev == 5 or sf[1]["fired"]:
@@ -418,8 +423,8 @@ def analyze(units, previous_units=None, overrides=None):
     # How many units flag 1 would flag at each threshold, and counting only missing or only zero PiN, for the team to look at (the threshold is theirs).
     miss_n = [len(r["pin_coverage"]["missing_sectors"]) for r in rows]
     zero_n = [len(r["pin_coverage"]["zero_sectors"]) for r in rows]
-    top = max([a + b for a, b in zip(miss_n, zero_n)] + [3])
-    sensitivity = {"missing_and_zero": {t: sum(1 for a, b in zip(miss_n, zero_n) if a + b >= t) for t in range(1, top + 1)},
+    top = max([a + b for a, b in zip(miss_n, zero_n, strict=False)] + [3])
+    sensitivity = {"missing_and_zero": {t: sum(1 for a, b in zip(miss_n, zero_n, strict=False) if a + b >= t) for t in range(1, top + 1)},
                    "missing_only": {t: sum(1 for a in miss_n if a >= t) for t in range(1, top + 1)},
                    "zero_only": {t: sum(1 for b in zero_n if b >= t) for t in range(1, top + 1)}}
     assessable = sum(1 for r in rows if r["severity_flags"][2]["fired"] is not None)
@@ -480,6 +485,21 @@ def _row_for_csv(r):
     return out
 
 
+def preview_card_text(description, statement, blockers, empty_severity_units, units):
+    """The text the confirmation card shows for a JIAF write: the description, the standing statement, which validation items are still open and,
+    when it applies, that jf_pre_sev will be empty. Pure.
+
+    Round-3 smoke row D3 (DEF-35): the statement, blockers and severity note were in the tool payload (since 1.18.4) but the card shows only the
+    rationale and the code, so a person approving the write saw none of them. The payload keeps the full blocker texts; the card gets a short form."""
+    lines = [description, f"Standing statement: {statement}"]
+    items = [b.get("id") for b in (blockers or {}).get("blockers", []) if isinstance(b, dict) and b.get("id")]
+    if items:
+        lines.append("Validation items still open (not closed by this tool): " + ", ".join(items) + ". These are preliminary figures, not the final PiN or severity.")
+    if empty_severity_units:
+        lines.append(f"jf_pre_sev will be EMPTY for {empty_severity_units} of {units} areas: their severity depends on sectors the file does not report.")
+    return "\n".join(lines)
+
+
 @register_tool(
     "compute_jiaf_preliminary",
     "Compute the PRELIMINARY JIAF 2 figures from sector inputs (support for the JIAF 2 process; NOT the JIAF method, not endorsed by OCHA or the IASC; "
@@ -522,6 +542,10 @@ def _row_for_csv(r):
         },
         "required": ["file_path"],
     },
+    keywords=[
+        "preliminary joint pin", "preliminary pin", "mosaic method", "joint overall pin", "preliminary intersectoral severity",
+        "jiaf flags", "pin flags", "highest sectoral pin", "compute the jiaf", "jiaf preliminary",
+    ],
 )
 def compute_jiaf_preliminary(file_path, input_format="auto", sheet_name=None, previous_file_path=None, previous_sheet_name=None,
                              rules_profile=None, sectors_sev_5=None, sectors_sev_4=None, sectors_in_scope=None, zero_severity_as=None, f1_min_sectors=None, f1_count_missing=None, f1_count_zero=None, f2_pct=None, f3_pct=None, f4_subpopulation_sectors=None, f5_share=None, f6_pct=None,
@@ -611,7 +635,7 @@ def compute_jiaf_preliminary(file_path, input_format="auto", sheet_name=None, pr
     if not layer_key_field or layer.fields().indexOf(layer_key_field) < 0:
         return {"error": f"layer_key_field '{layer_key_field}' not found on '{layer_name}'. Available: {[f.name() for f in layer.fields()]}"}
     records = [{"key": key_of(r["admin2_code"], None), "row": r} for r in rows]
-    pairs, report = plan_join(records, [(f.id(), key_of(f[layer_key_field], None)) for f in layer.getFeatures()])
+    pairs, report = plan_join(records, [(f.id(), key_of(f[layer_key_field], None)) for f in _ck.features(layer, "Jiaf engine: reading features")])
     result["join"] = report
     if not write_fields or not pairs:
         return result
@@ -623,8 +647,17 @@ def compute_jiaf_preliminary(file_path, input_format="auto", sheet_name=None, pr
                                "previous_sheet_name": previous_sheet_name, "layer_name": layer_name, "layer_key_field": layer_key_field,
                                "write_fields": True, "confirmed": True}, **overrides),
             "code_snippet": f"# Add/update fields {names} on '{layer_name}' for {report['matched']} matched areas",
-            "rationale": f"Data Mutation Preview: write PRELIMINARY JIAF figures to {names} of layer '{layer_name}' ({report['matched']} of {report['layer_features']} areas match).",
+            "rationale": preview_card_text(
+                f"Data Mutation Preview: write PRELIMINARY JIAF figures to {names} of layer '{layer_name}' ({report['matched']} of {report['layer_features']} areas match).",
+                result["statement"], result["validation_blockers"], result["coverage"]["units_with_incomplete_severity"], result["units"]),
             "message": f"Confirmation required before adding fields to '{layer_name}'.", "join": report,
+            # 1.18.4 smoke E2: the confirmation card carried none of this, so the reply that asked for the confirmation named neither the standing
+            # statement nor the two open validation blockers, nor that jf_pre_sev would be empty. Every JIAF result carries them, the preview too.
+            "statement": result["statement"], "stage": result["stage"], "validation_blockers": result["validation_blockers"],
+            "coverage": result["coverage"],
+            "severity_note": (f"jf_pre_sev will be EMPTY for {result['coverage']['units_with_incomplete_severity']} of {result['units']} areas: their preliminary "
+                              "severity depends on sectors the file does not report (never shown as phase 1). Say so, and give the two validation blockers.")
+                             if result["coverage"]["units_with_incomplete_severity"] else None,
         }
     try:
         with edit_command(layer, "Cartogen AI: preliminary JIAF figures") as owned:
@@ -633,7 +666,7 @@ def compute_jiaf_preliminary(file_path, input_format="auto", sheet_name=None, pr
                 r = rec["row"]
                 vals = [r["preliminary_pin"], r["preliminary_severity"], sum(1 for f in r["pin_flags"].values() if f["fired"]),
                         sum(1 for f in r["severity_flags"].values() if f["fired"])]
-                for i, v in zip(idx, vals):
+                for i, v in zip(idx, vals, strict=False):
                     if v is not None:
                         set_value(layer, fid, i, float(v))
         result["fields_written"] = names

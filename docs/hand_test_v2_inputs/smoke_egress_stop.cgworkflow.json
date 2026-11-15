@@ -1,0 +1,25 @@
+{
+ "format": "cartogen-workflow",
+ "version": 1,
+ "name": "Egress stop: fetch over a restricted area",
+ "description": "One fetch step over a layer. Mark the layer RESTRICTED first: the run must stop at the usual confirmation card instead of sending the area.",
+ "created_with": "1.18.5",
+ "roles": {
+  "area": {
+   "kind": "vector",
+   "geometry": "polygon",
+   "about": "the area to fetch for; mark it RESTRICTED first"
+  }
+ },
+ "steps": [
+  {
+   "tool": "fetch_worldpop_population",
+   "arguments": {
+    "iso3": "YEM",
+    "year": "2020",
+    "extent_layer": "@area"
+   },
+   "note": "sends the area's extent to WorldPop"
+  }
+ ]
+}

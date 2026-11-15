@@ -6,24 +6,26 @@ from abc import ABC, abstractmethod
 # If QGIS has proxy settings configured (e.g. corporate or UN agency proxy),
 # extract them so requests calls don't bypass user network configurations.
 from ...core.proxy import get_qgis_proxy_dict
+from ...core import net as _net
+from ...core.logger import log_event
 
 try:
-    import requests
+    import requests  # type: ignore[import-untyped]
     HTTPError = requests.exceptions.HTTPError
     RequestException = requests.exceptions.RequestException
     ConnectionError_ = requests.exceptions.ConnectionError
     Timeout_ = requests.exceptions.Timeout
 except (ImportError, AttributeError):
-    requests = None
-    class HTTPError(Exception):
+    requests = None  # type: ignore[assignment]
+    class HTTPError(Exception):  # type: ignore[no-redef]
         def __init__(self, *args, **kwargs):
             super().__init__(*args)
-            self.response = kwargs.get("response", None)
-    class RequestException(Exception):
+            self.response = kwargs.get("response")
+    class RequestException(Exception):  # type: ignore[no-redef]
         pass
-    class ConnectionError_(Exception):
+    class ConnectionError_(RequestException):  # type: ignore[misc,no-redef,valid-type]
         pass
-    class Timeout_(Exception):
+    class Timeout_(RequestException):  # type: ignore[misc,no-redef,valid-type]
         pass
 
 # Status codes worth retrying: 429 (rate limited) and the common transient
@@ -59,6 +61,28 @@ RATE_LIMIT_MAX_RETRIES = 3
 DEFAULT_MAX_TOKENS = 8096
 
 
+def _quota_will_not_clear(response):
+    """True for a 429 that waiting a minute cannot fix: a quota of zero (the plan has no access to the model) or a retry delay the
+    provider puts at more than two minutes. The retry loop below waits 10 + 20 + 30 s before giving up, which is what made a free-tier
+    key on a Pro model look 'stuck' for a minute per attempt (2026-10-11 report: limit 0, retry in 11 h)."""
+    text = getattr(response, "text", "") or ""
+    if not isinstance(text, str):
+        return False
+    if re.search(r"limit:\s*0\b", text):
+        return True
+    delay = re.search(r'"retryDelay":\s*"(\d+(?:\.\d+)?)s"', text)
+    return bool(delay and float(delay.group(1)) > 120)
+
+
+def _user_stopped():
+    """True once the user pressed Stop: a request that was dropped for that reason must not be retried."""
+    try:
+        from ...core import cancel_signal
+        return cancel_signal.is_cancelled()
+    except Exception:
+        return False
+
+
 def _request_with_retry(send, timeout, max_retries):
     """Shared retry loop behind post_with_retry/get_with_retry -- `send` is a zero-arg
     callable that performs the actual requests.post/requests.get call. A single transient
@@ -77,11 +101,13 @@ def _request_with_retry(send, timeout, max_retries):
             response = send()
         except RequestException as e:
             last_exc = e
-            if attempt < max_retries:
+            if attempt < max_retries and not _user_stopped():
                 time.sleep(DEFAULT_BACKOFF_SECONDS * (attempt + 1))
                 continue
             raise
         if response.status_code == 429:
+            if _quota_will_not_clear(response):
+                return response
             if attempt < RATE_LIMIT_MAX_RETRIES:
                 time.sleep(RATE_LIMIT_BACKOFF_SECONDS * (attempt + 1))
                 continue
@@ -93,10 +119,70 @@ def _request_with_retry(send, timeout, max_retries):
     raise last_exc
 
 
-def post_with_retry(url, headers, payload_json, timeout, max_retries=DEFAULT_MAX_RETRIES):
+class QgisResponse:
+    """The slice of requests.Response the provider clients use, over a reply from QGIS's network stack (task #71 phase 2):
+    status_code, text, content, headers, json(), raise_for_status()."""
+
+    def __init__(self, status, headers, body, url):
+        self.status_code = status
+        self.headers = _net._Headers(headers)
+        self.content = body
+        self.url = url
+        self.reason = ""
+
+    @property
+    def text(self):
+        return self.content.decode("utf-8", "replace")
+
+    @property
+    def ok(self):
+        return self.status_code < 400
+
+    def json(self):
+        import json as _json
+        return _json.loads(self.content.decode("utf-8"))
+
+    def raise_for_status(self):
+        if self.status_code >= 400:
+            raise HTTPError(f"{self.status_code} Error for url: {self.url}", response=self)
+
+
+def _use_qgis_network(local):
+    """Hosted providers go through QGIS's network stack when it exists, so QGIS proxy, authentication and SSL settings apply.
+    `local` (Ollama) stays on requests: a local model can take minutes to answer, and QGIS applies its own network timeout
+    (default 60 s) instead of the per-call one, so routing it through QGIS would cut long generations short."""
+    return _net.QGIS_NETWORK_AVAILABLE and not local and _qgis_network_enabled()
+
+
+def _qgis_network_enabled():
+    """The user-facing kill-switch for the QGIS network path (default on); a missing QGIS or an unreadable setting counts as on."""
+    try:
+        from qgis.core import QgsSettings
+        from ..settings_keys import SETTINGS_HOSTED_VIA_QGIS_NETWORK
+        return bool(QgsSettings().value(SETTINGS_HOSTED_VIA_QGIS_NETWORK, True, type=bool))
+    except Exception:
+        return True
+
+
+def _qgis_send(method, url, headers, payload, timeout):
+    try:
+        status, reply_headers, body = _net.request(method, url, headers=headers, data=payload, timeout=timeout)
+    except _net.NetworkError as e:
+        raise (Timeout_ if e.timed_out else ConnectionError_)(str(e)) from e
+    if status in (401, 403):
+        # Metadata only (no key, header or body): lets a field report say which sender and proxy setup produced a refusal.
+        from urllib.parse import urlparse
+        log_event("provider_auth_refused", tag="Providers", sender="qgis", status=status, host=urlparse(url).hostname or "",
+                  qgis_proxy=bool(get_qgis_proxy_dict()), error=True)
+    return QgisResponse(status, reply_headers, body, url)
+
+
+def post_with_retry(url, headers, payload_json, timeout, max_retries=DEFAULT_MAX_RETRIES, local=False):
     """Shared HTTP POST for every provider's raw requests-based client -- see
     _request_with_retry for the retry behavior. Drop-in replacement for a bare
-    requests.post(...) call."""
+    requests.post(...) call. `local=True` keeps a local server (Ollama) on requests, see _use_qgis_network."""
+    if _use_qgis_network(local):
+        return _request_with_retry(lambda: _qgis_send("POST", url, headers, payload_json, timeout), timeout, max_retries)
     if requests is None:
         raise RuntimeError("The 'requests' package is required for network LLM provider calls.")
     proxies = get_qgis_proxy_dict()
@@ -106,13 +192,15 @@ def post_with_retry(url, headers, payload_json, timeout, max_retries=DEFAULT_MAX
     )
 
 
-def get_with_retry(url, headers, timeout, max_retries=DEFAULT_MAX_RETRIES):
+def get_with_retry(url, headers, timeout, max_retries=DEFAULT_MAX_RETRIES, local=False):
     """API-002, 2026-09-14 audit: every provider's list_models() used a bare requests.get(...)
     with no retry at all -- unlike the chat-completion path, which has had post_with_retry's
     resilience since 2026-09-12. A transient network hiccup or a 429 while just listing models
     (e.g. populating the settings dialog's model dropdown) used to fail outright with no retry,
     inconsistent with every other HTTP call this codebase makes. Same retry/backoff behavior as
     post_with_retry, just for GET -- drop-in replacement for a bare requests.get(...) call."""
+    if _use_qgis_network(local):
+        return _request_with_retry(lambda: _qgis_send("GET", url, headers, None, timeout), timeout, max_retries)
     if requests is None:
         raise RuntimeError("The 'requests' package is required for network LLM provider calls.")
     proxies = get_qgis_proxy_dict()
@@ -122,7 +210,137 @@ def get_with_retry(url, headers, timeout, max_retries=DEFAULT_MAX_RETRIES):
     )
 
 
-def format_http_error(prefix, e):
+_REASON_CODE = re.compile(r"^(?:[A-Z][A-Z_]{2,60}|[a-z]+(?:_[a-z]+){1,6})$")
+
+
+def _auth_reason_codes(response):
+    """The machine-readable reason codes in a 401/403 body (Gemini: PERMISSION_DENIED, API_KEY_INVALID, SERVICE_DISABLED; OpenAI:
+    invalid_api_key), which tell the user why the provider refused without showing the body. A 403 chat message that only said
+    'check your API key' sent a user with a disabled API and a good key looking in the wrong place (2026-10-11 report). Only values
+    shaped like an enum name (letters and underscores, no digits or hyphens) are returned, so a key echoed back in the body can
+    never pass through: API keys carry digits or hyphens."""
+    import json as _json
+    try:
+        error = _json.loads(response.text).get("error")
+    except Exception:
+        return []
+    if not isinstance(error, dict):
+        return []
+    found = [error.get("status"), error.get("code")]
+    details = error.get("details")
+    if isinstance(details, list):
+        found.extend(d.get("reason") for d in details if isinstance(d, dict))
+    codes = []
+    for value in found:
+        if isinstance(value, str) and _REASON_CODE.match(value) and value not in codes:
+            codes.append(value)
+    return codes
+
+
+def _header_value(response, name):
+    """A response header as short printable ASCII, or ''. Headers such as Server and Via name software, never a credential."""
+    try:
+        value = response.headers.get(name)
+    except Exception:
+        return ""
+    return "".join(c for c in str(value or "") if " " <= c <= "~")[:60].strip()
+
+
+def _unrecognised_reply_note(response):
+    """What a 401/403 looks like when it carries no provider reason code: the server software, content type and body size. A refusal
+    that is not the provider's own JSON error (an empty body, an HTML page) usually comes from something in between, such as a proxy or
+    firewall, and these three facts say so without showing the body. Added after a 2026-10-11 report where a 403 gave nothing to go on."""
+    try:
+        size = len(response.content if response.content is not None else b"")
+    except Exception:
+        size = -1
+    facts = [f"{label}: {value}" for label, value in
+             (("server", _header_value(response, "Server")), ("via", _header_value(response, "Via")),
+              ("content-type", _header_value(response, "Content-Type"))) if value]
+    facts.append("empty body" if size == 0 else f"body {size} bytes" if size > 0 else "body unreadable")
+    return " No provider reason code in the reply (" + "; ".join(facts) + ")."
+
+
+_KEY_SOURCE_LABELS = {
+    "auth_store": "QGIS's saved credentials",
+    "session_memory": "memory for this session only (not saved)",
+    "legacy_settings": "an old plaintext setting from an earlier version",
+}
+
+
+def key_in_use_note(provider, api_key):
+    """Which key a refused request carried, described without revealing it: where it was found, its length and its last four
+    characters (what Google AI Studio and OpenAI show next to a key), plus a warning when it holds a space or line break. Lets a
+    user see that the key sent is not the one they just entered. Never the whole key."""
+    key = str(api_key or "")
+    if not key:
+        return " The request carried no API key."
+    try:
+        from ..auth import CredentialManager
+        source = CredentialManager.last_credential_source(provider)
+    except Exception:
+        source = ""
+    note = f" Key sent: {len(key)} characters, ending {key[-4:]}, from {_KEY_SOURCE_LABELS.get(source, 'an unknown source')}."
+    if any(c.isspace() for c in key) or not key.isascii():
+        note += " It contains a space, line break or non-ASCII character, which providers reject."
+    return note
+
+
+def _quota_summary(response):
+    """A Google 429 (RESOURCE_EXHAUSTED) as one readable sentence, or '' when the body is not that shape. The raw body is a screenful of
+    JSON; what the user needs is the model, whether it is the free tier, whether the limit is zero (the plan has no access to the model at
+    all), and how long to wait. Quota errors carry no credential, so showing these facts is safe."""
+    import json as _json
+    try:
+        data = _json.loads(response.text)
+        error = (data[0] if isinstance(data, list) else data).get("error", {})
+        details = error.get("details", [])
+    except Exception:
+        return ""
+    if not isinstance(error, dict) or error.get("status") != "RESOURCE_EXHAUSTED" or not isinstance(details, list):
+        return ""
+    models, free_tier, retry = [], False, ""
+    for d in details:
+        if not isinstance(d, dict):
+            continue
+        for v in d.get("violations", []) if isinstance(d.get("violations"), list) else []:
+            if isinstance(v, dict):
+                free_tier = free_tier or "FreeTier" in str(v.get("quotaId", ""))
+                model = (v.get("quotaDimensions") or {}).get("model") if isinstance(v.get("quotaDimensions"), dict) else None
+                if model and model not in models:
+                    models.append(str(model)[:60])
+        delay = d.get("retryDelay")
+        if isinstance(delay, str) and delay.endswith("s") and delay[:-1].replace(".", "", 1).isdigit():
+            seconds = int(float(delay[:-1]))
+            retry = f" Google says to retry in about {seconds // 3600} h {seconds % 3600 // 60} min." if seconds >= 3600 else f" Google says to retry in about {max(seconds // 60, 1)} min."
+    zero = bool(re.search(r"limit:\s*0\b", str(error.get("message", ""))))
+    what = ", ".join(models) or "this model"
+    if free_tier and zero:
+        return (f"the free tier has no quota at all for {what} (limit 0), so it needs a paid plan: enable billing on the key's Google "
+                f"project, or choose a Flash model such as gemini-flash-latest.{retry}")
+    return f"quota exceeded for {what}{' on the free tier' if free_tier else ''}.{retry}"
+
+
+def reply_summary(response):
+    """One short line on a provider reply that was not usable: the status plus either the provider's own error text (JSON `error.status`
+    and `error.message`, first line, long key-like strings blanked) or, when the body is not that, the server software, content type and
+    size. Used to list what every model in a fallback chain answered. Provider error text names models and quotas, not credentials; the
+    blanking is a second guard."""
+    import json as _json
+    status = getattr(response, "status_code", "?")
+    try:
+        data = _json.loads(response.text)
+        error = (data[0] if isinstance(data, list) else data).get("error", {})
+        text = f"{error.get('status', '')} {str(error.get('message', '')).splitlines()[0] if error.get('message') else ''}".strip()
+    except Exception:
+        text = ""
+    if text:
+        text = re.sub(r"[A-Za-z0-9_\-]{30,}", "[redacted]", text)[:140]
+        return f"{status} {text}"
+    return f"{status}{_unrecognised_reply_note(response).rstrip('.')}"
+
+
+def format_http_error(prefix, e, key_note=""):
     """Formats a requests.exceptions.HTTPError into a user-facing error string, shared by
     every provider client's list_models/grounded_search/chat-completion error paths.
 
@@ -137,12 +355,21 @@ def format_http_error(prefix, e):
     useful for debugging (quota errors, malformed-request details) and isn't credential-
     bearing."""
     status = e.response.status_code if e.response is not None else None
-    if status in (401, 403):
+    # DEF-31 (round-3 smoke row A2): Gemini answers an invalid key with HTTP 400 and the reason API_KEY_INVALID, not 401/403, so the Test button
+    # printed the raw JSON. That one reason code makes a 400 an authentication failure; any other 400 keeps the provider's own text.
+    invalid_key_400 = status == 400 and "API_KEY_INVALID" in _auth_reason_codes(e.response)
+    if status in (401, 403) or invalid_key_400:
+        reasons = _auth_reason_codes(e.response)
+        reason_note = f" Provider reason: {', '.join(reasons)}." if reasons else _unrecognised_reply_note(e.response)
         return (
-            f"{prefix} ({status}): Authentication failed -- check your API key. "
+            f"{prefix} ({status}): Authentication failed -- check your API key.{reason_note}{key_note} "
             "(Response body withheld: some providers echo part of the submitted key back "
             "in this specific error.)"
         )
+    if status == 429 and e.response is not None:
+        summary = _quota_summary(e.response)
+        if summary:
+            return f"{prefix} (429): {summary}"
     body = e.response.text if e.response is not None else str(e)
     return f"{prefix} ({status}): {body}"
 

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Tests for agent/tools/provenance_tools.py -- the registered-tool
 surface over agent/provenance.py (point 17 of
 docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md).
@@ -91,7 +90,7 @@ class TestWriteProvenanceSidecarExplicitPath(unittest.TestCase):
             self.assertEqual(result["path"], out_path)
             self.assertNotIn("warning", result)
             self.assertTrue(os.path.isfile(out_path))
-            with open(out_path, "r", encoding="utf-8") as f:
+            with open(out_path, encoding="utf-8") as f:
                 on_disk = json.load(f)
             self.assertEqual(on_disk["layer_name"], "districts")
 

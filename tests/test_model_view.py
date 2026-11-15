@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """rc7 smoke test F21: field names of a SENSITIVE layer reached the cloud model through get_layers / the map
 context, although the egress gate was protecting the layer's data. models/model_view.py is the one rule for it."""
 import unittest

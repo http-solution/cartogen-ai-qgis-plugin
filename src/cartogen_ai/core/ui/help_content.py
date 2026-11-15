@@ -1,35 +1,32 @@
-# -*- coding: utf-8 -*-
 """Help content for the Help dialog, kept Qt-free so tests can read it (help_tab_widget.py only wraps it in a widget).
 
 The "What's new" and humanitarian-tool sections come from core/release_notes.py, which must be updated on every version bump
 (tests/test_release_docs_in_sync.py enforces it). Tool, task and section counts are read from the live registries, not typed in.
 """
-from .. import release_notes
+import contextlib
+import html
+from .. import disclaimer_text, release_notes
 from .dock_constants import PROVIDER_CHOICES, QUICK_SUGGESTION_CHIPS
 
 
 def _registry_counts():
     """(tools, tasks, sections), each None when it cannot be read -- the text then drops the number rather than stating a wrong one."""
     tools = tasks = sections = None
-    try:
+    with contextlib.suppress(Exception):
         from ..agent.tools.registry import TOOL_REGISTRY
         from ..agent import tools as _load_all  # noqa: F401  (importing the package registers every tool)
         tools = len(TOOL_REGISTRY) or None
-    except Exception:
-        pass
-    try:
+    with contextlib.suppress(Exception):
         import json
         import os
         path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "agent", "task_register.json")
         with open(path, encoding="utf-8") as fh:
             data = json.load(fh)
         tasks, sections = len(data), len({t.get("cat") for t in data})
-    except Exception:
-        pass
     return tools, tasks, sections
 
 
-def build_help_html(version=None, tool_count=None, task_count=None, section_count=None):
+def build_help_html(version=None, tool_count=None, task_count=None, section_count=None, environment_line=None):
     """Static help content -- provider list and example prompts are built from the same
     source data as the rest of the UI (PROVIDER_CHOICES, QUICK_SUGGESTION_CHIPS) rather
     than a second, driftable copy of the text.
@@ -61,7 +58,16 @@ def build_help_html(version=None, tool_count=None, task_count=None, section_coun
         "<li><b>{}</b>: {}</li>".format(title, ", ".join(
             f"<code>{t}</code>" + (" <i>(new)</i>" if release_notes.tool_is_new(t) else "") for t in tools))
         for title, tools in release_notes.HUMANITARIAN_WORKFLOWS)
+    terms_html = "".join(
+        f"<p><b>{html.escape(heading)}</b> {html.escape(body)}</p>" for heading, body in disclaimer_text.TERMS_PARAGRAPHS)
     version_line = f"<p style='color:gray;'>Version {version}</p>" if version else ""
+    if environment_line:                                       # PLAN-053: what this computer runs, to paste into a bug report
+        version_line += f"<p style='color:gray;'>This computer: {html.escape(environment_line)}</p>"
+    # rc22 smoke V7: the sentence about (new) marks was shown although no tool carried one (no tool was added in the last two
+    # releases), so the Help promised marks that were never there. It appears only when at least one mark is shown.
+    any_new = any(release_notes.tool_is_new(t) for _title, tools in release_notes.HUMANITARIAN_WORKFLOWS for t in tools)
+    new_note = ("<i>(new)</i> marks tools added in the last two releases; they have been tested in CI, not by hand.\n    "
+                if any_new else "")
     return f"""
     <h3>🗺️ Cartogen AI — Help</h3>
     {version_line}
@@ -74,7 +80,7 @@ def build_help_html(version=None, tool_count=None, task_count=None, section_coun
 
     <h4>Getting started</h4>
     <ol>
-    <li>Open <b>Settings</b> (top-right gear icon) and pick a provider and enter its API key.</li>
+    <li>Open <b>Plugins &gt; Cartogen AI &gt; Connections...</b>, pick a provider, enter its API key and press <b>Use this connection</b>.</li>
     <li>Type a request in the chat box and press Enter (Shift+Enter for a new line).</li>
     <li>For anything that edits or deletes data, you'll see a confirmation card right in the
     chat before it actually runs.</li>
@@ -115,8 +121,7 @@ def build_help_html(version=None, tool_count=None, task_count=None, section_coun
     <h4>Humanitarian tools</h4>
     <p>Tools by workflow. Ask in plain language — you don't need the tool names. Where a number is a
     judgement call (a threshold, weights, a budget) the tool asks you for it and repeats it in the result.
-    <i>(new)</i> marks tools added in the last two releases; they have been tested in CI, not by hand.
-    Details: <code>docs/HUMANITARIAN_TOOLS_CATALOGUE.md</code>.</p>
+    {new_note}Details: <code>docs/HUMANITARIAN_TOOLS_CATALOGUE.md</code>.</p>
     <ul>{workflow_items}</ul>
 
     <h4>Layer context</h4>
@@ -132,12 +137,15 @@ def build_help_html(version=None, tool_count=None, task_count=None, section_coun
     <b>Confirm and Apply Edit</b> in that task's inspector (click its row in the plan strip),
     or just reply "Confirm" — the AI cannot apply them on its own.</p>
 
+    <h4>{disclaimer_text.TERMS_TITLE}</h4>
+    {terms_html}
+
     <h4>Something not working?</h4>
     <ul>
-    <li><b>"No API key configured" / an authentication error</b> — open Settings and check the
+    <li><b>"No API key configured" / an authentication error</b> — open Connections and check the
     key for your selected provider, or switch to Ollama to run fully locally with no key.</li>
     <li><b>Rate limited or quota errors</b> — wait a moment and try again, or switch models or
-    providers in Settings.</li>
+    providers in Connections.</li>
     <li><b>A file attachment isn't being read</b> — PDF/Word/Excel parsing needs a few optional
     Python packages; everything else works without them (see the README's "Optional
     dependencies" section for how to install them).</li>

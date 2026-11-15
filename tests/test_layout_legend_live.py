@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """rc18 R7/N8: the legend must not list a raster that lies outside the map. Written without a local QGIS: CI's first run is its first execution."""
 import os
 import unittest

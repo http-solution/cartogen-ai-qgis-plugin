@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Tests for agent/output_router.py -- the step that checks the answer came
 back in the shape the task promised, and asks once when it did not."""
 import unittest
@@ -24,6 +23,12 @@ class TestSatisfied(unittest.TestCase):
         self.assertFalse(router.satisfied(c, ["add_layer_from_path", "apply_labels"]))
         self.assertTrue(router.satisfied(c, ["add_layer_from_path", "generate_html_dashboard"]))
 
+    def test_a_layer_contract_is_met_by_a_styling_tool(self):
+        # rc40 hand test OI-128: "style the raster" was followed by a nudge to call apply_categorized_style
+        c = {"kind": "layer", "render": ["apply_categorized_style"]}
+        self.assertTrue(router.satisfied(c, ["apply_raster_stretch"]))
+        self.assertFalse(router.satisfied(c, ["get_layers"]))
+
     def test_layout_needs_a_layout_tool(self):
         c = {"kind": "layout", "render": ["create_print_layout", "print_map"]}
         self.assertFalse(router.satisfied(c, ["zoom_to_layer"]))
@@ -36,6 +41,24 @@ class TestSatisfied(unittest.TestCase):
         self.assertTrue(router.satisfied(c, ["fetch_osm_features"]))
         self.assertTrue(router.satisfied(c, ["buffer_analysis"]))
         self.assertTrue(router.satisfied(c, ["apply_categorized_style"]))
+
+    def test_the_incident_search_tool_counts_as_putting_a_layer_on_the_canvas(self):
+        # Hand test 2026-10-12 (Yemen, last 30 days): find_incident_reports added the Incident reports layer, but its name has no
+        # layer-creating prefix, so the chat ended with "the step that writes it did not run".
+        c = {"kind": "layer", "render": ["apply_categorized_style", "zoom_to_layer"], "explicit": True}
+        self.assertTrue(router.satisfied(c, ["find_incident_reports"]))
+        self.assertIn("Delivered", router.delivery_note(c, ["find_incident_reports"]))
+        self.assertIsNone(router.followup_instruction(c, ["find_incident_reports"], has_layers=True))
+
+    def test_the_missing_layer_nudge_never_tells_the_model_to_invent_data(self):
+        # RC37-A1 hand test: the old wording asked for a "representative sample dataset" and the model put invented incidents on the map.
+        c = {"kind": "layer", "render": ["apply_categorized_style"], "explicit": True}
+        text = router.followup_instruction(c, ["get_layers"], has_layers=False)
+        self.assertIsNotNone(text)
+        low = text.lower()
+        for bad in ("representative sample", "sample dataset", "generate an operational"):
+            self.assertNotIn(bad, low)
+        self.assertIn("do not invent", low)
 
     def test_a_layer_contract_is_not_met_by_a_read_only_turn(self):
         c = {"kind": "layer", "render": ["apply_categorized_style", "zoom_to_layer"]}

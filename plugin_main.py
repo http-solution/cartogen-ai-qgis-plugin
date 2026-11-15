@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Renamed from cartogen_ai.py (see that file's own MOVED stub for why): a file
 literally named cartogen_ai.py at the plugin root collided with the
@@ -34,6 +33,9 @@ from cartogen_ai.infrastructure.settings_keys import (
     SETTINGS_AUTO_OPEN_DOCK,
     SETTINGS_HELP_LAST_SHOWN_VERSION,
 )
+import contextlib
+
+from cartogen_ai.core.logger import log_event, log_info, log_warning, startup_state_fields
 
 SETTINGS_KEY = SETTINGS_API_KEY
 HELP_LAST_SHOWN_VERSION_KEY = SETTINGS_HELP_LAST_SHOWN_VERSION
@@ -54,7 +56,7 @@ def _read_plugin_version(plugin_dir):
     rather than hardcoded so the menu label can never drift from metadata.txt."""
     metadata_path = os.path.join(plugin_dir, "metadata.txt")
     if os.path.exists(metadata_path):
-        with open(metadata_path, "r", encoding="utf-8") as f:
+        with open(metadata_path, encoding="utf-8") as f:
             for line in f:
                 match = re.match(r"^version\s*=\s*(.+)$", line.strip())
                 if match:
@@ -76,13 +78,15 @@ class CartogenAi:
                 self.translator.load(locale_path)
                 QCoreApplication.installTranslator(self.translator)
         except Exception as e:
-            print(f"[CartogenAi] locale init failed: {e}")
+            log_event("locale_init_failed", tag="CartogenAi", error_class=type(e).__name__, error=True)
 
         self.actions = []
         self.menu = self.tr("&Cartogen AI")
         self.dock_widget = None
         self.toolbar_action = None
         self._help_dialog = None
+        self._mcp_server = None             # PLAN-034: the local MCP server; None until a person starts it from the menu
+        self._mcp_dispatcher = None
         self._agent = None
         self._agent_key = None
         self._first_use_timer = None
@@ -91,8 +95,38 @@ class CartogenAi:
     def tr(self, message):
         return QCoreApplication.translate("CartogenAi", message)
 
+    def _warn_about_old_copy(self):
+        """Tell the user once per session when a pre-rc25 install ("cartogen-ai") still sits beside this one. Never raises."""
+        try:
+            from ._module_ownership import legacy_copies
+            old = legacy_copies(self.plugin_dir)
+            if old:
+                message = (self.tr("An older Cartogen AI install is still present (%s). Two copies load together; "
+                                   "uninstall or delete the old folder and restart QGIS.") % os.path.basename(old[0]))
+                log_warning(message, tag="CartogenAi")
+                self.iface.messageBar().pushWarning("Cartogen AI", message)
+        except Exception as e:
+            log_event("old_copy_check_skipped", tag="CartogenAi", error_class=type(e).__name__, error=True)
+
+    def _check_environment(self):
+        """PLAN-053: log what this machine runs (versions only, nothing personal) and tell the user once when it is outside the range the plugin
+        was built for. Never raises and never stops the plugin loading: a warning is all this does."""
+        try:
+            from cartogen_ai.core import environment
+            found = environment.detect()
+            problems = environment.findings(found)
+            log_event("environment", tag="CartogenAi", findings=len(problems), **found)
+            message = environment.startup_message(problems)
+            if message:
+                log_warning(message, tag="CartogenAi")
+                self.iface.messageBar().pushWarning("Cartogen AI", message)
+        except Exception as e:
+            log_event("environment_check_skipped", tag="CartogenAi", error_class=type(e).__name__, error=True)
+
     def initGui(self):
-        print("[CartogenAi] initGui()")
+        log_info("initGui()", tag="CartogenAi")
+        self._warn_about_old_copy()
+        self._check_environment()
         # icon.svg -- a copy of branding/cartogen-mark.svg, the actual brand mark, not the flat
         # icon.png this replaced. Deliberately copied to the plugin ROOT rather than referencing
         # branding/ directly: plugin_upload.py's EXCLUDE_DIRS excludes the whole branding/
@@ -111,7 +145,7 @@ class CartogenAi:
         self.iface.addPluginToMenu(self.menu, action)
         self.actions.append(action)
         self.toolbar_action = action
-        print("[CartogenAi] toolbar action installed")
+        log_info("toolbar action installed", tag="CartogenAi")
 
         # Help moved here from a permanent 3rd dock tab, per a 2026-09-12 real-session user
         # report: a reference document doesn't need to occupy dock space at all times. The
@@ -120,10 +154,29 @@ class CartogenAi:
         # "Cartogen AI vX.Y.Z" entry directly in this menu, but direct follow-up feedback the
         # same day said that was one place too many; removed rather than kept as a second,
         # redundant spot.
+        # Connections (PLAN-041): the model connection -- API keys, Ollama, a signed-in CLI -- has its own window, reachable here as well
+        # as from Settings. It opens the panel first, because choosing a connection also has to refresh the panel's quick-switch dropdown.
+        connections_action = QAction(self.tr("Connections..."), self.iface.mainWindow())
+        connections_action.triggered.connect(self.show_connections)
+        self.iface.addPluginToMenu(self.menu, connections_action)
+        self.actions.append(connections_action)
+
         help_action = QAction(self.tr("Help"), self.iface.mainWindow())
         help_action.triggered.connect(self.show_help)
         self.iface.addPluginToMenu(self.menu, help_action)
         self.actions.append(help_action)
+
+        # PLAN-034 : a local MCP server (reads at once, changes only after a yes) for other AI clients. Off at every start; a person turns it on here.
+        mcp_action = QAction(self.tr("MCP server (local)..."), self.iface.mainWindow())
+        mcp_action.triggered.connect(self.toggle_mcp_server)
+        self.iface.addPluginToMenu(self.menu, mcp_action)
+        self.actions.append(mcp_action)
+
+        # PLAN-048 stage 3: open a workflow file someone else made. Person-initiated only; there is deliberately no tool that does this.
+        workflow_action = QAction(self.tr("Open workflow file..."), self.iface.mainWindow())
+        workflow_action.triggered.connect(self.open_workflow_file)
+        self.iface.addPluginToMenu(self.menu, workflow_action)
+        self.actions.append(workflow_action)
         self.initProcessing()
 
         # The agent instance and dock widget are cached/reused across QGIS
@@ -154,17 +207,16 @@ class CartogenAi:
                 from cartogen_ai.processing.provider import CartogenProcessingProvider
                 self._processing_provider = CartogenProcessingProvider()
                 QgsApplication.processingRegistry().addProvider(self._processing_provider)
-                print("[CartogenAi] Processing provider registered")
+                log_info("Processing provider registered", tag="CartogenAi")
             except Exception as e:
-                print(f"[CartogenAi] Processing provider registration failed: {e}")
+                log_event("processing_provider_registration_failed", tag="CartogenAi", error_class=type(e).__name__, error=True)
 
         # F18: say once, in the QGIS log, which behaviour-changing settings are on -- a persisted plan-validation
         # gate from an earlier evaluation once made every export fail its first call without anyone knowing why.
         try:
-            from cartogen_ai.core.logger import log_event, startup_state_fields
             log_event("startup_settings", **startup_state_fields(QgsSettings().value))
         except Exception as e:
-            print(f"[CartogenAi] startup settings log failed: {e}")
+            log_event("startup_settings_log_failed", tag="CartogenAi", error_class=type(e).__name__, error=True)
 
     def _maybe_show_first_use_dialogs(self):
         """First-use onboarding (role/experience/communication-style profile, real-session
@@ -201,7 +253,7 @@ class CartogenAi:
                 return
             self.toggle_dock(True)
         except Exception as e:
-            print(f"[CartogenAi] auto-open of the panel failed: {e}")
+            log_event("auto_open_of_the_panel_failed", tag="CartogenAi", error_class=type(e).__name__, error=True)
 
     def _on_project_changed(self, *_args):
         # #147 (audit F11): first thing, before any reload -- a turn still running for the previous project must stop and must
@@ -210,74 +262,69 @@ class CartogenAi:
             from cartogen_ai.core.agent import project_session
             project_session.invalidate()
         except Exception as e:
-            print(f"[CartogenAi] project session invalidate failed: {e}")
+            log_event("project_session_invalidate_failed", tag="CartogenAi", error_class=type(e).__name__, error=True)
         # F07: repair duplicate/orphan layer-tree nodes saved by rc7 (only removes nodes; see heal_layer_tree).
         try:
             from cartogen_ai.core.agent.map_intelligence import heal_layer_tree
             healed = heal_layer_tree()
             if healed["orphans_removed"] or healed["duplicates_removed"]:
-                print(f"[CartogenAi] repaired layer tree: {healed}")
+                log_info(f"repaired layer tree: {healed}", tag="CartogenAi")
         except Exception as e:
-            print(f"[CartogenAi] layer tree repair failed: {e}")
+            log_event("layer_tree_repair_failed", tag="CartogenAi", error_class=type(e).__name__, error=True)
         if self._agent is not None:
             try:
                 self._agent.reload_chat_history()
             except Exception as e:
-                print(f"[CartogenAi] chat history reload failed: {e}")
+                log_event("chat_history_reload_failed", tag="CartogenAi", error_class=type(e).__name__, error=True)
         if self.dock_widget is not None:
             try:
                 self.dock_widget.refresh_chat_for_project_change()
             except Exception as e:
-                print(f"[CartogenAi] chat display refresh failed: {e}")
+                log_event("chat_display_refresh_failed", tag="CartogenAi", error_class=type(e).__name__, error=True)
 
     def unload(self):
-        print("[CartogenAi] unload()")
-        try:
+        log_info("unload()", tag="CartogenAi")
+        self._stop_mcp_server()
+        with contextlib.suppress(Exception):
             from cartogen_ai.core.agent import project_session
             project_session.invalidate()
             project_session.retire_plugin()      # tasks started before this point must not call back into the destroyed UI (#167)
-        except Exception:
-            pass
         # Audit F31 (#167): the translator installed in __init__ was never removed, so a reload stacked a second one and the
         # old one outlived the plugin.
         if self.translator is not None:
             try:
                 QCoreApplication.removeTranslator(self.translator)
             except Exception as e:
-                print(f"[CartogenAi] removeTranslator failed: {e}")
+                log_event("removetranslator_failed", tag="CartogenAi", error_class=type(e).__name__, error=True)
             self.translator = None
         # ...and the script-isolation worker is a child process that otherwise outlives an unload.
         try:
             from cartogen_ai.core.agent.services import script_isolation
             script_isolation.shutdown_worker()
         except Exception as e:
-            print(f"[CartogenAi] isolation worker shutdown failed: {e}")
+            log_event("isolation_worker_shutdown_failed", tag="CartogenAi", error_class=type(e).__name__, error=True)
         if self._first_use_timer is not None:
-            try:
+            with contextlib.suppress(Exception):
                 self._first_use_timer.stop()
-            except Exception:
-                pass
             self._first_use_timer = None
 
-        try:
+        with contextlib.suppress(TypeError, RuntimeError):
             project = QgsProject.instance()
             project.readProject.disconnect(self._on_project_changed)
             project.cleared.disconnect(self._on_project_changed)
-        except (TypeError, RuntimeError):
-            pass
 
         try:
             from cartogen_ai.core.agent.scheduler import get_scheduler
             get_scheduler().stop_all()
         except Exception as e:
-            print(f"[CartogenAi] scheduler stop_all failed: {e}")
+            log_event("scheduler_stop_all_failed", tag="CartogenAi", error_class=type(e).__name__, error=True)
 
         if self._processing_provider is not None:
             try:
                 QgsApplication.processingRegistry().removeProvider(self._processing_provider)
-                print("[CartogenAi] Processing provider removed")
+                log_info("Processing provider removed", tag="CartogenAi")
             except Exception as e:
-                print(f"[CartogenAi] Processing provider removal failed: {e}")
+                log_event("processing_provider_removal_failed", tag="CartogenAi", error_class=type(e).__name__, error=True)
             self._processing_provider = None
 
         if self.dock_widget is not None:
@@ -291,12 +338,12 @@ class CartogenAi:
             try:
                 self.dock_widget.chat_tab_widget.cancel_active_task()
             except Exception as e:
-                print(f"[CartogenAi] cancel_active_task failed: {e}")
+                log_event("cancel_active_task_failed", tag="CartogenAi", error_class=type(e).__name__, error=True)
             try:
                 self.iface.removeDockWidget(self.dock_widget)
                 self.dock_widget.deleteLater()
             except Exception as e:
-                print(f"[CartogenAi] removeDockWidget failed: {e}")
+                log_event("removedockwidget_failed", tag="CartogenAi", error_class=type(e).__name__, error=True)
             self.dock_widget = None
 
         if self._help_dialog is not None:
@@ -304,7 +351,7 @@ class CartogenAi:
                 self._help_dialog.close()
                 self._help_dialog.deleteLater()
             except Exception as e:
-                print(f"[CartogenAi] closing Help dialog failed: {e}")
+                log_event("closing_help_dialog_failed", tag="CartogenAi", error_class=type(e).__name__, error=True)
             self._help_dialog = None
 
         # P1 lifecycle bug, 2026-09-20 audit: removePluginMenu/removeToolBarIcon only
@@ -319,20 +366,18 @@ class CartogenAi:
         for action in self.actions:
             self.iface.removePluginMenu(self.menu, action)
             self.iface.removeToolBarIcon(action)
-            try:
+            with contextlib.suppress(TypeError, RuntimeError):
                 action.triggered.disconnect()
-            except (TypeError, RuntimeError):
-                pass
             action.deleteLater()
         self.actions = []
         self.toolbar_action = None
 
     def _get_agent(self):
-        from cartogen_ai.infrastructure.auth import CredentialManager
+        from cartogen_ai.infrastructure.auth import CredentialManager, credential_fingerprint
         settings = QgsSettings()
         provider = settings.value("cartogen_ai/provider", "openrouter")
         key = CredentialManager.get_credential(provider)
-        agent_hash = f"{provider}_{key}"
+        agent_hash = credential_fingerprint(provider, key)
 
         if self._agent is None or getattr(self, "_agent_key", None) != agent_hash:
             try:
@@ -340,7 +385,7 @@ class CartogenAi:
                 self._agent = AgentCore()
                 self._agent_key = agent_hash
             except Exception as e:
-                print(f"[CartogenAi] agent init failed: {e}")
+                log_event("agent_init_failed", tag="CartogenAi", error_class=type(e).__name__, error=True)
                 traceback.print_exc()
                 self._agent = None
                 self._agent_key = None
@@ -358,7 +403,7 @@ class CartogenAi:
             return True, False
         try:
             from cartogen_ai.core.ui.dock_widget import CartogenAiDockWidget
-            print("[CartogenAi] creating dock widget...")
+            log_info("creating dock widget...", tag="CartogenAi")
             self.dock_widget = CartogenAiDockWidget(
                 agent_provider=self._get_agent,
                 parent=self.iface.mainWindow(),
@@ -368,16 +413,114 @@ class CartogenAi:
             # user-driven show()/hide() calls.
             self.dock_widget.visibilityChanged.connect(self._on_dock_visibility)
             self.iface.addDockWidget(_dock_area_right(), self.dock_widget)
-            print("[CartogenAi] dock widget added to right area")
+            log_info("dock widget added to right area", tag="CartogenAi")
             return True, True
         except Exception as e:
-            print(f"[CartogenAi] _ensure_dock failed: {e}")
+            log_event("ensure_dock_failed", tag="CartogenAi", error_class=type(e).__name__, error=True)
             traceback.print_exc()
             self.iface.messageBar().pushWarning(
                 "Cartogen AI",
                 f"Failed to open panel: {e}",
             )
             return False, False
+
+    def show_connections(self):
+        ok, _just_created = self._ensure_dock()
+        if not ok:
+            return
+        self.dock_widget.show()
+        self.dock_widget.raise_()
+        self.dock_widget.open_connections()
+
+    def _stop_mcp_server(self):
+        if self._mcp_server is not None:
+            with contextlib.suppress(Exception):
+                self._mcp_server.stop()
+        self._mcp_server = None
+        self._mcp_dispatcher = None
+
+    def toggle_mcp_server(self):
+        """Starts or stops the local MCP server (PLAN-034). Starting needs a yes to a plain warning; the address and the one-time token are shown once
+        and are not saved anywhere. Reads run at once; every change a client asks for waits for a yes in a dialog (core/ui/mcp_approval.py)."""
+        from qgis.PyQt.QtWidgets import QApplication, QMessageBox
+        if self._mcp_server is not None and self._mcp_server.running:
+            self._stop_mcp_server()
+            self.iface.messageBar().pushInfo("Cartogen AI", self.tr("MCP server stopped."))
+            return
+        answer = QMessageBox.question(
+            self.iface.mainWindow(), self.tr("Start the MCP server?"),
+            self.tr("This lets another AI program on THIS computer (for example Claude Code or Claude Desktop) work with your open QGIS project.\n\n"
+                    "It can look at layer names, field names, feature counts, numeric statistics, extents, metadata and QA status; layers marked "
+                    "RESTRICTED or SENSITIVE are never returned. Whatever it reads is sent to that program's own AI service.\n\n"
+                    "It can also ask to run a short list of analysis and styling tools. Each of those asks YOU first, every time, and nothing runs "
+                    "unless you press Allow once. Cartogen AI's Undo does not cover those changes.\n\nIt stops when you choose this menu item again "
+                    "or close QGIS. Start it?"))
+        if answer != QMessageBox.StandardButton.Yes:
+            return
+        from cartogen_ai.core.agent.mcp_server import McpServer
+        from cartogen_ai.core.agent.tool_dispatcher import ToolDispatcher
+        dispatcher = ToolDispatcher(None)          # created here, on the main thread, so its slots run here
+
+        def run_on_main(func, arg):
+            result = []
+            dispatcher.request_callable.emit(func, arg, result)
+            return result[0] if result else None
+
+        from cartogen_ai.core.ui import mcp_approval
+        server = McpServer(run_on_main, approve=lambda name, text: mcp_approval.ask(self.iface.mainWindow(), name, text))
+        try:
+            url = server.start()
+        except OSError as e:
+            QMessageBox.warning(self.iface.mainWindow(), self.tr("MCP server"), self.tr("Could not start the server: %s") % e)
+            return
+        self._mcp_server, self._mcp_dispatcher = server, dispatcher
+        command = f'claude mcp add --transport http cartogen {url} --header "Authorization: Bearer {server.token}"'
+        box = QMessageBox(self.iface.mainWindow())
+        box.setWindowTitle(self.tr("MCP server running"))
+        box.setText(self.tr("Address: %s\n\nThe token below works only until you stop the server or close QGIS. Do not share it.") % url)
+        box.setInformativeText(self.tr("For Claude Code, run:\n\n%s") % command)
+        copy_button = box.addButton(self.tr("Copy command"), QMessageBox.ButtonRole.ActionRole)
+        box.addButton(QMessageBox.StandardButton.Close)
+        box.exec()
+        if box.clickedButton() == copy_button:
+            QApplication.clipboard().setText(command)
+
+    def open_workflow_file(self):
+        """Opens a shared workflow file (PLAN-048): pick the file, see it checked, read every step, map its layer roles to your own layers, then Run.
+        The file is validated before anything is shown and nothing runs until the Run button; the chat then runs the steps through the usual gates."""
+        from qgis.PyQt.QtWidgets import QFileDialog, QMessageBox
+        path, _filter = QFileDialog.getOpenFileName(self.iface.mainWindow(), self.tr("Open a workflow file"), "",
+                                                    self.tr("Cartogen workflow (*.cgworkflow.json);;JSON (*.json)"))
+        if not path:
+            return
+        from cartogen_ai.core import tool_operations
+        from cartogen_ai.core.agent import workflow_file
+        from cartogen_ai.core.agent.tools.registry import TOOLS_SCHEMA
+        from cartogen_ai.core.agent.tools.workflow_file_tools import project_layers
+        from cartogen_ai.core.ui.workflow_import_dialog import WorkflowImportDialog
+        try:
+            if os.path.getsize(path) > workflow_file.MAX_BYTES:
+                raw = None
+            else:
+                with open(path, "rb") as fh:
+                    raw = fh.read()
+        except OSError as e:
+            QMessageBox.warning(self.iface.mainWindow(), self.tr("Workflow file"), self.tr("Could not read the file: %s") % e)
+            return
+        if raw is None:
+            document, problems, warnings = None, [f"The file is larger than {workflow_file.MAX_BYTES:,} bytes."], []
+        else:
+            document, problems, warnings = workflow_file.validate(raw, workflow_file.schemas_from(TOOLS_SCHEMA), tool_operations.get_tool_operation_type)
+        dialog = WorkflowImportDialog(self.iface.mainWindow(), os.path.basename(path), document, problems, warnings, project_layers(),
+                                      tool_operations.get_tool_operation_type)
+        if not dialog.exec() or document is None:
+            return
+        ok, _just_created = self._ensure_dock()
+        if not ok:
+            return
+        self.dock_widget.show()
+        self.dock_widget.raise_()
+        self.dock_widget.run_workflow(document, dialog.mapping(), dialog.start_at())
 
     def show_help(self):
         """Opens Help in its own dialog rather than the dock -- independent of whether the
@@ -403,7 +546,7 @@ class CartogenAi:
             self.toolbar_action.setChecked(visible)
 
     def toggle_dock(self, checked=False):
-        print(f"[CartogenAi] toggle_dock(checked={checked})")
+        log_info(f"toggle_dock(checked={checked})", tag="CartogenAi")
         ok, just_created = self._ensure_dock()
         if not ok:
             if self.toolbar_action is not None:

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Adaptive learning helpers for Cartogen AI.
 

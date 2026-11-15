@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Live-QGIS tests for tools/humanitarian_style.py and its call sites. Written without a QGIS install: CI's first run is their first execution."""
 import unittest
 

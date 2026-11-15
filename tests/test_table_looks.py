@@ -2,6 +2,7 @@
 import unittest
 
 from cartogen_ai.core.agent.tools import humanitarian_style as hs
+import itertools
 
 
 class TestTableLooks(unittest.TestCase):
@@ -15,7 +16,7 @@ class TestTableLooks(unittest.TestCase):
         self.assertEqual(len(ranges), 5)
         self.assertEqual(ranges[0][0], 0.0)
         self.assertGreaterEqual(ranges[-1][1], 10.0)
-        for (_l1, h1, *_a), (l2, _h2, *_b) in zip(ranges, ranges[1:]):
+        for (_l1, h1, *_a), (l2, _h2, *_b) in itertools.pairwise(ranges):
             self.assertLess(h1, l2)           # a value on a class start belongs to the higher class only
             self.assertLess(l2 - h1, 1e-6)    # and nothing falls between two classes
 

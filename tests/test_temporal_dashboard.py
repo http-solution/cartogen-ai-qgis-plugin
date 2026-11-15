@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Tests for the animated/temporal dashboard feature added to
 agent/tools/export_tools.py -- the project owner's "animated dashboard from several
 views ... status of fighting groups from 2016-2026 ... control areas"

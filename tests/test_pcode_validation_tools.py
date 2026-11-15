@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Tests for agent/tools/pcode_validation_tools.py -- the registered-tool
 surface over validators/pcode_validation.py (point 6 of
 docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md).

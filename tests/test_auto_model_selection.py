@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Automatic model selection, end to end (cost review, 2026-09-25).
 
 Found: agent_orchestrator._apply_auto_model_selection assigned `client.model = picked`, but the
@@ -113,7 +112,7 @@ class TestProvidersSendTheChosenModel(unittest.TestCase):
         for mod, cls in PROVIDERS:
             c = self._client(mod, cls)
             sent = []
-            with patch.object(c, "_post", side_effect=lambda msgs, tools, model_id, max_tokens=None:
+            with patch.object(c, "_post", side_effect=lambda msgs, tools, model_id, max_tokens=None, sent=sent:
                               (sent.append(model_id), _resp(200))[1]):
                 c.model = "cheap-pick"
                 c.complete([{"role": "user", "content": "hi"}])
@@ -125,7 +124,7 @@ class TestProvidersSendTheChosenModel(unittest.TestCase):
             c = self._client(mod, cls)
             configured = c.model
             sent = []
-            with patch.object(c, "_post", side_effect=lambda msgs, tools, model_id, max_tokens=None:
+            with patch.object(c, "_post", side_effect=lambda msgs, tools, model_id, max_tokens=None, sent=sent:
                               (sent.append(model_id), _resp(200))[1]):
                 c.complete([{"role": "user", "content": "hi"}])
             self.assertEqual(sent, [configured], mod)
@@ -136,7 +135,7 @@ class TestProvidersSendTheChosenModel(unittest.TestCase):
             configured = c.model
             sent = []
 
-            def post(msgs, tools, model_id, max_tokens=None):
+            def post(msgs, tools, model_id, max_tokens=None, sent=sent):
                 sent.append(model_id)
                 return _resp(404 if model_id == "dead-pick" else 200)
             with patch.object(c, "_post", side_effect=post):
@@ -157,7 +156,7 @@ class TestProvidersSendTheChosenModel(unittest.TestCase):
             configured = c.model
             sent = []
 
-            def post(msgs, tools, model_id, max_tokens=None):
+            def post(msgs, tools, model_id, max_tokens=None, sent=sent):
                 sent.append(model_id)
                 return _resp(404 if model_id == "dead-pick" else 200)
             with patch.object(c, "_post", side_effect=post):

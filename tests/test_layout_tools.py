@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Tests for agent/tools/layout_tools.py's create_print_layout -- extended to
 support PNG/JPEG image export (dpi-controlled) alongside the existing PDF
 export, plus an optional body_text summary panel, closing the gap that was
@@ -350,7 +349,7 @@ class TestAtlasFileNamesAndLayoutNames(unittest.TestCase):
         from cartogen_ai.core.agent.tools.layout_tools import unique_atlas_file_name
         used = set()
         stems = [unique_atlas_file_name(v, used, "page") for v in ("Sanaa", "Sanaa", "sanaa", "Aden/1", "Aden_1")]
-        self.assertEqual(len(set(s.lower() for s in stems)), 5)
+        self.assertEqual(len({s.lower() for s in stems}), 5)
         self.assertEqual(stems[0], "Sanaa")
         self.assertEqual(stems[1], "Sanaa_2")
 
@@ -537,7 +536,7 @@ class TestExportLayoutAtlas(unittest.TestCase):
         mock_find_layer.return_value = layer
 
         mock_exporter_instance = mock_exporter_cls.return_value
-        mock_exporter_instance.exportToPdf.return_value = mock_exporter_cls.Success
+        mock_exporter_instance.exportToPdf.return_value = mock_exporter_cls.ExportResult.Success
 
         res = export_layout_atlas("Layout_SITREP", "districts", "C:/tmp/atlas", "pcode", output_format="pdf")
 
@@ -630,3 +629,34 @@ class PaddedExtentTests(unittest.TestCase):
         self.assertEqual(padded_extent_bounds(nan, 0, nan, 0, True)[1], 0)
         inf = float("inf")
         self.assertEqual(padded_extent_bounds(-inf, -inf, inf, inf, False), (-inf, -inf, inf, inf))
+
+
+class TestCanvasRotation(unittest.TestCase):
+    """rc22 smoke F3: a rotated canvas must give the layout map a rotation."""
+
+    def test_reads_the_canvas_rotation(self):
+        from unittest.mock import MagicMock
+        from cartogen_ai.core.agent.tools.layout_tools import canvas_rotation
+        canvas = MagicMock()
+        canvas.rotation.return_value = 30
+        self.assertEqual(canvas_rotation(canvas), 30.0)
+
+    def test_no_canvas_or_a_broken_one_is_zero(self):
+        from unittest.mock import MagicMock
+        from cartogen_ai.core.agent.tools.layout_tools import canvas_rotation
+        self.assertEqual(canvas_rotation(None), 0.0)
+        broken = MagicMock()
+        broken.rotation.side_effect = RuntimeError("gone")
+        self.assertEqual(canvas_rotation(broken), 0.0)
+
+
+class TestJiafLayoutNote(unittest.TestCase):
+    """Issue 229 (rc22 J16): a layout of JIAF-support results carries the not-the-method / not-endorsed statement, added by the code."""
+
+    def test_jiaf_result_fields_trigger_the_statement(self):
+        from cartogen_ai.core.agent.tools import layout_tools as lt
+        note = lt.jiaf_layout_note(["name", "jf_pre_sev"])
+        self.assertIn("not endorsed by OCHA or the IASC", note)
+        self.assertIsNotNone(lt.jiaf_layout_note(["js_food"]))
+        self.assertIsNone(lt.jiaf_layout_note(["name", "severity_score", "pop"]))
+        self.assertIsNone(lt.jiaf_layout_note([]))

@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+import contextlib
 """
 QGIS Network Access Manager proxy detection helper.
 Extracted into a standalone module with zero third-party dependencies (no requests)
@@ -10,12 +10,14 @@ def get_qgis_proxy_dict():
     """Extracts proxy configuration from QgsNetworkAccessManager if active.
     Returns a dict suitable for requests ({"http": ..., "https": ...}) or None.
     """
-    try:
+    with contextlib.suppress(Exception):
         from qgis.core import QgsNetworkAccessManager
         from qgis.PyQt.QtNetwork import QNetworkProxy
         nam = QgsNetworkAccessManager.instance()
         if nam is not None:
-            proxy = nam.fallbackProxySettings()
+            # QgsNetworkAccessManager.fallbackProxy() is the real name; fallbackProxySettings() does not exist, and the contextlib.suppress around
+            # this block hid the AttributeError, so proxy detection returned None for every user (found 2026-10-16 against the 4.2 API reference)
+            proxy = nam.fallbackProxy()
             if proxy.type() != QNetworkProxy.ProxyType.NoProxy if hasattr(QNetworkProxy, "ProxyType") else proxy.type() != 0:
                 host = proxy.hostName()
                 port = proxy.port()
@@ -25,6 +27,4 @@ def get_qgis_proxy_dict():
                     auth = f"{user}:{password}@" if user else ""
                     proxy_url = f"http://{auth}{host}:{port}"
                     return {"http": proxy_url, "https": proxy_url}
-    except Exception:
-        pass
     return None

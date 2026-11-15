@@ -1,7 +1,6 @@
-# -*- coding: utf-8 -*-
 """The Humanitarian Mapping Task Register, as machine-readable task contracts.
 
-792 tasks across 36 sections. Each entry carries:
+847 tasks across 49 sections (the 792 humanitarian tasks and sections 38 to 50: four tasks for each of 13 personas, PLAN-023 R1-5, plus three added by R3-6). Each entry carries:
 
     id      "07.14"          section number . position, stable
     cat     "7"              section number
@@ -25,6 +24,7 @@ task's contract is injected.
 """
 import json
 import os
+from ..logger import log_event
 
 OUTPUTS = ("layer", "layout", "dashboard", "report", "analysis", "dataset", "guidance")
 
@@ -72,8 +72,8 @@ SLOT_DEFAULTS = {
     "runoff_coefficient": (None, "ask"),
 }
 
-_DATA = None
-_BY_ID = None
+# Cache holder (see project_session.py): "data" is the loaded register, "by_id" its index; both None until load() runs.
+_cache = {"data": None, "by_id": None}
 
 
 def _data_path():
@@ -86,22 +86,22 @@ def load():
     Degrades to an empty register rather than raising -- a missing or corrupt
     data file must not stop the plugin loading.
     """
-    global _DATA, _BY_ID
-    if _DATA is not None:
-        return _DATA
+    if _cache["data"] is not None:
+        return _cache["data"]
     try:
         with open(_data_path(), encoding="utf-8") as fh:
-            _DATA = json.load(fh)
+            data = json.load(fh)
     except Exception as e:  # pragma: no cover - diagnostic path
-        print("[TaskRegister] could not load task_register.json: %s" % e)
-        _DATA = []
-    _BY_ID = {e["id"]: e for e in _DATA}
-    return _DATA
+        log_event("could_not_load_task_register_json", tag="TaskRegister", error_class=type(e).__name__, error=True)
+        data = []
+    _cache["data"] = data
+    _cache["by_id"] = {e["id"]: e for e in data}
+    return data
 
 
 def by_id(task_id):
     load()
-    return (_BY_ID or {}).get(task_id)
+    return (_cache["by_id"] or {}).get(task_id)
 
 
 def categories():
@@ -110,7 +110,7 @@ def categories():
     for e in load():
         if e["cat"] not in seen:
             seen.add(e["cat"])
-            out.append((e["cat"], e["cname"], sum(1 for x in _DATA if x["cat"] == e["cat"])))
+            out.append((e["cat"], e["cname"], sum(1 for x in _cache["data"] if x["cat"] == e["cat"])))
     return out
 
 

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """F25 (rc7 smoke test, 2026-09-30): the data export held 8 chat messages from a ~50 minute session.
 
 Cause, from the code: the stored history is the agent's rolling window (MAX_HISTORY_MESSAGES = 10);

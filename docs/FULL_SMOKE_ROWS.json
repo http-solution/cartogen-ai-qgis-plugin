@@ -1,0 +1,1505 @@
+{
+ "_about": "Rows of the FULL live smoke package (PLAN-056): everything in docs/FEATURE_LEDGER.json that is not 'Verified by hand', grouped in sessions A to F. The 22 rows of docs/HAND_TEST_V2_ROWS.json are included unchanged (their session and the ledger entries they cover are in v2_rows below); new rows are in rows. Each ledger entry that is not verified by hand is covered by at least one row or named in not_hand_testable with the reason a person cannot test it. tests/test_full_smoke_package.py enforces that, and that every input file a row names is shipped and valid.",
+ "sessions": {
+  "A": "A. No model needed: install, layout script, Settings, CLI",
+  "B": "B. Chat routing and behaviour (real model)",
+  "C": "C. Loading data, scripts, stop and undo",
+  "D": "D. Analysis, fetched data, checks and provenance",
+  "E": "E. Privacy gates, layouts and exports",
+  "F": "F. MCP, workflow files and close-out"
+ },
+ "v2_rows": {
+  "V1-update": {
+   "session": "A",
+   "covers": [
+    "plugin-eviction-scoped-real-modules",
+    "log-one-tab",
+    "cancelled-request-is-a-stop-not-an-error"
+   ]
+  },
+  "W13-environment": {
+   "session": "A",
+   "covers": [
+    "environment-detection"
+   ]
+  },
+  "V3-contour": {
+   "session": "B",
+   "covers": [
+    "loaded-dem-is-not-a-fetch",
+    "contours-vs-relief-routing-016",
+    "temp-folder-location-note"
+   ]
+  },
+  "V4-animate": {
+   "session": "B",
+   "covers": [
+    "fragment-guard",
+    "animation-uses-temporal-settings"
+   ]
+  },
+  "V5-profile": {
+   "session": "B",
+   "covers": [
+    "repeated-listing-says-why"
+   ]
+  },
+  "V6-charts": {
+   "session": "B",
+   "covers": [
+    "layout-items-say-whether-they-drew",
+    "linked-charts-routing"
+   ]
+  },
+  "V7-merge": {
+   "session": "B",
+   "covers": [
+    "algorithm-beats-task-directive"
+   ]
+  },
+  "V8-raster": {
+   "session": "B",
+   "covers": [
+    "plain-language-discovery"
+   ]
+  },
+  "V9-undo-field": {
+   "session": "C",
+   "covers": [
+    "undo-add-field"
+   ]
+  },
+  "V2-stop": {
+   "session": "C",
+   "covers": [
+    "abandoned-bundles-released-live"
+   ]
+  },
+  "W1-gate-on": {
+   "session": "D",
+   "covers": [
+    "result-gate-hook"
+   ]
+  },
+  "W2-gate-fetch": {
+   "session": "D",
+   "covers": [
+    "fetched-data-source-record"
+   ]
+  },
+  "W3-provenance": {
+   "session": "D",
+   "covers": [
+    "fetched-data-source-record"
+   ]
+  },
+  "W4-report": {
+   "session": "D",
+   "covers": [
+    "verified-workflow-report"
+   ]
+  },
+  "W5-hdx-ranked": {
+   "session": "D",
+   "covers": [
+    "hdx-search-ranked"
+   ]
+  },
+  "W6-mcp-probe": {
+   "session": "F",
+   "covers": [
+    "mcp-server-read-only"
+   ]
+  },
+  "W7-mcp-dialog": {
+   "session": "F",
+   "covers": [
+    "mcp-writes-need-approval"
+   ]
+  },
+  "W8-export": {
+   "session": "F",
+   "covers": [
+    "workflow-file-export"
+   ]
+  },
+  "W9-import-good": {
+   "session": "F",
+   "covers": [
+    "workflow-file-import",
+    "workflow-file-validator"
+   ]
+  },
+  "W10-import-bad": {
+   "session": "F",
+   "covers": [
+    "workflow-file-import"
+   ]
+  },
+  "W11-import-egress": {
+   "session": "F",
+   "covers": [
+    "gates-on-fetch-and-confirm-paths"
+   ]
+  },
+  "W12-guide": {
+   "session": "F",
+   "covers": []
+  }
+ },
+ "not_hand_testable": {
+  "agent-run-smoke": "test tooling, not a plugin feature: it has its own dry run (RUN.bat dry in its README) and a QGIS CI test; running it inside the hand package would test the tester",
+"persona-pack": "data files and a checker with no screen of their own yet; the picker and readiness panel (R1-3) get hand rows R1-H1 to R1-H3",
+  "pyqgis-call-arity-ratchet": "an offline check of the source code against a saved list of QGIS 4.2 argument counts; there is nothing to run in QGIS, and a test plants wrong calls to prove it fails",
+  "processing-review-decisions": "a decision record (28 algorithms reviewed and declined with reasons); there is nothing to run, a test compares the table with the coverage matrix in CI",
+  "tool-prompt-replay": "offline only by design: replays every prompt of the tool sheet against the router in CI",
+  "tools-reference-sync": "offline only by design: docs/TOOLS_REFERENCE.md is regenerated and compared in CI",
+  "tool-schema-no-removal": "offline only by design: a CI snapshot of the tool schema",
+  "golden-routing-never-shrinks": "offline only by design: a CI check on the golden routing tables",
+  "release-docs-in-sync": "offline only by design: a CI check that a version bump updates every doc",
+  "usage-log-summary": "offline only by design: a script over log lines, unit-tested in CI",
+  "test-bundle-selection": "offline only by design: decides which rows go into a test bundle, checked in CI",
+  "feature-ledger-guard": "offline only by design: a CI check on this ledger",
+  "plans-template": "offline only by design: a CI check on docs/plans",
+  "qgis-coverage-evidence": "offline only by design: a CI check on the QGIS coverage list",
+  "plan005-dispositions": "offline only by design: a CI check that every file-writing algorithm has a planned wave",
+  "every-tool-callable-in-qgis": "a CI-only proof by design: the live job calls every tool; no person can add to it",
+  "result-checks-pure": "a pure module that changes no behaviour a user can see; its hook (result-gate-hook) is covered by row W1-gate-on",
+  "update-task-without-an-id-is-explained": "no prompt reliably makes a model send a null id; covered by tests/test_task_manager.py",
+  "live-results-gate": "the measure itself (a record and a repository check), not behaviour a person can run in QGIS",
+  "unsupervised-classification-in-background": "needs a raster of tens of millions of cells and a person watching a real QGIS window stay responsive; the package has no such raster",
+  "delivery-matrix-from-trees": "the gain only shows on a real road network of tens of thousands of roads, which the package does not ship; equality with the native calls is the CI live test",
+  "persona-catalogue": "a generated document; a test compares it with the persona files and the task register in CI, there is nothing to run in QGIS",
+  "tool-reachability-ratchet": "an offline check of the registered tools against the task register and the persona files; there is nothing to run in QGIS, and a test shows it can fail",
+  "style-profiles": "an offline registry of colour choices plus colour maths, checked against published answers; nothing draws from it yet, so there is nothing to look at in QGIS until a later package uses it",
+  "style-looks": "an offline registry of colour and legend choices checked against the published legend and hand-computed values; the picture check is row C20, which looks at what the tool draws from it"
+ },
+ "rows": [
+  {
+   "id": "A1-layout-script",
+   "issue": "S",
+   "session": "A",
+   "title": "Model-free layout check: footer, legend, names, sizes, presets, profile, logo, sign-off, credits, disclaimer",
+   "covers": [
+    "hand-test-layout-check-script",
+    "layout-legend-fits-frame",
+    "layout-footer-check-numbers",
+    "layout-name-as-requested",
+    "layout-page-sizes",
+    "export-presets-and-names",
+    "layout-profile-reread-016",
+    "map-profiles",
+    "layout-signoff-3b",
+    "layout-branding-3a",
+    "layout-footer-sources-disclaimer",
+    "layout-credits-line",
+    "footer-measured-in-real-font-016",
+    "disclaimer-wording-owner",
+    "layout-geometry-problems",
+    "legend-not-filtered-away"
+   ],
+   "needs": "QGIS only (no model, no key, no network)",
+   "starts_from": "QGIS open with any project, the plugin enabled",
+   "do": "In QGIS: Plugins > Python Console, then paste (replace <bundle> with this folder's full path): exec(open(r\"<bundle>\\2_layout_check\\layout_check_script.py\", encoding=\"utf-8\").read())  It runs by itself; wait for it to print the table (if nothing prints after 2 minutes, type run() once and say so in the notes). Open the folder it names and look at EVERY exported .pdf and .png (about a dozen pages): footer text complete and inside the page, legend entries not cut, logo left of the title, sign-off line readable, disclaimer long text not overlapping.",
+   "expect": "layout_check.txt shows PASS for L2 to L10 and the Windows fonts line; your own eyes find nothing cut off, overlapping or running past the page edge in any page.",
+   "evidence": "Copy the WHOLE folder the script wrote into results\\outputs\\A1-layout-script\\ (layout_check.json, layout_check.txt, every pdf/png). Screenshot of the printed table -> results\\screens\\A1-table.png.",
+   "files": [],
+   "pass_if": "every check PASS and no page looks wrong. Any FAIL, or a page that looks wrong, is a Fail: name the check id (L2..L10) or the page in the notes.",
+   "cost": "free, about 3 minutes"
+  },
+  {
+   "id": "A2-settings-connections",
+   "issue": "S",
+   "session": "A",
+   "title": "Settings sections, Connections window, Test button, CLI opt-in",
+   "covers": [
+    "settings-sections-by-purpose",
+    "connections-window",
+    "cli-providers-opt-in-settings",
+    "settings-api-provider-test-button"
+   ],
+   "needs": "QGIS only; no key needed (a bad key is part of the row)",
+   "starts_from": "QGIS with the plugin installed, any project",
+   "do": "1. Open Cartogen AI > Settings. Read the section headings and open and close the two groups. 2. Plugins > Cartogen AI > Connections... : look at every page (OpenRouter, Gemini, OpenAI, Claude, Ollama, the CLI heading, NASA FIRMS). 3. On OpenRouter and Gemini press Test three times: with no key typed, with the text 'bad-key', and (if you have one) with a good key. 4. Press Use this connection, OK, then check the model dropdown in the panel shows the connection. 5. Find the experimental CLI providers heading: they must be off until you tick the consent box; tick it, close and reopen Connections, check the tick stayed.",
+   "expect": "Settings groups its settings by purpose (privacy, connection, export ... as the headings say) and opens and closes; Connections has its own window with one page per provider; Test says in plain words what is wrong with no key and with a bad key (no crash, no stack trace) and succeeds with a good key; the CLI providers sit under their own heading, off until consent, and the tick survives reopening.",
+   "evidence": "Screenshots into results\\screens\\: A2-settings.png, A2-connections.png, A2-test-bad-key.png, A2-cli-heading.png. Then snap('A2').",
+   "files": [],
+   "pass_if": "all five steps behave as Expect; the Test button never raises an error dialog with a traceback.",
+   "cost": "free, 10 minutes"
+  },
+  {
+   "id": "A3-cli-bridge",
+   "issue": "S",
+   "session": "A",
+   "title": "A signed-in Claude Code, Codex or Antigravity CLI answers one message; the status line works; an old CLI that rejects a flag is handled",
+   "covers": [
+    "cli-bridge-runner-and-claude-adapter",
+    "agy-cli-provider-and-cli-model-choices",
+    "cli-program-found-on-every-os",
+    "cli-flag-fallback"
+   ],
+   "needs": "QGIS plus Claude Code, Codex or Antigravity (agy) installed and signed in (skip the row if you have none: write Skip). For agy also look at the Model (optional) drop-down: it should list models after the program is found, and a name typed by hand should stay.",
+   "starts_from": "A CLI installed where your own terminal finds it (open a terminal, type claude --version or codex --version to confirm). Connections window open on that CLI's page.",
+   "do": "1. Do NOT use Browse yet: the page should already show the program as found. 2. Press Check connection and read the status line. 3. Pick the CLI as the connection (Use this connection), then send in the chat: how many layers are in the project? 4. If you have a second, older version of the CLI, point Browse... at it and repeat 2 and 3. 5. Send the status line text (and the CLI version from the terminal) in the notes.",
+   "expect": "The program is found without Browse on this OS; Check connection shows a status line with the CLI version; the chat gets an answer; an older CLI that does not know a flag gives a plain sentence that names the flag and the version, never a crash.",
+   "evidence": "Screenshot of the Connections page with the status line -> results\\screens\\A3-status.png. Then snap('A3'). Write the CLI name and version in the notes.",
+   "files": [],
+   "pass_if": "found + status line + one correct answer. A plain refusal sentence from an old CLI also passes; a crash or a hang over 60 seconds fails.",
+   "cost": "one short request on your CLI login"
+  },
+  {
+   "id": "B1-routing-plain",
+   "issue": "S",
+   "session": "B",
+   "title": "Plain requests reach the right tool and no unrelated mapping task",
+   "covers": [
+    "metadata-read-no-task",
+    "raster-expression-routing",
+    "named-algorithm-no-task",
+    "plain-requests-not-sent-to-a-wrong-task",
+    "plain-language-discovery",
+    "router-top-k"
+   ],
+   "needs": "person and a real model",
+   "starts_from": "a copy of 3_test_files\\smoke_start.qgz opened from the folder 3_test_files (all its data files sit beside it); a fresh chat (see EVIDENCE_HOWTO.txt, 'Fresh chat'), 'Save an evidence folder for each request' ticked in Settings",
+   "do": "Send each prompt in the same chat, one at a time, waiting for each reply: (1) Show the metadata of smoke_admin  (2) Create a layer where dem@1 > 100 using the raster calculator on smoke_dem  (3) sort the districts in smoke_admin by population  (4) run the dissolve algorithm on smoke_zones by zone_type  (5) make a chart of the population of the districts in smoke_admin. Then open the CartogenAI log (Log Messages tab) and find the model_call line of prompt (1): note the tool_count value.",
+   "expect": "(1) metadata is read and shown, no mapping-task plan is announced. (2) raster_calculator is called. (3) a sort is done on smoke_admin (an algorithm), no mapping-task plan about WorldPop or styling. (4) dissolve is run through the Processing tool, not an unrelated task. (5) a chart is made, not a satellite or population download. The model_call tool_count is 28 or close to it (28 plus the always-offered find_tools).",
+   "evidence": "snap('B1') after the last reply. The evidence folder's steps.jsonl lists the tools; screenshot the log line with tool_count -> results\\screens\\B1-toolcount.png.",
+   "files": [],
+   "pass_if": "each prompt is answered by its own kind of tool and none starts an unrelated plan.",
+   "cost": "five short requests",
+   "checks": [
+    {
+     "prompt": "Show the metadata of smoke_admin",
+     "expected_tools": [
+      "get_layer_metadata"
+     ],
+     "forbidden_tools": [
+      "fetch_worldpop_population"
+     ]
+    },
+    {
+     "prompt": "dem@1 > 100",
+     "expected_tools": [
+      "raster_calculator"
+     ]
+    },
+    {
+     "prompt": "sort the districts in smoke_admin by population",
+     "forbidden_tools": [
+      "fetch_worldpop_population"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "B2-routing-places-data",
+   "issue": "S",
+   "session": "B",
+   "title": "Requests that name a place, a satellite search or a data source get the matching tool",
+   "covers": [
+    "place-lookup-offered-with-data-fetches",
+    "scene-search-gets-area-and-dates",
+    "stac-search-cloud-filter",
+    "named-data-source-gets-its-own-tool",
+    "medical-wording-offers-facility-tools",
+    "routing-wordings-as-data",
+    "tool-keywords-beside-the-tool",
+    "find-tools-fallback",
+    "map-tasks-start-with-a-fetch-tool"
+   ],
+   "needs": "person, a real model and internet",
+   "starts_from": "a copy of 3_test_files\\smoke_start.qgz opened from the folder 3_test_files (all its data files sit beside it); a fresh chat (see EVIDENCE_HOWTO.txt, 'Fresh chat'), 'Save an evidence folder for each request' ticked in Settings",
+   "do": "Send each in the same chat: (1) get building footprints for a small area in Aden  (2) download population for a small area in Aden  (3) find Sentinel-2 scenes over Aden for last month with under 20 percent cloud  (4) show recent earthquakes from USGS  (5) show UCDP conflict events for Yemen  (6) list medical service in Al Maharah  (7) map water points in Aden  (8) map cholera cases in Aden. For (6) a boundary layer need not be loaded. After each prompt read the tools list in the evidence (snap) or the log tool_names.",
+   "expect": "(1) and (2): a place lookup (geocode_and_enrich) is called together with the fetch. (3) search_stac_satellite_imagery is called with a date range and max_cloud_cover 20, newest scene first. (4) fetch_usgs_earthquakes, (5) fetch_ucdp_conflict_events - each named source gets its own tool, no Map-task plan. (6) find_tools (or a facility tool) is called and the OSM download runs - not a bare question. (7) and (8): the task card's tool order starts with a data-fetch tool (fetch_osm_features or search_hdx_datasets) and the model fetches instead of asking you for a file.",
+   "evidence": "snap('B2') after the last reply; copy the CartogenAI log lines for prompt (6) into results\\outputs\\B2-routing-places-data\\log6.txt.",
+   "files": [],
+   "pass_if": "8 of 8 prompts reach the tool named in Expect. A service that is down (network error) is Skip for that prompt, not Fail.",
+   "cost": "eight requests; downloads are small",
+   "checks": [
+    {
+     "prompt": "find Sentinel-2 scenes over Aden",
+     "expected_tools": [
+      "search_stac_satellite_imagery"
+     ]
+    },
+    {
+     "prompt": "recent earthquakes from USGS",
+     "expected_tools": [
+      "fetch_usgs_earthquakes"
+     ]
+    },
+    {
+     "prompt": "UCDP conflict events for Yemen",
+     "expected_tools": [
+      "fetch_ucdp_conflict_events"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "B3-language",
+   "issue": "S",
+   "session": "B",
+   "title": "Arabic and French everyday requests reach the same tools; the review sheet exists",
+   "covers": [
+    "arabic-french-routing-phrases",
+    "arabic-french-more-tools-and-review-sheet"
+   ],
+   "needs": "person, a real model; a fluent Arabic and a fluent French reader for step 3",
+   "starts_from": "A fresh chat (see EVIDENCE_HOWTO.txt, 'Fresh chat') in a new project, internet on; step 2 in ANOTHER fresh chat, not the one step 1 used; SAVE the project into results\\outputs\\B3-language\\ before the first request (the plugin writes its evidence folder next to a saved project; an unsaved project leaves none)",
+   "do": "1. Type: اعرض المستشفيات في تعز   2. New chat, type: Montre les hôpitaux à Taïz   3. (Fluent readers) Open 3_test_files\\language_review_sheet.csv, mark each row OK, FIX, REMOVE or ADD in its decision column, save it in results\\outputs\\B3-language\\ and send it back.",
+   "expect": "Steps 1 and 2: the OSM tool (ingest_osm_features or fetch_osm_features) is called for Taiz in both languages and the answer is in the same language as the request. Step 3: the sheet comes back marked.",
+   "evidence": "snap('B3a') after step 1 and snap('B3b') after step 2. The marked sheet -> results\\outputs\\B3-language\\.",
+   "files": [
+    "language_review_sheet.csv"
+   ],
+   "pass_if": "steps 1 and 2 call the OSM tool; step 3 is done by two readers (otherwise Partial, say which language was not read).",
+   "cost": "two requests",
+   "checks": [
+    {
+     "prompt": "اعرض المستشفيات في تعز",
+     "expected_tools": [
+      "ingest_osm_features"
+     ]
+    },
+    {
+     "prompt": "Montre les hôpitaux à Taïz",
+     "expected_tools": [
+      "ingest_osm_features"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "B4-long-request",
+   "issue": "S",
+   "session": "B",
+   "title": "One long real request: tools stay bounded, the run ends with an answer",
+   "covers": [
+    "found-tools-capped",
+    "long-request-floor",
+    "task-tools-always-offered",
+    "overpass-mirror-fallback",
+    "budget-counts-cached-tokens-at-ten-percent",
+    "empty-extract-says-why",
+    "turn-wrap-up-answer-round",
+    "heldout-long-request-replay",
+    "find-tools-synonyms"
+   ],
+   "needs": "person, a real model and internet (Overpass)",
+   "starts_from": "A new empty project; a fresh chat (see EVIDENCE_HOWTO.txt, 'Fresh chat'), 'Save an evidence folder for each request' ticked in Settings; SAVE the project into results\\outputs\\B4-long-request\\ before the first request (the plugin writes its evidence folder next to a saved project; an unsaved project leaves none)",
+   "do": "Send this single message: Show hospitals and clinics in Taiz, colour them by type, add a legend and make a printable map. Then, in a new chat on the same project, send: make a map of the districts coloured by the number of clinics. Afterwards open the CartogenAI log and read: the first model_call's tool_names and est_tools_tokens, the number of tool calls, and any lines named overpass_mirror_used / overpass_mirror_failed.",
+   "expect": "The first call's tool_names include fetch_osm_features, add_layer_from_path, apply_categorized_style and zoom_to_layer; est_tools_tokens is clearly below the 10,544 seen on 2026-11-01; no more than 5 tools are added per find_tools lookup and 12 per run; the run ends with a message saying what is on the map and what is missing (never a bare [Agent stopped]); an extraction that returns 0 features says why (values or CRS mismatch). In the second chat find_tools is called and apply_graduated_style is then offered. If Overpass is down, the mirror lines appear.",
+   "evidence": "snap('B4a') and snap('B4b'). Copy the model_call log lines (first call of each request) into results\\outputs\\B4-long-request\\log.txt. Write the footer token figure in the notes.",
+   "files": [],
+   "pass_if": "the printed expectations hold; the run never ends on a bare stop message. Overpass down and no mirror line is a Fail for overpass-mirror-fallback only: say so.",
+   "cost": "two long requests (largest cost of the package: about 450,000 tokens cap each)"
+  },
+  {
+   "id": "B5-chat-formatting",
+   "issue": "S",
+   "session": "B",
+   "title": "Chat shows line breaks and spaces correctly, and 20 exchanges survive save and reopen",
+   "covers": [
+    "chat-br-and-comparison-spans",
+    "chat-nbsp-is-a-space",
+    "chat-export-after-reopen"
+   ],
+   "needs": "person and a real model",
+   "starts_from": "A new project saved as chat_test.qgz in a folder you can find again; a fresh chat (see EVIDENCE_HOWTO.txt, 'Fresh chat'), 'Save an evidence folder for each request' ticked in Settings",
+   "do": "1. Send: Compare smoke_points and smoke_hubs in a table with two columns, use <br> line breaks inside the cells and write the sentence 'costs $10 vs $20 and stays within 5&nbsp;km'. 2. Send exactly 19 more short messages (for example 'how many features in smoke_points?') and keep a numbered list of what you sent: the chat must hold 20 of your requests in all, and the evidence folders of this row must be 20 consecutive request numbers (t<n>). Before you call a short count a fault, compare it with those folders: in the 2026-11-04 run the export held 32 messages and every request that had an evidence folder was in it (16 requests, transcript_dropped 0); the 20 had not all been sent. 3. Save the project, close QGIS, reopen the project, open the chat. 4. Use the data export in the Memory dialog and open the file. 5. In the Memory dialog press Clear Saved Chat and confirm (not Clear Project Memory, which clears the project's notes, not the chat). The conversation on screen stays until you reopen the project.",
+   "expect": "Step 1: the cells show real line breaks (no literal <br>), the dollar amounts show with their dollar signs, '&nbsp;' shows as a space not as text. Step 3: all 20 exchanges are back. Step 4: the export holds all 40 messages with their times and a statement of what it holds. Step 5: the dialog reports the saved messages deleted; after you save, close and reopen the project, the chat is empty.",
+   "evidence": "Screenshots: B5-table.png after step 1 and B5-reopened.png after step 3 -> results\\screens\\. The export file -> results\\outputs\\B5-chat-formatting\\. snap('B5').",
+   "files": [],
+   "pass_if": "all five steps as Expect; 40 messages in the export exactly.",
+   "cost": "21 short requests"
+  },
+  {
+   "id": "B6-mesh-to-raster",
+   "issue": "#380",
+   "session": "B",
+   "title": "The mesh case of issue 380: 'turn the mesh results into a raster' reaches the mesh rasterize algorithm, not a flood-hazard plan",
+   "covers": [
+    "plain-requests-not-sent-to-a-wrong-task"
+   ],
+   "needs": "person and a real model",
+   "starts_from": "A new project; add 3_test_files\\smoke_mesh.2dm through Layer > Add Layer > Add Mesh Layer (it appears as smoke_mesh); SAVE the project into results\\outputs\\B6-mesh-to-raster\\ before the first request (the plugin writes its evidence folder next to a saved project); a fresh chat (see EVIDENCE_HOWTO.txt, 'Fresh chat'), 'Save an evidence folder for each request' ticked in Settings",
+   "do": "Send: Turn the mesh results of the flood model into a raster map I can overlay. If the assistant asks which dataset group or pixel size to use, answer with the smallest thing that lets it continue (the first dataset group, a pixel size of 0.001) and note the extra turn.",
+   "expect": "Issue 380, case B41: in the owner's 1.18.0 run this request was answered with a flood-hazard mapping plan ('Map flood hazards', score 0.42) instead of the algorithm. Now the assistant goes for native:meshrasterize (it appears in the tool call's arguments or the reply), no mapping-task plan about flood hazard or population is announced, and no fetch tool is called. A raster layer from the mesh is added to the project, or the algorithm fails for a stated parameter reason.",
+   "evidence": "snap('B6') after the last reply; the evidence folder's steps.jsonl lists the tools and the algorithm id; screenshot of the reply -> results\\screens\\B6-reply.png. Copy the exact algorithm id from the call into the notes.",
+   "files": [
+    "smoke_mesh.2dm"
+   ],
+   "pass_if": "native:meshrasterize is called and no flood-hazard plan or fetch tool appears. A raster layer exists = Pass; the algorithm chosen but failing on a parameter = Partial (quote the error); a flood-hazard plan or a download = Fail.",
+   "cost": "one to three requests",
+   "prompt": "Turn the mesh results of the flood model into a raster map I can overlay",
+   "expected_tools": [
+    "run_allowlisted_processing_algorithm"
+   ],
+   "forbidden_tools": [
+    "fetch_worldpop_population",
+    "fetch_gdacs_disaster_alerts",
+    "fetch_dem"
+   ]
+  },
+  {
+   "id": "C1-load-and-scripts",
+   "issue": "S",
+   "session": "C",
+   "title": "Loading files: tabular twice, Windows path, named sublayer, odd script results, unapplied edit, dashboard note",
+   "covers": [
+    "load-tabular-twice-adds-nothing",
+    "windows-path-escapes-are-repaired",
+    "add-layer-from-path-forwards-sublayer",
+    "script-worker-survives-print-and-odd-results",
+    "script-unapplied-edit-is-a-failure",
+    "dashboard-internet-note",
+    "situation-dashboard-popup-labels"
+   ],
+   "needs": "person and a real model",
+   "starts_from": "A new empty project; a fresh chat (see EVIDENCE_HOWTO.txt, 'Fresh chat'), 'Save an evidence folder for each request' ticked in Settings; SAVE the project into results\\outputs\\C1-load-and-scripts\\ before the first request (the plugin writes its evidence folder next to a saved project; an unsaved project leaves none)",
+   "do": "Replace <F> by the full path of 3_test_files (with backslashes, e.g. C:\\Users\\me\\bundle\\3_test_files). Send in order: (1) load <F>\\smoke_inform.csv as a table  (2) load <F>\\smoke_inform.csv as a table again  (3) load the layer smoke_roads from <F>\\smoke_network.gpkg  (4) run a PyQGIS script that prints 'hello' and returns a set and today's date  (5) run a PyQGIS script that tries to add a field to the layer smoke_roads (it comes from a file)  (6) make a situation dashboard titled Aden test for the bbox -20,-35,60,40 (Africa and Arabia; the tool refuses an area with no live events, so if it says so, widen the bbox until it is accepted and write the bbox you used), then open the HTML file it names in a browser with the internet off.",
+   "expect": "(2) no second layer is added and the reply says it is already loaded. (1) and (3) work with the backslash path as typed. (3) opens exactly smoke_roads (24 features), not the first table of the file. (4) a normal reply: no worker crash, no empty reply, the printed text and the set and date are shown. (5) the reply says the change was NOT applied (a failure), not success. (6) a dashboard HTML file is written (no file means the area had no events: say so and Skip this step); it says at the top that it needs an internet connection.",
+   "evidence": "snap('C1'). Screenshot of the HTML page with the internet note -> results\\screens\\C1-dashboard.png; the HTML file -> results\\outputs\\C1-load-and-scripts\\.",
+   "files": [
+    "smoke_inform.csv",
+    "smoke_network.gpkg"
+   ],
+   "pass_if": "all six as Expect.",
+   "cost": "six short requests",
+   "layers": {
+    "smoke_network.gpkg": [
+     "smoke_roads"
+    ]
+   }
+  },
+  {
+   "id": "C2-vertex-editing",
+   "issue": "S",
+   "session": "C",
+   "title": "Vertex editing: preview, delete, add, move, undo, refusal",
+   "covers": [
+    "vertex-edit-tool"
+   ],
+   "needs": "person and a real model",
+   "starts_from": "A new empty project; a fresh chat, 'Save an evidence folder for each request' ticked; load smoke_roads from smoke_network.gpkg, then COPY it with 'Export > Save Features As' to a scratch GeoPackage and work only on the copy (never edit the test data itself)",
+   "do": "On the copy, send in order: (1) delete vertex 1 of feature 1 of the copy  (2) answer Apply on the preview  (3) undo the last manual edit  (4) add a vertex near the middle of feature 1 and Apply  (5) move vertex 0 of feature 1 to a point 100 m away and Apply  (6) ask to delete a vertex of a point layer if you have one loaded.",
+   "expect": "(1) a preview card names the feature and action and changes nothing yet. (2) the vertex is gone, the reply gives vertices before and after and the length before and after. (3) with the layer in edit mode the line returns to its first shape; otherwise the reply says what undo does. (4) one more vertex, the length unchanged. (5) the line end moves. (6) a refusal that says a point layer has one vertex.",
+   "evidence": "snap('C2'). Screenshot of the preview card -> results\\screens\\C2-preview.png.",
+   "files": [
+    "smoke_network.gpkg"
+   ],
+   "pass_if": "all six as Expect.",
+   "cost": "six short requests",
+   "layers": {
+    "smoke_network.gpkg": [
+     "smoke_roads"
+    ]
+   }
+  },
+  {
+   "id": "C3-parts-and-rings",
+   "issue": "S",
+   "session": "C",
+   "title": "Parts and holes: cut a hole, fill it, delete a hole, refusals",
+   "covers": [
+    "parts-edit-tool"
+   ],
+   "needs": "person and a real model",
+   "starts_from": "A new empty project; a fresh chat, 'Save an evidence folder for each request' ticked; load smoke_admin from smoke_data.gpkg, COPY it with 'Export > Save Features As' to a scratch GeoPackage and work only on the copy (never edit the test data itself)",
+   "do": "On the copy, send in order: (1) cut a small square hole inside feature 1 (give the corner coordinates in the layer's CRS)  (2) answer Apply on the preview  (3) fill the hole at its centre  (4) answer Apply  (5) cut a hole that lies outside the polygon and Apply  (6) undo the last manual edit after step 2 if the layer is in edit mode.",
+   "expect": "(1) a preview card says a hole will be cut and the area now; nothing changed yet. (2) the area drops by the hole's area. (3) the preview names the hole it found. (4) the area is back to the first value. (5) a refusal that says nothing was changed. (6) the hole is gone again.",
+   "evidence": "snap('C3'). Screenshot of the polygon with the hole -> results\\screens\\C3-hole.png.",
+   "files": [
+    "smoke_data.gpkg"
+   ],
+   "pass_if": "all as Expect.",
+   "cost": "five short requests",
+   "layers": {
+    "smoke_data.gpkg": [
+     "smoke_admin"
+    ]
+   }
+  },
+  {
+   "id": "C4-line-editing",
+   "issue": "S",
+   "session": "C",
+   "title": "Lines: reverse, offset, trim and extend, reshape",
+   "covers": [
+    "line-edit-tools"
+   ],
+   "needs": "person and a real model",
+   "starts_from": "A new empty project; a fresh chat, 'Save an evidence folder for each request' ticked; load smoke_roads from smoke_network.gpkg, then COPY it with 'Export > Save Features As' to a scratch GeoPackage and work only on the copy (never edit the test data itself)",
+   "do": "On the copy, send in order: (1) make a parallel copy of the roads 20 m to the left  (2) reverse the direction of feature 1 and Apply  (3) trim and extend the roads with a tolerance of 5 m and read the preview  (4) Apply it  (5) undo the last manual edit if the layer is in edit mode.",
+   "expect": "(1) a new layer smoke_roads_offset appears beside the roads, the same shape 20 m to the left of each line's direction; the roads are unchanged. (2) a preview names one feature; after Apply its first and last vertex are swapped. (3) a preview that gives the number of ends that would move (zero is an acceptable honest answer: then it says nothing needed changing). (4) the ends move onto neighbouring roads. (5) the last step is undone.",
+   "evidence": "snap('C4'). Screenshot of the roads with the offset layer -> results\\screens\\C4-offset.png.",
+   "files": [
+    "smoke_network.gpkg"
+   ],
+   "pass_if": "all as Expect.",
+   "cost": "five short requests",
+   "layers": {
+    "smoke_network.gpkg": [
+     "smoke_roads"
+    ]
+   }
+  },
+  {
+   "id": "C5-copy-features",
+   "issue": "S",
+   "session": "C",
+   "title": "Copy features between layers with a field mapping",
+   "covers": [
+    "copy-features-tool"
+   ],
+   "needs": "person and a real model",
+   "starts_from": "A new empty project; a fresh chat, 'Save an evidence folder for each request' ticked; load smoke_admin from smoke_data.gpkg, then make an EMPTY copy of it as a scratch GeoPackage layer called admin_copy (Layer > Create Layer > New GeoPackage Layer with the same geometry type and CRS, fields name and pop if you like); never copy into the test data itself",
+   "do": "Select three features of smoke_admin on the map. Send in order: (1) copy the selected features of smoke_admin into admin_copy  (2) answer Apply on the preview  (3) copy smoke_admin into smoke_roads  (4) undo the last manual edit if admin_copy is in edit mode.",
+   "expect": "(1) a preview names 3 features, lists the fields copied, the fields left empty and the fields not copied; nothing is written yet. (2) admin_copy now has 3 features with the same names. (3) a refusal that says the layers have different geometry types. (4) the 3 features are gone again.",
+   "evidence": "snap('C5'). Screenshot of the preview card -> results\\screens\\C5-preview.png.",
+   "files": [
+    "smoke_data.gpkg",
+    "smoke_network.gpkg"
+   ],
+   "pass_if": "all as Expect.",
+   "cost": "four short requests",
+   "layers": {
+    "smoke_data.gpkg": [
+     "smoke_admin"
+    ],
+    "smoke_network.gpkg": [
+     "smoke_roads"
+    ]
+   }
+  },
+  {
+   "id": "C6-identify-at-point",
+   "issue": "S",
+   "session": "C",
+   "title": "What is at this coordinate: features, raster cells, radius, the 50 cap",
+   "covers": [
+    "identify-at-point-tool"
+   ],
+   "needs": "person and a real model",
+   "starts_from": "A new empty project; the data from 3_test_files loaded by the first message; a fresh chat, 'Save an evidence folder for each request' ticked. Load smoke_admin and smoke_zones from smoke_data.gpkg and smoke_points_4326 from smoke_network.gpkg. Click on the map with the Identify tool inside one admin area and note its attributes and the coordinate shown in the status bar",
+   "do": "Send in order: (1) what is at <the coordinate you noted, in the project CRS>?  (2) the same question at a point 1 km outside any admin area  (3) what is within 500 m of the coordinate of one smoke_points_4326 point (give its coordinate and say EPSG:4326)  (4) turn smoke_zones off in the layers panel and ask (1) again.",
+   "expect": "(1) the admin area's attributes match what the Identify tool showed (same fields, same values), and smoke_zones appears too if the point is inside a zone. (2) nothing found, and if a point or line layer is visible the reply suggests a radius. (3) the point is found; a radius of 500 on a degree CRS is refused with the degrees explanation unless you give a CRS in metres. (4) smoke_zones no longer appears in the reply.",
+   "evidence": "snap('C6'). Screenshot of the Identify tool result beside the reply -> results\\screens\\C6-identify.png.",
+   "files": [
+    "smoke_data.gpkg",
+    "smoke_network.gpkg"
+   ],
+   "pass_if": "all as Expect.",
+   "cost": "four short requests",
+   "layers": {
+    "smoke_data.gpkg": [
+     "smoke_admin",
+     "smoke_zones"
+    ],
+    "smoke_network.gpkg": [
+     "smoke_points_4326"
+    ]
+   }
+  },
+  {
+   "id": "C7-field-rules",
+   "issue": "S",
+   "session": "C",
+   "title": "Virtual field, constraint and default value",
+   "covers": [
+    "field-rules-tools"
+   ],
+   "needs": "person and a real model",
+   "starts_from": "A new empty project; a fresh chat, 'Save an evidence folder for each request' ticked; load smoke_admin from smoke_data.gpkg and SAVE the project into results\\outputs\\C7-field-rules\\ first (these rules live in the project)",
+   "do": "Send in order: (1) add a virtual field called pop_x2 to smoke_admin that is the population times 2 (use a real numeric field of that layer)  (2) open the attribute table  (3) make the admin name field unique  (4) set a default value of 0 on a numeric field and add a new feature in the table  (5) remove the virtual field  (6) save the project, close it and open it again.",
+   "expect": "(1) the reply gives the value on the first feature. (2) pop_x2 is in the table with the right values; the GeoPackage file has no such column (check in the layer properties, Source Fields). (3) the reply says how many existing features break the rule (zero is fine if all names are different). (4) the new feature has 0 in that field. (5) pop_x2 is gone, nothing else changed. (6) the unique rule and the default are still there; they come back with the project.",
+   "evidence": "snap('C7'). Screenshot of the attribute table with the virtual field -> results\\screens\\C7-virtual.png.",
+   "files": [
+    "smoke_data.gpkg"
+   ],
+   "pass_if": "all as Expect.",
+   "cost": "five short requests",
+   "layers": {
+    "smoke_data.gpkg": [
+     "smoke_admin"
+    ]
+   }
+  },
+  {
+   "id": "C8-table-and-map-display",
+   "issue": "S",
+   "session": "C",
+   "title": "Conditional formatting, map tip, layer action (and the refusal)",
+   "covers": [
+    "layer-display-tools"
+   ],
+   "needs": "person and a real model",
+   "starts_from": "A new empty project; a fresh chat, 'Save an evidence folder for each request' ticked; load smoke_admin from smoke_data.gpkg and SAVE the project into results\\outputs\\C8-table-and-map-display\\ first (these settings live in the project)",
+   "do": "Send in order: (1) colour the cells of a numeric field of smoke_admin light red when the value is above the middle of its range (look at the table first)  (2) open the attribute table  (3) show the admin name and that field in a map tip  (4) turn on View > Show Map Tips and rest the pointer on a district  (5) add a layer action that opens the Wikipedia page for the admin name, then right-click a feature and choose it  (6) add a layer action that runs a Python script or opens notepad.",
+   "expect": "(1) the reply says the rule is stored with the project. (2) the cells above the threshold are light red. (4) the bubble shows the name and the value. (5) the browser opens the page for that district. (6) the reply REFUSES and says why (no commands run on this computer); no such action appears in the right-click menu.",
+   "evidence": "snap('C8'). Screenshots of the coloured table and the map tip -> results\\screens\\C8-table.png, results\\screens\\C8-maptip.png.",
+   "files": [
+    "smoke_data.gpkg"
+   ],
+   "pass_if": "all as Expect, and (6) is refused.",
+   "cost": "six short requests",
+   "layers": {
+    "smoke_data.gpkg": [
+     "smoke_admin"
+    ]
+   }
+  },
+  {
+   "id": "C9-renderers",
+   "issue": "S",
+   "session": "C",
+   "title": "Special renderers: merged, inverted, no symbols, 2.5D, and going back",
+   "covers": [
+    "set-renderer-tool"
+   ],
+   "needs": "person and a real model",
+   "starts_from": "A new empty project; a fresh chat, 'Save an evidence folder for each request' ticked; load smoke_admin and smoke_roads from the test data and style smoke_admin with a visible outline",
+   "do": "Send in order: (1) draw the district boundaries of smoke_admin merged so the shared edges disappear  (2) make smoke_zones an inverted polygon layer so everything outside the zones is shaded  (3) show smoke_admin in 2.5D with a red roof  (4) make smoke_roads draw no symbols and turn its labels on if you like  (5) put smoke_admin back to a single symbol  (6) right-click smoke_admin > Styles and look at the list.",
+   "expect": "(1) the internal borders vanish and the reply says the renderer type read back. (2) the area outside the zones is filled, the zones are clear. (3) the districts look raised with a red roof. (4) the roads are not drawn; the reply says the data is untouched. (5) one plain symbol. (6) the styles 'before merged_features' and the other 'before ...' entries are listed and choosing one restores that look. Asking for an inverted renderer on smoke_roads is refused because roads are lines.",
+   "evidence": "snap('C9'). Screenshots of the merged and the inverted maps -> results\\screens\\C9-merged.png, results\\screens\\C9-inverted.png.",
+   "files": [
+    "smoke_data.gpkg",
+    "smoke_network.gpkg"
+   ],
+   "pass_if": "all as Expect.",
+   "cost": "six short requests",
+   "layers": {
+    "smoke_data.gpkg": [
+     "smoke_admin",
+     "smoke_zones"
+    ],
+    "smoke_network.gpkg": [
+     "smoke_roads"
+    ]
+   }
+  },
+  {
+   "id": "C10-raster-inspection",
+   "issue": "S",
+   "session": "C",
+   "title": "Raster cell value, attribute table and pyramids",
+   "covers": [
+    "raster-inspect-tools"
+   ],
+   "needs": "person and a real model",
+   "starts_from": "A new empty project; a fresh chat, 'Save an evidence folder for each request' ticked; COPY a raster of a few thousand cells per side (for example the DEM from 3_test_files, or any larger GeoTIFF) and a classified raster (a land-cover GeoTIFF) into results\\outputs\\C10-raster-inspection\\ and load the copies, so the test data itself is never written beside",
+   "do": "Send in order: (1) what is the value of the DEM at <a coordinate you read from the status bar over a cell>  (2) show the attribute table of the land-cover raster  (3) build pyramids for the DEM  (4) build pyramids for the DEM again and answer the preview  (5) zoom the map out over the whole DEM and pan around.",
+   "expect": "(1) the value equals what the Identify tool shows for that cell, with its column and row. (2) the class table (value, name, count) or a plain 'no attribute table' if the file has none. (3) the reply names the levels and a .ovr file beside the raster; the .tif itself has the same size and date as before. (4) a preview that says an existing .ovr is replaced; after Apply the level count is read back. (5) the raster draws noticeably faster zoomed out than before step 3 (your observation).",
+   "evidence": "snap('C10'). A directory listing of the folder showing the .tif and the .tif.ovr -> results\\screens\\C10-files.png.",
+   "files": [],
+   "pass_if": "all as Expect.",
+   "cost": "five short requests",
+   "layers": {}
+  },
+  {
+   "id": "C11-project-coordinates-and-decorations",
+   "issue": "S",
+   "session": "C",
+   "title": "Datum transformation list, custom CRS, ellipsoid and units, canvas decorations",
+   "covers": [
+    "project-settings-tools"
+   ],
+   "needs": "person and a real model",
+   "starts_from": "A new empty project; a fresh chat, 'Save an evidence folder for each request' ticked; load smoke_admin and SAVE the project into results\\outputs\\C11-project-coordinates-and-decorations\\ first (these settings live in the project)",
+   "do": "Send in order: (1) list the datum transformations between EPSG:4326 and EPSG:32636  (2) list them between EPSG:4267 and EPSG:4326, pick the most accurate one that is available and Apply  (3) check this custom CRS: +proj=tmerc +lat_0=0 +lon_0=35 +k=0.9996 +x_0=500000 +y_0=0 +datum=WGS84 +units=m +no_defs  (4) set the project ellipsoid to WGS84 and measure in kilometres and hectares  (5) put the title 'Smoke test' at the top centre of the canvas, a north arrow top right and a scale bar bottom left, then save the project, close it and open it again.",
+   "expect": "(1) a list with names, accuracies and which is in use. (2) a preview before it is applied; afterwards Project > Properties > Transformations shows the choice. (3) the reply says it is valid, projected, in metres, and that it was NOT added to your CRS database (check Settings > Custom Projections: it is not there). (4) Project > Properties > General shows the ellipsoid and the units. (5) after reopening, the title, the north arrow and the scale bar are drawn where asked; if one is not, write which (the decoration keys are unverified).",
+   "evidence": "snap('C11'). Screenshots of Project Properties > Transformations and of the canvas with the decorations -> results\\screens\\C11-transform.png, results\\screens\\C11-decorations.png.",
+   "files": [
+    "smoke_data.gpkg"
+   ],
+   "pass_if": "(1)-(4) as Expect; (5) is the real test of the decoration keys: say Pass, Fail or which decoration failed.",
+   "cost": "five short requests",
+   "layers": {
+    "smoke_data.gpkg": [
+     "smoke_admin"
+    ]
+   }
+  },
+  {
+   "id": "C12-run-processing-model",
+   "issue": "S",
+   "session": "C",
+   "title": "Run a model from the graphical modeler, and a model that must be refused",
+   "covers": [
+    "run-processing-model"
+   ],
+   "needs": "person and a real model",
+   "starts_from": "A new empty project; a fresh chat, 'Save an evidence folder for each request' ticked; load smoke_admin from smoke_data.gpkg and SAVE the project into results\\outputs\\C12-run-processing-model\\ (models are read from the project folder)",
+   "do": "In QGIS's Graphical Modeler (Processing > Graphical Modeler) build two models and save each as a .model3 file in the project folder: (A) 'flood_prep': one vector input, Buffer by 500 m, then Centroids; give the last step a model output. (B) 'with_script': the same, plus any step that is a Python script or an algorithm you do not recognise as plain (for example a step made from a script in your Processing toolbox, or Select by location). Then send in order: (1) run the model flood_prep.model3 on smoke_admin  (2) run with_script.model3 on smoke_admin  (3) run ../flood_prep.model3  (4) delete the project's saved state by opening a new unsaved project and ask to run flood_prep.model3 again.",
+   "expect": "(1) a new temporary layer appears, with the centroids of the buffered districts; smoke_admin is unchanged; the reply says the result is temporary. (2) the reply REFUSES and names the step and the algorithm that is not approved; nothing is added to the project. (3) refused: the file must be inside the project folder. (4) the reply says to save the project first.",
+   "evidence": "snap('C12'). Screenshot of the map with the centroids and of the refusal text -> results\\screens\\C12-model.png, results\\screens\\C12-refused.png.",
+   "files": [
+    "smoke_data.gpkg"
+   ],
+   "pass_if": "all as Expect; (2) is the important one: the refusal must name the algorithm.",
+   "cost": "four short requests and two models to build",
+   "layers": {
+    "smoke_data.gpkg": [
+     "smoke_admin"
+    ]
+   }
+  },
+  {
+   "id": "C13-processing-batch",
+   "issue": "S",
+   "session": "C",
+   "title": "The same algorithm over several layers, grouped",
+   "covers": [
+    "run-processing-batch"
+   ],
+   "needs": "person and a real model",
+   "starts_from": "A new empty project; a fresh chat, 'Save an evidence folder for each request' ticked; load smoke_admin and smoke_zones from smoke_data.gpkg and smoke_roads and smoke_hubs_4326 from smoke_network.gpkg",
+   "do": "Send in order: (1) buffer smoke_roads, smoke_zones and smoke_admin by 100 metres in one go  (2) do the same again with the group name 'second'  (3) repeat (1) without changing the group name  (4) run the buffer on smoke_roads and a raster layer you load (any GeoTIFF) together  (5) run select by location on smoke_roads and smoke_zones in a batch.",
+   "expect": "(1) three new layers named smoke_roads_buffer and so on, all inside one new group buffer_batch; your three layers are unchanged. (2) a second group 'second'. (3) refused: the group already exists, and nothing ran. (4) the roads are buffered and the raster is reported as failed with its reason, in one reply that says partial. (5) refused: the algorithm changes your layer.",
+   "evidence": "snap('C13'). Screenshot of the layers panel with the groups -> results\\screens\\C13-groups.png.",
+   "files": [
+    "smoke_data.gpkg",
+    "smoke_network.gpkg"
+   ],
+   "pass_if": "all as Expect.",
+   "cost": "five short requests",
+   "layers": {
+    "smoke_data.gpkg": [
+     "smoke_admin",
+     "smoke_zones"
+    ],
+    "smoke_network.gpkg": [
+     "smoke_roads",
+     "smoke_hubs_4326"
+    ]
+   }
+  },
+  {
+   "id": "C14-in-place",
+   "issue": "S",
+   "session": "C",
+   "title": "An approved algorithm applied to the layer itself, then undone",
+   "covers": [
+    "run-algorithm-in-place"
+   ],
+   "needs": "person and a real model",
+   "starts_from": "A new empty project; a fresh chat, 'Save an evidence folder for each request' ticked; load smoke_roads from smoke_network.gpkg",
+   "do": "Send in order: (1) smooth the selected roads in place (select 3 roads by hand first)  (2) undo it  (3) smooth every road in place and then save the layer edits  (4) smooth smoke_roads in place, selected only, after clearing the selection.",
+   "expect": "(1) a preview naming 3 features; after Apply only those 3 roads change shape and the layer is in edit mode with the change unsaved; your 3 selected roads are still selected. (2) the roads return to their old shape in one step. (3) all roads change; saving writes them to the file. (4) refused: nothing is selected.",
+   "evidence": "snap('C14'). Screenshot of the map before and after step 1 -> results\\screens\\C14-smooth.png.",
+   "files": [
+    "smoke_network.gpkg"
+   ],
+   "pass_if": "all as Expect.",
+   "cost": "four short requests",
+   "layers": {
+    "smoke_network.gpkg": [
+     "smoke_roads"
+    ]
+   }
+  },
+  {
+   "id": "C15-points-to-path-and-relief",
+   "issue": "S",
+   "session": "C",
+   "title": "Points to a track line, and a shaded relief",
+   "covers": [
+    "file-output-wave-e2c-layers"
+   ],
+   "needs": "person and a real model",
+   "starts_from": "A new empty project; a fresh chat, 'Save an evidence folder for each request' ticked; load smoke_hubs_4326 from smoke_network.gpkg and any elevation GeoTIFF as dem",
+   "do": "Send in order: (1) connect the hub points into one line in the order of their id  (2) make a shaded relief of the dem  (3) save the line layer.",
+   "expect": "(1) one new temporary line layer that passes through the hubs in id order. (2) one new temporary raster that looks like a coloured shaded terrain. (3) the save goes through the normal export card.",
+   "evidence": "snap('C15'). Screenshot of the map with the line and the relief -> results\\screens\\C15-line-relief.png.",
+   "files": [
+    "smoke_network.gpkg"
+   ],
+   "pass_if": "all as Expect.",
+   "cost": "three short requests",
+   "layers": {
+    "smoke_network.gpkg": [
+     "smoke_hubs_4326"
+    ]
+   }
+  },
+  {
+   "id": "C16-charts-and-file-info",
+   "issue": "S",
+   "session": "C",
+   "title": "Charts and file information",
+   "covers": [
+    "file-output-wave-e2b-e2a-charts-and-info"
+   ],
+   "needs": "person and a real model",
+   "starts_from": "A new empty project; a fresh chat, 'Save an evidence folder for each request' ticked; load smoke_zones from smoke_data.gpkg and any elevation GeoTIFF as dem",
+   "do": "Send in order: (1) make a histogram of the dem values  (2) make a bar chart of smoke_zones by name  (3) tell me what projection and extent the dem file has  (4) what are the fields and feature count of the smoke_zones file.",
+   "expect": "(1) and (2) each give a path to a temporary page; opening it in a browser shows the chart, and the reply does not claim it opened by itself. (3) the reply quotes the projection, size and extent from the file report. (4) the reply names the real fields and the feature count.",
+   "evidence": "snap('C16'). Screenshot of each chart in the browser -> results\\screens\\C16-chart1.png and C16-chart2.png.",
+   "files": [
+    "smoke_data.gpkg"
+   ],
+   "pass_if": "all as Expect.",
+   "cost": "four short requests",
+   "layers": {
+    "smoke_data.gpkg": [
+     "smoke_zones"
+    ]
+   }
+  },
+  {
+   "id": "C17-stac-load",
+   "issue": "S",
+   "session": "C",
+   "title": "Satellite bands for my area only",
+   "covers": [
+    "load-stac-assets"
+   ],
+   "needs": "person and a real model",
+   "starts_from": "A saved project; a fresh chat, 'Save an evidence folder for each request' ticked; load smoke_admin from smoke_data.gpkg",
+   "do": "Send in order: (1) download the red and near-infrared Sentinel-2 bands for the extent of smoke_admin from the last two months, cloud under 30 percent  (2) confirm it  (3) ask for the same again  (4) ask for Landsat bands for the same area  (5) ask for 12 bands.",
+   "expect": "(1) a preview that lists the scene, the two bands and a size in megabytes, and nothing is added yet. (2) two new raster layers in the project and files in data/00_raw/stac, each with a .provenance.json that names the scene and carries the Copernicus Sentinel notice; the reply says how big they are. (3) the preview, then on confirming, the same files are reused, not downloaded again. (4) refused with the reason (not supported, needs AWS credentials). (5) refused (at most 6 bands).",
+   "evidence": "snap('C17'). Screenshot of the preview card and of the two layers on the map -> results\\screens\\C17-stac.png. If your network needs a proxy, say so: GDAL's own downloads may not follow QGIS's proxy settings.",
+   "files": [
+    "smoke_data.gpkg"
+   ],
+   "pass_if": "all as Expect.",
+   "cost": "five short requests and one small download",
+   "layers": {
+    "smoke_data.gpkg": [
+     "smoke_admin"
+    ]
+   }
+  },
+  {
+   "id": "R1-H1-persona-panel",
+   "issue": "S",
+   "session": "C",
+   "title": "Pick a persona and read what the assistant can do for it",
+   "covers": [
+    "data-source-catalogue",
+    "persona-picker-panel"
+   ],
+   "needs": "person",
+   "starts_from": "A fresh QGIS profile or after resetting the Cartogen AI settings; open Cartogen AI Settings",
+   "do": "(1) in section 03 pick Primary 'Public Health / Epidemiology' and Secondary 'Logistics / Supply Chain'  (2) read the panel  (3) pick Primary 'Logistics / Supply Chain' (the same as the secondary)  (4) pick 'Defense / Intelligence'  (5) press OK, close and reopen Settings  (6) reset the profile, start onboarding, choose the role 'Urban Planner' and read the panel, then choose Primary yourself and change the role again.",
+   "expect": "(2) a panel that names the primary and the secondary, lists 'Available (checked by automatic tests)' with tool names and 'Not built yet' with a release such as 'due in R2 (1.20.0)', then a 'Data it can read:' list for each persona (for Public Health, for example, 'Humanitarian Data Exchange (HDX) (open)', 'WorldPop population rasters (open)' and 'Geocoding (OpenStreetMap Nominatim) (open)'), and ends with the line that every tool stays available. (3) the secondary goes back to None. (4) the panel starts with 'Not built as written ... Classified data must never be used with this plugin.' (5) the choice is still there. (6) the panel follows the role until you pick a persona yourself, then stays on yours.",
+   "evidence": "Screenshot of the panel for step 2 and for step 4 -> results\\screens\\R1-H1-panel.png. Say whether the text is readable in your theme (light or dark) and whether anything is cut off.",
+   "files": [],
+   "pass_if": "all as Expect and the panel is readable.",
+   "cost": "about five minutes",
+   "layers": {}
+  },
+  {
+   "id": "C18-persona-upgrade",
+   "issue": "S",
+   "session": "C",
+   "title": "An existing profile keeps its persona after the upgrade",
+   "covers": [
+    "persona-selection"
+   ],
+   "needs": "person",
+   "starts_from": "A QGIS profile on the PREVIOUS plugin version where Settings -> 'Refinement Persona' was set to something other than the first item (for example 'Transport / Mobility')",
+   "do": "Install this build over it, restart QGIS, open Cartogen AI Settings.",
+   "expect": "Primary persona shows the same choice as before (for example 'Transport / Mobility'), Secondary is None.",
+   "evidence": "Screenshot of section 03 -> results\\screens\\R1-H3-upgrade.png.",
+   "files": [],
+   "pass_if": "the old choice is kept.",
+   "cost": "two minutes",
+   "layers": {}
+  },
+  {
+   "id": "C19-persona-request",
+   "issue": "S",
+   "session": "C",
+   "title": "The same request under Engineering and under the GIS Generalist",
+   "covers": [
+    "persona-rerank",
+    "persona-tasks"
+   ],
+   "needs": "a model key and the network (the request fetches a DEM)",
+   "starts_from": "QGIS open with an empty project and Cartogen AI Settings reachable; any working model",
+   "do": "(1) in Settings section 03 pick Primary 'Engineering / Infrastructure', OK  (2) in the chat send exactly: delineate the watershed at 31.0297 N 35.8058 E  (3) note which tools the assistant calls (the tool list in the chat or the log)  (4) start a new chat, in Settings pick Primary 'GIS Generalist', OK  (5) send exactly the same sentence again  (6) note the tools again.",
+   "expect": "(3) delineate_watershed is among the tools called (fetch_dem first is normal). (6) the same: delineate_watershed is called as well, because a persona only nudges which tools are offered and never takes one away.",
+   "evidence": "Screenshot of the chat after step 2 and after step 5 -> results\\screens\\C19-engineering.png and results\\screens\\C19-generalist.png; paste the two tool lists in the notes.",
+   "files": [],
+   "pass_if": "delineate_watershed is called in both runs. A run that never calls it, or an error about the persona, is a Fail: say which run.",
+   "cost": "two model runs, about 5 minutes",
+   "layers": {}
+  },
+  {
+   "id": "C20-environment-looks",
+   "issue": "S",
+   "session": "C",
+   "title": "Official land-cover colours, change classes, protected-area hatch and the field and change report layouts",
+   "covers": [
+    "land-cover-look-tool",
+    "report-layouts"
+   ],
+   "needs": "QGIS and the plugin; a real model only for step 6",
+   "starts_from": "A new empty project (Project > New); the plugin enabled; Plugins > Python Console open. (<bundle> in a command is the full path of this unzipped package folder, the same one you typed in EVIDENCE_HOWTO.txt; keep the r and the quotes)",
+   "do": "(1) in the console, load the inputs (replace <bundle> with the full path of the unzipped package folder): iface.addRasterLayer(r\"<bundle>\\3_test_files\\smoke_worldcover.asc\", 'smoke_worldcover')  then  iface.addVectorLayer(r\"<bundle>\\3_test_files\\smoke_change_classes.geojson\", \"smoke_change_classes\", \"ogr\")  then  iface.addVectorLayer(r\"<bundle>\\3_test_files\\smoke_districts_cases.geojson\", \"smoke_districts_cases\", \"ogr\")  (2) from cartogen_ai.core.agent.tools.land_cover_look_tool import apply_land_cover_look as lc  then  print(lc('smoke_worldcover', 'esa_worldcover')) and LOOK at the map and the layer legend  (3) print(lc('smoke_change_classes', 'protected_area_hatch')) and look  (4) print(lc('smoke_change_classes', 'change_classes', field='change'))  then  print(lc('smoke_change_classes', 'change_classes', field='change_word'))  (5) in the console: print(lc('smoke_worldcover', 'change_classes'))  (6) in the chat send: Make a field report layout titled 'Field report test' for smoke_districts_cases, summary 'Test field', key figures from the cases field with the district name as label (top 3), sources 'Cartogen smoke fixtures'. Then send: Make a change report layout titled 'Change report test' for smoke_districts_cases, summary 'Test change', key figures from the vacant_buildings field with the district name as label (top 3), sources 'Cartogen smoke fixtures'. Open both layouts (Project > Layout Manager) and export one as PDF.",
+   "expect": "(2) the reply lists 6 classes (the 5 WorldCover classes present and the unmatched 11) and 'unmatched_values': ['11']. The map: tree cover (the north-west quarter) dark green, cropland (north-east) pink, grassland (south) yellow, built-up (a block in the south-west) red, water (the bottom strip) blue, and the small 2 x 2 patch of the non-class value 11 GREY. The legend lines read 'Tree cover (10)', 'Grassland (30)', 'Cropland (40)', 'Built-up (50)', 'Permanent water bodies (80)' and '11 (not in the ESA WorldCover legend)'. (3) the six polygons show diagonal hatching with an outline and the map beneath stays visible. (4) both runs colour the polygons loss orange, stable grey, gain purple, with those words in the legend, and neither run uses red or green. (5) an error saying no cell value is one of the loss / stable / gain classes, so nothing was restyled; the raster keeps its WorldCover colours. (6) each layout has a text panel headed FIELD then INDEX READINGS (field report) or CHANGE then CHANGE FIGURES (change report), three lines of figures read from the layer (never typed), HOW TO READ THIS MAP, SOURCES and a NOTE that says index values are not a yield or rate recommendation (field) or that change classes are a screening, not a survey (change); nothing cut off or overlapping, in the PDF too.",
+   "evidence": "Run snap('C20') in the console after step 6. Save the printed results of steps 2 to 5 -> results\\outputs\\C20-environment-looks\\result.txt; screenshots of the map with the legend after step 2 and after step 4 -> results\\screens\\C20-landcover.png and C20-change.png; the exported PDF -> results\\outputs\\C20-environment-looks\\; screenshots of both layouts -> results\\screens\\C20-field-report.png and C20-change-report.png. Say whether any pair of colours is hard to tell apart on your screen (the plugin lists tree cover against built-up as a weak pair for red-blind viewers).",
+   "files": [
+    "smoke_worldcover.asc",
+    "smoke_worldcover.prj",
+    "smoke_change_classes.geojson",
+    "smoke_districts_cases.geojson"
+   ],
+   "pass_if": "every Expect line holds, the colours are the official ones, nothing is red beside green, the 11-patch is grey and named. A recoloured 11, a missing legend name, a cut-off text panel or an exception in the console is a Fail: say which step.",
+   "cost": "about 20 minutes, two short model runs",
+   "layers": {},
+   "inputs": "smoke_worldcover.asc/.prj: 40 x 40 cells of 100 m with ESA WorldCover codes 10, 30, 40, 50, 80 and a 2 x 2 patch of 11 (not a class); smoke_change_classes.geojson: six polygons, field change = -1, 0, 1 (text) and change_word = loss, stable, gain; smoke_districts_cases.geojson: 100 squares of 1 km, EPSG:32636, named D00 to D99 (D<row><column>, row 0 at the south); fields cases (4, 3, 0 and 2 in D00, D09, D90 and D99; 15 in the 3 x 3 block D33 to D55; 5 to 8 elsewhere; total 707), population (1,000 each), expected (7.07 each = the overall rate x population: a STAND-IN for the age- and sex-based expected counts a real study would supply), burglaries, vacant_buildings, price_index and pm25 (each higher in the same block).",
+   "outputs": "result.txt (the console text of steps 2 to 5), the exported PDF"
+  },
+  {
+   "id": "C21-spatial-autocorrelation",
+   "issue": "S",
+   "session": "C",
+   "title": "Moran's I: two exact answers, then a real comparison with GeoDa, R or PySAL on the same file",
+   "covers": [
+    "spatial-autocorrelation"
+   ],
+   "needs": "QGIS only for steps 1 to 4 (Python console); a second tool (GeoDa, or R with spdep, or PySAL) for step 5",
+   "starts_from": "A new empty project; the plugin enabled; Plugins > Python Console open. (<bundle> in a command is the full path of this unzipped package folder, the same one you typed in EVIDENCE_HOWTO.txt; keep the r and the quotes)",
+   "do": "(1) load the inputs: iface.addVectorLayer(r\"<bundle>\\3_test_files\\smoke_checker4.geojson\", \"smoke_checker4\", \"ogr\")  then  iface.addVectorLayer(r\"<bundle>\\3_test_files\\smoke_districts_cases.geojson\", \"smoke_districts_cases\", \"ogr\")  (2) from cartogen_ai.core.agent.tools.spatial_stats_tool import calculate_spatial_autocorrelation as moran  then  print(moran('smoke_checker4', 'v', weights='rook', permutations=999))  (3) r = moran('smoke_districts_cases', 'cases', weights='queen', permutations=999, write_local=True); print(r); open the new layer smoke_districts_cases_lisa and look at its table and at lisa_class  (4) print(moran('smoke_districts_cases', 'cases', weights='rook')) and print(moran('smoke_districts_cases', 'cases', weights='knn', k=5))  (5) in GeoDa, R (spdep::moran.test on a queen neighbour list with row-standardised weights) or PySAL (esda.Moran, Queen weights, transform='r') run Moran's I on the SAME file and field (cases), queen contiguity.",
+   "expect": "(2) moran_i -1.0 exactly, expected_i -0.0667, features 16, mean_neighbours 3.0, islands 0, p_value 0.002 (the smallest possible with 999 shuffles is 0.001; 0.002 is two-sided), interpretation says DIFFERENT values. (3) moran_i 0.3383, expected_i -0.0101, z_permutation about 6.83, p_value 0.002, mean_neighbours 6.84, islands 0, separate_groups 1; local_counts HH 9, LL 1, HL 0, LH 4, not significant 86; the new layer smoke_districts_cases_lisa has 100 features and your smoke_districts_cases layer is unchanged; the interpretation says SIMILAR values and never a cause. (4) rook gives moran_i 0.4114; knn k=5 gives a value near it and mean_neighbours 5.0. (5) the other tool's I agrees with 0.338 to 3 decimals (its p-value differs slightly: ours is a permutation test).",
+   "evidence": "Run snap('C21') after step 3. Save the printed results of steps 2 to 4 -> results\\outputs\\C21-spatial-autocorrelation\\result.txt; the I value from the other tool with the tool's name and the neighbour rule it used (one line) -> results\\outputs\\C21-spatial-autocorrelation\\other_tool.txt; a screenshot of the smoke_districts_cases_lisa table -> results\\screens\\C21-lisa-table.png.",
+   "files": [
+    "smoke_checker4.geojson",
+    "smoke_districts_cases.geojson"
+   ],
+   "pass_if": "steps 2 and 3 print exactly the numbers in Expect, the lisa layer exists and the input is unchanged, and the other tool agrees to 3 decimals. A different I, a crash, or islands on this clean grid is a Fail: send both numbers.",
+   "cost": "about 20 minutes, free",
+   "layers": {},
+   "inputs": "smoke_checker4.geojson: 16 squares with v = +1 and -1 alternating (a checkerboard); smoke_districts_cases.geojson: 100 squares of 1 km, EPSG:32636, named D00 to D99 (D<row><column>, row 0 at the south); fields cases (4, 3, 0 and 2 in D00, D09, D90 and D99; 15 in the 3 x 3 block D33 to D55; 5 to 8 elsewhere; total 707), population (1,000 each), expected (7.07 each = the overall rate x population: a STAND-IN for the age- and sex-based expected counts a real study would supply), burglaries, vacant_buildings, price_index and pm25 (each higher in the same block).",
+   "outputs": "result.txt, other_tool.txt"
+  },
+  {
+   "id": "C22-hotspots-gi-star",
+   "issue": "S",
+   "session": "C",
+   "title": "Gi* hot spots: an exact answer, then the planted block, then a comparison with a published tool",
+   "covers": [
+    "spatial-hotspots-gi-star"
+   ],
+   "needs": "QGIS only for steps 1 to 4 (Python console); a second tool (GeoDa Local G*, ArcGIS Hot Spot Analysis, or PySAL esda.G_Local) for step 5",
+   "starts_from": "A new empty project; the plugin enabled; Plugins > Python Console open. (<bundle> in a command is the full path of this unzipped package folder, the same one you typed in EVIDENCE_HOWTO.txt; keep the r and the quotes)",
+   "do": "(1) load the inputs: iface.addVectorLayer(r\"<bundle>\\3_test_files\\smoke_one_high5.geojson\", \"smoke_one_high5\", \"ogr\")  then  iface.addVectorLayer(r\"<bundle>\\3_test_files\\smoke_districts_cases.geojson\", \"smoke_districts_cases\", \"ogr\")  (2) from cartogen_ai.core.agent.tools.hotspot_tool import analyze_hotspots_gi_star as gi  then  print(gi('smoke_one_high5', 'v', weights='rook', fdr=False)); open smoke_one_high5_gi_star and sort gi_z  (3) r = gi('smoke_districts_cases', 'cases', weights='queen', fdr=True); print(r); open smoke_districts_cases_gi_star  (4) print(gi('smoke_districts_cases', 'cases', weights='queen', fdr=False))  (5) in GeoDa (Local G*), ArcGIS or PySAL (esda.G_Local, star=True, binary weights) compute Gi* for the cases field with queen contiguity and compare the z-scores of D44, D33 and D00.",
+   "expect": "(2) the middle cell H22 has gi_z 2.0 and so do its four rook neighbours (H12, H21, H23, H32); a far corner (H00) has gi_z -0.3693; classes: 5 'Hot spot 95%' and 20 'Not significant'; summary '5 hot spot(s) and 0 cold spot(s) among 25 tested features (NOT corrected for the number of tests)'. (3) 7 'Hot spot 99%' and 2 'Hot spot 95%', all in the block D33, D34, D35, D43, D44, D45, D53, D54, D55; D44 has gi_z 8.7267; D33 has gi_z 3.2244, gi_p 0.001263 and gi_q 0.014028 (the corrected value is larger); the summary says '(false-discovery corrected)'; islands 0; D00 and D99 are 'Not significant'. (4) without the correction there are 13 hot spots (11 at 99% and 2 at 95%): more than step 3, as it should be (nothing is corrected for testing 100 areas). (5) the other tool's z-scores agree with ours to 3 decimals for the same neighbour rule (p-values may differ if it uses permutations).",
+   "evidence": "Run snap('C22') after step 3. Save the printed results of steps 2 to 4 -> results\\outputs\\C22-hotspots-gi-star\\result.txt; the z-scores of D44, D33 and D00 from the other tool, with its name and neighbour rule -> results\\outputs\\C22-hotspots-gi-star\\other_tool.txt; a screenshot of the smoke_districts_cases_gi_star table sorted by gi_z -> results\\screens\\C22-gi-table.png.",
+   "files": [
+    "smoke_one_high5.geojson",
+    "smoke_districts_cases.geojson"
+   ],
+   "pass_if": "steps 2 to 4 print exactly the numbers in Expect and the input layers are unchanged; the other tool agrees. A different z, a crash, or islands on this clean grid is a Fail: send both numbers.",
+   "cost": "about 20 minutes, free",
+   "layers": {},
+   "inputs": "smoke_one_high5.geojson: 25 squares (5 x 5, named H<row><column>) with v = 0 except H22 = 10; smoke_districts_cases.geojson: 100 squares of 1 km, EPSG:32636, named D00 to D99 (D<row><column>, row 0 at the south); fields cases (4, 3, 0 and 2 in D00, D09, D90 and D99; 15 in the 3 x 3 block D33 to D55; 5 to 8 elsewhere; total 707), population (1,000 each), expected (7.07 each = the overall rate x population: a STAND-IN for the age- and sex-based expected counts a real study would supply), burglaries, vacant_buildings, price_index and pm25 (each higher in the same block).",
+   "outputs": "result.txt, other_tool.txt"
+  },
+  {
+   "id": "C23-cluster-scan",
+   "issue": "S",
+   "session": "C",
+   "title": "Kulldorff cluster scan: the planted block is found, then a comparison with SaTScan",
+   "covers": [
+    "spatial-cluster-scan"
+   ],
+   "needs": "QGIS only for steps 1 to 4 (Python console, numpy ships with QGIS); SaTScan (free, satscan.org) for step 5",
+   "starts_from": "A new empty project; the plugin enabled; Plugins > Python Console open. (<bundle> in a command is the full path of this unzipped package folder, the same one you typed in EVIDENCE_HOWTO.txt; keep the r and the quotes)",
+   "do": "(1) iface.addVectorLayer(r\"<bundle>\\3_test_files\\smoke_districts_cases.geojson\", \"smoke_districts_cases\", \"ogr\")  (2) from cartogen_ai.core.agent.tools.cluster_scan_tool import detect_spatial_clusters as scan  then  r = scan('smoke_districts_cases', 'cases', 'population', monte_carlo=999, seed=1); print(r); open the layer smoke_districts_cases_scan_clusters  (3) print(scan('smoke_districts_cases', 'cases', 'population', monte_carlo=999, seed=1, max_pop_fraction=0.05)) and print the same call a second time  (4) print(scan('smoke_districts_cases', 'cases', 'population', model='bernoulli'))  (5) in SaTScan run a purely spatial Poisson scan with the same data: cases file (one line per district: name, cases), population file (name, 1000), coordinates file (the district centres: x = 775500 + 1000 x column, y = 3537500 + 1000 x row, Cartesian), maximum cluster size 50 percent of the population, 999 Monte Carlo replications.",
+   "expect": "(1) the layer's CRS (bottom right of QGIS) reads EPSG:32636; if it shows EPSG:4326 or none, stop and report it, because the scan refuses degrees. (2) summary 'Most likely cluster: 9 area(s) around feature <the one named D44>, 135 cases against 63.63 expected (relative risk 2.386), p = 0.001.'; areas 9, radius 1414.214 (metres), llr 34.289, significant true; total_cases 707; centre_id is the feature id of D44 (44, or 45 if this QGIS numbers features from 1: check in the table that its name is D44); the new layer has ONE circle centred on D44 with radius 1414 m (it passes through the centres of the four corner districts of the block, not through their corners), and your layer is unchanged. (3) with the 5 percent cap every cluster has at most 5 areas: the best is 5 areas with 75 cases and relative risk 2.255; both runs print identical numbers (same seed). (4) an error saying only the 'poisson' model is built. (5) SaTScan's most likely cluster holds the same 9 districts, 135 observed and about 63.63 expected cases, a log likelihood ratio of 34.29 (to 2 decimals) and p = 0.001; the radius is about 1.41 km.",
+   "evidence": "Run snap('C23') after step 2. Save the printed results of steps 2 to 4 -> results\\outputs\\C23-cluster-scan\\result.txt; SaTScan's results file (the cluster section) and its parameter file -> results\\outputs\\C23-cluster-scan\\; a screenshot of the circle on the map -> results\\screens\\C23-circle.png.",
+   "files": [
+    "smoke_districts_cases.geojson"
+   ],
+   "pass_if": "step 2 prints the numbers in Expect (the p-value is 0.001, the smallest possible with 999 replications), the input layer is unchanged, step 3 is identical twice, and SaTScan agrees on the cluster and its LLR. A different cluster or LLR, a crash, or a circle that splits districts is a Fail.",
+   "cost": "about 25 minutes, free",
+   "layers": {},
+   "inputs": "smoke_districts_cases.geojson: 100 squares of 1 km, EPSG:32636, named D00 to D99 (D<row><column>, row 0 at the south); fields cases (4, 3, 0 and 2 in D00, D09, D90 and D99; 15 in the 3 x 3 block D33 to D55; 5 to 8 elsewhere; total 707), population (1,000 each), expected (7.07 each = the overall rate x population: a STAND-IN for the age- and sex-based expected counts a real study would supply), burglaries, vacant_buildings, price_index and pm25 (each higher in the same block).",
+   "outputs": "result.txt, SaTScan results and parameter files"
+  },
+  {
+   "id": "C24-health-rates",
+   "issue": "S",
+   "session": "C",
+   "title": "Rates, relative risk, SMR and smoothing: exact answers and the small-number rule, then a comparison with R or GeoDa",
+   "covers": [
+    "health-rates"
+   ],
+   "needs": "QGIS only for steps 1 to 5 (Python console); R (epitools, spdep) or GeoDa for step 6",
+   "starts_from": "A new empty project; the plugin enabled; Plugins > Python Console open. (<bundle> in a command is the full path of this unzipped package folder, the same one you typed in EVIDENCE_HOWTO.txt; keep the r and the quotes)",
+   "do": "(1) iface.addVectorLayer(r\"<bundle>\\3_test_files\\smoke_rates3.geojson\", \"smoke_rates3\", \"ogr\")  then  iface.addVectorLayer(r\"<bundle>\\3_test_files\\smoke_districts_cases.geojson\", \"smoke_districts_cases\", \"ogr\")  (2) from cartogen_ai.core.agent.tools.health_rates_tool import calculate_health_rates as rates  then  print(rates('smoke_rates3', 'cases', 'population', method='smr', expected_field='expected'))  (3) r = rates('smoke_districts_cases', 'cases', 'population'); print(r); open smoke_districts_cases_rates and look at small_number and value_shown  (4) print(rates('smoke_districts_cases', 'cases', 'population', method='eb'))  (5) print(rates('smoke_districts_cases', 'cases', 'population', method='smr'))  and  print(rates('smoke_districts_cases', 'cases', 'population', min_cases=0))  (6) in R (epitools::pois.exact for the interval) or GeoDa (Empirical Bayes rate smoothing) compute the same measures for D44, D11 and D00.",
+   "expect": "(2) the reply says flagged_small_numbers 0 and overall_rate 1000.0; in the table of the new layer smoke_rates3_rates every area has rate 1000.0 (per 100,000) and rel_risk 1.0, and smr is 1.25, 0.8 and 1.0 for R1, R2 and R3. (3) the reply says overall_rate 707.0 and flagged_small_numbers 4; in the table of smoke_districts_cases_rates the flagged areas are D00 (rate 400.0), D09 (300.0), D90 (0.0) and D99 (200.0), each with small_number 'cases below 5' and an EMPTY value_shown; D44 has rate 1500.0, rel_risk 2.1216, rate_lo 838.9264, rate_hi 2474.1631; D11 has rate 600.0, rel_risk 0.8487; shown 96. (4) with method 'eb' the table column value (equal to eb_rate) for D44 is 806.563 (pulled down from 1500) and D00's 668.456. (5) 'smr' with the supplied expected field (7.07) gives D44 smr 2.1216; with min_cases=0 no area is flagged. (6) crude rate and relative risk agree exactly; the exact Poisson interval for D44 (15 cases of 1,000; epitools::pois.exact) is 839.5 to 2474.0 per 100,000 against ours 838.9 to 2474.2 (Byar's approximation: within 1 per 100,000); the smoothed value matches GeoDa's global empirical Bayes (Marshall) to 3 decimals.",
+   "evidence": "Run snap('C24') after step 3. Save the printed results of steps 2 to 5 -> results\\outputs\\C24-health-rates\\result.txt; the values from R or GeoDa for D44, D11 and D00 with the function used -> results\\outputs\\C24-health-rates\\other_tool.txt; a screenshot of the smoke_districts_cases_rates table showing the four flagged rows with an empty value_shown -> results\\screens\\C24-rates-table.png.",
+   "files": [
+    "smoke_rates3.geojson",
+    "smoke_districts_cases.geojson"
+   ],
+   "pass_if": "steps 2 to 5 print exactly the numbers in Expect, the four small-number areas have an empty value_shown, the input is unchanged. A shown value for an area with under 5 cases, a different number, or a crash is a Fail.",
+   "cost": "about 20 minutes, free",
+   "layers": {},
+   "inputs": "smoke_rates3.geojson: three areas R1, R2, R3 with 10, 20 and 30 cases in 1,000, 2,000 and 3,000 people and expected counts 8, 25 and 30; smoke_districts_cases.geojson: 100 squares of 1 km, EPSG:32636, named D00 to D99 (D<row><column>, row 0 at the south); fields cases (4, 3, 0 and 2 in D00, D09, D90 and D99; 15 in the 3 x 3 block D33 to D55; 5 to 8 elsewhere; total 707), population (1,000 each), expected (7.07 each = the overall rate x population: a STAND-IN for the age- and sex-based expected counts a real study would supply), burglaries, vacant_buildings, price_index and pm25 (each higher in the same block).",
+   "outputs": "result.txt, other_tool.txt"
+  },
+  {
+   "id": "C25-public-health-look",
+   "issue": "S",
+   "session": "C",
+   "title": "Rate map, cluster outline, hot and cold spots and the epidemic bulletin: LOOK at them",
+   "covers": [
+    "public-health-look"
+   ],
+   "needs": "QGIS only for steps 1 to 5 (Python console); a real model for step 6",
+   "starts_from": "A new empty project; the plugin enabled; Plugins > Python Console open. (<bundle> in a command is the full path of this unzipped package folder, the same one you typed in EVIDENCE_HOWTO.txt; keep the r and the quotes)",
+   "do": "(1) iface.addVectorLayer(r\"<bundle>\\3_test_files\\smoke_districts_cases.geojson\", \"smoke_districts_cases\", \"ogr\")  then create the three layers: from cartogen_ai.core.agent.tools.health_rates_tool import calculate_health_rates as rates; from cartogen_ai.core.agent.tools.cluster_scan_tool import detect_spatial_clusters as scan; from cartogen_ai.core.agent.tools.hotspot_tool import analyze_hotspots_gi_star as gi; rates('smoke_districts_cases', 'cases', 'population'); scan('smoke_districts_cases', 'cases', 'population'); gi('smoke_districts_cases', 'cases')  (2) from cartogen_ai.core.agent.tools.public_health_look_tool import apply_public_health_look as look  then  print(look('smoke_districts_cases_rates', 'rate')) and LOOK at the map  (3) print(look('smoke_districts_cases_scan_clusters', 'cluster')) and look  (4) print(look('smoke_districts_cases_gi_star', 'hotspot')) and look (switch the other layers off to see it)  (5) in Layer Styling open the rates layer and read the rule labels; print(look('smoke_districts_cases_rates', 'rate', min_cases=10)) and note that nothing changes about the cases (only the legend words)  (6) in the chat send: Make an epidemic bulletin PDF titled 'Epidemic bulletin test' of this map, summary 'Cases reported to 2026-11-08', key figures from the cases field of smoke_districts_cases with the district name as label (top 3), sources 'Cartogen smoke fixtures'. Open the PDF.",
+   "expect": "(2) the reply says legend_title 'Rate per 100,000; suppressed where n < 5', 4 classes (500 to 600; 600 to 700; 700 to 800; 800 to 1,500) in ONE blue hue from light to dark, classes_dropped 1, shown 96, suppressed 4; the four districts D00, D09, D90 and D99 are drawn as a GREY DIAGONAL HATCH (not coloured by a class) and the rule list ends with 'Suppressed (n < 5)'; the block D33 to D55 falls in the darkest class. (3) the circle is a BLACK outline with a narrower WHITE line inside it, no fill, nothing red. (4) the nine block districts are orange (seven dark for 99%, two lighter for 95%), everything else is the near-white 'Not significant'; no cold spots; no red or green anywhere. (5) the rule labels read like '500 to 600' and 'Suppressed (n < 5)'. (6) the PDF has the title, the map, and a text box with SUMMARY, CASES AND RATES (three figures read from the layer), HOW TO READ THIS MAP, SOURCES and METHOD AND LIMITS (crude rates, areas not individuals, fewer than 5 cases not shown, a cluster is not a finding about cause, cases reported by the date stated); the footer is inside the page, no text is cut off, and no patient-level points appear.",
+   "evidence": "Run snap('C25') after step 4. Screenshots of the map after step 2, 3 and 4 and of the Layer Styling rule list -> results\\screens\\C25-rate.png, C25-cluster.png, C25-hotspot.png, C25-rules.png; the exported PDF -> results\\outputs\\C25-public-health-look\\bulletin.pdf; the printed results of steps 2 to 5 -> results\\outputs\\C25-public-health-look\\result.txt. Say whether the colours are readable when printed in greyscale and whether anything looks red.",
+   "files": [
+    "smoke_districts_cases.geojson"
+   ],
+   "pass_if": "everything in Expect, the colours are readable (also in greyscale), nothing is red, the hatch is visible, the bulletin text fits and its limits box is complete. A cut-off text box, a missing hatch, red anywhere or an unreadable legend is a Fail: say which.",
+   "cost": "about 25 minutes, one short model run",
+   "layers": {},
+   "inputs": "smoke_districts_cases.geojson: 100 squares of 1 km, EPSG:32636, named D00 to D99 (D<row><column>, row 0 at the south); fields cases (4, 3, 0 and 2 in D00, D09, D90 and D99; 15 in the 3 x 3 block D33 to D55; 5 to 8 elsewhere; total 707), population (1,000 each), expected (7.07 each = the overall rate x population: a STAND-IN for the age- and sex-based expected counts a real study would supply), burglaries, vacant_buildings, price_index and pm25 (each higher in the same block).",
+   "outputs": "bulletin.pdf, result.txt"
+  },
+  {
+   "id": "C26-r2-routing",
+   "issue": "S",
+   "session": "C",
+   "title": "Ask the chat the twelve plain spatial-statistics questions as each persona",
+   "covers": [
+    "r2-persona-wiring"
+   ],
+   "needs": "QGIS and the plugin with a working model key",
+   "starts_from": "A new project with smoke_districts_cases loaded (iface.addVectorLayer in the console: iface.addVectorLayer(r\"<bundle>\\3_test_files\\smoke_districts_cases.geojson\", \"smoke_districts_cases\", \"ogr\")); 'Save an evidence folder for each request' ticked; for each request, set the persona named in Settings (section 03 Primary), press OK and START A NEW CHAT before sending it (except request 5, which continues the chat of request 4). (<bundle> in a command is the full path of this unzipped package folder, the same one you typed in EVIDENCE_HOWTO.txt; keep the r and the quotes)",
+   "do": "Send each request EXACTLY as written (the layer's fields are cases, population, expected, burglaries, vacant_buildings, price_index and pm25), note the FIRST analysis tool the agent calls and answer any question it asks with the suggested field. 1. Public health: Is this cluster of cases real or just chance?  2. Public health: Are cases more concentrated in some districts than a random pattern would give?  3. Public health: Find the statistically significant hot spots of cases by district  4. Public health: What is the rate per 100,000 and the relative risk in each district?  5. Public health: Colour the district rates and hatch the ones with fewer than 5 cases (run request 4 first in the same chat)  6. Public health: Make an epidemic bulletin PDF for last week's cases  7. Public safety: Is the clustering of incidents statistically significant? (use burglaries)  8. Public safety: Run a hotspot test on the burglary counts by neighbourhood  9. Humanitarian: We have an outbreak in the camps, is there a cluster of cases?  10. Urban planning: Are vacant buildings clustered across neighbourhoods?  11. Environment: Where are the significantly high pollution readings? (use pm25)  12. Real estate: Are high prices clustered in particular areas? (use price_index)",
+   "expect": "The first tool called is, in order: 1 detect_spatial_clusters; 2 calculate_spatial_autocorrelation; 3 analyze_hotspots_gi_star; 4 calculate_health_rates; 5 apply_public_health_look; 6 create_print_layout (template epi_bulletin); 7 analyze_hotspots_gi_star or detect_spatial_clusters or calculate_spatial_autocorrelation; 8 analyze_hotspots_gi_star; 9 detect_spatial_clusters; 10 calculate_spatial_autocorrelation or analyze_hotspots_gi_star; 11 analyze_hotspots_gi_star; 12 calculate_spatial_autocorrelation or analyze_hotspots_gi_star. The agent does not ask which tool to use, never reaches for execute_pyqgis_script, states the method and its limits, and never claims a cause. For request 4 the reply says four areas were suppressed for small numbers.",
+   "evidence": "Run snap('C26') after EACH request (use C26-1 to C26-12 as the name). Fill results\\outputs\\C26-r2-routing\\calls.txt with one line per request: the number, the persona, the first tool the agent called (from the tool-call line in the chat or the plugin_evidence folder) and the first sentence of the final answer. Screenshot any request that went to a wrong tool -> results\\screens\\C26-<number>.png.",
+   "files": [
+    "smoke_districts_cases.geojson"
+   ],
+   "pass_if": "at least 11 of the 12 requests reach the intended family of tools on the first try; no answer claims a cause. A request that goes to a wrong tool, or to execute_pyqgis_script, is a Fail for that line: send the request, the persona and the tool called.",
+   "cost": "about 30 minutes, twelve short model runs",
+   "layers": {},
+   "inputs": "smoke_districts_cases.geojson: 100 squares of 1 km, EPSG:32636, named D00 to D99 (D<row><column>, row 0 at the south); fields cases (4, 3, 0 and 2 in D00, D09, D90 and D99; 15 in the 3 x 3 block D33 to D55; 5 to 8 elsewhere; total 707), population (1,000 each), expected (7.07 each = the overall rate x population: a STAND-IN for the age- and sex-based expected counts a real study would supply), burglaries, vacant_buildings, price_index and pm25 (each higher in the same block).",
+   "outputs": "calls.txt"
+  },
+  {
+   "id": "C27-geocode-protected",
+   "issue": "S",
+   "session": "C",
+   "title": "Geocoding a protected layer is refused, an open layer is not",
+   "covers": [
+    "geocoding-protected-refusal"
+   ],
+   "needs": "QGIS and the plugin with a working model key; internet for steps 3 and 5 (one public lookup each)",
+   "starts_from": "A new empty project; the plugin enabled; 'Save an evidence folder for each request' ticked; load the two layers in the console: iface.addVectorLayer(r\"<bundle>\\3_test_files\\smoke_clients.geojson\", \"smoke_clients\", \"ogr\")  and  iface.addVectorLayer(r\"<bundle>\\3_test_files\\smoke_clinics.geojson\", \"smoke_clinics\", \"ogr\"). (<bundle> in a command is the full path of this unzipped package folder, the same one you typed in EVIDENCE_HOWTO.txt; keep the r and the quotes)",
+   "do": "(0) tag the layers: in the chat send 'Mark smoke_clients as SENSITIVE because it holds client addresses' and 'Mark smoke_clinics as PUBLIC', and confirm any card (or use the Sensitivity dialog)  (1) send: Geocode the addresses in the smoke_clients layer  (2) send: Geocode these places: Flat 3, 12 Example Street, Crater, Aden and 7 Sample Lane, Khormaksar, Aden (no layer named)  (3) send: Geocode the addresses in the smoke_clinics layer  (4) change smoke_clients to PUBLIC (chat or Sensitivity dialog; the plugin may ask you to confirm loosening a protected layer: confirm) and repeat step 1  (5) send: Geocode Aden International Airport, Aden, Yemen",
+   "expect": "(1) and (2): the agent says it cannot geocode them because the text comes from a protected layer, names smoke_clients (for step 2 it recognises the addresses by their values), says nothing was sent anywhere, and does not try a workaround (no script, no single-place loop). The tool result has status GEOCODING_REFUSED_PROTECTED. (3) the lookup goes ahead for the three clinic places: the agent reports coordinates or 'not found' for each (a not-found answer from the public server still counts as the lookup being made). (4) the lookup now goes ahead for the client addresses (fictional, so not-found answers are normal). (5) one lookup goes ahead. smoke_clients is unchanged after steps 1 and 2. KNOWN LIMIT: the check recognises addresses that are copies of values in the protected layer; if the agent rewrites the text (adds a country, drops the flat number) in step 2, the lookup may go ahead: if so, write down the exact text the tool received.",
+   "evidence": "Run snap('C27') after step 2. Save the chat text of each step -> results\\outputs\\C27-geocode-protected\\chat.txt; a screenshot of the Sensitivity dialog showing smoke_clients as SENSITIVE -> results\\screens\\C27-sensitivity.png; the tool result of step 1 from the plugin_evidence folder (it contains the status GEOCODING_REFUSED_PROTECTED) -> results\\outputs\\C27-geocode-protected\\.",
+   "files": [
+    "smoke_clients.geojson",
+    "smoke_clinics.geojson"
+   ],
+   "pass_if": "steps 1 and 2 refuse without any lookup, steps 3, 4 and 5 look up, the layer is unchanged. A lookup that goes through for the SENSITIVE layer, a refusal for the PUBLIC layer, or a workaround attempt is a Fail: send the chat text and the tag shown.",
+   "cost": "about 15 minutes, a few short model runs",
+   "layers": {},
+   "inputs": "smoke_clients.geojson: four FICTIONAL client addresses (field address, case_id K-001 to K-004); smoke_clinics.geojson: three landmark places in Aden (field address, name).",
+   "outputs": "chat.txt, the step 1 tool result"
+  },
+  {
+   "id": "D1-fetch-live",
+   "issue": "S",
+   "session": "D",
+   "title": "Live disaster and boundary fetches: country filter, retry, empty result, bounding box, borders, labels",
+   "covers": [
+    "gdacs-country-filter-reaches-the-live-path",
+    "gdacs-400-retry-and-plain-failure",
+    "empty-fetch-adds-no-layer",
+    "geocode-returns-the-place-bounding-box",
+    "admin-boundary-borders-stay-visible",
+    "admin-layer-zoom-labels",
+    "download-redirect-hop-status-via-qgis"
+   ],
+   "needs": "person, a real model and internet",
+   "starts_from": "A new empty project; a fresh chat (see EVIDENCE_HOWTO.txt, 'Fresh chat'), 'Save an evidence folder for each request' ticked in Settings; SAVE the project into results\\outputs\\D1-fetch-live\\ before the first request (the plugin writes its evidence folder next to a saved project; an unsaved project leaves none)",
+   "do": "Send in order: (1) show GDACS disaster alerts for Yemen  (2) show GDACS alerts for France last week (an empty result is fine)  (3) fetch UCDP conflict events for Yemen for a date range with no events (for example 1 Jan 1900 to 31 Jan 1900)  (4) geocode Aden and give me its bounding box  (5) fetch the admin level 2 boundaries for Yemen from geoBoundaries, zoom to the layer, then zoom in to one district.",
+   "expect": "(1) only alerts for Yemen. (2)/(3) NO empty layer is added; the reply says nothing matched. If GDACS fails the reply explains it in plain words (a 400 is retried once first). (4) the box is given in both coordinate orders (lon,lat and lat,lon). (5) the boundary layer has a light translucent fill and visible grey borders on top of any basemap, and names appear when you zoom in (not all at once when zoomed out). If you work behind a proxy, a blocked download hop gives a clear reason, not a bare error.",
+   "evidence": "snap('D1'); screenshots D1-borders.png (zoomed out) and D1-labels.png (zoomed in) -> results\\screens\\.",
+   "files": [],
+   "pass_if": "all five as Expect. A provider that is down is Skip for that prompt.",
+   "cost": "five requests; one larger download"
+  },
+  {
+   "id": "D2-damage-and-risk",
+   "issue": "S",
+   "session": "D",
+   "title": "Damage severity, distance guards, nearest feature, route risk, forecast trigger",
+   "covers": [
+    "damage-severity-uses-absolute-change",
+    "damage-score-reads-its-own-run",
+    "damage-run-removes-its-working-columns",
+    "lat-lon-distance-guard",
+    "nearest-feature-distance-in-metres",
+    "route-risk-buffer-in-metres",
+    "forecast-trigger-percent-mode",
+    "output-layers-mark-superseded",
+    "spectral-index-tool",
+    "raster-time-series-stats",
+    "change-matrix-tool",
+    "management-zones-tool",
+    "change-detection-accepts-raster-files"
+   ],
+   "needs": "person and a real model",
+   "starts_from": "A new empty project; the data from 3_test_files loaded by the first message; a fresh chat (see EVIDENCE_HOWTO.txt, 'Fresh chat'), 'Save an evidence folder for each request' ticked in Settings; SAVE the project into results\\outputs\\D2-damage-and-risk\\ before the first request (the plugin writes its evidence folder next to a saved project; an unsaved project leaves none)",
+   "do": "Replace <F> by the full path of 3_test_files. Send in order: (1) load <F>\\before_fixture.asc and <F>\\after_fixture.asc, then show the change between after_fixture and before_fixture  (2) load smoke_admin from <F>\\smoke_data.gpkg and calculate the damage exposure severity per district from the two rasters (building footprints: use smoke_zones as stand-in) and open the field list of smoke_admin  (3) run the same damage calculation a second time  (4) buffer smoke_points_4326 from <F>\\smoke_network.gpkg by 1 degree, run the same buffer a second time and look at the layer panel, then make a heatmap of smoke_points_4326 with a radius of 1 degree  (5) find the nearest smoke_hubs_4326 to each smoke_points_4326  (6) load <F>\\smoke_events.csv as points (X lon, Y lat) and <F>\\smoke_route.geojson, then score the incident risk of smoke_route against smoke_events with a 500 metre buffer  (7) load <F>\\smoke_prob.csv and evaluate the forecast trigger: value_field flow, threshold 100, probability_field prob in percent, min_probability 60.  (8) compute SAVI with before_fixture as the nir band and after_fixture as the red band (stand-in bands, only to test the tool).  (9) compute the per-pixel mean of before_fixture and after_fixture with the time series tool.  (10) ask for the change matrix between before_fixture and after_fixture (they are not class rasters; this tests the refusal).  (11) make three management zones from before_fixture (any continuous raster will do here).",
+   "expect": "(1) change detection works with files and loaded layers. (2)/(3) the two rasters now cover the districts (they are in the same CRS, EPSG:32636, as smoke_admin); a district that lost value gets a score by absolute change; the second run uses the new column, not the old one; the admin layer's field list holds no leftover zonal working columns and none of your own columns was deleted. (4) the buffer is built but the result carries a warning that the distance was applied in DEGREES, not metres (a buffer only warns); the second buffer run keeps the first result in the layer panel renamed with '(superseded)' and the new result holds the name, nothing is deleted, and the reply says what was renamed; the heatmap with a 1 degree radius is REFUSED with a message that 1 degree is not a distance and what to use instead (the guard covers blur, hotspot, simplify and interpolate, not buffer). (5) distance_m is in metres. (6) the buffer is in metres: exactly 2 incidents (Event A and Event B) are within 500 m of the route; Events C to F are not counted (a buffer read as 500 degrees would count all 6). (7) the percent column is accepted (probability_scale percent) and the trigger result names the rows that pass. (8) a raster layer named SAVI is added; the reply names the formula, the inputs and the value range; if the fixture values are above about 1.5 the reply also says they look like digital numbers, not reflectance (either outcome passes; a missing layer or a crash does not). (9) a raster layer named ts_mean is added and the reply gives its value range (a trend and an anomaly need 3 or more rasters, so they are tested in CI only). (10) either a plain refusal that says the rasters are not class rasters and must be reclassified first, with no table layer added, or, if the fixture happens to hold whole class values, two table layers; never a crash or a blank reply. (11) a polygon layer called management_zones is added with up to 3 zones numbered from the lowest value, each with a label such as 'Zone 1: before_fixture mean 0.31'; small patches may merge so fewer than 3 zones is allowed and the reply says so; the reply states that the zones are not a yield forecast or a rate recommendation.",
+   "evidence": "snap('D2'); the admin field list screenshot -> results\\screens\\D2-fields.png.",
+   "files": [
+    "after_fixture.asc",
+    "after_fixture.prj",
+    "before_fixture.asc",
+    "before_fixture.prj",
+    "smoke_data.gpkg",
+    "smoke_events.csv",
+    "smoke_network.gpkg",
+    "smoke_prob.csv",
+    "smoke_route.geojson"
+   ],
+   "pass_if": "all seven as Expect. If the model asks for a missing input, give it and note the extra turn. If the damage tool refuses smoke_zones as stand-in footprints, write Partial for step 2 and note the refusal text.",
+   "cost": "seven requests",
+   "layers": {
+    "smoke_data.gpkg": [
+     "smoke_admin",
+     "smoke_zones"
+    ],
+    "smoke_network.gpkg": [
+     "smoke_points_4326",
+     "smoke_hubs_4326",
+     "smoke_roads"
+    ]
+   }
+  },
+  {
+   "id": "D3-coverage-sitrep-jiaf",
+   "issue": "S",
+   "session": "D",
+   "title": "Coverage report, QA checklist, situation report figures, JIAF preview",
+   "covers": [
+    "coverage-report-missing-target",
+    "coverage-chart-is-drawn",
+    "qa-classification-unknown-on-error",
+    "sitrep-key-figures-come-from-the-data",
+    "jiaf-write-preview-carries-statement-and-blockers"
+   ],
+   "needs": "person and a real model",
+   "starts_from": "a copy of 3_test_files\\smoke_start.qgz opened from the folder 3_test_files (all its data files sit beside it); a fresh chat (see EVIDENCE_HOWTO.txt, 'Fresh chat'), 'Save an evidence folder for each request' ticked in Settings",
+   "do": "Send in order: (1) generate a sector coverage report titled Coverage test from these rows: Health reached 40 target 100, Food reached 30 target 0, WASH reached 20 (no target); open the chart image it writes  (2) run the QA checklist for smoke_admin  (3) make a situation report layout titled Sitrep test whose key figures come from smoke_admin  (4) compute the JIAF preliminary from the file <F>\\smoke_jiaf_hxl.csv (type the FULL path, with <F> replaced; a relative path is looked up against an older folder) and read the confirmation preview before you confirm.",
+   "expect": "(1) bars only for the groups that have a target; the groups without a usable target are NOT drawn as 0%. (2) the QA classification line says unknown (not clean) if it cannot read features, and otherwise a real result. (3) the key figures are read from the layer (marked if typed by hand). (4) the preview carries the standing statement and the open validation blockers before anything is written.",
+   "evidence": "snap('D3'); the chart image and the JIAF preview text -> results\\outputs\\D3-coverage-sitrep-jiaf\\.",
+   "files": [
+    "smoke_jiaf_hxl.csv",
+    "smoke_data.gpkg"
+   ],
+   "pass_if": "all four as Expect.",
+   "cost": "four requests",
+   "layers": {
+    "smoke_data.gpkg": [
+     "smoke_admin"
+    ]
+   }
+  },
+  {
+   "id": "D4-network-access",
+   "issue": "S",
+   "session": "D",
+   "title": "Road-network analysis: access gap with a blocked bridge, matrix access leg, facility classes",
+   "covers": [
+    "access-gap-uses-the-named-speed-field",
+    "matrix-access-legs",
+    "classify-counts-access-leg"
+   ],
+   "needs": "person and a real model",
+   "starts_from": "A new project with smoke_roads, smoke_facilities, smoke_points_4326 and smoke_admin_dup loaded from 3_test_files\\smoke_network.gpkg and smoke_dem.tif as the population stand-in; a fresh chat (see EVIDENCE_HOWTO.txt, 'Fresh chat'), 'Save an evidence folder for each request' ticked in Settings; SAVE the project into results\\outputs\\D4-network-access\\ before the first request (the plugin writes its evidence folder next to a saved project; an unsaved project leaves none)",
+   "do": "Send in order: (1) calculate the travel time matrix from smoke_points_4326 to smoke_facilities over smoke_roads  (2) classify smoke_points_4326 by access to smoke_facilities within 3 km of road, up to 200 facilities  (3) work out the population access gap for smoke_facilities over smoke_roads with the speed field speed_kmh (population raster: smoke_dem, area: smoke_admin_dup).",
+   "expect": "(1) the result lists access_leg_m (straight distance from each destination to its nearest road) beside the road-only costs and says to add it for a total-travel-budget question. (2) the counts include the off-road leg whatever the snap distance. (3) the named speed field is used, so a slowed or blocked road changes the figure.",
+   "evidence": "snap('D4'); the matrix result text -> results\\outputs\\D4-network-access\\matrix.txt.",
+   "files": [
+    "smoke_network.gpkg",
+    "smoke_dem.tif"
+   ],
+   "pass_if": "(1) shows access_leg_m; (2) and (3) give numbers and name the fields they used.",
+   "cost": "three requests",
+   "layers": {
+    "smoke_network.gpkg": [
+     "smoke_roads",
+     "smoke_facilities",
+     "smoke_points_4326",
+     "smoke_admin_dup"
+    ]
+   }
+  },
+  {
+   "id": "D5-task-grid",
+   "issue": "S",
+   "session": "D",
+   "title": "Task grid: area filter, refusal that names a working cell size, safe GeoJSON name",
+   "covers": [
+    "task-grid-aoi-where",
+    "task-grid-cell-size-suggestion",
+    "geojson-auto-name-safe"
+   ],
+   "needs": "person and a real model",
+   "starts_from": "A new project with 3_test_files\\smoke_big_area.geojson (about 220 km by 220 km) and smoke_data.gpkg|smoke_admin loaded; a fresh chat (see EVIDENCE_HOWTO.txt, 'Fresh chat'), 'Save an evidence folder for each request' ticked in Settings; SAVE the project into results\\outputs\\D5-task-grid\\ before the first request (the plugin writes its evidence folder next to a saved project; an unsaved project leaves none)",
+   "do": "Send in order: (1) make a 1 km mapping task grid over smoke_big_area  (2) make the grid with the size you suggested  (3) make a 1 km task grid over smoke_admin limited to the district where admin_name = 'District_1', and write a GeoJSON with the name 'auto'.",
+   "expect": "(1) the reply says NO grid was made, names a round cell size that fits (expect about 4 km, anything from 3 to 5 km is fine) and offers aoi_where; no grid layer exists. (2) the grid is made at that size and holds fewer than 5,000 tasks. (3) the grid covers only District_1 and the source layer is not filtered afterwards; a GeoJSON with a safe unique name is written inside the system temp folder (the reply names the folder).",
+   "evidence": "snap('D5'); screenshot of the refusal text -> results\\screens\\D5-refusal.png; the GeoJSON path in the notes.",
+   "files": [
+    "smoke_big_area.geojson",
+    "smoke_data.gpkg"
+   ],
+   "pass_if": "all three as Expect.",
+   "cost": "three requests",
+   "layers": {
+    "smoke_data.gpkg": [
+     "smoke_admin"
+    ]
+   }
+  },
+  {
+   "id": "E1-protection-lineage",
+   "issue": "S",
+   "session": "E",
+   "title": "SENSITIVE data stays protected through buffer, merge and renames; the gate and the layout export ask first",
+   "covers": [
+    "buffer-then-rename-stays-protected",
+    "lineage-named-output",
+    "export-gate-follows-lineage-016",
+    "gate-and-ramp-real-flow-guards",
+    "evidence-context",
+    "layout-export-report",
+    "layout-export-gate",
+    "layout-atlas-gate-and-confirm-flow",
+    "model-sees-the-map"
+   ],
+   "needs": "person and a real model (Gemini or Claude for the last step)",
+   "starts_from": "a copy of 3_test_files\\smoke_start.qgz opened from the folder 3_test_files (all its data files sit beside it); a fresh chat (see EVIDENCE_HOWTO.txt, 'Fresh chat'), 'Save an evidence folder for each request' ticked in Settings",
+   "do": "Send in order, confirming cards where they appear: (1) mark smoke_zones as SENSITIVE because test  (2) buffer smoke_zones by 200 metres and call it zones_buf  (3) rename zones_buf to area_x and rename smoke_zones to area_src  (4) read the attributes of area_x (the cloud gate must stop it)  (5) create a print layout Protected Map of the map and export it as a PDF with purpose publication  (6) export an atlas of area_x with the layout Protected Map  (7) with the gate on and a RESTRICTED layer visible, ask 'what is wrong with this map'.",
+   "expect": "(3) the sensitivity label of area_x says protected through lineage. (4) blocked by the gate (card or refusal), no attribute values reach the model. (5) the export waits for the confirm card, the result lists the SENSITIVE layers the map draws, and a publication export is refused with a list of problems unless you give a reason and confirm; the reason is written beside the file. (6) the atlas waits for the confirm card too. (7) a confirmation card appears instead of a picture being sent. The evidence folder's context.json records the gate mode, each layer's sensitivity and lineage.",
+   "evidence": "snap('E1'); the export file and the reason file -> results\\outputs\\E1-protection-lineage\\; open evidence\\E1\\plugin_evidence\\*\\context.json and tick that it names the gate mode.",
+   "files": [],
+   "pass_if": "no step lets protected data leave without a card, and the label reads protected through lineage.",
+   "cost": "seven requests"
+  },
+  {
+   "id": "E2-obfuscate",
+   "issue": "S",
+   "session": "E",
+   "title": "Obfuscate sensitive points: multipoint layers and points snapped to admin units in another CRS",
+   "covers": [
+    "obfuscate-multipoint",
+    "obfuscate-admin-snap-cross-crs"
+   ],
+   "needs": "person and a real model",
+   "starts_from": "A new project with 3_test_files\\smoke_multipoint.geojson, smoke_data.gpkg|smoke_admin and smoke_network.gpkg|smoke_points_4326 loaded; a fresh chat (see EVIDENCE_HOWTO.txt, 'Fresh chat'), 'Save an evidence folder for each request' ticked in Settings; SAVE the project into results\\outputs\\E2-obfuscate\\ before the first request (the plugin writes its evidence folder next to a saved project; an unsaved project leaves none)",
+   "do": "Send in order: (0) reproject smoke_multipoint to EPSG:32638 and call it smoke_multipoint_utm (a radius in metres needs a metric CRS; asked in degrees the tool asks you to reproject)  (1) obfuscate the sensitive points in smoke_multipoint_utm with the radius method, radius 500 m, seed 1  (2) obfuscate smoke_points_4326 snapping each point to its admin unit using smoke_admin (the two layers are in different CRSs).",
+   "expect": "(0) the reprojected layer has 3 features. (1) one obfuscated point per part of each multipoint, with the same attributes as the source. (2) every point lands inside its own admin unit even though the CRSs differ; none is left outside or in the wrong unit.",
+   "evidence": "snap('E2'); screenshot of the map with source and result -> results\\screens\\E2-obfuscate.png; counts in the notes (source parts vs result points).",
+   "files": [
+    "smoke_multipoint.geojson",
+    "smoke_data.gpkg",
+    "smoke_network.gpkg"
+   ],
+   "pass_if": "(1) part count equals result count; (2) all points inside their admin unit.",
+   "cost": "two requests",
+   "layers": {
+    "smoke_data.gpkg": [
+     "smoke_admin"
+    ],
+    "smoke_network.gpkg": [
+     "smoke_points_4326"
+    ]
+   }
+  },
+  {
+   "id": "E3-layout-model",
+   "issue": "S",
+   "session": "E",
+   "title": "Layouts made through the chat: free placement, frame after Zoom Full, COD profile, drawn-layer footer",
+   "covers": [
+    "layout-items-free-placement",
+    "elevation-profile-along-layer",
+    "layout-frames-the-vectors-after-zoom-full",
+    "layout-cod-3c"
+   ],
+   "needs": "person and a real model",
+   "starts_from": "A new project with smoke_admin, smoke_zones, smoke_dem and smoke_roads loaded; 3_test_files\\cartogen_profiles\\smoke_cod.json copied into a folder named cartogen_profiles next to your saved project (create the folder); a fresh chat (see EVIDENCE_HOWTO.txt, 'Fresh chat'), 'Save an evidence folder for each request' ticked in Settings",
+   "do": "Save the project. Send in order: (1) create a print layout of the map called Placement Test, then add a chart of smoke_admin population and an elevation profile along smoke_roads without giving a position  (2) in the Layers panel untick every layer except smoke_dem, then add smoke_points from 3_test_files\\\\smoke_data.gpkg and keep it ticked; press Zoom Full on the map canvas, then create a print layout called Frame Test and look at the main map frame (with smoke_admin or smoke_zones ticked the frame is RIGHT to show the whole DEM: they cover 92 % of it, and the rule only frames vectors that fill under half)  (3) create a print layout called COD Test with the profile smoke_cod and export it as a PDF.",
+   "expect": "(1) the chart and the profile sit on free spots of the page, not on top of existing items; the profile follows the road without coordinates. (2) the main frame follows smoke_points with a small margin, not the whole DEM (the points fill about 27 % of the project). If it shows the whole DEM with only smoke_dem and smoke_points ticked, that is a Fail; with the larger layers ticked it is not. (3) the profile's credit wording (your cod_credit text) is FIRST on the footer's Credits line; the export warns about duplicate admin P-codes if any drawn layer has them.",
+   "evidence": "snap('E3'); the PDFs -> results\\outputs\\E3-layout-model\\; screenshot of each layout -> results\\screens\\E3-placement.png, E3-frame.png.",
+   "files": [
+    "smoke_data.gpkg",
+    "smoke_dem.tif",
+    "smoke_network.gpkg",
+    "cartogen_profiles/smoke_cod.json"
+   ],
+   "pass_if": "no item overlaps another; the COD credit is first.",
+   "cost": "three requests",
+   "layers": {
+    "smoke_data.gpkg": [
+     "smoke_admin",
+     "smoke_zones"
+    ],
+    "smoke_network.gpkg": [
+     "smoke_roads"
+    ]
+   }
+  },
+  {
+   "id": "E4-exports",
+   "issue": "S",
+   "session": "E",
+   "title": "Exports: DXF, spreadsheet, CSV, PDF map, bundle; tidy-up asks first and copes with odd layers and duplicates",
+   "covers": [
+    "export-routing-and-dxf",
+    "export-spreadsheet",
+    "rc48-batch1-fixes",
+    "tidy-vector-tile",
+    "tidy-duplicate-source-normalised",
+    "result-replace-add-before-remove",
+    "point-layer-kept-or-said-temporary",
+    "file-output-wave-e1"
+   ],
+   "needs": "person and a real model",
+   "starts_from": "a copy of 3_test_files\\smoke_start.qgz opened from the folder 3_test_files (all its data files sit beside it) plus 3_test_files\\smoke_mesh.2dm added as a mesh layer and smoke_data.gpkg|smoke_points added a second time through Layer > Add Layer > Add Vector Layer and that second layer RENAMED to exactly smoke_points (the dialog names it 'smoke_data - smoke_points'; tidy matches a duplicate only when name and data are the same); saved project; a fresh chat (see EVIDENCE_HOWTO.txt, 'Fresh chat'), 'Save an evidence folder for each request' ticked in Settings WORK ON A COPY OF THE DATA (DEF-36): this row writes to a data file (a new field or a changed value). Copy the whole 3_test_files folder to results\\work\\3_test_files_copy\\ first and open the project from that copy; running it in 3_test_files itself leaves a changed input for every later row (round 3: the undo test left a 'notes' column in smoke_data.gpkg).",
+   "do": "Send in order, confirming overwrite/confirm cards: (1) export smoke_points and smoke_zones to DXF  (2) export smoke_points and smoke_admin to one Excel file  (3) export smoke_points to CSV  (4) print the map as a PDF  (5) tidy the project layers (look at the preview first, then apply)  (6) add three points (latitude, longitude, EPSG:4326) 15.35,44.2 15.36,44.21 15.37,44.22 as a layer called pts_test, save the project and reopen it  (7) run the Processing statistics report for smoke_admin (basic statistics for a field) through the generic Processing tool.",
+   "expect": "(1) a DXF inside the project export folder with the overwrite card and a sensitivity warning if relevant. (2) one .xlsx with one sheet per layer. (3) a CSV, not an Excel file. (4) the PDF opens and shows the map (a real PDF, not empty). (5) nothing is hidden, restyled or saved before the confirm card; the mesh layer is skipped, not an error; the duplicate smoke_points (same name, same data) is found and the extra copy is hidden after you confirm, never deleted; same-name layers it did not match are listed. (6) pts_test is still there after reopening, or the reply said it was temporary. (7) numbers come back; the report file is temporary; no raw output argument is accepted.",
+   "evidence": "snap('E4'); every exported file -> results\\outputs\\E4-exports\\ (dxf, xlsx, csv, pdf).",
+   "files": [
+    "smoke_mesh.2dm",
+    "smoke_data.gpkg"
+   ],
+   "pass_if": "each export file exists and opens in its own program (DXF in a CAD viewer or QGIS, xlsx in Excel).",
+   "cost": "seven requests",
+   "layers": {
+    "smoke_data.gpkg": [
+     "smoke_points",
+     "smoke_zones",
+     "smoke_admin"
+    ]
+   }
+  },
+  {
+   "id": "E5-raster-styling",
+   "issue": "S",
+   "session": "E",
+   "title": "Raster and graduated styling, wrong-geometry guard",
+   "covers": [
+    "population-ramp-renders",
+    "graduated-no-data-class",
+    "processing-run-guards-rc48"
+   ],
+   "needs": "person and a real model",
+   "starts_from": "a copy of 3_test_files\\smoke_start.qgz opened from the folder 3_test_files (all its data files sit beside it); a fresh chat (see EVIDENCE_HOWTO.txt, 'Fresh chat'), 'Save an evidence folder for each request' ticked in Settings WORK ON A COPY OF THE DATA (DEF-36): this row writes to a data file (a new field or a changed value). Copy the whole 3_test_files folder to results\\work\\3_test_files_copy\\ first and open the project from that copy; running it in 3_test_files itself leaves a changed input for every later row (round 3: the undo test left a 'notes' column in smoke_data.gpkg).",
+   "do": "Rename smoke_dem to yem_ppp_2020 in a copy of the project (a population-named raster) and keep a second raster called dem loaded beside it. Send: (1) apply a raster stretch to yem_ppp_2020  (2) apply a graduated style to smoke_admin on population after clearing the population of one district (set it to NULL in the attribute table first)  (3) run the kernel density heatmap algorithm (it needs a POINT layer) on the polygon layer smoke_zones.",
+   "expect": "(1) yem_ppp_2020 draws a coloured ramp that renders in colour; the plain dem beside it is not touched. (2) the feature with no value is grey and appears as 'No data' in the legend. (3) refused before running, with a message that the layer has the wrong geometry type (polygons where points are needed). The guard covers the Python-implemented qgis: algorithms only; native: ones (such as native:polygonize, which the first agent run used) are unchanged and DO run on polygons, so a run of a native algorithm proves nothing. If the assistant says the heatmap is not available, write Skip for step 3 and name the algorithm it offered.",
+   "evidence": "snap('E5'); screenshots E5-ramp.png and E5-nodata-legend.png -> results\\screens\\.",
+   "files": [],
+   "pass_if": "all three as Expect.",
+   "cost": "three requests",
+   "layers": {
+    "smoke_data.gpkg": [
+     "smoke_admin",
+     "smoke_zones"
+    ]
+   }
+  },
+  {
+   "id": "F1-mcp-size",
+   "issue": "S",
+   "session": "F",
+   "title": "The MCP approval dialog shows how big the input is, and warns on a very large one",
+   "covers": [
+    "mcp-writes-need-approval"
+   ],
+   "needs": "person and an MCP client (or mcp_probe.py)",
+   "starts_from": "As W7: MCP server running with writes on; a project with smoke_points (5 features) AND 3_test_files\\smoke_many_points.csv added as points (X lon, Y lat) and named many_points (60,000 features)",
+   "do": "From the client (or: python mcp_probe.py ... --write-tool-check --wait-for-person) ask for buffer_analysis on smoke_points, press DENY, then ask for buffer_analysis on many_points and press DENY again. Read both dialogs.",
+   "expect": "Dialog 1 lists 'smoke_points: 5 features' and no warning. Dialog 2 lists 'many_points: 60,000 features' and says QGIS may stop responding until the call finishes. Both end with the same Allow once question as before; nothing is created.",
+   "evidence": "Screenshots F1-small.png and F1-large.png of the two dialogs -> results\\screens\\. Nothing else.",
+   "files": [
+    "smoke_many_points.csv"
+   ],
+   "pass_if": "the two dialogs differ exactly as Expect.",
+   "cost": "free"
+  },
+  {
+   "id": "F2-fetch-card",
+   "issue": "S",
+   "session": "F",
+   "title": "A protected fetch warns that QGIS may pause while it downloads",
+   "covers": [
+    "gates-on-fetch-and-confirm-paths"
+   ],
+   "needs": "person and a real model",
+   "starts_from": "a copy of 3_test_files\\smoke_start.qgz opened from the folder 3_test_files (all its data files sit beside it); a fresh chat (see EVIDENCE_HOWTO.txt, 'Fresh chat'), 'Save an evidence folder for each request' ticked in Settings",
+   "do": "Send: mark smoke_zones as RESTRICTED because test (approve). Then: fetch the WorldPop population for YEM using smoke_zones as the extent layer (extent_layer smoke_zones). Do not let it look up the extent of smoke_zones first: if the first card is for get_layer_extent, Cancel it and send: use smoke_zones directly as extent_layer, do not read its extent. Read the card; do NOT press Apply the first time. Then press Cancel. Repeat and press Apply.",
+   "expect": "The card says the fetch would send protected data and ends with a sentence that QGIS may pause until the download finishes. Cancel makes nothing and sends nothing; Apply downloads (QGIS may pause) and the layer then carries result checks.",
+   "evidence": "Screenshot of the card -> results\\screens\\F2-card.png. snap('F2') after Apply.",
+   "files": [],
+   "pass_if": "the sentence is on the card and Cancel sends nothing.",
+   "cost": "one request"
+  },
+  {
+   "id": "F3-check-evidence",
+   "issue": "S",
+   "session": "F",
+   "title": "The evidence checker reads the returned folder",
+   "covers": [
+    "full-smoke-package",
+    "hand-test-v2-bundle-and-evidence-checker"
+   ],
+   "needs": "any terminal with Python 3.10 or newer",
+   "starts_from": "All other rows done (or as many as you did)",
+   "do": "In a terminal in this folder: python 5_check_evidence.py results   Paste its whole output into the notes of this row.",
+   "expect": "It prints a verdict per row (rows with expected tools get a tools verdict) and a layout-check line, and lists the rows with no result.",
+   "evidence": "Copy the printed text into results\\outputs\\F3-check-evidence\\checker.txt.",
+   "files": [],
+   "pass_if": "it runs without a traceback.",
+   "cost": "free"
+  }
+ ],
+ "v2_overrides": {
+  "V3-contour": {
+   "expect": " The plugin's own guarantee is the tool result: open plugin_evidence\\*\\steps.jsonl and find generate_contours; it carries storage_note (it names the system temporary folder). Judge the PLUGIN Pass when storage_note is there; if the reply did not repeat it, that is a Partial for the reply's wording (a model choice), not a failure of the tool."
+  },
+  "V4-animate": {
+   "starts_from": " SAVE the project into results\\outputs\\<row id>\\ before the first request: the plugin writes its evidence folder next to a saved project, and an unsaved project leaves none (V4 and V5 had none in the 2026-11-04 run)."
+  },
+  "V5-profile": {
+   "starts_from": " SAVE the project into results\\outputs\\<row id>\\ before the first request: the plugin writes its evidence folder next to a saved project, and an unsaved project leaves none (V4 and V5 had none in the 2026-11-04 run)."
+  },
+  "V9-undo-field": {
+   "do": " Confirm every undo card with Apply, including the one in the last step: it offers to remove the filled column, and the check that refuses it runs when you press Apply, not when the card is shown. Copy the card's wording into the notes. (The first agent run pressed Cancel there, so the refusal was never seen.)",
+   "expect": " Since PR 573 the refusal comes at once with NO card (round 2, 2026-11-05: undo_last_operation returned 'The field notes now holds values, so removing it would lose data. Nothing was changed' straight away): that is the expected result. A card that offers to remove the filled column is a Fail; a card followed by a refusal only at Apply is the old behaviour (the fix is missing).",
+   "starts_from": " WORK ON A COPY OF THE DATA (DEF-36): this row writes to a data file (a new field or a changed value). Copy the whole 3_test_files folder to results\\work\\3_test_files_copy\\ first and open the project from that copy; running it in 3_test_files itself leaves a changed input for every later row (round 3: the undo test left a 'notes' column in smoke_data.gpkg)."
+  },
+  "W1-gate-on": {
+   "expect": " The proof is the record: layer_properties.json must show cartogen/checks on smoke_admin after W1a and no new run after W1b. How the reply words it is a model choice: a reply that does not state the count is a Partial for the reply, not a failure of the gate."
+  },
+  "W2-gate-fetch": {
+   "expect": " The record is the proof (licence_checked false in layer_properties.json). The sentence 'licence not checked' is printed by the provenance record and the spatial report (row W3), not necessarily by the fetch reply."
+  },
+  "W3-provenance": {
+   "expect": " The report comes back as text in the reply (no file is written unless you name an output path): copy it into results\\outputs\\W3-provenance\\report.md and look for a line starting 'Data source:' under Data Sources & Provenance. A heading such as 'Source & Attribution' on a card is not that line."
+  },
+  "W5-hdx-ranked": {
+   "expect": " Judge the plugin from the tool result: open plugin_evidence\\*\\steps.jsonl, find search_hdx_datasets and read score, why and months_since_change per data set. The reply may summarise them in a table: a reply that drops the 'why' lines is a Partial for the reply's wording, not for the ranking."
+  }
+ }
+}

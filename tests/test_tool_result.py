@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """The tool-result contract (core/agent/tool_result.py). Lists are results, not failures: rc15 hand test, get_layers."""
 import unittest
 

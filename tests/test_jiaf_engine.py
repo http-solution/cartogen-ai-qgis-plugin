@@ -1,7 +1,7 @@
-# -*- coding: utf-8 -*-
 """JIAF 2 stage 3 engine, offline. The default flag rules are OCHA's worksheet formulas (tests/test_jiaf_rules.py pins them, tests/test_jiaf_worksheet_adapter.py
 checks them against the official example workbook). The classes here that call the `manual_reading` profile pin that OLDER interpretation of the manual's wording,
 which is kept for comparison only and is not OCHA's rule set; the rest pin the manual's own rules (Box 21, Box 22)."""
+from typing import ClassVar
 import csv
 import os
 import tempfile
@@ -53,7 +53,7 @@ class TestPinFlags(unittest.TestCase):
     """The manual_reading profile (older interpretation, comparison only)."""
 
     def test_flag_1_counts_missing_and_zero_sectors_against_the_setting(self):
-        u = unit(pin={s: 10 for s in je.MAIN_SECTORS[:6]} | {"wash": 0})
+        u = unit(pin=dict.fromkeys(je.MAIN_SECTORS[:6], 10) | {"wash": 0})
         f, _ = flags(u)
         self.assertTrue(f[1]["fired"])
         self.assertEqual(f[1]["value"], 2)  # shelter absent + wash at zero
@@ -163,7 +163,7 @@ class TestRankAndSettings(unittest.TestCase):
 
 
 class TestAnalyzeAndTool(unittest.TestCase):
-    GRID = [
+    GRID: ClassVar = [
         ["#adm2 +code", "#adm2 +name", "#inneed", "#severity", "#inneed +wsh", "#severity +wsh", "#inneed +shl", "#severity +shl",
          "#inneed +hea", "#severity +hea", "#inneed +nut", "#severity +nut"],
         ["YE1", "A", 300, 3, 100, 3, 300, 3, 200, 3, 50, 3],
@@ -193,7 +193,7 @@ class TestAnalyzeAndTool(unittest.TestCase):
     def test_previous_year_enables_flag_6(self):
         prev = [self.GRID[0], ["YE1", "A", 100, 3, 100, 3, 100, 3, 100, 3, 50, 3], self.GRID[2]]
         out = je.compute_jiaf_preliminary(self._csv(self.GRID), sectors_in_scope=["nutrition", "health", "shelter", "wash"],
-                                          previous_file_path=self._csv([prev[0]] + prev[1:2]))
+                                          previous_file_path=self._csv([prev[0], *prev[1:2]]))
         self.assertNotIn("flag_6_note", out)
 
     def test_csv_export_never_overwrites(self):

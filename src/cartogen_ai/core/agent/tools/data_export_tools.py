@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Registered tool surface for agent/data_export.py -- GDPR review findings
 F7/F8 (docs/GDPR_COMPLIANCE_REVIEW.docx). See that module's own docstring
@@ -6,6 +5,7 @@ for the full design.
 """
 
 from .registry import register_tool
+from ._paths import resolve_output_path
 from .task_tools import get_memory_manager
 from .. import data_export as _export
 from .. import chat_persistence as _chat_persistence
@@ -41,6 +41,7 @@ def _max_history_messages():
     },
 )
 def export_stored_data(output_path):
+    output_path = resolve_output_path(output_path)   # rc22 smoke N3/N8/N9: anchor relative paths to the project (see _paths.py)
     memory_manager = get_memory_manager()
     if memory_manager is None:
         return {"error": "Memory manager not initialized."}

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """#153: rasters on different grids are refused, or aligned onto the first one with a stated rule. Written without a local QGIS:
 CI's first run is its first execution."""
 import os

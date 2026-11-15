@@ -1,247 +1,30 @@
-# -*- coding: utf-8 -*-
 """
 Semantic Tool Router & Retrieval Engine for Cartogen AI.
 Filters top-k relevant tool schemas based on user query keywords and intent matching
 to prevent LLM system prompt context overload.
 """
 
+import contextlib
 import difflib
+import functools
+import json
+import os
 import re
-from typing import List, Dict
+import unicodedata
+
+from . import persona_rerank
 
 
 # Curated phrase synonyms for tools whose real-world paraphrases don't share
 # vocabulary with their name/description -- e.g. "rank the districts by how
-# bad the situation is" shares no words with calculate_severity_index's name,
-# and only a weak substring hit ("rank"/"ranked") with its description, so it
-# scored too low to make the top_k candidate set in measured testing against
-# realistic (not the tool's own vocabulary) query phrasing. Kept out of the
-# tool descriptions themselves (which are sent to the model on every call
-# where the tool is selected) since these are routing-only signals, not
-# information the model needs once the tool is actually a candidate.
-_TOOL_ALIASES = {
-    "calculate_severity_index": [
-        "worst", "priority", "rank the districts", "how bad", "most affected",
-        "needs index", "prioritize",
-    ],
-    "calculate_presence_gap": [
-        "underserved", "understaffed", "under-resourced", "who's helping",
-        "who is helping", "operational gap", "coverage gap",
-    ],
-    "load_3w_data": [
-        "who else is working", "who is working", "3w", "4w",
-        "operational presence", "who's active", "who's responding",
-        "who is active", "who is responding", "which organizations are present",
-        "which organisations are present",
-    ],
-    "generate_html_dashboard": [
-        "interactive map", "send to donors", "share with", "web map",
-        "donor briefing", "for stakeholders",
-    ],
-    "analyze_incident_trend": [
-        "getting worse", "getting more dangerous", "more dangerous", "worsening",
-        "improving", "increasing risk", "escalating", "on the rise",
-    ],
-    "score_route_incident_risk": [
-        "risky", "dangerous route", "safe route", "route safety", "safe to travel",
-        "safe to drive",
-    ],
-    "calculate_ndvi": [
-        "vegetation", "vegetation health", "how green", "greenness", "crop health",
-        "plant health", "vegetation index",
-    ],
-    "calculate_ndwi": [
-        "surface water", "how much water", "water extent", "is there flooding",
-        "flood mapping", "water index",
-    ],
-    "calculate_ndre": [
-        "chlorophyll", "nitrogen stress", "crop nitrogen", "precision agriculture",
-        "precision ag",
-    ],
-    "calculate_raster_change_detection": [
-        "before and after", "compare images", "what changed", "how much damage",
-        "damage from before to after", "satellite comparison",
-    ],
-    # Real live report, 2026-09-16: a "Health facilities beyond one hour's travel <coords>"
-    # request -- no place names in the query, no facility layer already in the project --
-    # spent its whole tool-call budget on execute_pyqgis_script hunting for a local data file
-    # on disk and probing the plugin's own internals, never once calling geocode_and_enrich/
-    # geocode_batch, even though an earlier turn with the same underlying task DID use them
-    # successfully. Root cause not fully instrumented (which tools were actually in that turn's
-    # active_tools isn't logged), but is strongly implicated by the scoring itself: neither
-    # tool's own description ("Geocode a SINGLE address/place name into lat/lon...") shares any
-    # vocabulary with "health facilities beyond one hour's travel", so with no query text to
-    # match on, both tools score at or near 0 against a name query -- an easy loss against ~175
-    # other registered tools within a top_k=40 cutoff, especially since "health"/"facilit*" /
-    # "travel"/"hour" naturally score highly for several OTHER, unrelated tools instead. These
-    # aliases give both geocode tools a fighting chance of being visible on exactly the kind of
-    # query that most needs them: naming real-world facilities (hospitals, clinics) with no
-    # existing coordinate data to start from.
-    "geocode_and_enrich": [
-        "hospital", "hospitals", "clinic", "clinics", "health facilit",
-        "geocode", "find the location of", "where is",
-    ],
-    "geocode_batch": [
-        "hospital", "hospitals", "clinic", "clinics", "health facilit",
-        "geocode", "list of locations", "multiple locations",
-    ],
-    "ingest_osm_features": [
-        "hospital", "hospitals", "clinic", "clinics", "health facilit",
-        "health facilities", "health services", "health service", "doctors", "pharmacy", "osm data",
-        "download facilities", "fetch facilities", "osm features",
-        "infrastructure", "schools", "road network", "highways", "roads", "road",
-        "osm", "amenities", "amenity",
-    ],
-    # Hydrology (see tools/engineering_tools.py). "steam length" is the typo in the request that motivated these tools. No bare
-    # "tc" alias: aliases match as substrings of the query, so it would boost these tools on "match", "batch" or "catchment".
-    "parse_dms_location": [
-        "degrees minutes seconds", "dms coordinate", "watershed outlet",
-        "watershed area", "stream length", "steam length", "peak flow",
-    ],
-    "assess_watershed_hydrology_request": [
-        "watershed", "catchment", "drainage basin", "stream length", "steam length",
-        "return period", "rainfall intensity", "time of concentration", "peak flow",
-    ],
-    "calculate_rational_watershed_peak_flow": [
-        "watershed", "catchment", "rational method", "return period",
-        "rainfall intensity", "time of concentration", "peak flow", "kirpich",
-    ],
-    # Road barriers (see tools/barrier_tools.py). No bare "bridge" or "closed": they would boost this tool on unrelated queries.
-    "apply_network_barriers": [
-        "destroyed bridge", "damaged bridge", "blocked road", "road closure", "closed road", "flooded road",
-        "checkpoint", "barrier", "impassable", "avoid the", "cut off road",
-    ],
-    # Anticipatory action (see tools/trigger_tools.py). No bare "forecast" or "trigger": forecast_trend and unrelated queries use them.
-    "evaluate_forecast_trigger": [
-        "anticipatory action", "forecast-based financing", "forecast based financing", "trigger threshold", "trigger model",
-        "trigger protocol", "activation threshold", "lead time", "early action", "pre-arranged financing",
-    ],
-    # Remote mapping tasks (see tools/task_grid_tools.py). No bare "grid" or "tasks": they appear in unrelated requests.
-    "generate_mapping_task_grid": [
-        "tasking manager", "mapping task", "task grid", "mapswipe", "remote mapping", "crowd mapping", "mapathon",
-        "split the area into", "divide the area into",
-    ],
-    # Survey sampling (see tools/sampling_tools.py). No bare "sample" or "survey": they appear in unrelated requests.
-    "design_sampling_frame": [
-        "sampling frame", "sample size", "stratified sample", "sampling design", "household survey", "needs assessment",
-        "msna", "enumerator", "margin of error", "cluster sampling", "random sample of households",
-    ],
-    # Multi-criteria ranking and survey aggregation (see tools/mcda_tools.py, tools/survey_tools.py). No bare "rank", "weights" or "survey".
-    "calculate_mcda_ranking": [
-        "multi-criteria", "multicriteria", "mcda", "weighted ranking", "rank the districts", "rank districts", "prioritise areas",
-        "prioritize areas", "prioritisation", "prioritization", "weight sensitivity", "rank stability",
-    ],
-    "calculate_allocation_envelope": [
-        "allocation envelope", "split the budget", "allocate the budget", "divide the budget", "distribute the budget", "budget across districts",
-        "budget by severity", "funding envelope", "share the funding", "allocate funding",
-    ],
-    "import_jiaf_inputs": [
-        "jiaf input", "jiaf inputs", "import jiaf", "load the jiaf", "sector pin file", "sectoral pin", "jiaf worksheet", "hno dataset",
-        "people in need by sector", "sector inputs",
-    ],
-    "compute_jiaf_preliminary": [
-        "preliminary joint pin", "preliminary pin", "mosaic method", "joint overall pin", "preliminary intersectoral severity", "jiaf flags",
-        "pin flags", "highest sectoral pin", "compute the jiaf", "jiaf preliminary",
-    ],
-    "record_jiaf_decisions": ["record the jiaf decision", "jiaf decisions", "final pin decision", "agreed severity", "flagged unit decision", "which sector pin"],
-    "get_jiaf_decisions": ["show the jiaf decisions", "stored jiaf decisions"],
-    "finalize_jiaf_results": ["final pin", "final joint overall pin", "finalize the jiaf", "finalise the jiaf", "jiaf final results", "pending flagged units"],
-    "compute_jiaf_patterns": ["jiaf patterns", "intersectoral patterns", "workspace 3c", "pin correlation between sectors", "sectors driving the needs",
-                              "needs patterns and linkages"],
-    "record_jiaf_setup": ["jiaf set-up", "jiaf setup", "record the jiaf", "sector alignment", "jiaf scope", "manual edition"],
-    "get_jiaf_setup": ["show the jiaf set-up", "jiaf setup record", "what jiaf scope"],
-    "analyze_critical_links": [
-        "critical link", "critical links", "bottleneck", "bottlenecks", "single point of failure", "which roads matter most",
-        "which road is most important", "roads the routes depend on", "route dependence",
-    ],
-    "import_humanitarian_table": [
-        "import ipc", "ipc table", "ipc phase file", "ipc classification file", "import inform", "inform risk table", "inform risk file",
-        "unosat damage", "unosat points", "import the damage points", "load the ipc", "load the inform",
-    ],
-    "apply_humanitarian_look": [
-        "show the severity on the map", "map the severity", "style the severity", "colour by severity", "color by severity",
-        "map the people in need", "show people in need on the map", "map the gap", "style the presence gap", "map the ranking",
-        "style the ranking", "show the rank on the map",
-        "show the jiaf severity", "map the jiaf", "jiaf on the map", "map the severity phases", "which districts still need a decision",
-        "which units are pending", "where the group still has to decide", "map the pending", "colour the phases", "color the phases",
-        "highlight the worst", "show the worst", "areas that need help most", "where help is needed most", "most in need on the map",
-    ],
-    "aggregate_survey_indicator": [
-        "survey results by", "survey indicator", "weighted survey", "survey weights", "household survey results", "proportion of households",
-        "share of households", "percentage of households",
-    ],
-    "population_access_gap": [
-        "cash assistance", "voucher assistance", "cash and voucher", "cva feasib",
-        "cva viable",
-    ],
-    "apply_raster_stretch": [
-        "raster looks washed out", "raster looks flat", "fix the raster colors",
-        "raster color ramp", "raster contrast", "stretch the raster",
-        "raster looks grey", "raster looks gray", "colorize the raster",
-    ],
-    # Added 2026-09-13, live user report: "show live incedent in jordan... natural, crime,
-    # haszard" -- fetch_gdacs_disaster_alerts scored zero relevance for this phrasing (its
-    # description names specific hazard TYPES -- earthquakes, floods, wildfires -- but never
-    # the generic words "disaster"/"hazard"/"incident" a real user reaches for first). The
-    # single-word "hazard"/"disaster"/"incident"/"wildfire" entries below exist specifically so
-    # _expand_query_with_fuzzy_corrections() (see its docstring) has something to land a
-    # corrected "haszard"->"hazard" or "incedent"->"incident" on -- bare-substring matching
-    # alone still can't see a misspelled word, but the fuzzy-correction pass runs before this
-    # check and appends the corrected form to the string these aliases are matched against.
-    # rule 48 (prompts.py) is the complementary fix for when the tool IS already a candidate
-    # but the model doesn't know to reach for it.
-    "fetch_gdacs_disaster_alerts": [
-        "disaster alert", "current disaster", "live disaster", "ongoing disaster",
-        "disaster incident", "hazard alert", "what disasters", "natural disaster",
-        "hazard", "disaster", "emergency",
-    ],
-    "fetch_nasa_eonet_events": [
-        "natural event", "live event", "current event", "live hazard",
-        "current hazard", "natural incident", "live incident", "ongoing hazard",
-        "what hazards", "hazard incident", "hazard", "incident",
-    ],
-    "fetch_nasa_active_fires": [
-        "active fire", "live fire", "fire detection", "current wildfire",
-        "wildfire location", "fire alert", "wildfire",
-    ],
-    # Plain-language styling requests share no words with the style tools' names ("make the clinics stand out",
-    # "colour the districts by how many people live there"); measured before this entry: several got no style tool at all.
-    "get_layer_extent": [
-        "extent", "bounding box", "bbox", "wgs84", "in degrees", "lat/lon", "search_stac_satellite_imagery", "fetch_building_footprints",
-        "fetch_osm_features", "fetch_worldpop_population", "sentinel", "satellite scenes", "building footprints", "inside it",
-    ],
-    "apply_graduated_style": [
-        "colour the districts by", "color the districts by", "shade the districts", "darker where", "darker the more",
-        "colour by how many", "color by how many", "from light to dark", "light to dark", "darker for higher",
-        "show how much", "show how many",
-    ],
-    "apply_graduated_symbol_style": [
-        "bigger dots", "bigger circles", "larger dots", "larger circles", "bigger the more", "size by", "scale the dots",
-        "scale the circles", "dot size", "bigger symbols",
-    ],
-    "apply_heatmap_style": [
-        "crowded", "crowding", "where people are concentrated", "where most", "concentrated", "density map", "hot spots",
-        "hotspots", "busy areas", "clusters of",
-    ],
-    "apply_categorized_style": [
-        "different colour for each", "different color for each", "each type in its own colour", "each type in its own color",
-        "colour by type", "color by type", "colour each", "color each", "separate colours", "separate colors",
-    ],
-    "change_layer_color": [
-        "make it red", "make them red", "in red", "in blue", "in green", "in dark", "in light", "in pale", "make it stand out",
-        "make them stand out", "stand out", "change the colour", "change the color", "recolour", "recolor",
-    ],
-    "apply_labels": [
-        "put the names", "show the names", "names on the map", "write the names", "name next to", "label each",
-        "show the name of each",
-    ],
-    "set_layer_transparency": [
-        "see-through", "see through", "less solid", "so i can see underneath", "so i can see what is below",
-        "fade the", "more transparent",
-    ],
-    "auto_arrange_layer_order": [
-        "easier to read", "tidy the map", "clean up the map", "declutter", "map is cluttered", "looks messy", "hide the clutter",
-    ],
+# bad the situation is" shares no words with calculate_severity_index's name.
+# Since PLAN-042 step 2 each tool declares its own phrases beside its
+# @register_tool (keywords=[...], see tools/registry.py) and shared synonym
+# groups live in routing_concepts.json; this dict is only the older central
+# place and is empty. Keep the why-comment with the phrases when you add one.
+# Routing-only signals: kept out of the tool descriptions, which are sent to the
+# model on every call where the tool is selected.
+_TOOL_ALIASES: dict[str, list[str]] = {
 }
 # A live user report typo'd BOTH "hazard" -> "haszard" and "incident" -> "incedent" in the
 # same query (2026-09-13) -- the alias entries above are exact-substring, so a misspelled
@@ -259,6 +42,78 @@ _FUZZY_TYPO_VOCAB = {
 }
 _FUZZY_TYPO_MIN_WORD_LEN = 5
 _FUZZY_TYPO_CUTOFF = 0.8
+
+
+_CONCEPTS_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "routing_concepts.json")
+_concepts_cache: dict = {}
+_CONCEPT_PREFIX = "concept:"   # not "@": existing aliases such as "@2" (raster calculator) start with it
+
+
+def _concepts():
+    """Shared synonym groups (routing_concepts.json): a phrase list written once and named by "concept:name" in a tool's keywords, so a new
+    synonym is one line of data for every tool that uses the group (PLAN-042 step 3). Empty if the file cannot be read."""
+    if not _concepts_cache:
+        with contextlib.suppress(Exception), open(_CONCEPTS_PATH, encoding="utf-8") as handle:
+            _concepts_cache.update(json.load(handle))
+    return _concepts_cache
+
+
+def expand_phrases(phrases):
+    """The phrases with every "concept:name" replaced by that concept's phrases; an unknown concept adds nothing (a test fails on it)."""
+    out = []
+    for phrase in phrases:
+        out.extend(_concepts().get(phrase[len(_CONCEPT_PREFIX):], ()) if phrase.startswith(_CONCEPT_PREFIX) else (phrase,))
+    return tuple(out)
+
+
+_LANGUAGES_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "routing_languages.json")
+_languages_cache: dict = {}
+# Arabic spellings that vary between writers: alef maqsura / ya, ta marbuta / ha, tatweel. Harakat and the hamza on an alef are combining
+# marks, removed by the accent strip below, so "أين" and "اين", "مستشفى" and "مستشفي" meet at the same folded text.
+_FOLD_TABLE = str.maketrans({"\u0649": "\u064a", "\u0629": "\u0647", "\u0640": ""})
+
+
+@functools.cache
+def fold(text):
+    """Lower-case, accent-free, Arabic-spelling-tolerant form of a phrase or request, used on BOTH sides of a phrase match, so French
+    accents ("hôpital" / "hopital") and Arabic diacritics or alef forms do not decide whether a phrase hits. English text is unaffected."""
+    decomposed = unicodedata.normalize("NFKD", text.lower())
+    return "".join(c for c in decomposed if not unicodedata.combining(c)).translate(_FOLD_TABLE)
+
+
+def _language_phrases(name):
+    """Arabic and French phrases for a tool from routing_languages.json ({"ar": {tool: [phrases]}, "fr": {...}}); a fluent reviewer can edit
+    one file per language. Empty if the file cannot be read."""
+    if not _languages_cache:
+        with contextlib.suppress(Exception), open(_LANGUAGES_PATH, encoding="utf-8") as handle:
+            _languages_cache.update(json.load(handle))
+    return tuple(p for table in _languages_cache.values() for p in table.get(name, ()))
+
+
+def _declared_keywords(name):
+    """Phrases a tool declares beside its own @register_tool (PLAN-042 step 2), concept references expanded; empty if the registry is
+    unavailable."""
+    with contextlib.suppress(Exception):
+        from ..agent.tools.registry import TOOL_KEYWORDS
+        return expand_phrases(TOOL_KEYWORDS.get(name, ()))
+    return ()
+
+
+def routing_phrases(name):
+    """Every curated phrase for a tool: its declared keywords plus any in _TOOL_ALIASES, concept references expanded."""
+    return (*expand_phrases(_TOOL_ALIASES.get(name, ())), *_declared_keywords(name), *_language_phrases(name))
+
+
+def routing_phrase_tools():
+    """Names of the tools that have at least one curated phrase."""
+    names = set(_TOOL_ALIASES)
+    _language_phrases("")    # loads the language file
+    for table in _languages_cache.values():
+        names |= set(table)
+    with contextlib.suppress(Exception):
+        from ..agent.tools.registry import TOOL_KEYWORDS
+        names |= set(TOOL_KEYWORDS)
+    return sorted(names)
 
 
 def _expand_query_with_fuzzy_corrections(query_words: set, query_lower: str) -> str:
@@ -282,7 +137,39 @@ def _expand_query_with_fuzzy_corrections(query_words: set, query_lower: str) -> 
 # (10), since these are curated synonyms for a specific known gap rather than
 # an incidental substring hit, but not higher (a real name/description match
 # should still win a tie against an alias match).
-_ALIAS_MATCH_SCORE = 10
+# Verbs and nouns that appear in dozens of tool names ("generate_*", "calculate_*", "*_layer"). A request that says "generate a buffer"
+# must not get +10 for generate_html_dashboard, generate_report and generate_mapping_task_grid; the distinctive word (buffer,
+# dashboard, report) still scores. Found by measurement on a long request: these verbs alone filled the tool list with unrelated tools.
+_GENERIC_NAME_WORDS = frozenset({"generate", "calculate", "create", "apply", "get", "set", "add", "fetch", "run", "export", "extract",
+                                 "analyze", "analyse", "layer", "layers", "map", "data", "style", "report", "analysis", "tool"})
+_LONG_QUERY_WORDS = 25
+
+DEFAULT_TOP_K = 28
+_MIN_TOP_K, _MAX_TOP_K = 12, 60
+
+
+def configured_top_k() -> int:
+    """Tools offered per request, from QGIS settings, clamped to a sane range; DEFAULT_TOP_K outside QGIS or on a bad value."""
+    try:
+        from qgis.core import QgsSettings
+        from ...infrastructure.settings_keys import SETTINGS_TOOL_ROUTER_TOP_K
+        value = int(QgsSettings().value(SETTINGS_TOOL_ROUTER_TOP_K, DEFAULT_TOP_K))
+    except Exception:
+        return DEFAULT_TOP_K
+    return max(_MIN_TOP_K, min(_MAX_TOP_K, value))
+# Was 6, which admits a tool that matched on description words alone (three or more hits, capped at +8). Owner's real 16-call run (2026-11-01,
+# per-call log): eight such tools (analyze_critical_links, apply_network_barriers, classify_facilities_by_access, ...) won their slots on an
+# alphabetical tie at score 8, were never called, and cost about 4,800 tokens on every call: roughly 17 percent of the 440,000 tokens the run
+# used. At 9 a long request needs a name or phrase match (10 or more) to take a slot. Measured over the 240 routing requests: no tool needed by
+# any of them was dropped, and the 38 long ones carry 37 percent fewer tool tokens (9,055 to 5,684 on average). find_tools is always offered
+# for the case where a needed tool only matched on description words.
+_LONG_QUERY_MIN_SCORE = 9
+_DESCRIPTION_HIT_CAP = 4        # at most +8 from description words, however long the request
+# Was 10, the same as ONE generic name-word match. As the registry grew past 230 tools, more than 40 of them had "layer", "create" or "add" in
+# their name, and for a short request ("create layer for Jordan ADM1") the curated alias tool tied with all of them and lost its slot to
+# the alphabetical tie-break: adding the M2 tools made fetch_geoboundaries drop out. A curated phrase is the strongest signal the router
+# has, so it now outranks a name-word match (10) plus a full set of description hits (+8). Guarded by tests/test_tool_router_basics.py.
+_ALIAS_MATCH_SCORE = 25
 
 # Common English function/filler words, excluded from name/description scoring -- 2026-09-12,
 # a follow-up to the word-boundary fix above: switching to word-boundary matching correctly
@@ -304,39 +191,153 @@ _STOPWORDS = {
 }
 
 
+_PROCESSING_GENERIC_TOOLS = frozenset({"find_processing_algorithm", "run_allowlisted_processing_algorithm"})
+
+
+def _query_terms(user_query):
+    """(lower-cased query, is it a long request, scoring words). _STOPWORDS are removed from the scoring words only: the lower-cased
+    query keeps every word, since a multi-word curated alias like "rank the districts" is matched as a whole substring, not word by word."""
+    query_lower = user_query.lower()
+    long_query = len(user_query.split()) > _LONG_QUERY_WORDS
+    query_tokens = set(re.findall(r'\w+', query_lower))
+    query_words = set()
+    for token in query_tokens:
+        if token not in _STOPWORDS:
+            query_words.add(token)
+        if "_" in token:
+            query_words.update(w for w in token.split("_") if w not in _STOPWORDS)
+    return query_lower, long_query, query_words
+
+
+def _add_capability_tools(always_include, user_query, known_names):
+    """Adds to `always_include` (in place) the tools the request's DATA SOURCES and ACTIONS require (core/agent/capabilities.py), claimed
+    before any description-word scoring: a long request used to fill the slots with weak description matches (a dashboard, PDF-table and
+    NDWI tool for a water-service request) and leave out the tools the steps actually needed. Bounded, and only registered names count.
+    Any failure inside keeps what was already added, as the inline code this was lifted from did."""
+    with contextlib.suppress(Exception):
+        from ..agent.capabilities import required_tools
+        always_include |= {n for n in required_tools(user_query) if n in known_names}
+        from ..agent.capabilities import is_multi_step, uncovered_capabilities
+        if (uncovered_capabilities(user_query) or is_multi_step(user_query)) and "find_tools" in known_names:
+            always_include.add("find_tools")      # a step with no dedicated tool, or a workflow: let the model look tools up
+        if is_multi_step(user_query) and "run_steps" in known_names:
+            always_include.add("run_steps")       # a workflow: let the model send a whole known chain in one round trip
+            from ..agent.capabilities import needed_capabilities
+            from ..agent.chains import chains_for
+            for chain in chains_for([c for c, _t, _v in needed_capabilities(user_query)]):
+                # run_steps only accepts tools that were offered, so offer the chain's own
+                always_include |= {st["tool"] for st in chain["steps"] if st["tool"] in known_names}
+
+
+_MAX_TASK_TOOLS = 6
+
+
+def _add_task_tools(always_include, user_query, known_names, personas=None):
+    """Adds to `always_include` (in place) the tools a recognised task prescribes ("Prefer these tools, in order: ..." in the task
+    directive). The directive told the model to start with fetch_osm_features, add_layer_from_path, apply_categorized_style and
+    zoom_to_layer for task 6.02, but none of them was in the turn's tool list (owner's Taiz run, 2026-11-01, call 0: the list held
+    ingest_osm_features instead), so the model improvised and spent a find_tools round per step. Same confidence test as
+    _algorithm_topic_match, so an uncertain match does not widen the list. Bounded; only registered names count; a failure keeps
+    what was already added."""
+    with contextlib.suppress(Exception):
+        from ..agent.task_matcher import classify
+        verdict = classify(user_query, personas=personas)
+        best = verdict.get("best")
+        if not best or (verdict["ambiguous"] and verdict["reason"] == "below confidence floor"):
+            return
+        always_include |= set([n for n in best.get("tools") or [] if n in known_names][:_MAX_TASK_TOOLS])
+
+
+def _algorithm_topic_match(user_query, personas=None):
+    """A request that describes WHAT is wanted ("fill the gaps in my elevation raster", "which areas are visible from this point") rather
+    than naming an algorithm: the topic index (core/agent/algorithm_topics.py) finds the approved algorithms that fit, and the two generic
+    Processing tools are offered, so the model can search and run them. Without this only an algorithm's own name reached them (rc45 smoke
+    run: every test prompt spelled the name and id)."""
+    matched = False
+    with contextlib.suppress(Exception):
+        from ..agent.algorithm_topics import algorithms_for_task
+        from ..agent.algorithm_topics import rank as _rank_algorithms
+        matched = bool(_rank_algorithms(user_query, limit=1))
+        if not matched:
+            # a request the task register recognises, whose task names approved algorithms, is told about them (task_directive), so the
+            # two generic Processing tools must be among the offered ones for that advice to be usable
+            from ..agent.task_matcher import classify
+            verdict = classify(user_query, personas=personas)
+            best = verdict.get("best")
+            matched = bool(best and not (verdict["ambiguous"] and verdict["reason"] == "below confidence floor")
+                           and algorithms_for_task(best.get("id")))
+    return matched
+
+
+def _score_tool(name, desc, query_words, long_query, alias_query_lower, algorithm_topic_match):
+    """Relevance of one (non always-included) tool to the request: name words +10, description words +2 each (capped for a long request),
+    curated aliases +_ALIAS_MATCH_SCORE each, and the two generic Processing tools +_ALIAS_MATCH_SCORE on a topic match."""
+    # Word-boundary matching, not substring containment -- 2026-09-12, from a live
+    # token-usage report: a plain "hi" was costing ~8K tokens in wholly irrelevant tool
+    # schemas because `"hi" in "histogram_equalization"` (and highlight_features,
+    # hillshade) is True as a raw substring check, even though "hi" never appears there
+    # as an actual word. Same bug hit longer words too, just less obviously: "there" (5
+    # chars, already past the old length guard) still substring-matched inside "whereby"
+    # and 6 other tool descriptions. Splitting the tool name on "_" and tokenizing the
+    # description with the same \w+ regex used for query_words turns both checks into
+    # real word-boundary membership tests instead of "is this text contained anywhere in
+    # that text" -- the length guards below are now a secondary noise filter (e.g. "to"),
+    # not the only thing standing between a short query word and a false match.
+    # Generic words are discounted only for a LONG request, which is where the measurement that justified it was made. For a
+    # short one ("zoom to the layer", "create layer for Jordan ADM1", "remove the layer X") "layer", "add", "export", "create" ARE the
+    # signal: from rc23 on the discount applied to every request, add_layer_from_path, remove_layer, zoom_to_layer, export_layer and
+    # the other layer tools stopped being offered, and ties were then broken alphabetically (apply_*, calculate_*). Found by replaying
+    # 40 plain requests against every release (tests/test_tool_router_basics.py is the permanent guard).
+    name_words = set(name.lower().split("_"))
+    if long_query:
+        name_words -= _GENERIC_NAME_WORDS
+    desc_words = set(re.findall(r"\w+", desc))
+
+    score = 0
+    # Name match score
+    if query_words & {w for w in name_words if len(w) > 2}:
+        score += 10
+
+    # Description match score -- capped: in a 70-100 word request nearly every tool description shares a few ordinary words
+    # ("all", "points", "layer"), so uncapped +2 per word let description noise outrank real name and alias matches.
+    description_hits = sum(1 for word in query_words if len(word) > 2 and word in desc_words)
+    score += 2 * (min(description_hits, _DESCRIPTION_HIT_CAP) if long_query else description_hits)
+
+    # Curated alias/synonym match score
+    for alias in routing_phrases(name):
+        if fold(alias) in alias_query_lower:
+            score += _ALIAS_MATCH_SCORE
+    if algorithm_topic_match and name in _PROCESSING_GENERIC_TOOLS:
+        score += _ALIAS_MATCH_SCORE
+    return score
+
+
 class ToolRouter:
     """Keyword & intent-based tool schema selector."""
 
-    def __init__(self, full_schema_list: List[Dict]):
+    def __init__(self, full_schema_list: list[dict]):
         self.full_schema_list = full_schema_list
 
-    def filter_relevant_tools(self, user_query: str, top_k: int = 40, carry_over_tools=None) -> List[Dict]:
+    def filter_relevant_tools(self, user_query: str, top_k: int = DEFAULT_TOP_K, carry_over_tools=None, personas=None) -> list[dict]:
         """Returns top_k relevant tool schemas matching user query terms.
 
         `carry_over_tools`: names of tools the PREVIOUS turn used. A short follow-up ("EPSG:3857", "yes, the second one") shares no
         vocabulary with any tool, so scoring on the new message alone dropped the tool the conversation was in the middle of: in the
         rc17 hand test (2026-10-06) the model answered the CRS question with "add_point_layer is unavailable" because it was not in
         the turn's tool list, and the rc16 hint telling it to call add_point_layer again could not help. Names that are not
-        registered tools are ignored."""
+        registered tools are ignored.
+
+        `personas`: optional (primary, secondary) persona ids (PLAN-023 R1-4). They nudge which tools are offered, within the
+        limits in `persona_rerank`; None, "general" or unknown ids leave the selection exactly as it was."""
         if len(self.full_schema_list) <= top_k:
             return self.full_schema_list
 
-        query_lower = user_query.lower()
-        # _STOPWORDS removed here only -- query_lower (used by the separate curated-alias
-        # check below) keeps every word, since a multi-word alias phrase like "rank the
-        # districts" is matched as a whole substring, not word-by-word.
-        query_tokens = set(re.findall(r'\w+', query_lower))
-        query_words = set()
-        for token in query_tokens:
-            if token not in _STOPWORDS:
-                query_words.add(token)
-            if "_" in token:
-                query_words.update(w for w in token.split("_") if w not in _STOPWORDS)
+        query_lower, long_query, query_words = _query_terms(user_query)
 
         # Alias matching only -- see _FUZZY_TYPO_VOCAB's docstring. Never touches query_words
         # itself, so name/description scoring (and every existing test asserting on it) is
         # unaffected; only the alias substring check below sees the corrected words.
-        alias_query_lower = _expand_query_with_fuzzy_corrections(query_words, query_lower)
+        alias_query_lower = fold(_expand_query_with_fuzzy_corrections(query_words, query_lower))
 
         # Tools explicitly requested by exact name in user_query/follow-up prompt get guaranteed inclusion
         explicit_tool_names = {
@@ -359,9 +360,19 @@ class ToolRouter:
             "generate_spatial_report"
         } | explicit_tool_names
         known_names = {t.get("function", {}).get("name", "") for t in self.full_schema_list}
+        # Tools the request's DATA SOURCES and ACTIONS require (core/agent/capabilities.py), claimed before any description-word
+        # scoring: a long request used to fill the slots with weak description matches (a dashboard, PDF-table and NDWI tool for a
+        # water-service request) and leave out the tools the steps actually needed. Bounded, and only registered names count.
+        _add_capability_tools(always_include, user_query, known_names)
+        _add_task_tools(always_include, user_query, known_names, personas)
         # At most six carried tools, so a long previous turn cannot crowd the relevant ones out of top_k.
         always_include |= {n for n in tuple(carry_over_tools or ())[:6] if n in known_names and n != "execute_pyqgis_script"}
-        _FALLBACK_TOOL = "execute_pyqgis_script"
+        fallback_tool = "execute_pyqgis_script"
+        # A request that describes WHAT is wanted ("fill the gaps in my elevation raster", "which areas are visible from this point")
+        # rather than naming an algorithm: the topic index (core/agent/algorithm_topics.py) finds the approved algorithms that fit, and the
+        # two generic Processing tools are offered, so the model can search and run them. Without this only an algorithm's own name
+        # reached them (rc45 smoke run: every test prompt spelled the name and id).
+        algorithm_topic_match = _algorithm_topic_match(user_query, personas)
 
         # Sort deterministically by tool name instead of randomizing -- 2026-09-19, live-
         # verified follow-up to the "hi" fix above. random.shuffle() reordered the whole tool
@@ -380,7 +391,7 @@ class ToolRouter:
         # this line). Deterministic tie-breaking reintroduces that specific bias in exchange for
         # the caching win -- acceptable since filler tools are, by definition, not a real match
         # for the query either way, but worth knowing if that older bias ever matters again.
-        shuffled = sorted(list(self.full_schema_list), key=lambda x: x.get("function", {}).get("name", ""))
+        shuffled = sorted(self.full_schema_list, key=lambda x: x.get("function", {}).get("name", ""))
 
         scored_tools = []
         for tool_obj in shuffled:
@@ -392,34 +403,7 @@ class ToolRouter:
                 scored_tools.append((1000, tool_obj))
                 continue
 
-            # Word-boundary matching, not substring containment -- 2026-09-12, from a live
-            # token-usage report: a plain "hi" was costing ~8K tokens in wholly irrelevant tool
-            # schemas because `"hi" in "histogram_equalization"` (and highlight_features,
-            # hillshade) is True as a raw substring check, even though "hi" never appears there
-            # as an actual word. Same bug hit longer words too, just less obviously: "there" (5
-            # chars, already past the old length guard) still substring-matched inside "whereby"
-            # and 6 other tool descriptions. Splitting the tool name on "_" and tokenizing the
-            # description with the same \w+ regex used for query_words turns both checks into
-            # real word-boundary membership tests instead of "is this text contained anywhere in
-            # that text" -- the length guards below are now a secondary noise filter (e.g. "to"),
-            # not the only thing standing between a short query word and a false match.
-            name_words = set(name.lower().split("_"))
-            desc_words = set(re.findall(r"\w+", desc))
-
-            score = 0
-            # Name match score
-            if query_words & {w for w in name_words if len(w) > 2}:
-                score += 10
-
-            # Description match score
-            for word in query_words:
-                if len(word) > 2 and word in desc_words:
-                    score += 2
-
-            # Curated alias/synonym match score
-            for alias in _TOOL_ALIASES.get(name, []):
-                if alias in alias_query_lower:
-                    score += _ALIAS_MATCH_SCORE
+            score = _score_tool(name, desc, query_words, long_query, alias_query_lower, algorithm_topic_match)
 
             scored_tools.append((score, tool_obj))
 
@@ -448,12 +432,12 @@ class ToolRouter:
         # create_plan/etc.'s synthetic 1000 in `other_scores`).
         other_scores = [
             score for score, tool in scored_tools
-            if tool.get("function", {}).get("name") not in always_include | {_FALLBACK_TOOL}
+            if tool.get("function", {}).get("name") not in always_include | {fallback_tool}
         ]
         nothing_else_matched = not other_scores or max(other_scores) <= 0
         if nothing_else_matched:
             scored_tools = [
-                (1000, tool) if tool.get("function", {}).get("name") == _FALLBACK_TOOL else (score, tool)
+                (1000, tool) if tool.get("function", {}).get("name") == fallback_tool else (score, tool)
                 for score, tool in scored_tools
             ]
 
@@ -470,4 +454,16 @@ class ToolRouter:
         # behavior change from) filtering positives first and slicing second -- this is a
         # strict simplification/extension of the prior nothing_else_matched-only logic, not a
         # separate code path, and unconditionally applies to every query now.
-        return [tool for score, tool in scored_tools[:top_k] if score > 0]
+        # A long request shares an ordinary word or two with most tool descriptions; those one-word overlaps are noise, not relevance.
+        # For a request of more than _LONG_QUERY_WORDS words a tool must score at least _LONG_QUERY_MIN_SCORE (a name or alias match,
+        # three description words, or a capability the request names) to take a slot. Short requests keep the old rule (score > 0).
+        floor = _LONG_QUERY_MIN_SCORE if len(user_query.split()) > _LONG_QUERY_WORDS else 1
+        primary, secondary = personas if personas else (None, None)
+        chosen = persona_rerank.select_tools(scored_tools, top_k, floor, persona_rerank.build_bonuses(primary, secondary, query_lower))
+        # find_tools is always offered, on top of top_k so it takes no slot from a relevant tool (PLAN-042 step 4): the offered tools are
+        # a selection, and it is how the model asks for one the selection missed. Measured 2026-10-30: the best score was 10 or more for
+        # all 493 test requests, so a "weak match" trigger never fires; the miss that mattered ("list medical service") was a confident
+        # wrong answer.
+        if "find_tools" in known_names and not any(t.get("function", {}).get("name") == "find_tools" for t in chosen):
+            chosen.extend(t for t in self.full_schema_list if t.get("function", {}).get("name") == "find_tools")
+        return chosen

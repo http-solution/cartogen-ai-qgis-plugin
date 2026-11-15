@@ -1,0 +1,47 @@
+﻿issue,title,test rows,needs,closes when
+#72,rc7 interactive smoke test — findings F01–F25 and rc8 scope,OI-233,-,umbrella: close when #75-#97 are closed
+#75,F03 [high] Model fabricates tool output after a blocked or failed call,OI-75; RC37-A1,real model,row passes with no invented figures or tables
+#79,F07 [medium-high] Layer tree gets duplicate and orphaned nodes; basemap never moved; saved into the project,OI-79,-,tree nodes equal layers; basemap at the bottom
+#80,"F08 [high, perf] ""Health facilities beyond one hour"" agent task took 43 min 48 s (travel_time_matrix 42 min 38 s)",OI-80,-,finishes in minutes; green/red layer kept
+#81,F09 [medium] Population exposure is computed inside a convex hull and overstates reach,OI-123,-,three labelled figures; convex hull marked upper bound
+#84,"F12 [medium] HTML dashboard: Temp file, no full path, no sample notice in the file, poor first view",OI-84,browser,"file under the project folder, full path, sample note, markers draw"
+#86,"F14 [low-medium] Two confirmation prompts per action; model-authored ""Preview Ready"" text looks official",OI-86,-,"one card, no model-written Preview Ready"
+#87,"F15 [low] UX polish: silent Sensitivity dialog, raw LaTeX in chat, stray "")"", CRITICAL log noise, wording",OI-87,-,dialog explains itself; plain-text degrees; no CRITICAL noise
+#88,"F16 [medium, unverified] A generic ""yes""/""ok""/""sure"" can resolve a stale pending destructive preview",OI-88,-,'yes' removes nothing
+#91,F19 [medium] fetch_worldpop_population downloads the whole-country raster for a local catchment,OI-91,internet,"bbox only, real size shown, one confirmation"
+#93,F21 [low-medium] Field names and counts of a SENSITIVE layer reach the cloud model,OI-124,cloud provider,schema-disclosure text shown (owner decides whether the disclosure is acceptable)
+#94,"F22 [low] Decision: 103 MB extract downloaded without asking (rc7 ""silent smart default"")",OI-91,internet,size confirmation before a download over the threshold (owner decision recorded)
+#95,F23 [medium] store_project_memory wrote the (wrong) origin coordinates to project memory during a plain service-area request,OI-95,-,nothing stored without consent; no raw coordinates
+#97,"F25 [low-medium, unverified] Exported chat history holds only 8 messages; ~45 minutes of turns are missing",OI-97,-,all 20 turns in the export
+#120,"rc11 smoke: generic point labels, unsaved scratch origin layers, opaque black population raster",OI-120,-,report lists duplicates / black raster / scratch layers; nothing deleted
+#121,F07: repeated service-area request creates a new origin layer and result set each time when the model picks a new origin name,OI-121,-,one origin layer after three runs
+#122,"F08: model re-styles the access layer with apply_categorized_style (blue/red, not green/red), and task 7.23 hints steer toward the slow matrix",OI-80,-,green/red kept; no model re-style
+#123,"F09: ""population within the service area"" returns one headline number (convex-hull upper bound), not the three labelled figures",OI-123,-,three labelled figures
+#124,"F02/F14: egress-override card and confirm flow work but are rough (button label, raw dict, duplicate text, stale previews, no follow-up)",OI-124,cloud provider,clean card; one live card; follow-up message
+#125,"F16: casual ""yes/sure/go"" make the model retry the delete through execute_pyqgis_script; typed ""confirm"" then approves a cloud-egress override and runs stale previews",OI-88; OI-124,cloud provider,no script retry after yes; 'confirm' approves only the egress card
+#127,"S5: downloaded HDX admin boundaries arrive opaque orange at the top of the tree, unlabelled, and duplicate an earlier layer",OI-127,internet,one labelled pale layer; second download replaces it
+#128,S4: apply_raster_stretch replaces the population ramp on a layer named yem_ppp_2020 (opaque black country),OI-128,-,"warm ramp, transparent empty land, not black"
+#129,S7/S8: print layouts: oversized black graticule overruns the info row and page edges; empty body box; stacked duplicate result sets in the legend,OI-129,-,thin pale graticule; legend; body panel sized to its text
+#130,"F10: a three-word non-request (""template: access_map"") matches a conflict task at 0.42, injects ""threshold = 5 km"" and runs a new analysis on ""yes""",OI-130,-,fragments start no analysis
+#131,"C1: a two-stop ""fastest route"" took 14 min, was drawn under the road network, and is a shortest-distance route",OI-131,-,answers in about a minute; labelled estimate; route above roads
+#132,"Routing ignores one-way streets on Geofabrik extracts: oneway holds F/T/B, the tool matches yes/-1/no",OI-132,-,one-way (F/T/B) changes the reach
+#137,Audit F01 [P1]: Processing allowlist permits Python expression execution through gdal:rastercalculator,OI-137,-,unsafe formula refused; plain arithmetic accepted
+#138,Audit F02 [P1]: Transaction snapshots touch GUI-owned QGIS objects before the main-thread dispatch,OI-147,-,remove / style / add field / undo with no wrong-thread lines
+#139,Audit F03 [P1]: Native optimal hub siting calls QgsGeometry.hasGeometry() and fails on valid points,OI-139,-,hub siting runs on valid points
+#140,Audit F04 [P1]: Native service-area algorithm passes a QgsProcessingFeatureSourceDefinition to materialize(),OI-139,-,service area runs from the toolbox
+#141,"Audit F05 [P1]: calculate_area / calculate_length write project-unit values into SI-named fields (area_sqm, length_m)",OI-141,-,area_sqm identical under km2 and ha
+#142,Audit F06 [P1]: Hub siting / location allocation combine coordinates from different CRSs,OI-142,-,equal ranks for 32636 and 4326 candidates
+#143,Audit F07 [P1]: Field calculation takes over an existing user edit session (commits or rolls back unrelated edits),OI-143,-,your edit session is untouched
+#144,Audit F08 [P1]: Failed calculations / writes can be reported as success (no return-value checks),OI-143,-,a bad expression fails and changes nothing
+#145,Audit F09 [P1]: Isolated-script new outputs keep their data source inside a temporary directory that is deleted,OI-145,-,script output survives close and reopen
+#146,Audit F10 [P1]: Script reconciliation discards same-count attribute and geometry edits,OI-145,-,a same-count attribute and vertex edit reaches the layer
+#147,Audit F11 [P1]: An active agent turn is not bound to the project that started it,OI-147,-,nothing lands in the new project
+#148,Audit F12 [P1]: classify_facilities_by_access uses bounding-box nearest neighbours for line geometries,OI-148,-,Inside_the_U is classified by road distance
+#149,"Audit F13 [P1]: Compound tools (SQL, stored workflows) bypass the egress gate's layer discovery",OI-149,cloud provider,blocked without the override
+#150,"Audit F14 [P1]: Layer lineage ignores list-valued and nested inputs, so derived outputs can lose protection",OI-150,-,a merged and renamed output stays protected
+#162,Audit F26 [P2]: Allowlist and raster tools reference Processing algorithms the 4.2.2 registry does not contain,OI-162; RC37-P1; RC37-P2,-,advertised arguments accepted; misspelt ones rejected
+#169,"Tracking: external architectural audit 2026-10-02 (32 findings, F01-F32)",OI-233,-,umbrella: close when #137-#168 are closed
+#222,[Audit A15] Raster classification holds the whole raster in memory,OI-222,-,classification of a small raster works; the large-raster limit is checked by CI only
+#223,[Audit A16] Abandoned processing bundles are never released,OI-223,-,Stop leaves no running task
+#224,[Audit A18] Bootstrap namespace eviction in root __init__.py is too broad,OI-224,-,"upgrade leaves one button, one menu entry, one dock"
+#233,"rc23 hand verification: fixes awaiting a hand test, and rc22 rows that were inconclusive or not run",OI-233,-,umbrella: close when the full set has been run

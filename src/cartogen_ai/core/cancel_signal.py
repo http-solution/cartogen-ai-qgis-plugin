@@ -1,0 +1,67 @@
+import contextlib
+import time
+"""How a long-running tool learns that the user pressed Stop, and how it reports progress.
+
+Why this exists (2026-09-25): agent.run() is given a `should_stop` callable (the running QgsTask's
+isCanceled) but only checks it between tool calls -- its own docstring says it "can't interrupt an
+in-flight ... tool execution". Ordinary tools run on QGIS's GUI thread (ToolDispatcher, a
+BlockingQueuedConnection), so a network analysis over a national road network (measured: 6-10
+minutes per call on 161,041 roads) froze QGIS with no way to stop it. The tool itself now has to
+poll for Stop, and it needs a way to say what it is doing; run() publishes both here for the
+duration of one request.
+
+Module-level state, not passed through the tool signature: tool signatures are the model-facing
+schema, and the dispatcher calls tools by name with the model's arguments. Everything here is
+best-effort and never raises -- a broken callback must not break a tool."""
+
+_state = {"should_stop": None, "status": None, "depth": 0, "since": None}
+
+
+def begin(should_stop=None, status=None):
+    """Called by agent.run() at the start of a request. Returns a token for end(), so a request
+    started inside another one (a workflow step) restores the outer one's registration instead of
+    wiping it."""
+    previous = (_state["should_stop"], _state["status"])
+    _state["should_stop"] = should_stop
+    _state["status"] = status
+    if _state["depth"] == 0:
+        _state["since"] = time.monotonic()
+    _state["depth"] += 1
+    return previous
+
+
+def end(previous=None):
+    """Called by agent.run() when the request finishes, however it finishes. Without this a stale
+    should_stop from a finished (possibly cancelled) request would abort the next tool call made
+    outside any request, e.g. by a scheduled workflow."""
+    _state["should_stop"], _state["status"] = previous if previous else (None, None)
+    _state["depth"] = max(0, _state["depth"] - 1)
+    if _state["depth"] == 0:
+        _state["since"] = None
+
+
+def request_active(max_age_s=1800.0):
+    """True while an agent request is running (between begin() and end()). The recurring-workflow scheduler uses it to skip a tick
+    instead of running a second analysis on top of the first. A request older than `max_age_s` is treated as not active, so a begin()
+    that was never matched by an end() cannot silence scheduled work forever."""
+    if _state["depth"] <= 0 or _state["since"] is None:
+        return False
+    return (time.monotonic() - _state["since"]) < max_age_s
+
+
+def is_cancelled():
+    fn = _state["should_stop"]
+    if fn is None:
+        return False
+    try:
+        return bool(fn())
+    except Exception:
+        return False
+
+
+def report(text):
+    fn = _state["status"]
+    if fn is None:
+        return
+    with contextlib.suppress(Exception):
+        fn(text)

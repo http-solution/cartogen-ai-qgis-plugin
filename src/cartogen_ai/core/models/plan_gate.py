@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Turn-scoped plan-validation gate for high-risk tool calls.
 
@@ -25,7 +24,7 @@ not-yet-done follow-up, same as every other item in this taxonomy that needs a l
 sandbox doesn't have.
 """
 
-from ..agent.tool_operations import TOOL_OPERATION_TYPES, DELETE, PUBLISH
+from ..tool_operations import TOOL_OPERATION_TYPES, DELETE, PUBLISH
 
 _GATED_OPERATION_TYPES = frozenset({DELETE, PUBLISH})
 

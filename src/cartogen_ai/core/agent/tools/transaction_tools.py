@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Agent-facing view onto models/transactions.py's TurnTransactionLog -- see
 that module's docstring for exactly what is and isn't tracked/undoable.
@@ -11,7 +10,7 @@ name-to-function dispatch.
 """
 
 from .registry import register_tool
-from ._snapshot_registry import get_restore_fn
+from ._snapshot_registry import get_precheck_fn, get_restore_fn
 
 try:
     from qgis.core import QgsProject
@@ -19,14 +18,13 @@ try:
 except ImportError:
     QGIS_AVAILABLE = False
 
-_TRANSACTION_LOG = None
+_BOUND = {"log": None}   # holder rather than a global (ruff PLW0603)
 
 
 def bind_transaction_log(transaction_log):
     """Binds the active CartogenAi instance's TurnTransactionLog to the tool
     handlers below."""
-    global _TRANSACTION_LOG
-    _TRANSACTION_LOG = transaction_log
+    _BOUND["log"] = transaction_log
 
 
 @register_tool(
@@ -34,13 +32,17 @@ def bind_transaction_log(transaction_log):
     "List every tool call made so far during THIS turn (this one user request), each tagged "
     "with its operation type and, when it added a new layer, whether it can be undone with "
     "undo_last_operation. Use this before undo_last_operation to see what's actually available "
-    "to undo -- it does not reach back into earlier turns/messages, only the current one.",
+    "to undo. Also lists undoable calls from the last few earlier messages (marked earlier_turn).",
     {"type": "object", "properties": {}, "required": []},
+    keywords=[
+        "what did you change", "what have you changed", "what did you do", "what have you done", "show the history",
+        "processing history", "show the log of changes", "list the changes you made", "history of changes",
+    ],
 )
 def get_turn_transaction_log():
-    if _TRANSACTION_LOG is None:
+    if _BOUND["log"] is None:
         return {"error": "Transaction log not initialized."}
-    entries = _TRANSACTION_LOG.summary()
+    entries = _BOUND["log"].summary()
     return {
         "entries": entries,
         "undo_available": any(e.get("undo") and not e.get("undone") for e in entries),
@@ -49,13 +51,16 @@ def get_turn_transaction_log():
 
 @register_tool(
     "undo_last_operation",
-    "Reverse the most recent undoable tool call made THIS turn (see get_turn_transaction_log to "
-    "check what qualifies first). Covers: a call that added a new layer (removes it); "
+    "Reverse the most recent undoable tool call: one made this turn, or if there is none, the latest one from the last few earlier "
+    "messages (the user just says 'undo that'; see get_turn_transaction_log to check what qualifies first). Call this tool for any "
+    "'undo' request instead of clearing or re-setting the thing by hand. Covers: a call that added a new layer (removes it); "
     "remove_layer (restores the removed layer and its data); field_calculator/calculate_area/"
     "calculate_length (restores the field's prior values, or deletes it if it didn't exist "
     "before); apply_categorized_style/apply_graduated_style/apply_graduated_symbol_style "
     "(restores the prior style); set_dataset_status/set_layer_sensitivity/set_layer_confidence/"
-    "run_query (restores the prior value). It cannot undo load_project or any other in-place "
+    "run_query/set_layer_filter (restores the prior value); labels, callouts, diagrams, point markers, raster relief, saved symbols, "
+    "layer elevation and layer time settings (restores the prior setting); delete_features (puts the deleted features back); add_field (removes the "
+    "new field again, but only while it is still empty: once it holds values undo refuses and says so). It cannot undo load_project or any other in-place "
     "edit not in that list -- a real, separate, still-open gap, not something this tool silently "
     "skips without saying so. Destructive action requiring UI confirmation.",
     {
@@ -65,16 +70,20 @@ def get_turn_transaction_log():
         },
         "required": [],
     },
+    keywords=[
+        "undo", "undo the last", "revert the last", "take that back", "roll back", "go back to before", "undo that",
+        "undo what you just did",
+    ],
 )
 def undo_last_operation(confirmed: bool = False):
-    if _TRANSACTION_LOG is None:
+    if _BOUND["log"] is None:
         return {"error": "Transaction log not initialized."}
 
-    entry = _TRANSACTION_LOG.last_undoable()
+    entry = _BOUND["log"].last_undoable()
     if entry is None:
         return {
             "success": False,
-            "message": "Nothing undoable in this turn -- either nothing has been done yet, "
+            "message": "Nothing undoable -- either nothing has been done yet, "
                        "everything undoable already was, or the only calls made were "
                        "reads/in-place edits this mechanism can't reverse (see "
                        "get_turn_transaction_log).",
@@ -98,7 +107,7 @@ def _undo_remove_layers(entry, undo, confirmed):
             "tool_name": "undo_last_operation",
             "arguments": {"confirmed": True},
             "code_snippet": "\n".join(f"QgsProject.instance().removeMapLayer('{lid}')" for lid in layer_ids),
-            "rationale": f"Undo '{entry['name']}': remove {len(layer_ids)} layer(s) it added this turn.",
+            "rationale": f"Undo '{entry['name']}': remove {len(layer_ids)} layer(s) it added" + (" in an earlier message." if entry.get("earlier_turn") else " this turn."),
             "message": f"Confirmation required before undoing '{entry['name']}' "
                        f"(removes {len(layer_ids)} layer(s) it created).",
         }
@@ -115,7 +124,7 @@ def _undo_remove_layers(entry, undo, confirmed):
         else:
             missing.append(lid)
 
-    _TRANSACTION_LOG.mark_undone(entry["index"])
+    _BOUND["log"].mark_undone(entry["index"])
     result = {
         "success": True,
         "undone_tool": entry["name"],
@@ -138,13 +147,17 @@ def _undo_via_snapshot(entry, undo, confirmed):
     kind = undo.get("kind", "change")
     label = kind.replace("restore_", "") if kind else "change"
     if not confirmed:
+        precheck = get_precheck_fn(undo.get("tool_name"))
+        refusal = precheck(undo) if precheck else None
+        if refusal:                                  # refuse before offering a card for a step that would lose data (live run 2026-11-04, row V9)
+            return {"error": refusal}
         return {
             "status": "PREVIEW_REQUIRED",
             "requires_confirmation": True,
             "is_destructive": True,
             "tool_name": "undo_last_operation",
             "arguments": {"confirmed": True},
-            "rationale": f"Undo '{entry['name']}': reverse its {label} from this turn.",
+            "rationale": f"Undo '{entry['name']}': reverse its {label}" + (" from an earlier message." if entry.get("earlier_turn") else " from this turn."),
             "message": f"Confirmation required before undoing '{entry['name']}'.",
         }
 
@@ -156,9 +169,9 @@ def _undo_via_snapshot(entry, undo, confirmed):
         return {"error": f"No restore mechanism available for '{entry['name']}'."}
 
     if not restore_fn(undo):
-        return {"error": f"Failed to undo '{entry['name']}' -- the layer or field may no longer exist."}
+        return {"error": undo.get("refusal") or f"Failed to undo '{entry['name']}' -- the layer or field may no longer exist."}
 
-    _TRANSACTION_LOG.mark_undone(entry["index"])
+    _BOUND["log"].mark_undone(entry["index"])
     return {
         "success": True,
         "undone_tool": entry["name"],

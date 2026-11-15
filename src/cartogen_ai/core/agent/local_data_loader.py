@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Downloads a Geofabrik OpenStreetMap extract once and loads roads + health facilities from it.
 
 The user-facing side (asking first, listing other sources) is local_data_sources.py and
@@ -12,10 +11,11 @@ central directory and DBF headers, not assumed from docs): the shapefile members
 gis_osm_<layer>_free_1.*; roads carry fclass/oneway/maxspeed; pois and pois_a carry fclass; and
 99 of the 201 hospitals are building outlines in pois_a, which is why both files are read.
 """
+import contextlib
 import json
 import os
 import time
-import urllib.request
+from ..net import urlopen as _qgis_urlopen
 import zipfile
 
 from .coordinates import interpret_request_pair
@@ -24,6 +24,8 @@ from .local_data_sources import (
     find_region, find_region_by_name,
 )
 from .tools._urllib_retry import urlopen_with_retry
+from ..net import build_request as _net_build_request
+from ..net import read_capped as _read_capped
 
 try:
     from qgis.core import (
@@ -48,7 +50,13 @@ MEMBERS = ("gis_osm_roads_free_1", "gis_osm_pois_free_1", "gis_osm_pois_a_free_1
 # untouched). Kept on purpose: service roads and tracks (often the only access to a facility in a
 # humanitarian setting) and residential streets (62% of all roads, and where most facilities are).
 NON_DRIVABLE_FCLASSES = ("footway", "path", "steps", "pedestrian", "cycleway", "bridleway", "busway", "unknown")
-DRIVABLE_FILTER = "fclass NOT IN (%s)" % ", ".join("'%s'" % c for c in NON_DRIVABLE_FCLASSES)
+DRIVABLE_FILTER = "fclass NOT IN ({})".format(", ".join(f"'{c}'" for c in NON_DRIVABLE_FCLASSES))
+
+def _features(layer, label):
+    """layer.getFeatures() sliced so QGIS keeps repainting and Stop works (tools/_chunked.py); imported when called."""
+    from .. import _chunked
+    return _chunked.features(layer, label)
+
 
 
 def data_dir():
@@ -90,13 +98,13 @@ def ask_threshold_bytes(read_setting=None):
 
 def extract_is_cached(region, dest_dir):
     """True when download_extract() would reuse a fresh local copy, i.e. nothing crosses the network."""
-    path = os.path.join(dest_dir, "%s-latest-free.shp.zip" % region["id"])
+    path = os.path.join(dest_dir, "{}-latest-free.shp.zip".format(region["id"]))
     if not (os.path.exists(path) and zipfile.is_zipfile(path)):
         for alt in [
             os.path.join(os.path.expanduser("~"), "cartogen_ai", "data", "osm"),
             os.path.join(QgsApplication.qgisSettingsDirPath() if QGIS_AVAILABLE else "", "cartogen_ai", "data", "osm"),
         ]:
-            candidate = os.path.join(alt, "%s-latest-free.shp.zip" % region["id"]) if alt else ""
+            candidate = os.path.join(alt, "{}-latest-free.shp.zip".format(region["id"])) if alt else ""
             if candidate and os.path.exists(candidate) and zipfile.is_zipfile(candidate):
                 path = candidate
                 break
@@ -138,8 +146,8 @@ def load_index(cache_dir):
     path = os.path.join(cache_dir, "geofabrik-index-v1.json")
     if not _fresh(path, INDEX_MAX_AGE_S):
         os.makedirs(cache_dir, exist_ok=True)
-        with urlopen_with_retry(urllib.request.Request(GEOFABRIK_INDEX_URL, headers=_UA), timeout=60) as r:
-            body = r.read()
+        with urlopen_with_retry(_net_build_request(GEOFABRIK_INDEX_URL, headers=_UA), timeout=60) as r:
+            body = _read_capped(r)
         json.loads(body)  # don't cache a truncated or error page
         with open(path, "wb") as f:
             f.write(body)
@@ -155,12 +163,12 @@ def resolve_region(lon, lat, cache_dir, name_or_code=None):
         if not region and lon is not None and lat is not None:
             region = find_region(index, lon, lat)
     except Exception as e:
-        return {"error": "Couldn't read Geofabrik's region list: %s" % e}
+        return {"error": f"Couldn't read Geofabrik's region list: {e}"}
     if not region:
         if name_or_code:
             return {"error": "No Geofabrik extract covers %s. Zoom the map to your area of interest and try again." % name_or_code}
-        return {"error": "No Geofabrik extract covers this location (%.3f, %.3f). Zoom the map to "
-                         "your area of interest and try again." % (lat, lon)}
+        return {"error": f"No Geofabrik extract covers this location ({lat:.3f}, {lon:.3f}). Zoom the map to "
+                         "your area of interest and try again."}
     region["size_bytes"] = _remote_size(region["shp_url"])  # 0 = unknown: the caller treats it as "ask first"
     return region
 
@@ -171,17 +179,16 @@ def _remote_size(url):
     A HEAD request first. The rc10 smoke test (2026-10-01) offered the Yemen extract as "of unknown size" where rc7 said
     103 MB: the HEAD either failed or carried no Content-Length (the cause was not captured). A one-byte ranged GET is the
     standard second way to learn the total -- its Content-Range header ends in the full size -- so try it before giving up."""
-    try:
-        req = urllib.request.Request(url, method="HEAD", headers=_UA)
+    with contextlib.suppress(Exception):
+        req = _net_build_request(url, method="HEAD", headers=_UA)
         with urlopen_with_retry(req, timeout=30) as r:
             size = int(r.headers.get("Content-Length") or 0)
         if size:
             return size
-    except Exception:
-        pass
-    try:
-        req = urllib.request.Request(url, headers={**_UA, "Range": "bytes=0-0"})
-        with urlopen_with_retry(req, timeout=30) as r:
+    with contextlib.suppress(Exception):
+        req = _net_build_request(url, headers={**_UA, "Range": "bytes=0-0"})
+        # stream=True: a server that ignores Range sends the whole body, and only the headers are read here.
+        with urlopen_with_retry(req, timeout=30, stream=True) as r:
             content_range = r.headers.get("Content-Range") or ""
             if "/" in content_range:
                 total = content_range.rsplit("/", 1)[1].strip()
@@ -190,8 +197,6 @@ def _remote_size(url):
             # A server that ignored the Range header answers 200 with the whole body's length.
             if getattr(r, "status", 200) == 200:
                 return int(r.headers.get("Content-Length") or 0)
-    except Exception:
-        pass
     return 0
 
 
@@ -209,8 +214,9 @@ def probe_connectivity():
     silent multi-second hang trying to download, or a silent wrong guess to just go online."""
     start = time.monotonic()
     try:
-        req = urllib.request.Request(GEOFABRIK_INDEX_URL, method="HEAD", headers=_UA)
-        with urllib.request.urlopen(req, timeout=CONNECTIVITY_PROBE_TIMEOUT_S):
+        req = _net_build_request(GEOFABRIK_INDEX_URL, method="HEAD", headers=_UA)
+        # stream=True (urllib): QGIS applies its own 60 s network timeout, and this probe must give up in a few seconds.
+        with _qgis_urlopen(req, timeout=CONNECTIVITY_PROBE_TIMEOUT_S, stream=True):
             pass
     except Exception:
         return False
@@ -232,13 +238,13 @@ def download_extract(region, dest_dir, progress=None, is_cancelled=None):
     Streams to a .part file and renames at the end, so a cancelled or failed download never
     leaves something that looks like a finished zip for the reuse check to pick up."""
     os.makedirs(dest_dir, exist_ok=True)
-    path = os.path.join(dest_dir, "%s-latest-free.shp.zip" % region["id"])
+    path = os.path.join(dest_dir, "{}-latest-free.shp.zip".format(region["id"]))
     if not (os.path.exists(path) and zipfile.is_zipfile(path)):
         for alt in [
             os.path.join(os.path.expanduser("~"), "cartogen_ai", "data", "osm"),
             os.path.join(QgsApplication.qgisSettingsDirPath() if QGIS_AVAILABLE else "", "cartogen_ai", "data", "osm"),
         ]:
-            candidate = os.path.join(alt, "%s-latest-free.shp.zip" % region["id"]) if alt else ""
+            candidate = os.path.join(alt, "{}-latest-free.shp.zip".format(region["id"])) if alt else ""
             if candidate and os.path.exists(candidate) and zipfile.is_zipfile(candidate):
                 import shutil
                 try:
@@ -249,8 +255,8 @@ def download_extract(region, dest_dir, progress=None, is_cancelled=None):
     if _fresh(path, EXTRACT_MAX_AGE_S) and zipfile.is_zipfile(path):
         return path
     part = path + ".part"
-    req = urllib.request.Request(region["shp_url"], headers=_UA)
-    with urlopen_with_retry(req, timeout=60) as r, open(part, "wb") as f:
+    req = _net_build_request(region["shp_url"], headers=_UA)
+    with urlopen_with_retry(req, timeout=60, stream=True) as r, open(part, "wb") as f:
         total = int(r.headers.get("Content-Length") or 0) or region.get("size_bytes") or 0
         done = 0
         while True:
@@ -319,7 +325,7 @@ def load_layers(result, themes):
 
     if "roads" in themes:
         path = shp.get("gis_osm_roads_free_1")
-        lyr = QgsVectorLayer(path or "", "OSM Roads (%s)" % region["name"], "ogr")
+        lyr = QgsVectorLayer(path or "", "OSM Roads ({})".format(region["name"]), "ogr")
         if path and lyr.isValid():
             lyr.setSubsetString(DRIVABLE_FILTER)
             project.addMapLayer(lyr)
@@ -329,9 +335,9 @@ def load_layers(result, themes):
             out["errors"].append("The extract has no readable roads layer.")
 
     if "health_facilities" in themes:
-        name = "Health Facilities (OSM, %s)" % region["name"]
+        name = "Health Facilities (OSM, {})".format(region["name"])
         gpkg = os.path.join(os.path.dirname(shp.get("gis_osm_pois_free_1") or ""),
-                            "health_facilities_%s.gpkg" % region["id"])
+                            "health_facilities_{}.gpkg".format(region["id"]))
         count, error = _write_health_facilities(shp, gpkg)
         lyr = QgsVectorLayer(gpkg, name, "ogr") if not error else None
         if lyr is not None and lyr.isValid():
@@ -343,7 +349,7 @@ def load_layers(result, themes):
 
 
 def _write_health_facilities(shp, gpkg):
-    wanted = "fclass IN (%s)" % ", ".join("'%s'" % c for c in HEALTH_FCLASSES)
+    wanted = "fclass IN ({})".format(", ".join(f"'{c}'" for c in HEALTH_FCLASSES))
     fields = QgsFields()
     for fname in ("osm_id", "fclass", "name", "source_geom"):
         fields.append(QgsField(fname, QMetaType.Type.QString))
@@ -353,7 +359,7 @@ def _write_health_facilities(shp, gpkg):
     writer = QgsVectorFileWriter.create(gpkg, fields, QgsWkbTypes.Type.Point, crs,
                                         QgsProject.instance().transformContext(), opts)
     if writer.hasError():
-        return 0, "Couldn't write %s: %s" % (gpkg, writer.errorMessage())
+        return 0, f"Couldn't write {gpkg}: {writer.errorMessage()}"
     count = 0
     for stem, kind in (("gis_osm_pois_free_1", "point"), ("gis_osm_pois_a_free_1", "outline")):
         path = shp.get(stem)
@@ -363,7 +369,7 @@ def _write_health_facilities(shp, gpkg):
         if not src.isValid():
             continue
         src.setSubsetString(wanted)
-        for f in src.getFeatures():
+        for f in _features(src, "Local data: reading features"):
             geom = f.geometry()
             if geom.isEmpty():
                 continue

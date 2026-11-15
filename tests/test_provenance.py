@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Tests for agent/provenance.py -- the deterministic provenance record
 closing point 17 of docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md.
 

@@ -1,11 +1,10 @@
+import contextlib
 import json
 from .base import (
-    BaseAiProvider, post_with_retry, get_with_retry, format_http_error, format_request_exception,
+    BaseAiProvider, post_with_retry, get_with_retry, format_http_error, key_in_use_note, format_request_exception,
     HTTPError,
-    requests,  # noqa: F401 -- see gemini.py's identical import for why this stays:
-    # tests patch cartogen_ai.infrastructure.providers.claude.requests.get/.post.
 )
-from ...core.agent.model_selector import filter_chat_model_ids
+from ...core.model_selector import filter_chat_model_ids
 
 ANTHROPIC_VERSION = "2023-06-01"
 DEFAULT_MAX_TOKENS = 8096
@@ -212,10 +211,8 @@ class ClaudeClient(BaseAiProvider):
 
     def _emit_status(self, text):
         if self._status_callback:
-            try:
+            with contextlib.suppress(Exception):
                 self._status_callback(text)
-            except Exception:
-                pass
 
     def complete(self, messages, tools=None, max_tokens=None):
         self._emit_status(f"Using Claude: {self.model}")
@@ -264,6 +261,6 @@ class ClaudeClient(BaseAiProvider):
             data = response.json()
             return from_anthropic_response(data, self.model)
         except HTTPError as e:
-            return {"error": format_http_error("Claude API error", e)}
+            return {"error": format_http_error("Claude API error", e, key_note=key_in_use_note("claude", self.api_key))}
         except Exception as e:
             return {"error": format_request_exception("Claude API request failed", e)}

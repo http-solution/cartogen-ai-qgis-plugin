@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Tidy an existing project's layers (GitHub #120 / #128, rc11 smoke test).
 
@@ -45,9 +44,40 @@ def duplicate_groups(entries):
     return groups
 
 
+def same_name_different_data(entries, already_grouped=()):
+    """[{name, sources}] for layer names used by two or more layers that were NOT grouped as duplicates, with each one's data source, so a
+    near-miss is visible in the report instead of silent (rc48 OI-120). Memory layers are skipped (their source string says nothing). Pure."""
+    by_name = {}
+    for e in entries:
+        if e["id"] in already_grouped or str(e.get("provider", "")).lower() == "memory":
+            continue
+        by_name.setdefault(e.get("name"), []).append(e)
+    return [{"name": name, "sources": [str(i.get("source") or i.get("signature") or "") for i in items]}
+            for name, items in by_name.items() if len(items) > 1]
+
+
 def needs_population_ramp(name, renderer_type, is_population_name):
     """True for a WorldPop-named raster that is drawn with something other than a pseudocolour ramp (the old black raster). Pure."""
     return bool(is_population_name) and str(renderer_type or "").lower() != "singlebandpseudocolor"
+
+
+def normalize_source(source):
+    """A data-source string reduced to what identifies the data, so one dataset loaded two ways compares equal. Pure.
+
+    rc48 OI-120 (2026-10-24): the tester loaded smoke_roads a second time through Layer > Add Vector Layer and the report found no duplicate.
+    That dialog can add `|geometrytype=LineString` to a GeoPackage source and a path can come back with backslashes or another drive-letter
+    case, so the exact-string match missed it (the cause is inferred, the evidence folder does not record the two source strings). Path
+    separators, a drive-letter path's case and the geometrytype / layerid options (redundant next to layername) are normalised; any other
+    option, such as a subset filter, still makes two layers different."""
+    if not source:
+        return source
+    parts = str(source).split("|")
+    path = parts[0].replace("\\", "/")
+    if len(path) > 1 and path[1] == ":":
+        path = path.lower()
+    has_name = any(p.lower().startswith("layername=") for p in parts[1:])
+    options = [p for p in parts[1:] if not p.lower().startswith("geometrytype=") and not (has_name and p.lower().startswith("layerid="))]
+    return "|".join([path, *sorted(options)])
 
 
 def vector_signature(provider, source, feature_count, wkb_samples):
@@ -56,10 +86,10 @@ def vector_signature(provider, source, feature_count, wkb_samples):
     A file/database layer is identified by its source. A memory layer has the same source string whatever it holds, so it is
     identified by its feature count plus a hash of its geometries; without geometries to hash there is no signature."""
     if str(provider).lower() != "memory":
-        return f"src:{source}" if source else None
+        return f"src:{normalize_source(source)}" if source else None
     if not wkb_samples:
         return None
-    digest = hashlib.sha1("|".join(sorted(wkb_samples)).encode("utf-8")).hexdigest()
+    digest = hashlib.sha1("|".join(sorted(wkb_samples)).encode("utf-8"), usedforsecurity=False).hexdigest()
     return f"mem:{feature_count}:{digest}"
 
 
@@ -74,9 +104,13 @@ def _entries(project):
         if layer is None:
             continue
         is_raster = hasattr(layer, "bandCount")
+        # rc46 hand test: a vector tile layer has neither bandCount nor featureCount and crashed the whole scan; only real vector layers
+        # have features to fingerprint, anything else (vector tile, point cloud, mesh, 3D tiles) is left out of the duplicate scan.
+        if not is_raster and not hasattr(layer, "featureCount"):
+            continue
         provider = layer.providerType() if hasattr(layer, "providerType") else ""
         if is_raster:
-            signature = f"src:{layer.source()}" if layer.source() else None
+            signature = f"src:{normalize_source(layer.source())}" if layer.source() else None
         else:
             samples = []
             if str(provider).lower() == "memory":
@@ -90,7 +124,7 @@ def _entries(project):
         renderer = layer.renderer().type() if layer.renderer() is not None else ""
         out.append({
             "id": layer.id(), "name": layer.name(), "layer": layer, "node": node, "signature": signature,
-            "visible": node.isVisible(), "is_raster": is_raster, "provider": provider,
+            "visible": node.isVisible(), "is_raster": is_raster, "provider": provider, "source": layer.source(),
             "renderer": renderer, "population": _describe_population_raster(layer.name())[1] is not None,
             "features": 0 if is_raster else layer.featureCount(),
         })
@@ -108,11 +142,16 @@ def _entries(project):
     {
         "type": "object",
         "properties": {
-            "apply": {"type": "boolean", "description": "false (default): report only. true: hide duplicate copies, restyle population rasters and save scratch layers."},
+            "apply": {"type": "boolean", "description": "false (default): report only. true: ask the user to confirm, then hide duplicate copies, restyle population rasters and save scratch layers."},
         },
     },
+
+    keywords=[
+        "clean up the layer list", "tidy the layer list", "tidy up the layers", "clean up the layers", "organise the layers",
+        "organize the layers", "sort out the layers",
+    ],
 )
-def tidy_project_layers(apply=False):
+def tidy_project_layers(apply=False, confirmed=False):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
     try:
@@ -123,6 +162,7 @@ def tidy_project_layers(apply=False):
         groups = duplicate_groups(entries)
         duplicates = [{"keep": by_id[g[0]]["name"], "keep_id": g[0], "extra_ids": g[1:],
                        "copies": len(g)} for g in groups]
+        unmatched = same_name_different_data(entries, {i for g in groups for i in g})
         ramps = [e for e in entries if e["is_raster"] and needs_population_ramp(e["name"], e["renderer"], e["population"])]
         scratch = [e for e in entries if not e["is_raster"] and str(e["provider"]).lower() == "memory" and e["features"] > 0]
 
@@ -133,6 +173,8 @@ def tidy_project_layers(apply=False):
             "population_rasters_without_ramp": [e["name"] for e in ramps],
             "scratch_layers": [{"name": e["name"], "features": e["features"]} for e in scratch],
         }
+        if unmatched:
+            report["same_name_different_data"] = unmatched
         if not (duplicates or ramps or scratch):
             report["message"] = "Nothing to tidy."
             return report
@@ -140,6 +182,23 @@ def tidy_project_layers(apply=False):
             report["message"] = ("Nothing was changed. Call again with apply=true to hide the extra duplicate copies, "
                                  "restyle the population rasters and save the scratch layers.")
             return report
+
+        if not confirmed:
+            # rc48 hand test OI-120 (2026-10-24): the model reported and then applied in the same turn, so the user never got to look at the
+            # report. Applying hides layers, restyles rasters and writes files, so it needs the same confirm card as other data changes;
+            # `confirmed` is stripped from the model's own arguments, only the user's Apply button sets it.
+            planned = ([f"hide {len(d['extra_ids'])} duplicate copy(ies) of '{d['keep']}'" for d in duplicates]
+                       + [f"restyle '{e['name']}' with the population ramp" for e in ramps]
+                       + [f"save scratch layer '{e['name']}' into the results GeoPackage" for e in scratch])
+            return {
+                "status": "PREVIEW_REQUIRED", "requires_confirmation": True, "is_destructive": True,
+                "tool_name": "tidy_project_layers",
+                "arguments": {"apply": True, "confirmed": True},
+                "code_snippet": "# tidy_project_layers would: " + "; ".join(planned),
+                "rationale": "Project Tidy Preview: " + "; ".join(planned) + ". Nothing is deleted; duplicates are hidden.",
+                "message": "Confirmation required before tidying the project: " + "; ".join(planned) + ".",
+                "planned_changes": planned,
+            }
 
         changes = []
         for d in duplicates:

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Tests for agent/coordinates.py -- deterministic coordinate handling (rc7 smoke test,
 2026-09-30, findings F04 and F20).
@@ -61,11 +60,11 @@ class TestResolveLonLat(unittest.TestCase):
         self.assertNotAlmostEqual(lat, 15.970136, places=3)  # the value the model produced by hand
 
     def test_easting_northing_may_arrive_in_lon_lat_keys(self):
-        lon, lat = co.resolve_lon_lat({"lon": 4902068.0, "lat": 1799912.0}, "EPSG:3857", transform=mercator_inverse)
+        _lon, lat = co.resolve_lon_lat({"lon": 4902068.0, "lat": 1799912.0}, "EPSG:3857", transform=mercator_inverse)
         self.assertAlmostEqual(lat, 15.958454, places=5)
 
     def test_xy_keys_win_over_lonlat_when_a_projected_crs_is_given(self):
-        lon, lat = co.resolve_lon_lat({"x": 4902068.0, "y": 1799912.0, "lon": 0, "lat": 0}, "EPSG:3857",
+        _lon, lat = co.resolve_lon_lat({"x": 4902068.0, "y": 1799912.0, "lon": 0, "lat": 0}, "EPSG:3857",
                                       transform=mercator_inverse)
         self.assertAlmostEqual(lat, 15.958454, places=5)
 
@@ -135,6 +134,7 @@ class TestAddPointLayerSchema(unittest.TestCase):
             if item["function"]["name"] == "add_point_layer":
                 return item["function"]["parameters"]
         self.fail("add_point_layer not registered")
+        return None
 
     def test_a_crs_argument_exists_and_tells_the_model_not_to_convert(self):
         crs = self._schema()["properties"]["crs"]

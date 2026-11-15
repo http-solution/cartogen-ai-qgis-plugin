@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """apply_humanitarian_look: give a result field written by an analysis tool its humanitarian map look (HX1).
 
 calculate_severity_index, calculate_population_in_need, calculate_presence_gap, calculate_damage_exposure_severity and calculate_mcda_ranking
@@ -53,6 +52,15 @@ LOOK_DESCRIPTIONS = {
         },
         "required": ["layer_name", "look", "field"],
     },
+    keywords=[
+        "show the severity on the map", "map the severity", "style the severity", "colour by severity", "color by severity",
+        "map the people in need", "show people in need on the map", "map the gap", "style the presence gap", "map the ranking",
+        "style the ranking", "show the rank on the map", "show the jiaf severity", "map the jiaf", "jiaf on the map",
+        "map the severity phases", "which districts still need a decision", "which units are pending",
+        "where the group still has to decide", "map the pending", "colour the phases", "color the phases", "highlight the worst",
+        "show the worst", "areas that need help most", "where help is needed most", "most in need on the map",
+        "official colours", "official colors", "official severity scale", "same colours as the", "humanitarian colours",
+    ],
 )
 def apply_humanitarian_look(layer_name, look, field, top_k=None):
     if not QGIS_AVAILABLE:
@@ -71,11 +79,15 @@ def apply_humanitarian_look(layer_name, look, field, top_k=None):
     result = style_result_field(layer, look, field, top_k)
     if "error" in result:
         return result
-    from .humanitarian_style import raise_above_rasters, refresh_legend
+    from .humanitarian_style import raise_above_polygons, raise_above_rasters, refresh_legend
     out = {"success": True, "layer_name": layer_name, "look": look, "field": field, "classes": result["classes"], "notes": list(result["notes"])}
     lifted = raise_above_rasters(layer)
     if lifted:
         out["moved_above_rasters"] = lifted
         out["notes"].append("Moved above " + ", ".join(lifted) + " so the result is not hidden behind a raster.")
+    covering = raise_above_polygons(layer)      # points and lines only; a polygon result is never moved over other polygons
+    if covering:
+        out["moved_above_polygons"] = covering
+        out["notes"].append("Moved above " + ", ".join(covering) + " so the points are not hidden behind a polygon layer.")
     refresh_legend(layer)
     return out

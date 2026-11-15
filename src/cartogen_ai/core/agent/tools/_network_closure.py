@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Closed road segments for the routing tools (audit F19, #155).
 
 A speed field cannot say "closed" to QGIS's routing algorithms: the old blocked speed was a finite 0.1 km/h, so a route or
@@ -15,6 +14,8 @@ routable_network() applies it: if any segment is closed it returns a scratch cop
 is never edited), and says how many were removed. The same rule applies whatever the routing strategy, because a closed road is
 closed whether the user asked for the shortest or the fastest route.
 """
+from ... import _chunked as _ck
+
 CLOSED_SPEED_KMH = -1.0
 
 
@@ -32,7 +33,7 @@ def routable_network(network, speed_field):
     if not speed_field or network.fields().indexOf(speed_field) < 0:
         return network, 0, None
     closed_ids, total = set(), 0
-    for feat in network.getFeatures():
+    for feat in _ck.features(network, "Network: reading roads"):
         total += 1
         if is_closed(feat[speed_field]):
             closed_ids.add(feat.id())
@@ -44,12 +45,14 @@ def routable_network(network, speed_field):
             "Reopen some roads, or run apply_network_barriers / build_composite_impedance_field again with a smaller area.")
     from qgis.core import QgsFeature, QgsVectorLayer, QgsWkbTypes
     geometry = QgsWkbTypes.displayString(network.wkbType())
+    from ._layer_checks import require_valid_layer
     scratch = QgsVectorLayer(f"{geometry}?crs={network.crs().authid()}", f"{network.name()}_open_roads", "memory")
+    require_valid_layer(scratch)
     provider = scratch.dataProvider()
     provider.addAttributes(list(network.fields()))
     scratch.updateFields()
     kept = []
-    for feat in network.getFeatures():
+    for feat in _ck.features(network, "Network: reading roads"):
         if feat.id() in closed_ids:
             continue
         copy = QgsFeature(scratch.fields())

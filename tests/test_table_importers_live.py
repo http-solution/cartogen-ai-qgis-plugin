@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """H7 importer join on a real layer. Written without a local QGIS: CI's first run is its first execution."""
 import os
 import tempfile

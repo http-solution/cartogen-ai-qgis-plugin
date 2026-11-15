@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Unit tests for map_state_memory.py -- the design-state half of the §1.16
 "smart mapping" dual-memory work. Pure Python, no QGIS needed: memory_manager
 is a small fake object matching SpatialMemoryManager's

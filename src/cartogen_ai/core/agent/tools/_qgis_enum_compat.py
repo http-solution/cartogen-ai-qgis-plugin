@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Shared helper for QGIS's Qt5->Qt6 enum-scoping migration. Newer PyQGIS
 (QGIS 4.x/Qt6) nests enum members under a named sub-enum (e.g.
 QgsGraduatedSymbolRenderer.Mode.Jenks) while older PyQGIS (QGIS 3.x/Qt5) only

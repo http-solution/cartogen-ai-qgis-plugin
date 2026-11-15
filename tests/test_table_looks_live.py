@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """IPC / INFORM / damage / measure looks, the classified-raster palette and the obfuscated-point style, in real QGIS.
 Written without a local QGIS: CI's first run is its first execution."""
 import os

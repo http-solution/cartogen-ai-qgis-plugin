@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Typography, panels and a legend that matches the map, for create_print_layout (visualization gap analysis, 2026-10-01).
 
 What the layout looked like before (read from create_print_layout, not assumed): every label used QGIS's default font; no
@@ -13,17 +12,23 @@ What this applies, per item id (TITLE, LEGEND, SCALEBAR, MAP_INFO, BODY_TEXT, FO
   extent actually shows;
 - the preparation date in the info row, and a classification prefix on the footer when any visible layer is tagged
   RESTRICTED or SENSITIVE.
-Positions and sizes are NOT touched: the geometry carries a documented history of overlap bugs (BUG-2026-09-11-1) that was
-live-verified, so this module only changes how items look. Every item is styled independently and best-effort: a failure
+Positions and sizes are NOT touched, with one exception: the FOOTER grows (into the bottom margin first, then upward into free
+space) when the sources and disclaimer lines need more room (PLAN-011 phase C). The rest of the geometry carries a documented
+history of overlap bugs (BUG-2026-09-11-1) that was live-verified, so this module otherwise only changes how items look. Every item is styled independently and best-effort: a failure
 is reported as a warning and the layout is still produced.
 """
+import contextlib
 import datetime
+import os
+import re
 
+from ...disclaimer_text import LAYOUT_DISCLAIMER
+from ...logger import log_event
 from .routing_style import ACCESS_STYLES
 
 try:
     from qgis.core import (
-        Qgis, QgsLayoutMeasurement, QgsLayoutSize, QgsProject, QgsTextFormat, QgsUnitTypes,
+        Qgis, QgsLayoutItemPicture, QgsLayoutMeasurement, QgsLayoutPoint, QgsLayoutSize, QgsProject, QgsTextFormat, QgsUnitTypes,
     )
     from qgis.PyQt.QtCore import Qt
     from qgis.PyQt.QtGui import QColor, QFont
@@ -82,6 +87,26 @@ SITREP_MAX_FIGURES = 8
 SITREP_HANDLING = ("Figures are estimates from the sources listed, not verified counts. Results are shown at area level; do not publish "
                    "exact locations of people or sensitive sites from this map.")
 
+# R3-6: the two report templates reuse the sitrep text panel (the same fitting rules and the same figure check) with their own headings and their own standing note. A report kind is {template: (summary heading,
+# figures heading, guide text, note heading, standing note)}; 'sitrep' keeps the words it always had.
+FIELD_REPORT_NOTE = ("Index values describe what the satellite saw on the dates stated. They are not a yield forecast, a seed, fertiliser or chemical rate, or an agronomic recommendation: check them in the field.")
+CHANGE_REPORT_NOTE = ("Change classes come from two dates of imagery or two land-cover maps. This is a screening of where change may have happened, not a survey: map accuracy and cloud affect it, so check the places that matter on the ground.")
+FIELD_REPORT_GUIDE = "Colours show the index classes in the legend, by the value ranges and units given there. Zones, where shown, are labelled with their mean index value."
+CHANGE_REPORT_GUIDE = "Orange marks loss, grey marks stable and purple marks gain between the two dates; the legend names every class."
+# R2-5: the epidemic bulletin. Same panel; the standing note is the METHOD box, so a rate on a bulletin never goes out without its limits. Words, not numbers: the figures are the caller's, copied from tool results.
+# Kept short on purpose: the live job (2026-11-11, PR 632) showed the first, longer wording left no room in the label box, so the budget dropped the reading guide. Both texts now fit with a summary, a few figures and sources.
+EPI_BULLETIN_NOTE = ("Rates are crude (not age or sex adjusted) and describe areas, not individuals. Areas with fewer than 5 cases are not shown. A cluster is not a finding about cause. "
+                     "Cases are those reported by the date stated.")
+EPI_BULLETIN_GUIDE = "Shades of blue show the rate in the legend; hatched areas are suppressed small numbers; a black and white outline marks a statistical cluster."
+REPORT_KINDS = {
+    "sitrep": ("SITUATION", "KEY FIGURES", None, "HANDLING", SITREP_HANDLING),
+    "field_report": ("FIELD", "INDEX READINGS", FIELD_REPORT_GUIDE, "NOTE", FIELD_REPORT_NOTE),
+    "change_report": ("CHANGE", "CHANGE FIGURES", CHANGE_REPORT_GUIDE, "NOTE", CHANGE_REPORT_NOTE),
+    "epi_bulletin": ("SUMMARY", "CASES AND RATES", EPI_BULLETIN_GUIDE, "METHOD AND LIMITS", EPI_BULLETIN_NOTE),
+}
+REPORT_TEMPLATES = tuple(REPORT_KINDS)
+
+
 
 def normalise_key_figures(key_figures):
     """[(label, value, source-or-'')] from a list of {label, value, source?} dicts, in order, dropping anything without both a label and a
@@ -101,6 +126,67 @@ def normalise_key_figures(key_figures):
     return out
 
 
+UNVERIFIED_FIGURE_MARK = "[not found in the project data]"
+_NUMBER = re.compile(r"-?\d[\d,]*(?:\.\d+)?")
+MAX_POOL_VALUES = 200000
+
+
+def parse_figure_number(text):
+    """(value, decimals) for the first number in a figure such as '94,000', '83.15 percent' or '1.2 million USD', else None. Pure. A unit word
+    after the number is ignored here on purpose: the check below only asks whether the NUMBER exists in the data."""
+    match = _NUMBER.search(str(text or ""))
+    if not match:
+        return None
+    raw = match.group(0).replace(",", "")
+    try:
+        value = float(raw)
+    except ValueError:
+        return None
+    return value, (len(raw.split(".")[1]) if "." in raw else 0)
+
+
+def build_number_pool(columns):
+    """The numbers a figure may legitimately be copied from: every value of every numeric attribute column, plus each column's count, sum,
+    minimum, maximum and mean (headline figures are usually totals). `columns` is an iterable of lists of numbers. Pure; capped at
+    MAX_POOL_VALUES distinct values so a huge layer cannot stall a layout."""
+    pool = set()
+    for values in columns:
+        numbers = [float(v) for v in values if isinstance(v, (int, float)) and not isinstance(v, bool) and v == v]
+        if not numbers:
+            continue
+        pool.update(numbers[:MAX_POOL_VALUES])
+        pool.update((float(len(numbers)), sum(numbers), min(numbers), max(numbers), sum(numbers) / len(numbers)))
+    return pool
+
+
+def figure_is_grounded(value_text, pool):
+    """True when the number in `value_text` equals a number in `pool` at the precision it was written with ('94,000' needs 94000, '83.15'
+    needs 83.15 to two places). Text with no number cannot be checked and counts as grounded. Pure."""
+    parsed = parse_figure_number(value_text)
+    if parsed is None:
+        return True
+    value, decimals = parsed
+    return any(abs(round(candidate, decimals) - value) < 1e-9 for candidate in pool)
+
+
+def unverified_figure_labels(key_figures, pool):
+    """Labels of the typed key figures whose number is not in `pool`. Pure."""
+    return [label for label, value, _source in normalise_key_figures(key_figures) if not figure_is_grounded(value, pool)]
+
+
+def figures_from_rows(rows, top_n=3, order="highest"):
+    """Key figures taken straight from data. `rows` is [(label, number)]; returns up to `top_n` {label, value} dicts, largest first (or smallest
+    first when order is 'lowest'), values formatted with thousands separators and two decimals only when the number has a fraction. Pure.
+    The number is never typed by a model, so it cannot drift from the layer."""
+    clean = [(str(label), float(v)) for label, v in rows if isinstance(v, (int, float)) and not isinstance(v, bool) and v == v]
+    clean.sort(key=lambda r: r[1], reverse=str(order).lower() != "lowest")
+    out = []
+    for label, number in clean[:max(1, min(int(top_n or 3), SITREP_MAX_FIGURES))]:
+        text = f"{number:,.0f}" if number == int(number) else f"{number:,.2f}"
+        out.append({"label": label, "value": text})
+    return out
+
+
 def _shorten(text, limit):
     """text cut to at most `limit` characters on a word boundary with an ellipsis; '' when limit is too small to be useful. Pure."""
     if len(text) <= limit:
@@ -110,7 +196,7 @@ def _shorten(text, limit):
     return text[:limit - 1].rsplit(" ", 1)[0].rstrip(",;: ") + "\u2026"
 
 
-def sitrep_body(summary="", key_figures=None, sources=None, reading_guide="", today=None, max_chars=None):
+def sitrep_body(summary="", key_figures=None, sources=None, reading_guide="", today=None, max_chars=None, unverified_labels=(), kind="sitrep"):
     """The text panel of the `sitrep` template: SITUATION, KEY FIGURES, HOW TO READ THIS MAP, SOURCES, HANDLING, in that order, leaving out
     any section that has no content. Pure. HANDLING and the preparation date are always present; nothing else is added on the caller's
     behalf.
@@ -118,20 +204,23 @@ def sitrep_body(summary="", key_figures=None, sources=None, reading_guide="", to
     With `max_chars` (the label box's budget) the text is made to fit by giving up, in this order: the reading guide, the tail of the
     situation summary, then the last key figures. The sources and the handling note are never cut, because plain truncation would
     remove exactly them (they come last)."""
+    summary_heading, figures_heading, _guide, note_heading, note = REPORT_KINDS.get(kind, REPORT_KINDS["sitrep"])
     summary = str(summary or "").strip()
     figures = list(normalise_key_figures(key_figures))
     guide = str(reading_guide or "").strip()
     src = [str(x).strip() for x in (sources or []) if str(x).strip()]
-    handling = "HANDLING\n" + SITREP_HANDLING + " " + prepared_stamp(today) + "."
+    flagged = set(unverified_labels or ())
+    handling = note_heading + "\n" + note + " " + prepared_stamp(today) + "."
     sources_part = "SOURCES\n" + "; ".join(src) if src else ""
 
     def build(summary_text, figs, guide_text):
         parts = []
         if summary_text:
-            parts.append("SITUATION\n" + summary_text)
+            parts.append(summary_heading + "\n" + summary_text)
         if figs:
-            lines = [f"- {label}: {value}" + (f" ({source})" if source else "") for label, value, source in figs]
-            parts.append("KEY FIGURES\n" + "\n".join(lines))
+            lines = [f"- {label}: {value}" + (f" ({source})" if source else "") + (f" {UNVERIFIED_FIGURE_MARK}" if label in flagged else "")
+                     for label, value, source in figs]
+            parts.append(figures_heading + "\n" + "\n".join(lines))
         if guide_text:
             parts.append("HOW TO READ THIS MAP\n" + guide_text)
         if sources_part:
@@ -145,7 +234,7 @@ def sitrep_body(summary="", key_figures=None, sources=None, reading_guide="", to
     text = build(summary, figures, "")
     if len(text) <= max_chars:
         return text
-    fixed = len(build("", figures, "")) + len("SITUATION\n") + 2
+    fixed = len(build("", figures, "")) + len(summary_heading + "\n") + 2
     room = max_chars - fixed
     if summary and room > 0:
         shortened = _shorten(summary, room)
@@ -175,6 +264,48 @@ def resolve_masthead(hex_value):
     r, g, b = (int(text[i:i + 2], 16) for i in (1, 3, 5))
     luminance = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255.0
     return text.lower(), ("#1f2d3a" if luminance > 0.6 else "#ffffff")
+
+
+def _luminance(hex_value):
+    r, g, b = (int(hex_value[i:i + 2], 16) / 255.0 for i in (1, 3, 5))
+    lin = [c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4 for c in (r, g, b)]
+    return 0.2126 * lin[0] + 0.7152 * lin[1] + 0.0722 * lin[2]
+
+
+def contrast_ratio(hex_a, hex_b):
+    """WCAG contrast ratio (1 to 21) of two #rrggbb colours. Pure."""
+    la, lb = sorted((_luminance(hex_a), _luminance(hex_b)), reverse=True)
+    return (la + 0.05) / (lb + 0.05)
+
+
+MIN_MASTHEAD_CONTRAST = 3.0     # WCAG AA for large text; the title is large bold text
+
+
+def resolve_masthead_colours(bg_hex, fg_hex=None):
+    """(background, text, warning or None). The text colour a profile asks for is used only if it is readable on the background; otherwise
+    the automatic dark/light choice stands and the warning says why. Pure."""
+    bg, auto_fg = resolve_masthead(bg_hex)
+    wanted = str(fg_hex or "").strip().lower()
+    if not wanted:
+        return bg, auto_fg, None
+    if contrast_ratio(bg, wanted) >= MIN_MASTHEAD_CONTRAST:
+        return bg, wanted, None
+    return bg, auto_fg, f"masthead_text_colour {wanted} is hard to read on {bg} (contrast {contrast_ratio(bg, wanted):.1f}:1); used {auto_fg} instead"
+
+
+LOGO_PAD_MM = 1.0
+LOGO_MAX_ASPECT = 2.0       # logo box is at most this many times wider than tall
+LOGO_MAX_SHARE = 0.25       # and at most this share of the masthead width
+
+
+def masthead_split(x, y, w, h, position="left"):
+    """((lx, ly, lw, lh), (tx, ty, tw, th)): the logo box and the narrowed title box inside the masthead rectangle. They never overlap. Pure."""
+    lh = max(1.0, h - 2 * LOGO_PAD_MM)
+    lw = min(lh * LOGO_MAX_ASPECT, w * LOGO_MAX_SHARE)
+    ly = y + (h - lh) / 2
+    if str(position).lower() == "right":
+        return (x + w - lw - LOGO_PAD_MM, ly, lw, lh), (x, y, w - lw - 2 * LOGO_PAD_MM, h)
+    return (x + LOGO_PAD_MM, ly, lw, lh), (x + lw + 2 * LOGO_PAD_MM, y, w - lw - 2 * LOGO_PAD_MM, h)
 
 
 def access_rank(name):
@@ -254,6 +385,184 @@ def footer_text(base, levels):
     return classification_prefix(levels) + base
 
 
+# PLAN-011 phase C (owner decision 2026-10-24): a neutral default; the organisation's own wording (for example the standard UN boundary text)
+# is supplied through Settings, not written here.
+DEFAULT_DISCLAIMER = LAYOUT_DISCLAIMER   # the owner's wording (2026-10-25); replaces the neutral sentence
+SOURCES_CHAR_BUDGET = 150
+NOT_RECORDED = "source not recorded"
+
+
+def disclaimer_text(enabled=True, custom=""):
+    """The disclaimer line for the footer: '' when switched off, the organisation's wording when set, else the neutral default. Pure."""
+    if not enabled:
+        return ""
+    return (str(custom or "").strip()) or DEFAULT_DISCLAIMER
+
+
+def source_entry(name, publisher="", date="", identifier=""):
+    """One layer's source text. Only what the layer's own metadata says is used; with none of it the entry says 'source not recorded'. Pure."""
+    detail = "; ".join(str(x).strip() for x in (publisher, date) if x and str(x).strip())
+    if not detail and identifier and str(identifier).strip():
+        detail = f"file {identifier}"
+    return f"{name} ({detail or NOT_RECORDED})"
+
+
+def sources_line(entries, budget=SOURCES_CHAR_BUDGET):
+    """'Sources: a (...); b (...)' within `budget` characters; layers that do not fit are counted ('+2 more'), never dropped silently. Pure."""
+    entries = [e for e in entries if e]
+    if not entries:
+        return ""
+    prefix = "Sources: "
+    full = prefix + "; ".join(entries)
+    if len(full) <= budget:
+        return full
+    limit = budget - len(" +99 more")
+    kept, used = [], len(prefix)
+    for entry in entries:
+        add = len(entry) + (2 if kept else 0)
+        if kept and used + add > limit:
+            break
+        kept.append(entry if used + add <= limit else entry[: max(10, limit - used - 1)] + "~")
+        used += add
+    left = len(entries) - len(kept)
+    return prefix + "; ".join(kept) + (f" +{left} more" if left else "")
+
+
+def footer_block(base, levels, sources, disclaimer, credit_text="", extra_lines=()):
+    """The footer's full text: classification and AI note, then the sources line, the credits line (PLAN-014), the profile's own lines and
+    sign-off (phase 3b), then the disclaimer; empty parts are left out. Pure."""
+    return "\n".join(part for part in (footer_text(base, levels), sources, credit_text, *extra_lines, disclaimer) if part)
+
+
+def profile_footer_lines(branding):
+    """The footer lines a profile adds: its footer_lines, then the sign-off line. Pure."""
+    from .map_profiles import sign_off_line
+    lines = list((branding or {}).get("footer_lines") or [])
+    sign_off = sign_off_line((branding or {}).get("sign_off"))
+    return lines + ([sign_off] if sign_off else [])
+
+
+FOOTER_LINE_FACTOR = 1.25      # line pitch / font size for the small footer text; a body panel uses the more generous 1.35
+FOOTER_PAD_MM = 0.6            # box padding added to the wrapped lines; 1.0 left a four-line landscape footer (note, sources, credits, disclaimer) 0.4 mm short
+FOOTER_CLEARANCE_MM = 0.5      # gap kept between the grown footer and the item above it
+FOOTER_FIT_SLACK_MM = FOOTER_PAD_MM   # a shortfall no bigger than the padding is not a shortfall: the pad is breathing room, not text. The owner's
+                                      # 1.18.0 export of an A4 landscape footer showed every line while the layout still warned "may not fit" (PLAN-021 WP-B)
+
+
+def footer_height_mm(text, width_mm, font_pt):
+    """Height the footer text needs, in mm: wrapped lines times the line pitch, plus FOOTER_PAD_MM. Pure.
+
+    CI on QGIS 4.2.2 (PLAN-014 phase 2b run): the shared body-panel estimate, which is generous on purpose, said a three-line footer needed 12 mm
+    where about 10 fit, so EVERY landscape layout returned 'footer text may not fit'. The footer is small fixed text, so it gets its own,
+    tighter estimate (and the gap above it is 0.5 mm, not 1.5)."""
+    import math
+    usable = max(1.0, float(width_mm) - 2 * 2.0)
+    per_line = max(1, int(usable / (font_pt * 0.3528 * 0.5)))
+    lines = sum(max(1, math.ceil(len(line) / per_line)) for line in str(text or "").split("\n"))
+    return lines * font_pt * 0.3528 * FOOTER_LINE_FACTOR + FOOTER_PAD_MM
+
+
+def measured_text_height_mm(text, width_mm, font, point_size, margin_x_mm=0.0, margin_y_mm=0.0):
+    """Height in mm that `text` needs when word-wrapped into `width_mm` in the REAL font, from Qt's own font metrics. Needs QGIS (Qt).
+
+    PLAN-016 item 5 (A22 of the first rc50 hand run): the character-count estimate assumes every glyph is half an em wide, which Windows
+    desktop fonts exceed, so a footer the estimate called 16 mm needed 18 mm there while CI's Linux fonts never showed it. Measured in units of
+    0.1 pt (the pixel size is ten times the point size) so the integer pixel size of the metrics does not round the result."""
+    from qgis.PyQt.QtCore import QRectF, Qt
+    from qgis.PyQt.QtGui import QFont, QFontMetricsF
+    unit = 10.0
+    sized = QFont(font)
+    sized.setPixelSize(max(1, round(float(point_size) * unit)))
+    usable_mm = max(1.0, float(width_mm) - 2 * float(margin_x_mm))
+    box = QRectF(0.0, 0.0, usable_mm / 25.4 * 72.0 * unit, 1e7)
+    flag = Qt.TextFlag.TextWordWrap
+    rect = QFontMetricsF(sized).boundingRect(box, getattr(flag, "value", flag), str(text or ""))
+    return rect.height() / unit / 72.0 * 25.4 + 2 * float(margin_y_mm)
+
+
+def footer_needed_mm(label):
+    """The height the footer label's current text needs: measured in the label's own font when QGIS can, else the character estimate. Used by
+    the footer growth and by the layout geometry check, so the two always agree. Never raises."""
+    width = label.rect().width()
+    size = label.textFormat().size() or TYPE_SCALE["footer"]
+    try:
+        return measured_text_height_mm(label.text(), width, label.textFormat().font(), size, label.marginX(), label.marginY()) + FOOTER_PAD_MM
+    except Exception:
+        return footer_height_mm(label.text(), width, size)
+
+
+def plan_footer_growth(needed_mm, height_mm, y_mm, page_height_mm, clearance_above_mm, bottom_gap_mm=0.5, slack_mm=0.0):
+    """(new_y, new_height, fits) for a footer that needs `needed_mm`: grow into the page margin below first, then upward into the free space above.
+    `slack_mm` is a shortfall that still counts as fitting (see FOOTER_FIT_SLACK_MM). Pure."""
+    if needed_mm <= height_mm:
+        return y_mm, height_mm, True
+    extra = needed_mm - height_mm
+    down = max(0.0, page_height_mm - bottom_gap_mm - (y_mm + height_mm))
+    take_down = min(extra, down)
+    extra -= take_down
+    take_up = min(extra, max(0.0, clearance_above_mm))
+    extra -= take_up
+    return y_mm - take_up, height_mm + take_down + take_up, extra <= slack_mm + 1e-6
+
+
+# --- legend fit (PLAN-021 WP-B). The legend frame is fixed by the template (35 mm portrait, 88 mm landscape, scaled with the page) and QGIS does not
+# resize it, so a project with many layers had its entries cut in the middle in the exported page (owner's 1.18.0 run: seven layers in 49.5 mm).
+LEGEND_SCALES = (1.0, 0.85, 0.7)      # the legend's text and symbols are shrunk in these steps before any entry is dropped
+LEGEND_FIT_SLACK_MM = 0.5
+
+
+def pick_legend_scale(heights_by_scale, frame_h_mm, slack_mm=LEGEND_FIT_SLACK_MM):
+    """The first scale whose content height fits the frame, or None. `heights_by_scale`: [(scale, content_height_mm), ...] in the order tried. Pure."""
+    for scale, height in heights_by_scale:
+        if height <= frame_h_mm + slack_mm:
+            return scale
+    return None
+
+
+def legend_height_measured(heights_by_scale, frame_h_mm, tolerance_mm=0.01):
+    """False when every height tried equals the frame's own height, which means the legend was not measured at all (the item answered with its frame).
+    Round-2 live run 2026-11-05, row A1: both exported legends were visibly cut at the frame bottom while the report said content 88.0 mm = frame 88.0 mm
+    (A4) and 35.0 mm = 35.0 mm (A3) with 7 layers of 14 classes: the legend has resizeToContents off, so adjustBoxSize() left the frame size in place and
+    the check compared the frame with itself. Three scales that give three different heights are a measurement; one number equal to the frame is not. Pure."""
+    heights = [height for _scale, height in heights_by_scale]
+    return bool(heights) and not all(abs(height - frame_h_mm) <= tolerance_mm for height in heights)
+
+
+def measure_legend_size(leg, layout):
+    """(width, height) in mm that the legend's CONTENT needs, from QGIS's own legend renderer over the item's model and settings (columns included).
+    CI probe 2026-11-06 on real QGIS 4.2.2 (DEF-27): adjustBoxSize() does nothing on this item, even after the frame was shrunk to 20 x 10 mm and
+    resizeToContents was switched on, so every earlier 'content' number was the frame itself; QgsLegendRenderer.minimumSize() gave the real size
+    (1 layer x 3 classes: 43.3 mm high; 7 layers x 14 classes: 860.3 mm). The model is the unfiltered one, so with filter-by-map on this can only
+    over-state the need, never under-state it."""
+    from qgis.core import QgsLayoutUtils, QgsLegendRenderer
+    context = QgsLayoutUtils.createRenderContextForLayout(layout, None)
+    size = QgsLegendRenderer(leg.model(), leg.legendSettings()).minimumSize(context)
+    return size.width(), size.height()
+
+
+LEGEND_MAX_COLUMNS = 4       # a legend whose layer is too tall for its frame is split into up to this many columns before any layer is dropped
+
+
+def legend_needs_dropping(height_mm, frame_h_mm, slack_mm=LEGEND_FIT_SLACK_MM):
+    """True when the legend still does not fit and another layer should go. An arrangement that could not be measured (None: wider than the frame) does
+    not fit. A self-audit of 2026-11-06 found the loop treating None as 0, which stopped dropping layers as if the legend fitted. Pure."""
+    return height_mm is None or height_mm > frame_h_mm + slack_mm
+
+
+def pick_legend_fit(candidates, frame_h_mm, slack_mm=LEGEND_FIT_SLACK_MM):
+    """The first (scale, columns) whose content height fits the frame, or None. `candidates`: [(scale, columns, height_mm), ...] in the order tried
+    (one column at every scale first, then two columns at every scale, ...). Pure."""
+    for scale, columns, height in candidates:
+        if height <= frame_h_mm + slack_mm:
+            return scale, columns
+    return None
+
+
+def legend_title_with_note(base, dropped):
+    """The legend title, with the number of layers that did not fit named in it, so a shortened legend says so. Pure."""
+    return base if dropped <= 0 else f"{base} ({dropped} more layer{'s' if dropped != 1 else ''} not shown)"
+
+
 def info_text(base, today=None):
     return f"{base}   |   {prepared_stamp(today)}"
 
@@ -274,9 +583,12 @@ def _points_unit():
     return unit if unit is not None else getattr(QgsUnitTypes, "RenderPoints", None)
 
 
+_ACTIVE_FONT = {"family": None}   # set by apply_layout_style for the duration of one styling run (a profile's font_family)
+
+
 def text_format(size_pt, color_hex, bold=False, italic=False):
     fmt = QgsTextFormat()
-    font = QFont()
+    font = QFont(_ACTIVE_FONT["family"]) if _ACTIVE_FONT["family"] else QFont()
     font.setBold(bool(bold))
     font.setItalic(bool(italic))
     fmt.setFont(font)
@@ -340,8 +652,80 @@ def visible_layer_entries(project=None):
     return out
 
 
-def apply_layout_style(layout, layout_mm, project=None, today=None, template="standard"):
-    """Styles the items create_print_layout made. Returns {'warnings': [...], 'legend_layers': [names], 'classification': str}."""
+def layer_credit_info(entry):
+    """The dict credit_entries() reads, from a visible_layer_entries() item. Never raises."""
+    layer = entry["layer"]
+    rights = []
+    with contextlib.suppress(Exception):
+        rights = [str(r) for r in layer.metadata().rights()]
+    source = ""
+    with contextlib.suppress(Exception):
+        source = layer.source()
+    return {"name": entry["name"], "provider": entry["provider"], "source": source, "rights": rights, "visible": entry["visible"]}
+
+
+def layer_source_entry(layer):
+    """source_entry() for a real layer, from its own metadata (organisation, publication date) and, failing that, its file name. Never raises."""
+    import os
+    publisher = date = identifier = ""
+    with contextlib.suppress(Exception):
+        md = layer.metadata()
+        contacts = md.contacts()
+        publisher = contacts[0].organization if contacts else ""
+        for kind in ("Published", "Revised", "Created"):
+            moment = md.dateTime(getattr(Qgis.MetadataDateType, kind))
+            if moment.isValid():
+                date = moment.toString("yyyy-MM-dd")
+                break
+    with contextlib.suppress(Exception):
+        if str(layer.providerType()).lower() not in ("memory", "wms", "xyz", "arcgismapserver"):
+            identifier = os.path.basename(str(layer.source()).split("|")[0])
+    return source_entry(layer.name(), publisher, date, identifier)
+
+
+def _footer_settings():
+    """(disclaimer_enabled, custom_text) from the QGIS settings; the neutral default when unreadable. Never raises."""
+    try:
+        from qgis.core import QgsSettings
+        from ....infrastructure.settings_keys import SETTINGS_LAYOUT_DISCLAIMER_ENABLED, SETTINGS_LAYOUT_DISCLAIMER_TEXT
+        settings = QgsSettings()
+        enabled = settings.value(SETTINGS_LAYOUT_DISCLAIMER_ENABLED, True)
+        enabled = enabled not in (False, "false", "False", 0, "0")
+        return enabled, str(settings.value(SETTINGS_LAYOUT_DISCLAIMER_TEXT, "") or "")
+    except Exception:
+        return True, ""
+
+
+def installed_font(family):
+    """(family or None, warning or None): the requested font if this machine has it, else None and a warning (never a silent change). """
+    if not family:
+        return None, None
+    try:
+        from qgis.PyQt.QtGui import QFontDatabase
+        available = {f.lower() for f in QFontDatabase.families()}
+    except Exception:
+        return None, f"font '{family}' could not be checked; the default font is used"
+    if family.lower() in available:
+        return family, None
+    return None, f"font '{family}' is not installed on this computer; the default font is used"
+
+
+def apply_layout_style(layout, layout_mm, project=None, today=None, template="standard", sources=None, branding=None, view_known=True):
+    """Styles the items create_print_layout made. `branding` is a map profile (logo, masthead colours, font). Returns
+    {'warnings': [...], 'legend_layers': [names], 'classification': str}."""
+    branding = branding or {}
+    family, font_warning = installed_font(branding.get("font_family"))
+    _ACTIVE_FONT["family"] = family
+    try:
+        report = _apply_layout_style(layout, layout_mm, project, today, template, sources, branding, view_known)
+    finally:
+        _ACTIVE_FONT["family"] = None
+    if font_warning:
+        report["warnings"].append(font_warning)
+    return report
+
+
+def _apply_layout_style(layout, layout_mm, project, today, template, sources, branding, view_known=True):
     warnings = []
     if not QGIS_AVAILABLE:
         return {"warnings": ["QGIS not available"], "legend_layers": [], "classification": ""}
@@ -354,14 +738,22 @@ def apply_layout_style(layout, layout_mm, project=None, today=None, template="st
 
     levels = []
     try:
-        from ...models import sensitivity
-        for e in entries:
-            if e["visible"]:
-                levels.append(sensitivity.get_layer_sensitivity(e["layer"]).get("level"))
+        from ..protection import effective_sensitivity
+        pool = list(project.mapLayers().values())
+        levels.extend(effective_sensitivity(e["layer"], pool).get("level") for e in entries if e["visible"])    # PLAN-016: a derived layer carries its source's level
     except Exception as exc:
         warnings.append(f"sensitivity lookup failed: {exc}")
 
     chosen = {"ids": ids}      # the layers the legend really lists (legend() may drop those that lie off the map)
+    drawn = [by_id[i] for i in ids if i in by_id]
+    source_entries = [str(x) for x in sources] if sources else [layer_source_entry(layer) for layer in drawn]
+    footer_warnings = []
+    footer_metrics, legend_report = {}, {}
+    credit_text = ""
+    with contextlib.suppress(Exception):
+        from .layout_credits import credit_entries, credits_line
+        cod = [branding["cod_credit"]] if branding.get("cod_boundaries") and branding.get("cod_credit") else []   # first, so the budget never cuts it
+        credit_text = credits_line(cod + credit_entries([layer_credit_info(e) for e in entries]))
 
     def step(name, fn):
         try:
@@ -369,99 +761,298 @@ def apply_layout_style(layout, layout_mm, project=None, today=None, template="st
         except Exception as exc:
             warnings.append(f"{name}: {type(exc).__name__}: {exc}")
 
-    def item(item_id):
-        return layout.itemById(item_id)
-
-    def title():
-        label = item("TITLE")
-        bg_hex, fg_hex = resolve_masthead(_configured_masthead())
-        label.setTextFormat(text_format(TYPE_SCALE["title"], fg_hex, bold=True))
-        label.setBackgroundEnabled(True)
-        label.setBackgroundColor(QColor(bg_hex))
-        label.setMarginX(3.0)
-        label.setMarginY(1.0)
-        label.setVAlign(Qt.AlignmentFlag.AlignVCenter)
-
-    def map_frame():
-        _frame(item("MAP_MAIN"), FRAME_MM["map"], layout_mm)
-        inset = item("INSET_MAP")
-        if inset is not None:
-            _frame(inset, FRAME_MM["panel"], layout_mm)
-
-    def info():
-        label = item("MAP_INFO")
-        if label is None:
-            return
-        label.setText(info_text(label.text(), today))
-        label.setTextFormat(text_format(TYPE_SCALE["info"], PALETTE["muted"]))
-
-    def body():
-        label = item("BODY_TEXT")
-        if label is None:
-            return
-        label.setTextFormat(text_format(TYPE_SCALE["panel"], PALETTE["text"]))
-        _panel(label, layout_mm)
-        label.setMarginX(2.0)
-        label.setMarginY(1.5)
-        try:   # size the panel to its text instead of leaving a page-tall empty box (#129)
-            size = label.rect()
-            needed = body_text_height_mm(label.text(), size.width(), TYPE_SCALE["panel"])
-            if needed < size.height():
-                label.attemptResize(QgsLayoutSize(size.width(), needed, layout_mm))
-        except Exception:
-            pass
-
-    def footer():
-        label = item("FOOTER")
-        label.setText(footer_text(label.text(), levels))
-        label.setTextFormat(text_format(TYPE_SCALE["footer"], PALETTE["muted"], italic=True))
-
-    def legend():
-        leg = item("LEGEND")
-        # an explicit model, not "every layer in the project". setAutoUpdateModel is deprecated since QGIS 4.0 (the rc11 log
-        # showed a DeprecationWarning per layout); setSyncMode(Manual) is its replacement, with the old call as the fallback.
-        try:
-            from qgis.core import Qgis
-            leg.setSyncMode(Qgis.LegendSyncMode.Manual)
-        except Exception:
-            leg.setAutoUpdateModel(False)
-        root = leg.model().rootGroup()
-        root.removeAllChildren()
-        legend_ids = ids
-        map_item = item("MAP_MAIN")
-        if template != "access_map" and map_item is not None:
-            on_map = [lid for lid, _layer in legend_layers_on_map([(i, by_id[i]) for i in ids], map_item)]
-            if on_map:                      # never an empty legend because every extent test said "elsewhere"
-                legend_ids = on_map
-        chosen["ids"] = legend_ids
-        for layer_id in legend_ids:
-            root.addLayer(by_id[layer_id])
-        # Only what the map extent shows -- except for the access-map template: its layers are already limited to the VISIBLE
-        # ones, and the extent filter is the one step that can silently drop a visible reach polygon (rc11 smoke S8, #129: the
-        # shaded reach area was on the map but not in the legend; the exact cause was not reproduced from code).
-        leg.setLegendFilterByMapEnabled(template != "access_map")
-        leg.setTitle("Legend")
-        _panel(leg, layout_mm)
-
-    def legend_fonts():
-        leg = item("LEGEND")
-        style_cls = _legend_style_class()
-        for style_name, size, bold in (("Title", TYPE_SCALE["legend_title"], True), ("Group", TYPE_SCALE["legend_item"] + 1, True),
-                                       ("Subgroup", TYPE_SCALE["legend_item"] + 0.5, True),
-                                       ("SymbolLabel", TYPE_SCALE["legend_item"], False)):
-            member = getattr(getattr(style_cls, "Style", style_cls), style_name, None)
-            if member is not None:
-                leg.rstyle(member).setTextFormat(text_format(size, PALETTE["text"], bold=bold))
-
-    def scalebar():
-        bar = item("SCALEBAR")
-        bar.setTextFormat(text_format(TYPE_SCALE["info"], PALETTE["text"]))
-
-    for name, fn in (("title", title), ("map frame", map_frame), ("info row", info), ("body panel", body),
-                     ("footer", footer), ("legend", legend), ("legend fonts", legend_fonts), ("scale bar", scalebar)):
+    for name, fn in (
+            ("title", lambda: _style_title(layout, branding, warnings)),
+            ("logo", lambda: _add_logo(layout, layout_mm, branding, warnings)),
+            ("map frame", lambda: _style_map_frame(layout, layout_mm)),
+            ("info row", lambda: _style_info(layout, today)),
+            ("body panel", lambda: _style_body(layout, layout_mm)),
+            ("footer", lambda: footer_warnings.extend(_style_footer(layout, layout_mm, levels, source_entries, credit_text, profile_footer_lines(branding), footer_metrics))),
+            ("legend", lambda: _style_legend(layout, layout_mm, ids, by_id, template, chosen)),
+            ("legend fonts", lambda: _style_legend_fonts(layout)),
+            ("legend fit", lambda: warnings.extend(_fit_legend(layout, layout_mm, chosen, legend_report))),
+            ("scale bar", lambda: _style_scalebar(layout))):
         step(name, fn)
+    warnings.extend(footer_warnings)
+    warnings.extend(view_warnings(chosen, view_known))
     return {"warnings": warnings, "legend_layers": [by_id[i].name() for i in chosen["ids"]],
-            "classification": classification_prefix(levels).strip(" -")}
+            "classification": classification_prefix(levels).strip(" -"), "footer_check": footer_metrics, "legend_check": legend_report}
+
+
+def _style_title(layout, branding=None, warnings=None):
+    label = layout.itemById("TITLE")
+    branding = branding or {}
+    bg_hex, fg_hex, colour_warning = resolve_masthead_colours(branding.get("masthead_colour") or _configured_masthead(),
+                                                              branding.get("masthead_text_colour"))
+    if colour_warning and warnings is not None:
+        warnings.append(colour_warning)
+    label.setTextFormat(text_format(TYPE_SCALE["title"], fg_hex, bold=True))
+    label.setBackgroundEnabled(True)
+    label.setBackgroundColor(QColor(bg_hex))
+    label.setMarginX(3.0)
+    label.setMarginY(1.0)
+    label.setVAlign(Qt.AlignmentFlag.AlignVCenter)
+
+
+def _add_logo(layout, layout_mm, branding, warnings):
+    """Adds the organisation's logo (a local PNG/JPG named by the profile) to the masthead and narrows the title so they do not overlap.
+    A missing or unreadable file leaves the layout as it was and says so."""
+    path = branding.get("logo_path")
+    if not path:
+        return
+    title = layout.itemById("TITLE")
+    if title is None:
+        return
+    from qgis.PyQt.QtGui import QImage
+    if not os.path.isfile(path) or QImage(path).isNull():
+        warnings.append(f"logo: '{path}' is missing or is not a readable PNG/JPG image; the layout has no logo")
+        return
+    logo_rect, title_rect = masthead_split(title.x(), title.y(), title.rect().width(), title.rect().height(), branding.get("logo_position", "left"))
+    pic = QgsLayoutItemPicture(layout)
+    pic.setId("LOGO")
+    pic.setPicturePath(path)
+    layout.addLayoutItem(pic)
+    pic.attemptMove(QgsLayoutPoint(logo_rect[0], logo_rect[1], layout_mm))
+    pic.attemptResize(QgsLayoutSize(logo_rect[2], logo_rect[3], layout_mm))
+    title.attemptMove(QgsLayoutPoint(title_rect[0], title_rect[1], layout_mm))
+    title.attemptResize(QgsLayoutSize(title_rect[2], title_rect[3], layout_mm))
+
+
+def _style_map_frame(layout, layout_mm):
+    _frame(layout.itemById("MAP_MAIN"), FRAME_MM["map"], layout_mm)
+    inset = layout.itemById("INSET_MAP")
+    if inset is not None:
+        _frame(inset, FRAME_MM["panel"], layout_mm)
+
+
+def _style_info(layout, today):
+    label = layout.itemById("MAP_INFO")
+    if label is None:
+        return
+    label.setText(info_text(label.text(), today))
+    label.setTextFormat(text_format(TYPE_SCALE["info"], PALETTE["muted"]))
+
+
+def _style_body(layout, layout_mm):
+    label = layout.itemById("BODY_TEXT")
+    if label is None:
+        return
+    label.setTextFormat(text_format(TYPE_SCALE["panel"], PALETTE["text"]))
+    _panel(label, layout_mm)
+    label.setMarginX(2.0)
+    label.setMarginY(1.5)
+    with contextlib.suppress(Exception):  # size the panel to its text instead of leaving a page-tall empty box (#129)
+        size = label.rect()
+        needed = body_text_height_mm(label.text(), size.width(), TYPE_SCALE["panel"])
+        if needed < size.height():
+            label.attemptResize(QgsLayoutSize(size.width(), needed, layout_mm))
+
+
+def _clearance_above(layout, label):
+    """Free space (mm) between the footer and the nearest layout item above it that overlaps it horizontally. Never raises."""
+    top = label.y()
+    left, right = label.x(), label.x() + label.rect().width()
+    bottoms = []
+    for item in layout.items():
+        if item is label or not (hasattr(item, "id") and item.id()):
+            continue
+        item_right = item.x() + item.rect().width()
+        bottom = item.y() + item.rect().height()
+        if item.x() < right and item_right > left and bottom <= top + 1.0:
+            bottoms.append(bottom)
+    return top - max(bottoms) - FOOTER_CLEARANCE_MM if bottoms else top - FOOTER_CLEARANCE_MM
+
+
+MAP_RECLAIM_SHARE = 0.25   # the main map never gives up more than this share of its height to a longer footer
+
+
+def _reclaim_from_map(layout, layout_mm, label, deficit_mm):
+    """Shortens MAP_MAIN from the bottom by `deficit_mm` (at most MAP_RECLAIM_SHARE of it) and lifts every item that sits between the map and the
+    footer (the info row, scale bar, north arrow) by the same amount, so the footer can grow upward. In landscape the footer spans the page under
+    the map, so the scale bar and info row, not the map, are what limit it (PLAN-014 3b CI run 2). False, and nothing changed, when there is no
+    main map or an inset map would then stick out below it."""
+    if deficit_mm <= 0:
+        return False
+    main = layout.itemById("MAP_MAIN")
+    if main is None:
+        return False
+    amount = min(deficit_mm + 0.2, main.rect().height() * MAP_RECLAIM_SHARE)
+    map_bottom = main.y() + main.rect().height()
+    inset = layout.itemById("INSET_MAP")
+    if inset is not None and inset.y() + inset.rect().height() > map_bottom - amount:
+        return False
+    between = [item for item in layout.items()
+               if item is not main and item is not label and hasattr(item, "id") and item.id() and map_bottom - 0.5 <= item.y() < label.y()]
+    main.attemptResize(QgsLayoutSize(main.rect().width(), main.rect().height() - amount, layout_mm))
+    for item in between:
+        item.attemptMove(QgsLayoutPoint(item.x(), item.y() - amount, layout_mm))
+    return True
+
+
+def _style_footer(layout, layout_mm, levels, source_entries=(), credit_text="", extra_lines=(), metrics=None):
+    """Sets the footer text (classification, AI note, sources, disclaimer) and grows the box to fit. Returns warnings."""
+    label = layout.itemById("FOOTER")
+    base = label.text()
+    enabled, custom = _footer_settings()
+    disclaimer = disclaimer_text(enabled, custom)
+    label.setTextFormat(text_format(TYPE_SCALE["footer"], PALETTE["muted"], italic=True))
+    page_height = layout.pageCollection().page(0).pageSize().height()
+    warnings = []
+    for budget in (SOURCES_CHAR_BUDGET, 60):
+        text = footer_block(base, levels, sources_line(source_entries, budget), disclaimer, credit_text, extra_lines)
+        label.setText(text)
+        needed = footer_needed_mm(label)          # measured in the real font (PLAN-016 item 5)
+        new_y, new_h, fits = plan_footer_growth(needed, label.rect().height(), label.y(), page_height, _clearance_above(layout, label),
+                                                slack_mm=FOOTER_FIT_SLACK_MM)
+        if fits:
+            break
+    else:
+        # PLAN-014 3b CI: a profile's footer lines plus sign-off make 6 to 8 lines, more than the strip under the map holds (A3: needs 31 mm, box 18).
+        # The owner's full disclaimer (about 600 characters, 2026-10-25) does the same for every layout, so the map gives up the missing height from
+        # its bottom edge before anything is warned about.
+        if _reclaim_from_map(layout, layout_mm, label, needed - new_h):
+            new_y, new_h, fits = plan_footer_growth(needed, label.rect().height(), label.y(), page_height, _clearance_above(layout, label),
+                                                    slack_mm=FOOTER_FIT_SLACK_MM)
+        if not fits:
+            warnings.append("footer: the sources and disclaimer text may not fit in the space available; shorten the disclaimer in Settings")
+    if new_h != label.rect().height():
+        label.attemptMove(QgsLayoutPoint(label.x(), new_y, layout_mm))
+        label.attemptResize(QgsLayoutSize(label.rect().width(), new_h, layout_mm))
+    if metrics is not None:
+        # recorded so a wrong "may not fit" on someone else's fonts can be read from the tool result and the evidence folder, not guessed
+        metrics.update({"needed_mm": round(needed, 2), "box_mm": round(label.rect().height(), 2),
+                        "bottom_mm": round(label.y() + label.rect().height(), 2), "page_mm": round(page_height, 2), "fits": bool(fits)})
+    return warnings
+
+
+def map_shows_none_warning():
+    return ("The map frame shows none of the layers in the legend (the map view is not on the data), so the map looks empty. The legend lists them all anyway. "
+            "Zoom the map to the data and make the layout again.")
+
+
+def view_warnings(chosen, view_known=True):
+    """The plain-words warnings about the map view and CRS. `view_known` is False when the layout was made with no map view at all (no QGIS canvas), where the
+    map is not framed on anything and 'the view is not on the data' would say nothing. Pure."""
+    out = []
+    if chosen.get("map_shows_none") and view_known:
+        out.append(map_shows_none_warning())
+    if chosen.get("map_crs_unknown"):
+        out.append(map_crs_unknown_warning())
+    return out
+
+
+def map_crs_unknown_warning():
+    return ("The project has no coordinate system set, so the map's scale and CRS read 'unknown' and the legend is not filtered by the map. "
+            "Set one in Project Properties (CRS) and make the layout again.")
+
+
+def _style_legend(layout, layout_mm, ids, by_id, template, chosen):
+    leg = layout.itemById("LEGEND")
+    # an explicit model, not "every layer in the project". setAutoUpdateModel is deprecated since QGIS 4.0 (the rc11 log
+    # showed a DeprecationWarning per layout); setSyncMode(Manual) is its replacement, with the old call as the fallback.
+    try:
+        from qgis.core import Qgis
+        leg.setSyncMode(Qgis.LegendSyncMode.Manual)
+    except Exception:
+        leg.setAutoUpdateModel(False)
+    root = leg.model().rootGroup()
+    root.removeAllChildren()
+    legend_ids = ids
+    map_item = layout.itemById("MAP_MAIN")
+    none_on_map = False
+    crs_unknown = map_item is not None and not map_item.crs().isValid()
+    if template != "access_map" and map_item is not None:
+        on_map = [lid for lid, _layer in legend_layers_on_map([(i, by_id[i]) for i in ids], map_item)]
+        if on_map:                      # never an empty legend because every extent test said "elsewhere"
+            legend_ids = on_map
+        else:
+            none_on_map = bool(ids)
+    chosen["ids"] = legend_ids
+    chosen["map_shows_none"] = none_on_map
+    chosen["map_crs_unknown"] = bool(crs_unknown) and template != "access_map"
+    for layer_id in legend_ids:
+        root.addLayer(by_id[layer_id])
+    # Only what the map extent shows -- except for the access-map template: its layers are already limited to the VISIBLE
+    # ones, and the extent filter is the one step that can silently drop a visible reach polygon (rc11 smoke S8, #129: the
+    # shaded reach area was on the map but not in the legend; the exact cause was not reproduced from code).
+    # When no layer is on the map the legend holds every layer (above); QGIS's own filter would then drop them all at render, which is what an A1 page of the
+    # 2026-11-04 live run showed: a Legend box with only its heading while the check table said 7 layers were listed. So the filter is off in that case.
+    # The same goes for a map with no CRS (the pages said "CRS unknown"): QGIS cannot transform a layer's extent into it, so its filter has nothing to keep.
+    leg.setLegendFilterByMapEnabled(template != "access_map" and not none_on_map and not crs_unknown)
+    leg.setTitle("Legend")
+    _panel(leg, layout_mm)
+
+
+def _style_legend_fonts(layout, scale=1.0):
+    leg = layout.itemById("LEGEND")
+    style_cls = _legend_style_class()
+    for style_name, size, bold in (("Title", TYPE_SCALE["legend_title"], True), ("Group", TYPE_SCALE["legend_item"] + 1, True),
+                                   ("Subgroup", TYPE_SCALE["legend_item"] + 0.5, True),
+                                   ("SymbolLabel", TYPE_SCALE["legend_item"], False)):
+        member = getattr(getattr(style_cls, "Style", style_cls), style_name, None)
+        if member is not None:
+            leg.rstyle(member).setTextFormat(text_format(size * scale, PALETTE["text"], bold=bold))
+
+
+def _fit_legend(layout, layout_mm, chosen, report):
+    """Makes the legend fit the frame the template gave it: smaller text and symbols first, then more columns (a layer that is too tall alone is split
+    across them), then fewer layers (the last ones in the tree, the ones drawn underneath), with the number left out written into the title. Never leaves
+    an entry cut in half when it can be avoided. Fills `report` with the numbers and returns warnings. The frame itself keeps its size and place."""
+    leg = layout.itemById("LEGEND")
+    if leg is None:
+        return []
+    width, frame_h = leg.rect().width(), leg.rect().height()
+    base_symbol = leg.symbolHeight()
+
+    def apply(scale, columns):
+        _style_legend_fonts(layout, scale)
+        leg.setSymbolHeight(base_symbol * scale)
+        leg.setColumnCount(columns)
+        leg.setSplitLayer(columns > 1)
+
+    def measure(columns):
+        """Content height in mm, or None when more than one column is wider than the frame (that arrangement cannot be used)."""
+        content_w, content_h = measure_legend_size(leg, layout)
+        return None if columns > 1 and content_w > width + LEGEND_FIT_SLACK_MM else content_h
+
+    tried, candidates = [], []
+    for columns in range(1, LEGEND_MAX_COLUMNS + 1):
+        for scale in LEGEND_SCALES:
+            apply(scale, columns)
+            height = measure(columns)
+            if height is not None:
+                tried.append((scale, height))
+                candidates.append((scale, columns, height))
+    picked = pick_legend_fit(candidates, frame_h)
+    dropped = 0
+    if picked is None:
+        # the smallest text, in the widest arrangement that still fits the frame's width (else one column), then fewer layers
+        columns = max([c for _s, c, _h in candidates if c > 1] or [1])
+        picked = (LEGEND_SCALES[-1], columns)
+        apply(*picked)
+        root = leg.model().rootGroup()
+        while len(root.findLayers()) > 1 and legend_needs_dropping(measure(columns), frame_h):
+            last = root.findLayers()[-1]
+            chosen["ids"] = [i for i in chosen.get("ids", []) if i != last.layerId()]
+            root.removeChildNode(last)
+            dropped += 1
+    else:
+        apply(*picked)
+    final = measure(picked[1])
+    final = final if final is not None else measure_legend_size(leg, layout)[1]
+    measured = legend_height_measured([*tried, (picked[0], final)], frame_h)
+    leg.attemptResize(QgsLayoutSize(width, frame_h, layout_mm))
+    if dropped:
+        leg.setTitle(legend_title_with_note("Legend", dropped))
+    report.update({"frame_mm": round(frame_h, 2), "content_mm": round(final, 2), "scale": picked[0], "columns": picked[1], "dropped": dropped,
+                   "measured": measured, "fits": measured and final <= frame_h + LEGEND_FIT_SLACK_MM})
+    log_event("legend_fit", tag="Layout", scale=picked[0], columns=picked[1], dropped=dropped, measured=measured, fits=report["fits"])    # numbers only
+    return [f"legend: {dropped} layer{'s' if dropped != 1 else ''} did not fit the legend frame and {'are' if dropped != 1 else 'is'} not listed (the title says so)"] if dropped else []
+
+
+def _style_scalebar(layout):
+    bar = layout.itemById("SCALEBAR")
+    bar.setTextFormat(text_format(TYPE_SCALE["info"], PALETTE["text"]))
 
 
 def _legend_style_class():

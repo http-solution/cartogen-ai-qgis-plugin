@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 import unittest
 from unittest.mock import MagicMock
 import pathlib
@@ -251,8 +250,8 @@ class TestBelowFloorMatchesDoNotInjectAWrongDirective(unittest.TestCase):
     LIVE_REPORT_QUERIES = (
         "Apply a color ramp to the raster layer.",
         "Only create the layer, do not add styling yet.",
-        "Run a read-only PyQGIS script that lists the current project "
-        "layer names and geometry types.",
+        ("Run a read-only PyQGIS script that lists the current project "
+        "layer names and geometry types."),
         "Create a print layout with the current map view.",
         "Run a PyQGIS script that writes a file outside the project directory.",
     )
@@ -263,8 +262,8 @@ class TestBelowFloorMatchesDoNotInjectAWrongDirective(unittest.TestCase):
         for q in self.LIVE_REPORT_QUERIES:
             verdict = tmatch.classify(q)
             self.assertEqual(verdict["reason"], "below confidence floor",
-                              "fixture query %r no longer scores below the "
-                              "floor -- pick a new below-floor example" % q)
+                              f"fixture query {q!r} no longer scores below the "
+                              "floor -- pick a new below-floor example")
             a = analyze_request(q)
             self.assertIsNone(a["task"], q)
             self.assertEqual(a["directive"], "", q)

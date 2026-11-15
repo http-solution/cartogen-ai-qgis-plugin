@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Raster contrast equalisation and unsupervised classification without Processing algorithm ids that QGIS 4.2.2 does not have.
 
@@ -12,36 +11,45 @@ Limits, stated: k-means is plain Lloyd's algorithm on the pixel values (optional
 start and a fitted-on-a-sample / assigned-to-all design, not a replacement for a remote-sensing package; equalisation is a global
 histogram equalisation of one band to 8 bits.
 """
+import contextlib
 import os
 import tempfile
 
 MAX_BANDS = 8
 MAX_PIXELS = 25_000_000          # a larger raster is refused rather than exhausting memory
+# Rc20 audit A15: the cell limit alone let 25M cells x 8 bands (200M values; float32 array + the valid-pixel copy + float64 k-means
+# working copies = several GB) through. The budget is on cells x bands.
+MAX_VALUES = 60_000_000
 FIT_SAMPLE = 200_000
 ASSIGN_CHUNK = 500_000
 
 
 def _np():
-    import numpy
-    return numpy
+    import numpy as np
+    return np
 
 
 # ---------------------------------------------------------------- pure numpy --
 
 def equalize(values, valid, levels=256):
-    """Histogram-equalised copy of `values` (2-D float array) scaled to 0..levels-1 as uint8/uint16; cells where `valid` is False
-    get 0. A band with no variation returns all zeros (nothing to stretch)."""
+    """Histogram-equalised copy of `values` (2-D float array) as uint8/uint16 where 0 is reserved for no-data: valid cells map to
+    1..levels-1 and invalid cells to 0.
+
+    Mapping the lowest valid value to 0 (the old behaviour) collided with the output's nodata=0, so valid low pixels were written as
+    NoData (rc20 audit A09: [10,20,30,40] -> [0,85,170,255] with one pixel invalid). A band with no variation gives every valid
+    cell 1 (nothing to stretch, but still valid)."""
     np = _np()
     out = np.zeros(values.shape, dtype=np.uint8 if levels <= 256 else np.uint16)
     v = values[valid]
-    if v.size == 0 or float(v.max()) == float(v.min()):
+    if v.size == 0:
+        return out
+    if float(v.max()) == float(v.min()):
+        out[valid] = 1
         return out
     hist, edges = np.histogram(v, bins=levels)
     cdf = np.cumsum(hist).astype(np.float64)
     first = cdf[np.nonzero(hist)[0][0]]
-    if cdf[-1] == first:
-        return out
-    lut = np.round((cdf - first) / (cdf[-1] - first) * (levels - 1)).clip(0, levels - 1)
+    lut = 1 + np.round((cdf - first) / (cdf[-1] - first) * (levels - 2)).clip(0, levels - 2)
     idx = np.clip(np.digitize(v, edges[1:-1], right=False), 0, levels - 1)
     out[valid] = lut[idx].astype(out.dtype)
     return out
@@ -71,16 +79,11 @@ def _assign(x, centers, chunk=ASSIGN_CHUNK):
     return labels
 
 
-def kmeans(pixels, k, iterations=20, seed=0, fit_sample=FIT_SAMPLE):
-    """Lloyd's k-means on an (n, bands) float array. Centres are fitted on at most `fit_sample` randomly chosen pixels, then every
-    pixel is assigned to its nearest centre. Returns (labels 0..k-1, centres). Reproducible for a seed. An empty cluster is
-    re-seeded from the pixel farthest from its centre."""
+def fit_centers(sample, k, iterations=20, seed=0):
+    """Lloyd's k-means centres fitted on `sample` (an (n, bands) float64 array) with a seeded k-means++ start. An empty cluster is
+    re-seeded from the sample point farthest from its centre. Reproducible for a seed."""
     np = _np()
-    x = np.asarray(pixels, dtype=np.float64)
-    if x.ndim != 2 or len(x) < k:
-        raise ValueError("need a 2-D array with at least k pixels")
     rng = np.random.RandomState(seed)
-    sample = x if len(x) <= fit_sample else x[rng.choice(len(x), fit_sample, replace=False)]
     centers = _kmeans_plus_plus(sample, k, rng)
     for _ in range(int(iterations)):
         labels = _assign(sample, centers)
@@ -96,7 +99,65 @@ def kmeans(pixels, k, iterations=20, seed=0, fit_sample=FIT_SAMPLE):
             centers = new
             break
         centers = new
+    return centers
+
+
+def kmeans(pixels, k, iterations=20, seed=0, fit_sample=FIT_SAMPLE):
+    """Lloyd's k-means on an (n, bands) float array. Centres are fitted on at most `fit_sample` randomly chosen pixels, then every
+    pixel is assigned to its nearest centre. Returns (labels 0..k-1, centres). Reproducible for a seed."""
+    np = _np()
+    x = np.asarray(pixels, dtype=np.float64)
+    if x.ndim != 2 or len(x) < k:
+        raise ValueError("need a 2-D array with at least k pixels")
+    rng = np.random.RandomState(seed)
+    sample = x if len(x) <= fit_sample else x[rng.choice(len(x), fit_sample, replace=False)]
+    centers = fit_centers(sample, k, iterations, seed)
     return _assign(x, centers), centers
+
+
+# Blocked classification (GitHub #222 / audit A15): rows are read, assigned and written a block at a time, so memory no longer grows
+# with the raster. Centres are fitted on a random sample gathered in a first pass, exactly as kmeans() does for an in-memory array.
+BLOCK_VALUES = 4_000_000                 # values (cells x bands) held per block
+BLOCKED_MAX_CELLS = 400_000_000          # time, not memory, is the limit now: every cell is read twice and assigned to k centres
+
+
+def classify_in_blocks(read_block, write_block, rows, cols, n_bands, k, seed=0, block_rows=None, fit_sample=FIT_SAMPLE):
+    """K-means classification of a raster that is read and written in row blocks. Pure numpy; the raster I/O is passed in.
+
+    read_block(row0, nrows) -> (array (nrows, cols, n_bands) float, valid mask (nrows, cols) bool)
+    write_block(row0, labels2d)  labels2d is uint8, 1..k for valid cells and 0 for invalid ones
+    Returns {"valid_cells": int, "centres": array}. Raises ValueError when there are fewer valid cells than k."""
+    np = _np()
+    if block_rows is None:
+        block_rows = max(1, BLOCK_VALUES // max(1, cols * n_bands))
+    rng = np.random.RandomState(seed)
+    total_cells = rows * cols
+    picks, valid_total = [], 0
+    for row0 in range(0, rows, block_rows):                    # pass 1: count valid cells and draw a proportional random sample
+        n = min(block_rows, rows - row0)
+        arr, valid = read_block(row0, n)
+        px = np.asarray(arr, dtype=np.float64)[valid]
+        valid_total += len(px)
+        want = min(len(px), int(np.ceil(fit_sample * 2.0 * n * cols / total_cells)))
+        if want:
+            picks.append(px[rng.choice(len(px), want, replace=False)])
+    if valid_total < k:
+        raise ValueError(f"only {valid_total} valid cells, fewer than the {k} classes requested.")
+    sample = np.vstack(picks)
+    if len(sample) > fit_sample:
+        sample = sample[rng.choice(len(sample), fit_sample, replace=False)]
+    if len(sample) < k:
+        sample = np.vstack(picks)
+    centers = fit_centers(sample, k, seed=seed)
+    for row0 in range(0, rows, block_rows):                    # pass 2: assign and write
+        n = min(block_rows, rows - row0)
+        arr, valid = read_block(row0, n)
+        out = np.zeros((n, cols), dtype=np.uint8)
+        px = np.asarray(arr, dtype=np.float64)[valid]
+        if len(px):
+            out[valid] = (_assign(px, centers) + 1).astype(np.uint8)
+        write_block(row0, out)
+    return {"valid_cells": valid_total, "centres": centers}
 
 
 def validate_class_count(num_classes):
@@ -112,6 +173,16 @@ def validate_class_count(num_classes):
 
 # ---------------------------------------------------------------- GDAL I/O --
 
+def check_memory_budget(cols, rows, n_bands, max_pixels=MAX_PIXELS, max_values=MAX_VALUES):
+    """Raises ValueError (plain message) when a raster of cols x rows with n_bands bands is too big to hold in memory. Pure."""
+    cells = cols * rows
+    if cells > max_pixels:
+        raise ValueError(f"the raster has {cells:,} cells, above the {max_pixels:,} limit; clip it first.")
+    if cells * n_bands > max_values:
+        raise ValueError(f"the raster has {cells:,} cells x {n_bands} bands = {cells * n_bands:,} values, above the {max_values:,} "
+                         "limit; clip it or use fewer bands.")
+
+
 def read_bands(source, bands=None, max_pixels=MAX_PIXELS):
     """(array (rows, cols, nb) float32, valid mask (rows, cols), template info) from a GDAL-readable raster. Raises ValueError with a
     plain message when the raster cannot be read or is too large."""
@@ -122,10 +193,9 @@ def read_bands(source, bands=None, max_pixels=MAX_PIXELS):
     ds = gdal.Open(source)
     if ds is None:
         raise ValueError("the raster could not be opened.")
-    if ds.RasterXSize * ds.RasterYSize > max_pixels:
-        raise ValueError(f"the raster has {ds.RasterXSize * ds.RasterYSize:,} cells, above the {max_pixels:,} limit; clip it first.")
     np = _np()
     wanted = list(bands) if bands else list(range(1, min(ds.RasterCount, MAX_BANDS) + 1))
+    check_memory_budget(ds.RasterXSize, ds.RasterYSize, len(wanted), max_pixels=max_pixels)
     layers, valid = [], np.ones((ds.RasterYSize, ds.RasterXSize), dtype=bool)
     for b in wanted:
         band = ds.GetRasterBand(b)
@@ -155,3 +225,50 @@ def write_single_band(array, info, nodata=0):
     band.FlushCache()
     ds = None
     return path
+
+
+def classify_raster_file(source, k, seed=0, bands=None, max_cells=BLOCKED_MAX_CELLS):
+    """Blocked k-means of a GDAL-readable raster into a new temp GeoTIFF (uint8, 0 = no data). Returns
+    (path, info, valid_cells). Raises ValueError with a plain message when the raster cannot be read or exceeds `max_cells`."""
+    try:
+        from osgeo import gdal
+    except ImportError as e:
+        raise ValueError("GDAL's Python bindings are not available in this QGIS.") from e
+    ds = gdal.Open(source)
+    if ds is None:
+        raise ValueError("the raster could not be opened.")
+    np = _np()
+    wanted = list(bands) if bands else list(range(1, min(ds.RasterCount, MAX_BANDS) + 1))
+    rows, cols = ds.RasterYSize, ds.RasterXSize
+    if rows * cols > max_cells:
+        raise ValueError(f"the raster has {rows * cols:,} cells, above the {max_cells:,} limit; clip it first.")
+    band_objs = [ds.GetRasterBand(b) for b in wanted]
+    nodatas = [b.GetNoDataValue() for b in band_objs]
+
+    def read_block(row0, nrows):
+        layers, valid = [], np.ones((nrows, cols), dtype=bool)
+        for band, nodata in zip(band_objs, nodatas, strict=True):
+            arr = band.ReadAsArray(0, row0, cols, nrows).astype(np.float32)
+            valid &= np.isfinite(arr)
+            if nodata is not None:
+                valid &= arr != np.float32(nodata)
+            layers.append(arr)
+        return np.stack(layers, axis=-1), valid
+
+    fd, path = tempfile.mkstemp(suffix=".tif")
+    os.close(fd)
+    out_ds = gdal.GetDriverByName("GTiff").Create(path, cols, rows, 1, gdal.GDT_Byte)
+    out_ds.SetGeoTransform(ds.GetGeoTransform())
+    out_ds.SetProjection(ds.GetProjection())
+    out_band = out_ds.GetRasterBand(1)
+    out_band.SetNoDataValue(0)
+    try:
+        result = classify_in_blocks(read_block, lambda row0, block: out_band.WriteArray(block, 0, row0), rows, cols, len(wanted), k, seed)
+        out_band.FlushCache()
+    except Exception:
+        out_ds = None
+        with contextlib.suppress(OSError):
+            os.remove(path)
+        raise
+    out_ds = None
+    return path, {"geotransform": ds.GetGeoTransform(), "projection": ds.GetProjection(), "bands_used": wanted}, result["valid_cells"]

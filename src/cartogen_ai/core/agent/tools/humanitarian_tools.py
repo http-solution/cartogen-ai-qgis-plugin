@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Humanitarian Data Discovery & Fetch Tools for Cartogen AI.
 Interacts with Humanitarian Data Exchange (HDX), OSM Overpass API, geoBoundaries,
@@ -9,9 +8,12 @@ import re
 import json
 import math
 import urllib.request
+from ...net import urlopen as _qgis_urlopen
+from ... import net as _net
 import urllib.parse
 import urllib.error
 from datetime import date
+from ... import _chunked as _ck
 from .registry import register_tool
 from ...logger import log_event
 from ._cache_utils import TTLCache
@@ -28,6 +30,11 @@ from .. import coordinates as _coords
 # validation, no redirect re-checking -- even though every one of those first responses is
 # genuinely external, third-party-published content. Reused here rather than duplicated.
 from .vector_tools import _is_safe_url, _build_safe_opener
+import contextlib
+from ...net import build_request as _net_build_request
+from ...net import (
+    MAX_DOWNLOAD_BYTES, gunzip_capped as _gunzip_capped, read_capped as _read_capped, zip_member_capped as _zip_member_capped,
+)
 
 def _cleanup_cached_local_path(key, value):
     """TTLCache on_evict callback (SEC-004, 2026-09-14 audit): several of this file's cached
@@ -44,10 +51,8 @@ def _cleanup_cached_local_path(key, value):
     if isinstance(value, dict):
         local_path = value.get("local_path")
         if local_path and os.path.exists(local_path):
-            try:
+            with contextlib.suppress(OSError):
                 os.remove(local_path)
-            except OSError:
-                pass
 
 
 # Session-scoped cache for repeated identical lookups -- HDX/OSM/geoBoundaries
@@ -72,25 +77,40 @@ except ImportError:
     QGIS_AVAILABLE = False
     _SHAPE_RECTANGLE = None
 
+# rc40/rc41 hand test (Jordan ADM1): after both boundary downloads failed the model drew 12 governorate capitals from memory and titled the
+# reply "Jordan ADM1 Layer Created". Points are not boundaries, and positions from memory are unverified. The tool result itself says so,
+# because that is the text the model reads at the moment it decides what to do next.
+BOUNDARY_NO_SUBSTITUTE = (" Do NOT substitute anything for the missing boundaries: do not draw points, capitals or polygons from coordinates you "
+                          "remember, and do not title the reply as if a boundary layer was created. Tell the user the download failed and why, and "
+                          "offer to try the other source or to load a boundary file they already have (add_layer_from_path).")
 
-@register_tool("search_hdx_datasets", "Search Humanitarian Data Exchange (HDX) for datasets by query.", {"type": "object", "properties": {"query": {"type": "string"}, "limit": {"type": "integer"}}, "required": ["query"]})
-def search_hdx_datasets(query: str, limit: int = 5):
-    """Queries HDX CKAN API for spatial/humanitarian datasets."""
-    cache_key = ("hdx", query, limit)
+
+@register_tool("search_hdx_datasets", "Search Humanitarian Data Exchange (HDX) for datasets by query. Results are ranked: each has a score and plain reasons about its licence "
+               "(open, none stated, not open), how recently it changed and whether it lists the country asked for and has a usable file. Pass country (name or ISO3) to prefer data sets about it.",
+               {"type": "object", "properties": {"query": {"type": "string"}, "limit": {"type": "integer"}, "country": {"type": "string", "description": "Optional country name or ISO3 code; data sets that list it rank higher."}}, "required": ["query"]})
+def search_hdx_datasets(query: str, limit: int = 5, country: str | None = None):
+    """Queries HDX CKAN API for spatial/humanitarian datasets, then ranks what came back (dataset_ranking.py)."""
+    cache_key = ("hdx", query, limit, country)
     cached = _LOOKUP_CACHE.get(cache_key)
     if cached is not None:
         return {**cached, "cached": True}
 
     encoded = urllib.parse.quote(query)
-    url = f"https://data.humdata.org/api/3/action/package_search?q={encoded}&rows={limit}"
+    try:
+        want = max(1, int(limit))
+    except (TypeError, ValueError):
+        want = 5
+    fetch_rows = min(50, max(want, want * 3))       # rank a wider list, then keep the best `want`
+    url = f"https://data.humdata.org/api/3/action/package_search?q={encoded}&rows={fetch_rows}"
 
     try:
-        req = urllib.request.Request(url, headers={'User-Agent': 'QGIS-AI-Assistant'})
-        with urllib.request.urlopen(req, timeout=15) as response:
-            data = json.loads(response.read().decode())
+        req = _net_build_request(url, headers={'User-Agent': 'QGIS-AI-Assistant'})
+        with _qgis_urlopen(req, timeout=15) as response:
+            data = json.loads(_read_capped(response).decode())
             results = data.get("result", {}).get("results", [])
+            from .. import dataset_ranking
             output = []
-            for item in results:
+            for item in dataset_ranking.rank(results, country=country)[:want]:
                 resources = [
                     {"name": r.get("name"), "format": r.get("format"), "url": r.get("url")}
                     for r in item.get("resources", [])
@@ -99,11 +119,16 @@ def search_hdx_datasets(query: str, limit: int = 5):
                 output.append({
                     "title": item.get("title"),
                     "name": item.get("name"),
-                    "organization": item.get("organization", {}).get("title"),
-                    "spatial": item.get("subnational") or item.get("groups", [{}])[0].get("title"),
+                    "organization": (item.get("organization") or {}).get("title"),
+                    "spatial": item.get("subnational") or (item.get("groups") or [{}])[0].get("title"),
                     "resources": resources,
+                    "licence": item["ranking"]["licence"],
+                    "months_since_change": item["ranking"]["months_since_change"],
+                    "score": item["ranking"]["score"],
+                    "why": item["ranking"]["why"],
                 })
-            result = {"success": True, "query": query, "datasets": output}
+            result = {"success": True, "query": query, "datasets": output,
+                      "ranking_note": "Ranked by licence, recency and coverage from the data set's own HDX record; the file was not opened and the licence was not checked beyond what HDX lists."}
             _LOOKUP_CACHE.set(cache_key, result)
             return result
     except Exception as e:
@@ -111,9 +136,9 @@ def search_hdx_datasets(query: str, limit: int = 5):
 
 
 def _fts_request(url):
-    req = urllib.request.Request(url, headers={'User-Agent': 'QGIS-AI-Assistant'})
-    with urllib.request.urlopen(req, timeout=15) as response:
-        return json.loads(response.read().decode())
+    req = _net_build_request(url, headers={'User-Agent': 'QGIS-AI-Assistant'})
+    with _qgis_urlopen(req, timeout=15) as response:
+        return json.loads(_read_capped(response).decode())
 
 
 @register_tool(
@@ -249,12 +274,12 @@ def fetch_osm_features(key: str, value: str, bbox: list):
     url = "https://overpass-api.de/api/interpreter"
 
     try:
-        req = urllib.request.Request(url, data=overpass_ql.encode('utf-8'), headers={'User-Agent': 'QGIS-AI-Assistant'})
+        req = _net_build_request(url, data=overpass_ql.encode('utf-8'), headers={'User-Agent': 'QGIS-AI-Assistant'})
         # 30s, not the usual 15s -- the query itself requests a 25s server-side
         # budget ([timeout:25] above), so a client timeout below that would abort
         # legitimate slow-but-still-running queries before the server's own limit.
-        with urllib.request.urlopen(req, timeout=30) as response:
-            res_json = json.loads(response.read().decode())
+        with _qgis_urlopen(req, timeout=30) as response:
+            res_json = json.loads(_read_capped(response).decode())
             elements = res_json.get("elements", [])
             nodes = [el for el in elements if el.get("type") == "node"]
 
@@ -285,6 +310,32 @@ def fetch_osm_features(key: str, value: str, bbox: list):
 _OSM_LINEAR_KEYS = frozenset({"highway", "railway", "waterway", "aerialway"})
 _OVERPASS_RETRIES = 3            # 4 attempts in total
 _OVERPASS_BACKOFF_SECONDS = 3.0  # waits of 3, 6 and 9 s between them
+# Public community Overpass servers tried once each, in order, after the main server has failed with a transient error (DEF-7: the owner's
+# Taiz runs on 2026-11-01 waited about 90 to 124 s on the main server and then failed). UNVERIFIED: the sandbox that wrote this could not
+# reach either host (40 s timeouts), and an earlier check (2026-09-24, comment in ingest_osm_features_network_phase) found some public
+# mirrors slow or failing TLS, so whether these two help is for the owner's machine to show. They receive the same area-of-interest query
+# the main server does; the setting below turns them off.
+_OVERPASS_MIRRORS = (
+    "https://overpass.kumi.systems/api/interpreter",
+    "https://overpass.private.coffee/api/interpreter",
+)
+
+
+def _overpass_mirrors_enabled():
+    """True unless the user turned mirrors off (QgsSettings cartogen_ai/overpass_mirrors, default on). Outside QGIS: on."""
+    if not QGIS_AVAILABLE:
+        return True
+    try:
+        from qgis.core import QgsSettings
+        return bool(QgsSettings().value("cartogen_ai/overpass_mirrors", True, type=bool))
+    except Exception:
+        return True
+
+
+def _is_transient_overpass_error(error):
+    if isinstance(error, urllib.error.HTTPError):
+        return error.code in (429, 502, 503, 504)
+    return isinstance(error, (TimeoutError, urllib.error.URLError))
 
 
 def _osm_feature(elem, clean_key, clean_value, geometry):
@@ -462,11 +513,11 @@ def _fallback_to_local_osm_extract(key: str, value: str, bbox: list = None,
 def ingest_osm_features_network_phase(
     key: str,
     value: str,
-    bbox: list = None,
-    center_lat: float = None,
-    center_lon: float = None,
-    radius_km: float = None,
-    layer_name: str = None,
+    bbox: list | None = None,
+    center_lat: float | None = None,
+    center_lon: float | None = None,
+    radius_km: float | None = None,
+    layer_name: str | None = None,
 ) -> dict:
     """Pure network phase: queries Overpass API for OSM features and dumps a GeoJSON FeatureCollection
     to a temporary local file. Safe to run on a background thread."""
@@ -527,38 +578,54 @@ def ingest_osm_features_network_phase(
     # checked as fallbacks: one took ~40 s, one timed out, one failed TLS verification, so none
     # was added. The query is read-only, so resending the POST is safe.
     try:
-        req = urllib.request.Request(
+        req = _net_build_request(
             url,
             data=overpass_ql.encode('utf-8'),
             headers={'User-Agent': 'QGIS-AI-Assistant'}
         )
-        with urlopen_with_retry(req, timeout=35, max_retries=_OVERPASS_RETRIES,
-                                backoff_seconds=_OVERPASS_BACKOFF_SECONDS) as response:
-            res_json = json.loads(response.read().decode("utf-8"))
-    except Exception as e:
+        try:
+            with urlopen_with_retry(req, timeout=35, max_retries=_OVERPASS_RETRIES,
+                                    backoff_seconds=_OVERPASS_BACKOFF_SECONDS) as response:
+                res_json = json.loads(_read_capped(response).decode("utf-8"))
+        except Exception as main_error:
+            # Only a transient failure of the main server tries the mirrors; a 400 (bad query) would fail on them too.
+            if not (_is_transient_overpass_error(main_error) and _overpass_mirrors_enabled()):
+                raise
+            res_json = None
+            for mirror in _OVERPASS_MIRRORS:
+                try:
+                    mirror_req = _net_build_request(mirror, data=overpass_ql.encode('utf-8'),
+                                                    headers={'User-Agent': 'QGIS-AI-Assistant'})
+                    with urlopen_with_retry(mirror_req, timeout=35, max_retries=0,
+                                            backoff_seconds=_OVERPASS_BACKOFF_SECONDS) as response:
+                        res_json = json.loads(_read_capped(response).decode("utf-8"))
+                    log_event("overpass_mirror_used", tag="humanitarian_tools", host=mirror.split("/")[2])
+                    break
+                except Exception as mirror_error:
+                    log_event("overpass_mirror_failed", tag="humanitarian_tools", host=mirror.split("/")[2],
+                              error_class=type(mirror_error).__name__, error=True)
+            if res_json is None:
+                raise main_error
+    except Exception as fetch_error:
         # HTTPError is a URLError subclass, so check the status first: a 400 (bad query) must
         # not be reported as "overloaded, try later".
-        if isinstance(e, urllib.error.HTTPError):
-            transient = e.code in (429, 502, 503, 504)
-        else:
-            transient = isinstance(e, (TimeoutError, urllib.error.URLError))
-
-        # Check if local Geofabrik extract or shapefiles can serve the requested features
+        # A local Geofabrik extract or shapefile already on disk can answer the request without
+        # Overpass (country-scale queries hit timeouts).
         local_extract = _fallback_to_local_osm_extract(
             clean_key, clean_value, bbox=[s, w, n, e], layer_name=layer_name
         )
         if local_extract and "local_path" in local_extract:
             return local_extract
 
-        if transient:
+        if _is_transient_overpass_error(fetch_error):
             return {"error": (
-                f"The OpenStreetMap Overpass server is overloaded right now ({e}); tried "
+                f"The OpenStreetMap Overpass server is overloaded right now ({fetch_error}); tried "
                 f"{_OVERPASS_RETRIES + 1} times with waits in between. Don't call ingest_osm_features "
                 "again in this turn, and don't try to rebuild the data another way (e.g. geocoding "
                 "places one by one). Tell the user the OSM download is temporarily unavailable and "
                 "suggest trying again in a few minutes, or loading their own layer instead."
             ), "retryable_later": True}
-        return {"error": f"Overpass API request failed: {e}"}
+        return {"error": f"Overpass API request failed: {fetch_error}"}
 
     elements = res_json.get("elements", [])
 
@@ -697,16 +764,22 @@ def add_osm_layer_main_thread_phase(fetch_result: dict) -> dict:
             "layer_name": {"type": "string", "description": "Optional name for the created QGIS vector layer"}
         },
         "required": ["key", "value"]
-    }
+    },
+    keywords=[
+        "concept:health_facility",
+        "health facilities", "doctors", "pharmacy", "pharmacies", "osm data", "download facilities",
+        "fetch facilities", "osm features", "infrastructure", "schools", "road network", "highways",
+        "osm", "amenities", "amenity",
+    ],
 )
 def ingest_osm_features(
     key: str,
     value: str,
-    bbox: list = None,
-    center_lat: float = None,
-    center_lon: float = None,
-    radius_km: float = None,
-    layer_name: str = None,
+    bbox: list | None = None,
+    center_lat: float | None = None,
+    center_lon: float | None = None,
+    radius_km: float | None = None,
+    layer_name: str | None = None,
 ) -> dict:
     """Direct standalone entrypoint: runs network fetch and main-thread layer creation."""
     fetch_result = ingest_osm_features_network_phase(
@@ -727,10 +800,8 @@ def ingest_osm_features(
     finally:
         if local_path and not fetch_result.get("keep_local_file"):
             import os
-            try:
+            with contextlib.suppress(OSError):
                 os.remove(local_path)
-            except OSError:
-                pass
 
 
 # ---- asking before a large download (F22) -----------------------------------------------------------------
@@ -745,7 +816,7 @@ def _content_length(url, timeout=15):
     """Bytes from a HEAD request's Content-Length, or None when the server gives none or HEAD fails. Uses the
     SSRF-guarded opener, so a redirect to a private address is refused here too."""
     try:
-        req = urllib.request.Request(url, method="HEAD", headers={"User-Agent": "QGIS-AI-Assistant"})
+        req = _net_build_request(url, method="HEAD", headers={"User-Agent": "QGIS-AI-Assistant"})
         with _build_safe_opener().open(req, timeout=timeout) as response:
             raw = response.headers.get("Content-Length")
         return int(raw) if raw not in (None, "") else None
@@ -806,10 +877,15 @@ def fetch_geoboundaries_network_phase(iso3: str, admin_level: str = "ADM1", allo
 
     url = f"https://www.geoboundaries.org/api/current/gbOpen/{iso3}/{admin_level}/"
 
+    # Which of the two requests failed was invisible to the user and the tester (one message for both): the lookup goes through
+    # the QGIS network stack, but the file download follows redirects (geoBoundaries points at a GitHub raw URL) and a redirected hop
+    # uses urllib, which does not see QGIS's proxy settings. Say which stage and which host, so a failure on a proxied machine can be
+    # told apart from a geoBoundaries outage (the unexplained 2026-10-13 tester failure).
+    stage = "API request"
     try:
-        req = urllib.request.Request(url, headers={'User-Agent': 'QGIS-AI-Assistant'})
-        with urllib.request.urlopen(req, timeout=30) as response:
-            data = json.loads(response.read().decode())
+        req = _net_build_request(url, headers={'User-Agent': 'QGIS-AI-Assistant'})
+        with _qgis_urlopen(req, timeout=30) as response:
+            data = json.loads(_read_capped(response).decode())
         # Same live-crash class fixed elsewhere in this file/hazard_monitoring_tools.py
         # (2026-09-13): json.loads succeeding doesn't guarantee a dict.
         if not isinstance(data, dict):
@@ -831,9 +907,10 @@ def fetch_geoboundaries_network_phase(iso3: str, admin_level: str = "ADM1", allo
         too_big = check_download_size(f"The {iso3} {admin_level} boundary file", [geojson_url], allow_large_download)
         if too_big:
             return too_big
-        req2 = urllib.request.Request(geojson_url, headers={'User-Agent': 'QGIS-AI-Assistant'})
+        stage = "boundary file download"
+        req2 = _net_build_request(geojson_url, headers={'User-Agent': 'QGIS-AI-Assistant'})
         with _build_safe_opener().open(req2, timeout=60) as response2:
-            geojson_bytes = response2.read()
+            geojson_bytes = _read_capped(response2, MAX_DOWNLOAD_BYTES)
 
         import os
         import tempfile
@@ -848,30 +925,31 @@ def fetch_geoboundaries_network_phase(iso3: str, admin_level: str = "ADM1", allo
         _LOOKUP_CACHE.set(cache_key, result)
         return result
     except Exception as e:
-        return {"error": f"geoBoundaries API request failed: {e}"}
+        log_event("geoboundaries_fetch_failed", tag="humanitarian_tools", stage=stage, error_class=type(e).__name__, error=True)
+        if stage == "API request":
+            return {"error": ("geoBoundaries lookup failed: " + _net.describe_download_failure(e, url)) + BOUNDARY_NO_SUBSTITUTE}
+        return {"error": (f"The geoBoundaries boundary file could not be downloaded. {_net.describe_download_failure(e, geojson_url)} "
+                          "The lookup itself worked, so the service is up. fetch_hdx_admin_boundaries is the alternative source." + BOUNDARY_NO_SUBSTITUTE)}
 
 
 def _auto_label_admin(layer):
     """Name labels on an admin-boundary layer when it is small enough to read (a few dozen areas, not thousands).
 
     Also makes it a backdrop: rc11 smoke test S5 -- a downloaded governorate layer arrived as an opaque default-orange fill at
-    the TOP of the layer tree, hiding the roads and facilities under it. A pale fill with a grey outline, then the usual
+    the TOP of the layer tree, hiding the roads and facilities under it. A translucent light grey fill (200,200,200 at 55 percent: about #e1e1e1 on a white canvas, and it never buries what is drawn under it, the rc11 S5 rule that tests/test_hdx_admin_live.py keeps) with thin white borders between the areas (the look the owner asked for with a picture on 2026-10-26: the borders between provinces must show), then the usual
     points > lines > polygons order, keeps the analysis visible. Best-effort cosmetics; never raises. Not re-run in a real
     QGIS session from the sandbox."""
-    try:
-        from .output_style import style_auto_labels
-        style_auto_labels(layer)
-    except Exception:
-        pass
-    try:
+    with contextlib.suppress(Exception):
+        from .output_style import style_auto_labels, style_zoom_labels
+        if not style_auto_labels(layer):
+            style_zoom_labels(layer)        # #127: a layer too big to label at country scale still gets names once zoomed in
+    with contextlib.suppress(Exception):
         from qgis.core import QgsFillSymbol
         layer.renderer().setSymbol(QgsFillSymbol.createSimple({
-            "color": "238,234,224,70", "outline_color": "107,107,107,255", "outline_width": "0.4"}))
+            "color": "200,200,200,140", "outline_color": "255,255,255,255", "outline_width": "0.3"}))   # light grey, white borders between areas
         layer.triggerRepaint()
         from .styling_tools import auto_arrange_layer_order
         auto_arrange_layer_order()
-    except Exception:
-        pass
 
 
 def add_geoboundaries_layer_main_thread_phase(fetch_result: dict) -> dict:
@@ -940,21 +1018,21 @@ def fetch_hdx_admin_boundaries_network_phase(iso3: str, admin_level: str = "ADM1
     show_url = f"https://data.humdata.org/api/3/action/package_show?id={dataset_name}"
 
     try:
-        req = urllib.request.Request(show_url, headers={'User-Agent': 'QGIS-AI-Assistant'})
-        with urllib.request.urlopen(req, timeout=20) as response:
-            data = json.loads(response.read().decode())
+        req = _net_build_request(show_url, headers={'User-Agent': 'QGIS-AI-Assistant'})
+        with _qgis_urlopen(req, timeout=20) as response:
+            data = json.loads(_read_capped(response).decode())
     except urllib.error.HTTPError as e:
         if e.code == 404:
             return {
                 "error": (
                     f"No OCHA COD-AB (subnational administrative boundaries) dataset found on HDX "
                     f"for '{iso3}' -- COD-AB coverage isn't universal. Try fetch_geoboundaries instead "
-                    "(broader country coverage, but no P-codes)."
+                    "(broader country coverage, but no P-codes)." + BOUNDARY_NO_SUBSTITUTE
                 )
             }
-        return {"error": f"HDX request failed: {e}"}
+        return {"error": "HDX lookup failed: " + _net.describe_download_failure(e, show_url)}
     except Exception as e:
-        return {"error": f"HDX request failed: {e}"}
+        return {"error": "HDX lookup failed: " + _net.describe_download_failure(e, show_url)}
     # Same real live crash class as hazard_monitoring_tools.py's fetch_nasa_eonet_events/
     # fetch_gdacs_disaster_alerts (2026-09-13): the try/except above only guarantees valid
     # JSON, not a dict -- a CKAN error page or gateway response served with a JSON
@@ -984,11 +1062,12 @@ def fetch_hdx_admin_boundaries_network_phase(iso3: str, admin_level: str = "ADM1
     if too_big:
         return too_big
     try:
-        req2 = urllib.request.Request(zip_url, headers={'User-Agent': 'QGIS-AI-Assistant'})
+        req2 = _net_build_request(zip_url, headers={'User-Agent': 'QGIS-AI-Assistant'})
         with _build_safe_opener().open(req2, timeout=60) as response2:
-            zip_bytes = response2.read()
+            zip_bytes = _read_capped(response2, MAX_DOWNLOAD_BYTES)
     except Exception as e:
-        return {"error": f"Failed to download '{zip_url}': {e}"}
+        return {"error": (f"The HDX boundary file for {iso3} {admin_level} could not be downloaded. "
+                          f"{_net.describe_download_failure(e, zip_url)} fetch_geoboundaries is the alternative source." + BOUNDARY_NO_SUBSTITUTE)}
 
     import io
     import zipfile
@@ -1002,7 +1081,7 @@ def fetch_hdx_admin_boundaries_network_phase(iso3: str, admin_level: str = "ADM1
         available = [n for n in z.namelist() if n.lower().endswith(".geojson") and "admin" in n.lower()]
         return {"error": f"'{member_name}' not found in the COD-AB boundaries zip for {iso3}. Available admin-level files: {available}"}
 
-    geojson_bytes = z.read(member_name)
+    geojson_bytes = _zip_member_capped(z, member_name)
 
     pcode_field = None
     try:
@@ -1079,6 +1158,10 @@ def add_hdx_admin_boundaries_layer_main_thread_phase(fetch_result: dict) -> dict
         },
         "required": ["iso3"],
     },
+    keywords=[
+        "adm0", "adm1", "adm2", "adm3", "adm4", "adm5", "admin boundar", "administrative boundar", "admin level", "governorate",
+        "province boundar", "district boundar", "p-code", "pcode", "cod-ab",
+    ],
 )
 def fetch_hdx_admin_boundaries(iso3: str, admin_level: str = "ADM1", allow_large_download: bool = False):
     """Combines both phases inline for standalone/direct callers; agent_orchestrator.py's
@@ -1090,10 +1173,8 @@ def fetch_hdx_admin_boundaries(iso3: str, admin_level: str = "ADM1", allow_large
     local_path = fetch_result.get("local_path")
     if local_path:
         import os
-        try:
+        with contextlib.suppress(OSError):
             os.remove(local_path)
-        except OSError:
-            pass
     return final
 
 
@@ -1224,9 +1305,9 @@ def fetch_building_footprints_network_phase(country_name, bbox, max_features=500
         links_text = cached["links_text"]
     else:
         try:
-            req = urllib.request.Request(_BUILDING_FOOTPRINTS_LINKS_URL, headers={'User-Agent': 'QGIS-AI-Assistant'})
-            with urllib.request.urlopen(req, timeout=30) as response:
-                links_text = response.read().decode()
+            req = _net_build_request(_BUILDING_FOOTPRINTS_LINKS_URL, headers={'User-Agent': 'QGIS-AI-Assistant'})
+            with _qgis_urlopen(req, timeout=30) as response:
+                links_text = _read_capped(response).decode()
         except Exception as e:
             return {"error": f"Failed to fetch building footprints dataset index: {e}"}
         _LOOKUP_CACHE.set(cache_key, {"links_text": links_text})
@@ -1234,7 +1315,7 @@ def fetch_building_footprints_network_phase(country_name, bbox, max_features=500
     import csv
     import io as _io
     rows = list(csv.DictReader(_io.StringIO(links_text)))
-    known_locations = sorted(set(r["Location"] for r in rows))
+    known_locations = sorted({r["Location"] for r in rows})
 
     location, candidates = _match_building_footprints_location(country_name, known_locations)
     if location is None:
@@ -1265,7 +1346,6 @@ def fetch_building_footprints_network_phase(country_name, bbox, max_features=500
     if too_big:
         return too_big
 
-    import gzip
     features = []
     truncated = False
     for row in matching_rows:
@@ -1284,20 +1364,20 @@ def fetch_building_footprints_network_phase(country_name, bbox, max_features=500
             if unsafe_reason:
                 return {"error": f"Refusing to fetch tile '{row['QuadKey']}': {unsafe_reason}"}
             try:
-                req = urllib.request.Request(row["Url"], headers={'User-Agent': 'QGIS-AI-Assistant'})
+                req = _net_build_request(row["Url"], headers={'User-Agent': 'QGIS-AI-Assistant'})
                 with _build_safe_opener().open(req, timeout=60) as response:
-                    gz_bytes = response.read()
+                    gz_bytes = _read_capped(response)
             except Exception as e:
                 return {"error": f"Failed to download tile '{row['QuadKey']}': {e}"}
 
             try:
-                tile_text = gzip.decompress(gz_bytes).decode("utf-8")
+                tile_text = _gunzip_capped(gz_bytes).decode("utf-8")
             except OSError as e:
                 return {"error": f"Tile '{row['QuadKey']}' did not decompress as gzip: {e}"}
             _LOOKUP_CACHE.set(tile_cache_key, tile_text)
 
-        for line in tile_text.splitlines():
-            line = line.strip()
+        for raw_line in tile_text.splitlines():
+            line = raw_line.strip()
             if not line:
                 continue
             try:
@@ -1413,14 +1493,19 @@ def fetch_building_footprints(country_name, bbox, max_features=5000, allow_large
     local_path = fetch_result.get("local_path")
     if local_path:
         import os
-        try:
+        with contextlib.suppress(OSError):
             os.remove(local_path)
-        except OSError:
-            pass
     return final
 
 
-@register_tool("fetch_geoboundaries", "Download administrative boundaries from geoBoundaries API. A file larger than the user's download-size setting is not fetched until the user agrees: then call again with allow_large_download=true.", {"type": "object", "properties": {"iso3": {"type": "string"}, "admin_level": {"type": "string"}, "allow_large_download": {"type": "boolean", "description": "Set true ONLY after the user agreed to a download above their size threshold."}}, "required": ["iso3", "admin_level"]})
+@register_tool("fetch_geoboundaries", "Download administrative boundaries from geoBoundaries API. A file larger than the user's download-size setting is not fetched until the user agrees: then call again with allow_large_download=true.", {"type": "object", "properties": {"iso3": {"type": "string"}, "admin_level": {"type": "string"}, "allow_large_download": {"type": "boolean", "description": "Set true ONLY after the user agreed to a download above their size threshold."}}, "required": ["iso3", "admin_level"]},
+    # rc41 hand test: "create layer for Jordan ADM1" selected neither boundary tool (no shared words), so the model said no boundary fetcher was
+    # "active in this tool configuration" without trying. ADM codes and the usual names for the levels are the way people ask for these.
+    keywords=[
+        "adm0", "adm1", "adm2", "adm3", "adm4", "adm5", "admin boundar", "administrative boundar", "admin level", "governorate",
+        "province boundar", "district boundar", "region boundar", "country boundar", "state boundar",
+    ],
+)
 def fetch_geoboundaries(iso3: str, admin_level: str = "ADM1", allow_large_download: bool = False):
     """Queries geoBoundaries API for ISO3 country code and ADM level. Does both
     phases inline for standalone/direct callers; agent_orchestrator.py's two-phase dispatch
@@ -1431,10 +1516,8 @@ def fetch_geoboundaries(iso3: str, admin_level: str = "ADM1", allow_large_downlo
     local_path = fetch_result.get("local_path")
     if local_path:
         import os
-        try:
+        with contextlib.suppress(OSError):
             os.remove(local_path)
-        except OSError:
-            pass
     return final
 
 
@@ -1456,8 +1539,8 @@ def parse_bbox(value):
         value = [part for part in value.replace(";", ",").split(",") if part.strip()]
     try:
         min_lon, min_lat, max_lon, max_lat = (float(v) for v in value)
-    except (TypeError, ValueError):
-        raise ValueError("bbox must be four numbers: min_lon, min_lat, max_lon, max_lat (WGS84 degrees).")
+    except (TypeError, ValueError) as e:
+        raise ValueError("bbox must be four numbers: min_lon, min_lat, max_lon, max_lat (WGS84 degrees).") from e
     if not (-180 <= min_lon < max_lon <= 180 and -90 <= min_lat < max_lat <= 90):
         raise ValueError(
             f"bbox ({min_lon}, {min_lat}, {max_lon}, {max_lat}) is not a valid WGS84 box -- expected "
@@ -1508,7 +1591,7 @@ def _clip_raster_to_bbox(source, bbox, dest_path):
     try:
         from osgeo import gdal, osr
     except ImportError as e:
-        raise RuntimeError(f"GDAL Python bindings are not available ({e}).")
+        raise RuntimeError(f"GDAL Python bindings are not available ({e}).") from e
     gdal.UseExceptions()
     options = {
         "GDAL_DISABLE_READDIR_ON_OPEN": "EMPTY_DIR", "CPL_VSIL_CURL_ALLOWED_EXTENSIONS": ".tif",
@@ -1539,7 +1622,7 @@ def _clip_raster_to_bbox(source, bbox, dest_path):
     except RuntimeError:
         raise
     except Exception as e:
-        raise RuntimeError(str(e))
+        raise RuntimeError(str(e)) from e
     finally:
         for key in options:
             gdal.SetThreadLocalConfigOption(key, None)
@@ -1578,7 +1661,7 @@ def _download_to_file(url, dest, chunk=1 << 20):
         raise RuntimeError(f"Refusing to fetch WorldPop file URL: {unsafe}")
     os.makedirs(os.path.dirname(dest), exist_ok=True)
     part = dest + ".part"
-    req = urllib.request.Request(url, headers={'User-Agent': 'QGIS-AI-Assistant'})
+    req = _net_build_request(url, headers={'User-Agent': 'QGIS-AI-Assistant'})
     try:
         with _build_safe_opener().open(req, timeout=300) as response, open(part, "wb") as out:
             while True:
@@ -1588,14 +1671,12 @@ def _download_to_file(url, dest, chunk=1 << 20):
                 out.write(block)
         os.replace(part, dest)
     except Exception as e:
-        try:
+        with contextlib.suppress(OSError):
             os.remove(part)
-        except OSError:
-            pass
-        raise RuntimeError(f"downloading the country file failed: {e}")
+        raise RuntimeError(f"downloading the country file failed: {e}") from e
 
 
-def fetch_worldpop_population_network_phase(iso3: str, year: str = None, bbox=None, allow_whole_country=False,
+def fetch_worldpop_population_network_phase(iso3: str, year: str | None = None, bbox=None, allow_whole_country=False,
                                             cache_dir=None) -> dict:
     """Pure network phase: queries WorldPop's API for available population raster
     datasets for a country, picks the requested (or most recent) year, and
@@ -1635,9 +1716,9 @@ def fetch_worldpop_population_network_phase(iso3: str, year: str = None, bbox=No
 
     try:
         list_url = f"https://hub.worldpop.org/rest/data/pop/wpgp?iso3={iso3}"
-        req = urllib.request.Request(list_url, headers={'User-Agent': 'QGIS-AI-Assistant'})
-        with urllib.request.urlopen(req, timeout=30) as response:
-            listing = json.loads(response.read().decode())
+        req = _net_build_request(list_url, headers={'User-Agent': 'QGIS-AI-Assistant'})
+        with _qgis_urlopen(req, timeout=30) as response:
+            listing = json.loads(_read_capped(response).decode())
         datasets = listing.get("data", [])
         if not datasets:
             return {"error": f"No WorldPop population datasets found for '{iso3}' -- check the ISO3 code is correct."}
@@ -1691,10 +1772,8 @@ def fetch_worldpop_population_network_phase(iso3: str, year: str = None, bbox=No
                         size = _clip_raster_to_bbox(cache_file, window, tmp_path)
                         used_cache = "downloaded"
             except RuntimeError as e:
-                try:
+                with contextlib.suppress(OSError):
                     os.remove(tmp_path)
-                except OSError:
-                    pass
                 if _is_transport_failure(e) and not allow_whole_country:
                     # rc10 smoke test (first run against the real server): worldpop.org answers "Range downloading not
                     # supported by this server", so the remote window read cannot work there and the model retried the same
@@ -1756,9 +1835,9 @@ def fetch_worldpop_population_network_phase(iso3: str, year: str = None, bbox=No
             _LOOKUP_CACHE.set(cache_key, result)
             return result
 
-        req2 = urllib.request.Request(file_urls[0], headers={'User-Agent': 'QGIS-AI-Assistant'})
+        req2 = _net_build_request(file_urls[0], headers={'User-Agent': 'QGIS-AI-Assistant'})
         with _build_safe_opener().open(req2, timeout=300) as response2:
-            raster_bytes = response2.read()
+            raster_bytes = _read_capped(response2, MAX_DOWNLOAD_BYTES)
 
         fd, tmp_path = tempfile.mkstemp(suffix=".tif")
         with os.fdopen(fd, "wb") as f:
@@ -1816,11 +1895,10 @@ def add_worldpop_population_layer_main_thread_phase(fetch_result: dict) -> dict:
     layer = QgsRasterLayer(local_path, layer_name)
     if layer.isValid():
         QgsProject.instance().addMapLayer(layer)
-        try:
+        # styling is cosmetic: never fail the fetch over it
+        with contextlib.suppress(Exception):
             from .output_style import style_continuous_raster
             style_continuous_raster(layer, "population")   # zero cells transparent, heavy-tailed warm ramp
-        except Exception:
-            pass   # styling is cosmetic: never fail the fetch over it
         out = {"success": True, "layer_name": layer_name, "iso3": fetch_result.get("iso3"), "year": fetch_result.get("year")}
         for key in ("clipped_to_bbox", "clipped_pixels", "bytes_on_disk", "note", "clip_clamped"):
             if fetch_result.get(key) is not None:
@@ -1855,7 +1933,7 @@ def add_worldpop_population_layer_main_thread_phase(fetch_result: dict) -> dict:
         "required": ["iso3"],
     },
 )
-def fetch_worldpop_population(iso3: str, year: str = None, extent_layer: str = None, bbox=None,
+def fetch_worldpop_population(iso3: str, year: str | None = None, extent_layer: str | None = None, bbox=None,
                               allow_whole_country: bool = False):
     """Does both phases inline for standalone/direct callers; agent_orchestrator.py's
     two-phase dispatch calls the two phase functions above separately instead,
@@ -1919,9 +1997,8 @@ def _validate_incident_coding(event_type=None, sub_event_type=None, hazard_type=
     warnings = []
     if event_type is not None and event_type not in ACLED_EVENT_TAXONOMY:
         warnings.append(f"event_type '{event_type}' is not one of ACLED's 6 event types: {list(ACLED_EVENT_TAXONOMY)}")
-    elif event_type is not None and sub_event_type is not None:
-        if sub_event_type not in ACLED_EVENT_TAXONOMY[event_type]:
-            warnings.append(f"sub_event_type '{sub_event_type}' is not a valid ACLED sub-event of '{event_type}': {ACLED_EVENT_TAXONOMY[event_type]}")
+    elif event_type is not None and sub_event_type is not None and sub_event_type not in ACLED_EVENT_TAXONOMY[event_type]:
+        warnings.append(f"sub_event_type '{sub_event_type}' is not a valid ACLED sub-event of '{event_type}': {ACLED_EVENT_TAXONOMY[event_type]}")
     if hazard_type is not None and hazard_type not in IMSMA_HAZARD_TYPES:
         warnings.append(f"hazard_type '{hazard_type}' is not one of the IMSMA-style hazard types: {IMSMA_HAZARD_TYPES}")
     if contamination_status is not None and contamination_status not in IMSMA_CONTAMINATION_STATUSES:
@@ -2042,10 +2119,10 @@ def _clip_to_field_width(layer, fname, value):
     },
 )
 def add_incident_point(
-    lat: float, lon: float, date: str, description: str, severity: str = None,
-    event_type: str = None, sub_event_type: str = None,
-    hazard_type: str = None, contamination_status: str = None,
-    event_start: str = None, event_end: str = None, last_verified: str = None,
+    lat: float, lon: float, date: str, description: str, severity: str | None = None,
+    event_type: str | None = None, sub_event_type: str | None = None,
+    hazard_type: str | None = None, contamination_status: str | None = None,
+    event_start: str | None = None, event_end: str | None = None, last_verified: str | None = None,
 ):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
@@ -2085,7 +2162,7 @@ def add_incident_point(
         try:
             _style_incident_layer(layer)
         except Exception as e:
-            print(f"[humanitarian_tools] Failed to style new Incidents layer: {e}")
+            log_event("failed_to_style_new_incidents_layer", tag="humanitarian_tools", error_class=type(e).__name__, error=True)
 
     feat = QgsFeature(layer.fields())
     feat.setGeometry(QgsGeometry.fromPointXY(QgsPointXY(lon, lat)))
@@ -2150,7 +2227,7 @@ def _find_point_layer_at(lon, lat):
                 continue
             if lyr.crs().authid() != "EPSG:4326" or lyr.featureCount() > _REUSE_MAX_FEATURES:
                 continue
-            for f in lyr.getFeatures():
+            for f in _ck.features(lyr, "Humanitarian: reading features"):
                 g = f.geometry()
                 if g is None or g.isEmpty():
                     continue
@@ -2185,6 +2262,72 @@ def _style_named_point_layer(layer):
     settings.setFormat(text_format)
     layer.setLabeling(QgsVectorLayerSimpleLabeling(settings))
     layer.setLabelsEnabled(True)
+
+
+def _crs_question_response(decision, project_crs):
+    """The reply that asks the user which CRS their coordinates are in (nothing is placed until they answer)."""
+    return {
+        "success": False, "needs_user_input": True, "placed": False,
+        "question": (f"Which coordinate system are these numbers in? You did not say, and the project CRS is "
+                     f"{project_crs or 'unknown'}, so nothing was placed. Reply with the CRS (for example "
+                     f"{decision[1] or 'EPSG:3857'} for Web Mercator) and I will place the point."),
+        "options": [o for o in dict.fromkeys([decision[1], project_crs]) if o],
+        # rc15 hand test (B1, 2026-10-06): after the user answered "EPSG:3857" the model made no further tool call and
+        # pasted a PyQGIS script for the user to run, so nothing was placed. The refusal said what to ask but not what
+        # to do with the answer; without crs_stated_by_user=True this tool refuses again, so the retry must be spelled out.
+        "next_step": ("When the user replies with a CRS, call add_point_layer again with the same layer_name and points, "
+                      "crs set to their answer and crs_stated_by_user=true. Do not give the user a script to run."),
+    }
+
+
+def _build_point_feature(layer, field_names, pt, lon, lat):
+    """(feature, coding/temporal warnings) for one requested point of add_point_layer."""
+    feat = QgsFeature(layer.fields())
+    feat.setGeometry(QgsGeometry.fromPointXY(QgsPointXY(lon, lat)))
+    feat.setAttribute("name", _clip_to_field_width(layer, "name", str(pt.get("name", ""))))
+    feat.setAttribute("description",
+                       _clip_to_field_width(layer, "description", str(pt.get("description", ""))))
+    # Older layers created before these fields existed won't have them --
+    # skip rather than raise, matching the reused-existing-layer path above.
+    for field_name in (
+        "category", "event_type", "sub_event_type", "hazard_type", "contamination_status",
+        "event_start", "event_end", "last_verified",
+    ):
+        if field_name in field_names and pt.get(field_name) is not None:
+            feat.setAttribute(field_name, _clip_to_field_width(layer, field_name, str(pt[field_name])))
+    point_warnings = _validate_incident_coding(
+        pt.get("event_type"), pt.get("sub_event_type"), pt.get("hazard_type"), pt.get("contamination_status"),
+    )
+    point_warnings = point_warnings + _validate_incident_temporal(pt.get("event_start"), pt.get("event_end"))
+    return feat, point_warnings
+
+
+def _wgs84_transformer(source_crs):
+    """A function (x, y) -> (lon, lat) from a projected CRS, using QGIS's own transform."""
+    xf = QgsCoordinateTransform(source_crs, QgsCoordinateReferenceSystem("EPSG:4326"), QgsProject.instance())
+
+    def transform(x, y):
+        pt = xf.transform(QgsPointXY(x, y))
+        return pt.x(), pt.y()
+    return transform
+
+
+def _keep_or_say_temporary(layer, result):
+    """Keep a new point layer across Save and Reopen in the project's results GeoPackage (results_store.py), or say in the result that it is
+    temporary (#120: the origin layers were silently scratch layers). A layer that is not a memory layer any more is left alone. Never raises."""
+    try:
+        from ..results_store import is_persistable, persist_layer, temporary_note
+        if not is_persistable(layer):
+            return
+        outcome = persist_layer(layer, tool="add_point_layer")
+        note = temporary_note(outcome)
+    except Exception as exc:
+        outcome, note = {"persisted": False}, f"This layer is temporary: it could not be saved with the project ({type(exc).__name__})."
+    if outcome.get("persisted"):
+        result["saved_with_project"] = True
+    else:
+        result["temporary"] = True
+        result["temporary_note"] = note
 
 
 @register_tool(
@@ -2253,8 +2396,13 @@ def _style_named_point_layer(layer):
         },
         "required": ["layer_name", "points"],
     },
+
+    keywords=[
+        "put them on the map as points", "import the gps points", "gps columns", "gps points from", "points from the csv", "points from a spreadsheet", "spreadsheet with coordinates",
+        "load it as points", "as points on the map", "latitude and longitude columns", "csv with latitude", "csv of villages",
+    ],
 )
-def add_point_layer(layer_name: str, points: list, crs: str = None, crs_stated_by_user: bool = False):
+def add_point_layer(layer_name: str, points: list, crs: str | None = None, crs_stated_by_user: bool = False):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
     if not points:
@@ -2263,18 +2411,7 @@ def add_point_layer(layer_name: str, points: list, crs: str = None, crs_stated_b
     project_crs = QgsProject.instance().crs().authid()
     decision = _coords.crs_decision(crs, crs_stated_by_user, project_crs)
     if decision and decision[0] == "ask":
-        return {
-            "success": False, "needs_user_input": True, "placed": False,
-            "question": (f"Which coordinate system are these numbers in? You did not say, and the project CRS is "
-                         f"{project_crs or 'unknown'}, so nothing was placed. Reply with the CRS (for example "
-                         f"{decision[1] or 'EPSG:3857'} for Web Mercator) and I will place the point."),
-            "options": [o for o in dict.fromkeys([decision[1], project_crs]) if o],
-            # rc15 hand test (B1, 2026-10-06): after the user answered "EPSG:3857" the model made no further tool call and
-            # pasted a PyQGIS script for the user to run, so nothing was placed. The refusal said what to ask but not what
-            # to do with the answer; without crs_stated_by_user=True this tool refuses again, so the retry must be spelled out.
-            "next_step": ("When the user replies with a CRS, call add_point_layer again with the same layer_name and points, "
-                          "crs set to their answer and crs_stated_by_user=true. Do not give the user a script to run."),
-        }
+        return _crs_question_response(decision, project_crs)
     crs_assumed = decision[1] if decision and decision[0] == "assumed" else None
 
     # Coordinates are converted here, in code -- never by the model. The rc7 smoke test
@@ -2286,11 +2423,7 @@ def add_point_layer(layer_name: str, points: list, crs: str = None, crs_stated_b
         src = QgsCoordinateReferenceSystem(source_crs)
         if not src.isValid():
             return {"error": f"Unknown crs '{crs}'. Use a code such as \"EPSG:3857\"."}
-        _xf = QgsCoordinateTransform(src, QgsCoordinateReferenceSystem("EPSG:4326"), QgsProject.instance())
-
-        def transform(x, y):
-            pt = _xf.transform(QgsPointXY(x, y))
-            return pt.x(), pt.y()
+        transform = _wgs84_transformer(src)
 
     existing = QgsProject.instance().mapLayersByName(layer_name)
     if not existing and len(points) == 1:
@@ -2326,7 +2459,7 @@ def add_point_layer(layer_name: str, points: list, crs: str = None, crs_stated_b
         try:
             _style_named_point_layer(layer)
         except Exception as e:
-            print(f"[humanitarian_tools] Failed to style new '{layer_name}' layer: {e}")
+            log_event("failed_to_style_new_layer", tag="humanitarian_tools", error_class=type(e).__name__, error=True)
 
     field_names = [f.name() for f in layer.fields()]
     added = 0
@@ -2348,23 +2481,7 @@ def add_point_layer(layer_name: str, points: list, crs: str = None, crs_stated_b
             errors.append(f"Point {i}: {e}")
             continue
 
-        feat = QgsFeature(layer.fields())
-        feat.setGeometry(QgsGeometry.fromPointXY(QgsPointXY(lon, lat)))
-        feat.setAttribute("name", _clip_to_field_width(layer, "name", str(pt.get("name", ""))))
-        feat.setAttribute("description",
-                           _clip_to_field_width(layer, "description", str(pt.get("description", ""))))
-        # Older layers created before these fields existed won't have them --
-        # skip rather than raise, matching the reused-existing-layer path above.
-        for field_name in (
-            "category", "event_type", "sub_event_type", "hazard_type", "contamination_status",
-            "event_start", "event_end", "last_verified",
-        ):
-            if field_name in field_names and pt.get(field_name) is not None:
-                feat.setAttribute(field_name, _clip_to_field_width(layer, field_name, str(pt[field_name])))
-        point_warnings = _validate_incident_coding(
-            pt.get("event_type"), pt.get("sub_event_type"), pt.get("hazard_type"), pt.get("contamination_status"),
-        )
-        point_warnings = point_warnings + _validate_incident_temporal(pt.get("event_start"), pt.get("event_end"))
+        feat, point_warnings = _build_point_feature(layer, field_names, pt, lon, lat)
         if point_warnings:
             data_quality_warnings.append(f"Point {i}: " + "; ".join(point_warnings))
         if layer.addFeature(feat):
@@ -2379,6 +2496,8 @@ def add_point_layer(layer_name: str, points: list, crs: str = None, crs_stated_b
     layer.triggerRepaint()
 
     result = {"success": added > 0, "layer_name": layer_name, "added": added, "requested": len(points)}
+    if added > 0:
+        _keep_or_say_temporary(layer, result)
     if placed:
         # The exact WGS84 positions actually used -- report THESE, never numbers computed by hand.
         result["placed_wgs84"] = placed[:20]

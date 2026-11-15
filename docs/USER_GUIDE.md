@@ -34,24 +34,58 @@ what's new/available stays easy to find without having to go looking for it.
 
 ## First-time setup
 
-1. Click **Settings** in the dock header (top right, next to the provider dropdown).
-2. Pick a provider from the dropdown: **OpenRouter**, **Gemini**, **Ollama**, **OpenAI**,
-   or **Claude**.
+1. Open **Plugins → Cartogen AI → Connections...** (or press **Connections…** at the top of
+   **Settings**). The window lists every connection on the left; the one you click shows its
+   page on the right. Looking at a page changes nothing: press **Use this connection** to make
+   it the one the assistant uses.
+2. Pick a connection: **OpenRouter**, **Gemini** or **Ollama**. (OpenAI and
+   Claude were removed from the list in rc25 because they were never tested; a provider saved
+   by an older version falls back to OpenRouter. The Cartogen API entry in Settings is a stub
+   until a hosted gateway exists.)
 3. Paste an API key (for Ollama, enter your local server's endpoint URL instead — no
    key needed). The key field auto-fetches that provider's live model list when you
    tab out of it. Get a key from the provider you picked:
    - OpenRouter (has a genuinely free tier covering many models — a good default if you
      don't already have a key with another provider): https://openrouter.ai/keys
    - Google Gemini: https://aistudio.google.com/apikey
-   - OpenAI: https://platform.openai.com/api-keys
-   - Anthropic Claude: https://console.anthropic.com/settings/keys
 4. Pick a model, or leave it on **Auto** — the agent then routes simple requests to a
    cheaper/faster model and complex multi-step requests to a stronger one
    automatically, based on the request's wording and length. (Ollama always uses
    whatever model you pick; local models aren't a cost concern the auto-router needs
    to optimize for.)
-5. Click OK. You can switch providers anytime from the small dropdown in the dock
-   header without reopening Settings.
+   When the window opens it also looks for the Claude Code, Codex and Antigravity (agy) programs on your
+   computer and shows, under **Found on this computer**, which are installed and whether you
+   are signed in. This asks no model anything. A signed-in one gets a **Use** button (after you
+   tick the box under "Your own CLI login"); nothing is switched for you, because a CLI sends
+   your conversation to that vendor.
+5. Press **Use this connection** and then OK. You can switch providers anytime from the small
+   dropdown in the dock header without reopening the window. A mark beside each connection in
+   the list shows whether it has a key or program set (●), has been checked this session (✓),
+   or is empty (○).
+
+**Using your Claude Code, Codex or Antigravity login instead of an API key** (experimental). Pick the CLI in the
+list; its page has one main button that is always the next step:
+
+- **Copy install command** — the program was not found. Paste the command in a terminal, then press
+  **Detect again**. If it works in your terminal but not here, hover the "looked in N folders" text,
+  or press **Browse...** and pick the program yourself.
+- **Sign in...** — opens the program's own sign-in (a terminal or your browser). Finish it there; the
+  window notices by itself, tests the connection and starts using it.
+- **Connect** — signed in; asks the program one short test question (a few tokens of your plan).
+- **Use this connection** — tested and ready.
+
+The first time, you are asked to agree: the conversation, including any layer or attribute data a tool
+surfaces, goes to the vendor's service (Anthropic for Claude Code, OpenAI for Codex, Google for Antigravity), so treat it as a
+cloud provider. Cartogen AI never sees or stores your login. The Gemini CLI is no longer offered:
+Google stopped serving personal Google accounts through it on 18 June 2026; the Antigravity CLI is
+Google's replacement, or use the Gemini API key connection.
+
+**Choosing the model on a CLI page.** The **Model (optional)** box is a drop-down you can also type in.
+Claude Code lists its three aliases (sonnet, opus, haiku), Codex lists two names from OpenAI's model page,
+and Antigravity fills the list from its own `agy models` command once the program is found. Newer names
+may exist that are not listed: type them in. Leave it on Auto to use the program's own default.
+The Antigravity connection is new and has not been run against a real `agy` yet (the same "experimental"
+label as the other two applies); if it fails, the message says which step.
 
 <p align="center"><img src="images/settings-dialog.png" alt="Settings dialog — provider connection, API key, NASA FIRMS key, and privacy toggles" width="380"></p>
 
@@ -80,12 +114,12 @@ delete it (copies of the project file you already shared keep their own copy).
 If you want to use the hosted **Cartogen AI** API rather than bring your own
 provider key:
 
-1. Open Settings and click **Manage account**.
+1. Open **Plugins → Cartogen AI → Connections...** and click **Manage account**.
 2. Enter the Cartogen account service URL supplied by your administrator.
 3. Use **Create account** for a new account, or **Sign in** for an existing one.
 4. If the service requires activation, follow its activation email before signing in.
 5. Paste the separately assigned **Cartogen AI API key** from the account portal.
-6. Select **Cartogen AI (Hosted)** as the Connection provider and click OK in Settings.
+6. Select **Cartogen AI (Hosted)**, press **Use this connection** and click OK.
 
 The account session and hosted API key are stored separately in QGIS's encrypted
 credential store. The plugin never saves the password in QGIS settings, and the
@@ -98,15 +132,15 @@ flow, but live account creation requires a deployed/configured Cartogen service.
 
 ## What happens to your message before it is sent
 
-Cartogen AI carries the **Humanitarian Mapping Task Register** — 792 mapping
-tasks grouped into 36 sections, each one describing what it needs, what tools
+Cartogen AI carries the **Humanitarian Mapping Task Register** — 857 mapping
+tasks grouped into 49 sections, each one describing what it needs, what tools
 it should use, and what you should end up with. When you type a request, it is
 matched against that register locally, on your machine. No API call is made to
 do the matching, and the register itself is never sent to the model.
 
 **Where it goes.** Once matched, the request text -- and any layer/attribute data a
 tool call surfaces to the model -- is sent to whichever provider you selected in
-Settings (OpenRouter, Gemini, OpenAI, or Claude), over that provider's own API, using
+Settings (OpenRouter or Gemini), over that provider's own API, using
 your own key. Ollama is the exception: it runs entirely on your machine, so nothing
 leaves it. Settings shows each cloud provider's Data Processing Addendum link as a
 starting point, but confirming a lawful basis and transfer mechanism for the data you
@@ -262,6 +296,16 @@ defaults checked, except one you've already tagged `RESTRICTED`/`SENSITIVE` via
 sample of rows for whatever's checked, never a whole table. This is opt-out, not
 opt-in — if you never open it, nothing changes from today's behavior.
 
+## When you run the same analysis again
+
+If a tool you run again produces a layer with the same name as its own earlier result (for example a second
+buffer called "Buffered"), the earlier one is kept and renamed **"Buffered (superseded)"** (numbered if there are
+several), and the new result takes the name. Nothing is deleted or moved, the earlier layer keeps its history and
+protection settings, and the reply says what was renamed, so later requests by name reach the newest result.
+A layer you made, another tool's output, and data you loaded yourself are never renamed. To switch this off, set
+the QGIS setting `cartogen_ai/mark_superseded` to `false`. It applies to the tools run on the main path; the
+network fetch tools are not covered yet.
+
 ## Destructive actions
 
 Removing a layer or running a field calculator mutation always goes through a
@@ -291,6 +335,14 @@ CRS would otherwise scatter points by hundreds of kilometers):
 The agent won't apply this automatically — it's a judgment call about the data, and it'll
 ask which method you want when it looks relevant. Not every point layer needs it (facility
 locations, aggregate counts, and non-identifying incident logs don't).
+
+### Geocoding and protected layers
+
+`geocode_batch` and `geocode_and_enrich` send the place or address text to a public server (OpenStreetMap Nominatim). They therefore **refuse** text that comes from a layer tagged `RESTRICTED` or `SENSITIVE` (or derived from one), whatever AI provider you use, and say so before anything is sent. The check recognises the text by its values, so it does not depend on the agent saying where the text came from. To geocode those places anyway, use a copy you have tagged `PUBLIC` or `INTERNAL` (for example an aggregated or released copy), or change the layer's tag yourself in the Sensitivity dialog. A text you retyped or shortened is not recognised, so this is a safeguard against accidents, not a guarantee.
+
+## Sharing a workflow as a file
+
+Ask *"export this workflow as a file"* after an analysis to save its steps as a `.cgworkflow.json` file (you see the whole file and confirm before it is written). A colleague opens it with **Plugins > Cartogen AI > Open workflow file...**, reads every step, picks their own layers for the roles and presses Run; the plugin then runs the steps itself through the usual checks. A file contains no data, no code and no file paths. See [WORKFLOW_FILES.md](WORKFLOW_FILES.md) for the details and the limits.
 
 ## Interactive HTML dashboards
 
@@ -430,6 +482,20 @@ next to that layer — green ("Fresh, 2m ago"), amber ("Stale, 3h ago"), or red 
 stale, 2d ago") — so you can tell at a glance whether the data on screen is current
 without checking anywhere else. A layer that was never fetched from a live source
 (most layers) shows no badge, which is correct, not a gap.
+
+## Disclaimer and terms of use
+
+This is the wording that goes with maps and other outputs made with Cartogen AI. The same text is in the plugin's Help tab.
+
+**1. No Endorsement or Legal Determination:** Boundaries, territorial depictions, place names, and administrative designations presented herein are illustrative and do not reflect any opinion, endorsement, or formal position by Cartogen AI or its third-party data providers concerning the legal status of any country, territory, city, or area, or concerning the delimitation of its frontiers or boundaries.
+
+**2. Disclaimer of Warranties & Limitation of Reliance:** This visual output is provided on an "as is" and "as available" basis without warranties of any kind. Cartogen AI expressly disclaims all implied warranties of merchantability, fitness for a particular purpose, spatial accuracy, or timeliness. This map must not be relied upon for maritime or aerial navigation, property boundary delineation, or emergency response operations.
+
+**3. User Obligations & Third-Party Rights:** Users are solely responsible for ensuring that the distribution, export, or publication of this map complies with all applicable privacy laws, data protection regulations, and proprietary data license agreements governing user-supplied or third-party datasets.
+
+The footer of every print layout carries a shorter version of it, unless you enter your organisation's own wording in Settings (Layout disclaimer). The footer line reads:
+
+> Boundaries, names, and designations shown on this map are for informational and illustrative purposes only and do not imply any official endorsement, acceptance, or recognition of legal or sovereign status by Cartogen AI or its data licensors. Maps and geospatial outputs are provided "as is" without warranty of any kind, whether express or implied, including accuracy, completeness, or fitness for navigation or planning. Users remain solely responsible for verifying data licensing, confidentiality classifications, and source permissions prior to internal use or external distribution.
 
 ## Troubleshooting
 

@@ -110,23 +110,23 @@ def build_spatial():
         (35.942, 31.961, "South", "school", 1800, 4),
     ]
     for lon, lat, name, category, population, need in point_rows:
-        add_point(points, lon, lat, dict(name=name, category=category, population=population, need=need))
+        add_point(points, lon, lat, {"name": name, "category": category, "population": population, "need": need})
 
     hubs = layer("smoke_hubs", ogr.wkbPoint, [("name", ogr.OFTString)])
     for lon, lat, name in ((35.927, 31.950, "Hub_A"), (35.936, 31.958, "Hub_B"), (35.918, 31.961, "Hub_C")):
-        add_point(hubs, lon, lat, dict(name=name))
+        add_point(hubs, lon, lat, {"name": name})
 
     boundary = layer("smoke_boundary", ogr.wkbPolygon, [("admin_name", ogr.OFTString), ("admin_type", ogr.OFTString)])
-    add_rect(boundary, 35.915, 31.941, 35.950, 31.969, dict(admin_name="Smoke Area", admin_type="test boundary"))
+    add_rect(boundary, 35.915, 31.941, 35.950, 31.969, {"admin_name": "Smoke Area", "admin_type": "test boundary"})
 
     zones = layer("smoke_zones", ogr.wkbPolygon, [("zone_type", ogr.OFTString)])
-    add_rect(zones, 35.916, 31.942, 35.927, 31.968, dict(zone_type="urban"))
-    add_rect(zones, 35.927, 31.942, 35.938, 31.968, dict(zone_type="mixed"))
-    add_rect(zones, 35.938, 31.942, 35.949, 31.968, dict(zone_type="open"))
+    add_rect(zones, 35.916, 31.942, 35.927, 31.968, {"zone_type": "urban"})
+    add_rect(zones, 35.927, 31.942, 35.938, 31.968, {"zone_type": "mixed"})
+    add_rect(zones, 35.938, 31.942, 35.949, 31.968, {"zone_type": "open"})
 
     admin = layer("smoke_admin", ogr.wkbPolygon, [("admin_name", ogr.OFTString), ("population", ogr.OFTInteger), ("need", ogr.OFTInteger)])
     for index, (west, east, population, need) in enumerate(((35.916, 35.927, 1000, 3), (35.927, 35.938, 2000, 7), (35.938, 35.949, 1500, 10)), start=1):
-        add_rect(admin, west, 31.942, east, 31.968, dict(admin_name=f"District_{index}", population=population, need=need))
+        add_rect(admin, west, 31.942, east, 31.968, {"admin_name": f"District_{index}", "population": population, "need": need})
     data = None
 
     west, south = xy(35.915, 31.941)

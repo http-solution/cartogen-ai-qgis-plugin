@@ -1,14 +1,13 @@
+import contextlib
 import json
 import time
 from .base import (
     ModelChainMixin,
     BaseAiProvider, post_with_retry, get_with_retry, DEFAULT_MAX_TOKENS,
-    extract_openai_style_usage, format_http_error, format_request_exception,
+    extract_openai_style_usage, format_http_error, key_in_use_note, format_request_exception,
     HTTPError, RequestException,
-    requests,  # noqa: F401 -- see providers/gemini.py's identical import for why this
-    # stays: tests patch cartogen_ai.infrastructure.providers.openrouter.requests.get.
 )
-from ...core.agent.model_selector import filter_chat_model_ids
+from ...core.model_selector import filter_chat_model_ids
 
 
 def list_models(api_key=None):
@@ -107,10 +106,8 @@ class OpenRouterClient(ModelChainMixin, BaseAiProvider):
     def _emit_status(self, text):
         self.last_status = text
         if self._status_callback:
-            try:
+            with contextlib.suppress(Exception):
                 self._status_callback(text)
-            except Exception:
-                pass
 
     def _post(self, messages, tools, model_id, max_tokens=None):
         headers = {
@@ -139,7 +136,7 @@ class OpenRouterClient(ModelChainMixin, BaseAiProvider):
 
     def _request_with_fallback(self, messages, tools, max_tokens=None):
         chain = self._model_chain()
-        for cycle in range(MAX_FULL_CYCLES):
+        for _cycle in range(MAX_FULL_CYCLES):
             any_rate_limited = False
             for idx, model_id in enumerate(chain):
                 self.current_index = idx
@@ -178,7 +175,7 @@ class OpenRouterClient(ModelChainMixin, BaseAiProvider):
                 except HTTPError as e:
                     return {
                         "ok": False,
-                        "error": format_http_error("HTTP error", e),
+                        "error": format_http_error("HTTP error", e, key_note=key_in_use_note("openrouter", self.api_key)),
                         "model": model_id,
                     }
                 except RequestException as e:

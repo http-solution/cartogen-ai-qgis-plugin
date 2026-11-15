@@ -1,13 +1,20 @@
-# -*- coding: utf-8 -*-
 """
 System & External Integration Tools for Cartogen AI.
 (Web Search, Geocoding, PyQGIS Dynamic Execution)
 """
 
+from typing import Any
 import ast
 import builtins as _builtins_module
+import os
 from .registry import register_tool
 from ._cache_utils import TTLCache
+from . import _geocode_guard
+from ...net import build_request as _net_build_request
+from ...net import read_capped as _read_capped
+
+# Set to "1" (by tests/__init__.py only) to let execute_pyqgis_script run in-process when QGIS is not importable.
+UNISOLATED_SCRIPTS_ENV = "CARTOGEN_ALLOW_UNISOLATED_SCRIPTS"
 
 # execute_pyqgis_script runs model-generated code directly in the QGIS process.
 # These modules/builtins give file-system, network, process, or interpreter-escape
@@ -314,6 +321,11 @@ _SAFE_BUILTINS = {
 }
 
 
+# rc48 OI-145 (evidence t33): a script that began `import os` was refused and the model had to guess what to do next. Say what scripts CAN do.
+_BLOCKED_MODULE_HINT = (" A script cannot use the filesystem, the operating system or other programs. Work with the project's layers through "
+                        "qgis.core only; to read or write a file use a dedicated tool (add_layer_from_path, export_layer) instead.")
+
+
 def _validate_script_safety(script: str):
     """Returns an error string if the script imports a blocked module, or
     references (loads OR calls -- aliasing doesn't help) a blocked builtin or
@@ -331,11 +343,11 @@ def _validate_script_safety(script: str):
             for alias in node.names:
                 root = alias.name.split(".")[0]
                 if root in _BLOCKED_MODULES:
-                    return f"Blocked import '{alias.name}' -- not allowed in execute_pyqgis_script."
+                    return f"Blocked import '{alias.name}' -- not allowed in execute_pyqgis_script.{_BLOCKED_MODULE_HINT}"
         elif isinstance(node, ast.ImportFrom):
             root = (node.module or "").split(".")[0]
             if root in _BLOCKED_MODULES:
-                return f"Blocked import '{node.module}' -- not allowed in execute_pyqgis_script."
+                return f"Blocked import '{node.module}' -- not allowed in execute_pyqgis_script.{_BLOCKED_MODULE_HINT}"
             # Check the imported NAMES too, not just the module -- an allowed
             # module (qgis.PyQt.QtCore etc, needed for QVariant/QColor/signals)
             # can still export a dangerous class like QFile/QProcess. Checked
@@ -349,13 +361,17 @@ def _validate_script_safety(script: str):
         elif isinstance(node, ast.Name):
             if node.id in _BLOCKED_CALLS:
                 return f"Blocked reference to '{node.id}' -- not allowed in execute_pyqgis_script."
-        elif isinstance(node, ast.Attribute):
-            if node.attr in _BLOCKED_DUNDER_ATTRS:
-                return f"Blocked attribute access '.{node.attr}' -- not allowed in execute_pyqgis_script."
+        elif isinstance(node, ast.Attribute) and node.attr in _BLOCKED_DUNDER_ATTRS:
+            return f"Blocked attribute access '.{node.attr}' -- not allowed in execute_pyqgis_script."
     return None
 
 
-@register_tool("search_web", "Search internet for real-time information or facts.", {"type": "object", "properties": {"query": {"type": "string"}, "max_results": {"type": "integer"}}, "required": ["query"]})
+@register_tool("search_web", "Search internet for real-time information or facts; every hit has a URL: cite them. For a sourced, structured answer or for news use web_research. NOT for incidents, disasters or conflict events in a place: use find_incident_reports for those (named reliable sources, dates, links).", {"type": "object", "properties": {"query": {"type": "string"}, "max_results": {"type": "integer"}}, "required": ["query"]},
+    keywords=[
+        "look this up online", "look it up online", "look up online", "google it", "search online",
+        "search the internet",
+    ],
+)
 def search_web(query: str, max_results: int = 3):
     try:
         # `ddgs` first, `duckduckgo_search` as a fallback for an environment that
@@ -371,22 +387,29 @@ def search_web(query: str, max_results: int = 3):
         try:
             from ddgs import DDGS
         except ImportError:
-            from duckduckgo_search import DDGS
+            from duckduckgo_search import DDGS  # type: ignore[no-redef]
         with DDGS() as ddgs:
             results = list(ddgs.text(query, max_results=max_results))
             if not results:
                 return {"message": f"No results found for '{query}'"}
-            formatted = []
-            for r in results:
-                formatted.append(f"Title: {r.get('title')}\nURL: {r.get('href')}\nSnippet: {r.get('body')}")
+            formatted = [f"Title: {r.get('title')}\nURL: {r.get('href')}\nSnippet: {r.get('body')}" for r in results]
             return {"results": "\n\n".join(formatted)}
     except ImportError:
-        return {
-            "error": "Required package 'ddgs' is missing. Ask the user to install it via "
-            "the qpip plugin, or manually in the OSGeo4W Shell: python -m pip install ddgs"
-        }
+        # The optional `ddgs` package is absent (every clean QGIS profile): this used to be a dead end, and "find the information from the
+        # internet and give the source" stopped working (owner report 2026-10-14). Fall back to the package-free search, which returns the URL
+        # of every hit, so the answer can still cite its sources.
+        return _search_web_without_package(query, max_results)
     except Exception as e:
         return {"error": f"Search failed: {e}"}
+
+
+def _search_web_without_package(query, max_results):
+    from .web_research_tools import CITATION_RULE, fetch_web_results
+    results, notes = fetch_web_results(query, max_results)
+    if not results:
+        return {"error": "The web search could not be reached: " + "; ".join(notes) + ". Say the search returned nothing; do not answer from memory as if it had been searched."}
+    formatted = [f"Title: {r['title']}\nURL: {r['url']}\nSnippet: {r.get('snippet', '')}" for r in results]
+    return {"results": "\n\n".join(formatted), "citation_rule": CITATION_RULE}
 
 
 def resolve_gemini_search_config():
@@ -400,9 +423,9 @@ def resolve_gemini_search_config():
     except ImportError:
         return {"error": "QGIS not available"}
 
-    from ....infrastructure.settings_keys import SETTINGS_PROVIDER, SETTINGS_GEMINI_MODEL
+    from ....infrastructure.settings_keys import SETTINGS_PROVIDER, SETTINGS_GEMINI_MODEL, normalize_provider
     settings = QgsSettings()
-    provider = settings.value(SETTINGS_PROVIDER, "openrouter")
+    provider = normalize_provider(settings.value(SETTINGS_PROVIDER, "openrouter"))
     if provider != "gemini":
         return {"error": "gemini_grounded_search is only available when the active provider is Gemini. Use search_web instead."}
 
@@ -446,9 +469,9 @@ def resolve_openai_search_config():
     except ImportError:
         return {"error": "QGIS not available"}
 
-    from ....infrastructure.settings_keys import SETTINGS_PROVIDER
+    from ....infrastructure.settings_keys import SETTINGS_PROVIDER, normalize_provider
     settings = QgsSettings()
-    provider = settings.value(SETTINGS_PROVIDER, "openrouter")
+    provider = normalize_provider(settings.value(SETTINGS_PROVIDER, "openrouter"))
     if provider != "openai":
         return {"error": "openai_grounded_search is only available when the active provider is OpenAI. Use search_web instead."}
 
@@ -483,12 +506,27 @@ _GEOCODE_BATCH_DELAY_SECONDS = 1.0  # Nominatim's usage policy caps requests at 
 _GEOCODE_BATCH_MAX = 25
 
 
+def _nominatim_bbox(item):
+    """The place's own bounding box from a Nominatim hit, in the two orders the tools use, or {} when the hit has none.
+
+    Why: in the 1.18.4 smoke run (A5, A6, A13) the model had a point for "Aden" but no area, so it asked the user for a bounding box or went looking
+    for a boundary layer instead of searching; the STAC and footprint tools take a bbox. Nominatim sends boundingbox as [south, north, west, east]."""
+    raw = item.get("boundingbox")
+    try:
+        south, north, west, east = (float(v) for v in raw)
+    except (TypeError, ValueError):
+        return {}
+    return {"bbox_south_west_north_east": [south, west, north, east], "bbox_west_south_east_north": [west, south, east, north],
+            "bbox_note": "The place's own extent from OpenStreetMap, in degrees (EPSG:4326). Use the order the tool you call expects."}
+
+
 def _geocode_one(location_name: str):
     """Single-location Nominatim lookup, shared by geocode_and_enrich and
     geocode_batch. Cached -- repeated lookups of the same place name within a
     session (e.g. the model re-checking a coordinate it already resolved)
     cost zero extra network calls."""
     import urllib.request
+    from ...net import urlopen as _qgis_urlopen
     import json
     import urllib.parse
 
@@ -500,44 +538,69 @@ def _geocode_one(location_name: str):
     url = f"https://nominatim.openstreetmap.org/search?q={encoded}&format=json&limit=1"
 
     try:
-        req = urllib.request.Request(url, headers={'User-Agent': 'QGIS-AI-Assistant'})
-        with urllib.request.urlopen(req, timeout=15) as response:
-            data = json.loads(response.read().decode())
+        req = _net_build_request(url, headers={'User-Agent': 'QGIS-AI-Assistant'})
+        with _qgis_urlopen(req, timeout=15) as response:
+            data = json.loads(_read_capped(response).decode())
             if data:
                 result = {
                     "location": data[0]['display_name'],
                     "lat": float(data[0]['lat']),
                     "lon": float(data[0]['lon'])
                 }
+                result.update(_nominatim_bbox(data[0]))
                 _GEOCODE_CACHE.set(location_name, result)
                 return result
-            else:
-                return {"error": "Location not found."}
+            return {"error": "Location not found."}
     except Exception as e:
         return {"error": str(e)}
 
 
-@register_tool("geocode_and_enrich", "Geocode a SINGLE address/place name into lat/lon via Nominatim API. For multiple locations in one request, use geocode_batch instead -- one call per place will run out of tool-call steps before finishing a long list.", {"type": "object", "properties": {"location_name": {"type": "string"}}, "required": ["location_name"]})
-def geocode_and_enrich(location_name: str):
+@register_tool("geocode_and_enrich", "Geocode a SINGLE address/place name into lat/lon via Nominatim API; the result also carries the place's bounding box (bbox_south_west_north_east and bbox_west_south_east_north) for tools that take an area. For multiple locations in one request, use geocode_batch instead -- one call per place will run out of tool-call steps before finishing a long list.", {"type": "object", "properties": {"location_name": {"type": "string"}, "source_layer": {"type": "string", "description": "The layer the place text came from, if it came from a layer; leave out when the user typed it. A protected layer is refused: geocoding sends the text to a public server."}}, "required": ["location_name"]}, keywords=[
+    "concept:health_facility",
+    "geocode", "find the location of", "where is",
+])
+def geocode_and_enrich(location_name: str, source_layer: str = ""):
+    # tracker 1.26 (owner decision 2026-11-11): refuse text that comes from a protected layer, before anything leaves the machine
+    refused = _geocode_guard.check("geocode_and_enrich", [location_name], source_layer)
+    if refused:
+        return refused
     return _geocode_one(location_name)
 
 
 @register_tool(
     "geocode_batch",
     "Geocode MULTIPLE address/place names into lat/lon in a single call. Use this instead of "
-    "calling geocode_and_enrich in a loop whenever more than one location needs coordinates.",
-    {"type": "object", "properties": {"location_names": {"type": "array", "items": {"type": "string"}}}, "required": ["location_names"]},
+    "calling geocode_and_enrich in a loop whenever more than one location needs coordinates. The text is sent to a public server (OpenStreetMap Nominatim), so it is REFUSED when it comes "
+    "from a protected (RESTRICTED or SENSITIVE) layer: pass source_layer with the layer the names were read from.",
+    {"type": "object", "properties": {"location_names": {"type": "array", "items": {"type": "string"}},
+                                      "source_layer": {"type": "string", "description": "The layer the place text came from, if it came from a layer; leave out when the user typed it. A protected layer is refused."}},
+     "required": ["location_names"]},
+    keywords=[
+        "concept:health_facility",
+        "geocode", "list of locations", "multiple locations",
+    ],
 )
-def geocode_batch(location_names: list):
+def geocode_batch(location_names: list, source_layer: str = ""):
     import time
 
     if not location_names:
         return {"error": "location_names must be a non-empty list."}
     if len(location_names) > _GEOCODE_BATCH_MAX:
         return {"error": f"Too many locations in one batch (max {_GEOCODE_BATCH_MAX}); split into smaller batches."}
+    # tracker 1.26 (owner decision 2026-11-11): refuse text that comes from a protected layer, before anything leaves the machine
+    refused = _geocode_guard.check("geocode_batch", location_names, source_layer)
+    if refused:
+        return refused
 
-    results = []
+    # Processing-cost audit 2026-10-12: up to 25 lookups with a 1 s pause between network calls (~25 s) ran on the GUI thread because this
+    # tool was missing from NETWORK_ONLY_TOOLS (agent_orchestrator.py), so QGIS showed "Not Responding" for the whole batch. It touches no
+    # QGIS object (see _geocode_one), so it now runs on the calling worker thread, and Stop ends the batch between lookups.
+    from ... import cancel_signal
+    results: list[dict] = []
     for i, name in enumerate(location_names):
+        if cancel_signal.is_cancelled():
+            return {"success": False, "error": f"Stopped by the user after {len(results)} of {len(location_names)} locations.",
+                    "results": results}
         res = _geocode_one(name)
         results.append({"location_name": name, **res})
         # Only sleep between real network calls, not cache hits, and never after the last item.
@@ -609,13 +672,13 @@ def execute_pyqgis_script(script: str):
             }
         return add_sandbox_hint(run_isolated_script(script))
 
-    # No live QGIS in this process (unit-test / validator-only context, e.g. this
-    # repo's plain `test` CI job) -- the isolation boundary above needs a real
-    # QgsApplication/QgsProject to isolate, which doesn't exist here anyway. Exec
-    # in-process, same as before isolation existed: this still exercises
-    # _validate_script_safety and the _SAFE_BUILTINS defense-in-depth layer,
-    # which is what this repo's ~40 execute_pyqgis_script tests actually verify.
-    local_env = {}
+    # No live QGIS in this process, so the isolation boundary above has nothing to isolate. This path exists only so the unit tests can
+    # exercise _validate_script_safety and the _SAFE_BUILTINS layer without QGIS, and it fails CLOSED: it runs only when the caller has
+    # explicitly opted in (tests/__init__.py sets the variable). A broken QGIS import in a real install therefore refuses to run
+    # model-written code instead of running it unisolated (2026-10-11 audit; reviewers flagged the unconditional fallback).
+    if os.environ.get(UNISOLATED_SCRIPTS_ENV) != "1":
+        return {"error": "Script isolation is unavailable (QGIS could not be imported), so the script was not run."}
+    local_env: dict[str, Any] = {}
     local_env['__builtins__'] = _SAFE_BUILTINS
     # __name__ is a normal module global CPython's class-statement machinery
     # reads implicitly (for __qualname__/__module__), not a builtin -- without
@@ -623,7 +686,7 @@ def execute_pyqgis_script(script: str):
     local_env['__name__'] = 'execute_pyqgis_script'
 
     try:
-        exec(script, local_env)
+        exec(script, local_env)  # noqa: S102  # nosec B102 (in-process fallback used only when qgis is not importable, i.e. unit tests; inside QGIS the script runs in the isolated worker above; builtins are restricted here too)
         if 'run' not in local_env:
             return {"error": "Script must define a 'run()' function."}
 

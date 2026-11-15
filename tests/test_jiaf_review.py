@@ -1,6 +1,6 @@
-# -*- coding: utf-8 -*-
 """JIAF 2 stage 4: decision records, final figures, pattern outputs, offline. The project store and layer writes are covered by
 tests/test_jiaf_review_live.py; the real Yemen files only when JIAF_YEMEN_DIR is set."""
+from typing import ClassVar
 import csv
 import os
 import tempfile
@@ -30,10 +30,10 @@ def run(units, decisions=None, bulk=(), overrides=None, previous=None):
     return a, rows, summary
 
 
-FLAGGED = dict(pin={"wash": 300, "health": 100, "shelter": 90, "nutrition": 80}, sev={"wash": 3, "health": 3, "shelter": 3, "nutrition": 3})
+FLAGGED = {"pin": {"wash": 300, "health": 100, "shelter": 90, "nutrition": 80}, "sev": {"wash": 3, "health": 3, "shelter": 3, "nutrition": 3}}
 # Severity 3, not 2: the worksheet's Preliminary PiN is 0 for a unit whose severity is 2 or lower (jiaf_rules.preliminary_pin), so a calm severity-2 unit would
 # have no PiN to carry.
-CALM = dict(pin={"wash": 100, "health": 95, "shelter": 90, "nutrition": 85}, sev={"wash": 3, "health": 3, "shelter": 3, "nutrition": 3})
+CALM = {"pin": {"wash": 100, "health": 95, "shelter": 90, "nutrition": 85}, "sev": {"wash": 3, "health": 3, "shelter": 3, "nutrition": 3}}
 
 
 class TestDecisionValidation(unittest.TestCase):
@@ -114,7 +114,7 @@ class TestFinalize(unittest.TestCase):
         self.assertEqual(s["bulk_accepted_flags"], [1])
 
     def test_severity_decision_and_pending_and_no_national_severity(self):
-        flagged_sev = dict(pin=CALM["pin"], sev={"wash": 5, "health": 5, "shelter": 3, "nutrition": 3})  # severity flag 1: sectors_sev_5 (2) sectors in phase 5
+        flagged_sev = {"pin": CALM["pin"], "sev": {"wash": 5, "health": 5, "shelter": 3, "nutrition": 3}}  # severity flag 1: sectors_sev_5 (2) sectors in phase 5
         units = [unit("U1", **flagged_sev), unit("U2", **flagged_sev)]
         dec = {"pin": {}, "severity": {"U1": {"phase": 4, "evidence_basis": "outcome_indicators", "evidence": "CDR 1.2"}}}
         _a, rows, s = run(units, dec)
@@ -183,7 +183,7 @@ class TestCoverage(unittest.TestCase):
         self.assertEqual(row["preliminary_pin"], 100)
         self.assertTrue(row["pin_coverage"]["preliminary_pin_is_lower_bound"])
         self.assertEqual(res["totals"]["units_with_missing_pin_sector"], 1)
-        full = je.analyze([unit("U1", pin={s: 5 for s in je.MAIN_SECTORS})])["rows"][0]
+        full = je.analyze([unit("U1", pin=dict.fromkeys(je.MAIN_SECTORS, 5))])["rows"][0]
         self.assertFalse(full["pin_coverage"]["preliminary_pin_is_lower_bound"])
 
     def test_incomplete_coverage_needs_a_decision_and_is_kept_apart_from_the_other_fields(self):
@@ -240,7 +240,7 @@ class TestMissingVersusZero(unittest.TestCase):
         _row, f = self._flag1({"wash": 100})  # three of four sectors have no figure
         self.assertEqual(set(f["detail"]["missing_sectors"]), {"health", "shelter", "nutrition"})
         self.assertEqual(f["detail"]["zero_sectors"], [])
-        _row, f = self._flag1({s: 10 for s in ("wash", "health", "shelter", "nutrition")})
+        _row, f = self._flag1(dict.fromkeys(("wash", "health", "shelter", "nutrition"), 10))
         self.assertFalse(f["fired"])
         self.assertEqual(f["detail"], {"missing_sectors": [], "zero_sectors": []})
 
@@ -413,7 +413,7 @@ class TestPatterns(unittest.TestCase):
 
     def test_q6_to_q9_severity(self):
         sev = {"wash": 4, "health": 4, "shelter": 4, "nutrition": 5, "education": 4}
-        pin = {s: 450 for s in sev}
+        pin = dict.fromkeys(sev, 450)
         units = [unit("A", pin=pin, sev=sev, pop=1000), unit("B", pin={"wash": 1, "health": 1}, sev={"wash": 2, "health": 1}, pop=1000)]
         out = self._pat(units)
         self.assertEqual(out["q6_severity"]["units_with_many_sectors_in_phase_4_or_5"], [{"unit": "A", "sectors": 5}])
@@ -447,7 +447,7 @@ class TestPatterns(unittest.TestCase):
 
 
 class TestTools(unittest.TestCase):
-    GRID = [
+    GRID: ClassVar = [
         ["#adm2 +code", "#adm2 +name", "#inneed", "#severity", "#inneed +wsh", "#severity +wsh", "#inneed +shl", "#severity +shl",
          "#inneed +hea", "#severity +hea", "#inneed +nut", "#severity +nut"],
         ["YE1", "A", 300, 3, 100, 3, 300, 3, 200, 3, 50, 3],

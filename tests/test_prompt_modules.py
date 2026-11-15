@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Coverage for agent/prompts.py's rule modularization (2026-09-12) -- the 47-rule,
 ~7,830-token base prompt used to always be sent in full regardless of what the turn actually

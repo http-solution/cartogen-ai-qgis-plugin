@@ -3,7 +3,7 @@
 **Version:** 1.4.4 · **License:** GNU GPL v2 (see [LICENSE](../../LICENSE)) · **QGIS:** 3.0 – 4.99
 **Repository:** this file (`cartogen-ai`, public, Community edition) — consolidated single-tree
 successor to an earlier dual-tree setup (see `CHANGELOG.md`'s `[1.4.0]` entry)
-**Author / maintainer:** Alaa Alshoubaki ([alaa.alshoubaki@gmail.com](mailto:alaa.alshoubaki@gmail.com))
+**Author / maintainer:** Alaa Alshoubaki
 **Document last synced:** 2026-08-31, against v1.4.4 (see `CHANGELOG.md`'s `[1.4.2]`-`[1.4.4]` entries and `docs/USER_GUIDE.md` for the task-register-driven prompt-preview/slot-gate/output-contract pipeline this section below did not previously mention)
 
 This is a single, consolidated reference for the whole project — what it is, how it's built, what's
@@ -1154,8 +1154,8 @@ real bugs found and fixed; the full MultiTier namespace-package restructure comp
 
 ### 13.3 Support
 
-Internal/commercial use — for issues or questions, contact
-[alaa.alshoubaki@gmail.com](mailto:alaa.alshoubaki@gmail.com).
+Internal/commercial use — for issues or questions, contact the maintainer through the
+[GitHub issues](https://github.com/http-solution/cartogen-ai-qgis-plugin/issues).
 
 ---
 

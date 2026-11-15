@@ -1,13 +1,12 @@
+import contextlib
 import json
 from .base import (
     ModelChainMixin,
     BaseAiProvider, post_with_retry, get_with_retry, DEFAULT_MAX_TOKENS,
-    extract_openai_style_usage, format_http_error, format_request_exception, freshen_query,
+    extract_openai_style_usage, format_http_error, key_in_use_note, format_request_exception, freshen_query,
     HTTPError,
-    requests,  # noqa: F401 -- see gemini.py's identical import for why this stays:
-    # tests patch cartogen_ai.infrastructure.providers.openai.requests.get/.post.
 )
-from ...core.agent.model_selector import filter_chat_model_ids
+from ...core.model_selector import filter_chat_model_ids
 from ._search_cache import TTLCache
 
 _SEARCH_CACHE = TTLCache(ttl_seconds=1800)
@@ -128,10 +127,8 @@ class OpenAIClient(ModelChainMixin, BaseAiProvider):
 
     def _emit_status(self, text):
         if self._status_callback:
-            try:
+            with contextlib.suppress(Exception):
                 self._status_callback(text)
-            except Exception:
-                pass
 
     def _post(self, messages, tools, model_id, max_tokens=None):
         headers = {
@@ -165,7 +162,7 @@ class OpenAIClient(ModelChainMixin, BaseAiProvider):
                     out["usage"] = usage
                 return out
             except HTTPError as e:
-                return {"error": format_http_error("OpenAI API error", e)}
+                return {"error": format_http_error("OpenAI API error", e, key_note=key_in_use_note("openai", self.api_key))}
             except Exception as e:
                 return {"error": format_request_exception("OpenAI API request failed", e)}
 

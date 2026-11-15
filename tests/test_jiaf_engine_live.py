@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """JIAF 2 stage 3 on a real QGIS layer: writing the preliminary figures after confirmation. Written without a local QGIS: CI's first run is its first execution."""
 import csv
 import os
@@ -62,6 +61,13 @@ class TestJiafEngineLive(unittest.TestCase):
     def test_writing_needs_confirmation_then_writes_the_preliminary_figures(self):
         first = self._call(write_fields=True)
         self.assertEqual(first.get("status"), "PREVIEW_REQUIRED", first)
+        # 1.18.4 smoke E2: the preview carries the standing statement and the open validation blockers, like every JIAF result.
+        self.assertIn("not endorsed by OCHA", first["statement"])
+        self.assertTrue(first["validation_blockers"]["blockers"], first)
+        self.assertIn("coverage", first)
+        # DEF-35 (round-3 row D3): the card shows `rationale`, so the statement and the open items must be in it, not only in the payload.
+        self.assertIn("Standing statement:", first["rationale"])
+        self.assertIn("Validation items still open", first["rationale"])
         self.assertEqual(self.layer.fields().indexOf("jf_pre_pin"), -1)
         out = self._call(write_fields=True, confirmed=True)
         self.assertNotIn("write_warning", out, out)

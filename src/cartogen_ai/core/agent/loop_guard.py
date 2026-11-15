@@ -1,0 +1,194 @@
+"""Stops an agent turn that is stuck, before it spends the whole round budget doing nothing.
+
+Why (2026-10-09 cost investigation): a round cap alone lets a stuck turn burn every round. The three signs of a stuck turn are
+visible without any model call: the SAME tool called with the SAME arguments again, a tool that keeps FAILING, and several rounds
+in a row with no state-changing success (nothing created, changed, exported). This guard watches for those. It is pure (no Qt, no
+QGIS) so it cannot fail inside the loop and is fully unit-testable, and a stop always reports what was done and what was not: a
+guard stop is never presented as success.
+
+The thresholds are provisional guardrails, chosen to catch loops and not legitimate work: a read-only prelude of a few calls is
+normal, so only SIX progress-free rounds count as a stall, and a tool must fail three times IN A ROW (or eight times in a turn)."""
+import hashlib
+import json
+
+# Bookkeeping tools are expected to repeat with the same arguments and are not progress either.
+EXEMPT_FROM_DUPLICATES = frozenset({"update_task", "create_plan", "set_task_preview", "get_layers", "get_attributes"})
+STATE_CHANGING = frozenset({"CREATE", "MODIFY", "DELETE", "PUBLISH"})
+
+# What to say when a read-only listing tool repeats: its answer does not change, so asking again is the loop (1.18.0 prior run, #362 I6: the
+# elevation profile request called list_layout_items again and again and stopped without adding the profile). Pure text, no behaviour.
+DUPLICATE_HINTS = {
+    "list_layout_items": "its answer does not change between calls; the next step is the tool that adds what was asked for "
+                         "(add_layout_elevation_profile, add_layout_chart, add_layout_item)",
+    "list_layouts": "its answer does not change between calls; pick the layout from it and go on to the next step",
+}
+
+
+def duplicate_detail(name, count):
+    """The stop detail for `name` called `count` times with the same arguments, with the hint for a listing tool. Pure."""
+    detail = f"`{name}` was called {count} times with the same arguments"
+    hint = DUPLICATE_HINTS.get(name)
+    return f"{detail}; {hint}" if hint else detail
+
+
+def canonical_arguments(arguments):
+    """A stable text form of a call's arguments (a JSON string or a dict), so key order and whitespace never hide a duplicate."""
+    try:
+        data = json.loads(arguments) if isinstance(arguments, str) else arguments
+        return json.dumps(data, sort_keys=True, default=str, separators=(",", ":"))
+    except Exception:
+        return str(arguments)
+
+
+def call_key(name, arguments):
+    return name + ":" + hashlib.sha1(canonical_arguments(arguments).encode("utf-8", "replace"), usedforsecurity=False).hexdigest()[:12]
+
+
+class LoopGuard:
+    def __init__(self, max_identical_calls=3, max_consecutive_failures=3, max_failures=8, stall_rounds=6):
+        self.max_identical_calls = max_identical_calls
+        self.max_consecutive_failures = max_consecutive_failures
+        self.max_failures = max_failures
+        self.stall_rounds = stall_rounds
+        self._seen = {}
+        self._consecutive = {}
+        self._failures = 0
+        self._rounds_without_progress = 0
+        self._round_progress = False
+        self.done = []          # tool names that succeeded, in order
+        self.failed = []        # (tool name, short error)
+        self._wrapped_up = False
+        self.stop = None        # {"reason", "detail"} once triggered
+
+    def record_call(self, name, arguments, is_error, error_text="", operation_type=None):
+        """Record one finished tool call. Returns the stop dict if this call tripped a rule, else None."""
+        key = call_key(name, arguments)
+        if name not in EXEMPT_FROM_DUPLICATES:
+            self._seen[key] = self._seen.get(key, 0) + 1
+            if self._seen[key] >= self.max_identical_calls and self.stop is None:
+                self.stop = {"reason": "duplicate_call", "detail": duplicate_detail(name, self._seen[key])}
+        if is_error:
+            self._failures += 1
+            self._consecutive[name] = self._consecutive.get(name, 0) + 1
+            self.failed.append((name, (error_text or "")[:120]))
+            if self.stop is None and self._consecutive[name] >= self.max_consecutive_failures:
+                self.stop = {"reason": "repeated_failure", "detail": f"`{name}` failed {self._consecutive[name]} times in a row"}
+            elif self.stop is None and self._failures >= self.max_failures:
+                self.stop = {"reason": "repeated_failure", "detail": f"{self._failures} tool calls failed in this request"}
+        else:
+            self._consecutive[name] = 0
+            self.done.append(name)
+            if operation_type in STATE_CHANGING:
+                self._round_progress = True
+        return self.stop
+
+    def end_round(self):
+        """Call once per model round, after its tool calls. Returns the stop dict if the turn has stalled, else None."""
+        if self._round_progress:
+            self._rounds_without_progress = 0
+        else:
+            self._rounds_without_progress += 1
+        self._round_progress = False
+        if self.stop is None and self._rounds_without_progress >= self.stall_rounds:
+            self.stop = {"reason": "no_progress",
+                         "detail": f"{self._rounds_without_progress} rounds in a row changed nothing (no layer, field or file was created or modified)"}
+        return self.stop
+
+    def can_wrap_up(self):
+        """True when the stop is a no-progress stall that gathered results: the model was reading, not stuck, so it should be asked to
+        answer from them once instead of being cut off. Reported live 2026-10-11: 'check the internet for incidents' ran six
+        successful search_web rounds, never changes a layer, and was stopped as 'NOT complete' with nothing summarised."""
+        return bool(self.stop and self.stop["reason"] == "no_progress" and self.done and not self._wrapped_up)
+
+    def release_for_wrap_up(self):
+        """Clear a stall stop so the turn can run one tool-less answer round. A second stall is final."""
+        self._wrapped_up = True
+        self.stop = None
+        self._rounds_without_progress = 0
+
+    def partial_report(self, stop=None):
+        """Plain-language stop message that says what was done and what was not. Starts with '[Agent stopped]' so it cannot read as success."""
+        stop = stop or self.stop or {"reason": "stopped", "detail": "the request was stopped"}
+        done = list(dict.fromkeys(self.done))
+        lines = [f"[Agent stopped] {stop['detail'].capitalize()}, so I stopped before spending more of your API credit."]
+        lines.append("Done so far: " + (", ".join(f"`{n}`" for n in done[:12]) + (" ..." if len(done) > 12 else "") if done else "nothing completed."))
+        if self.failed:
+            recent = self.failed[-3:]
+            lines.append("Failed: " + "; ".join(f"`{n}`" + (f" ({e})" if e else "") for n, e in recent))
+        lines.append("The request is NOT complete. Tell me what to change, or reply 'continue' to try again from here.")
+        return "\n".join(lines)
+
+
+def budget_exceeded(turn_tokens, budget, next_call_estimate=None):
+    """True when the next request should not be sent: observed turn tokens plus the observed size of the last call would pass the
+    budget (the next call cannot cost less than the last one did, because the history only grows). budget 0/None means no limit.
+    With no measured call yet only the tokens already spent are compared."""
+    if not budget:
+        return False
+    return (turn_tokens + (next_call_estimate or 0)) > budget
+
+
+# DEF-21 (owner's Taiz run, 2026-11-01): the turn ended at the tool-call limit with a generic "[Agent stopped]" and the user got no account of
+# what existed on the map. The LAST round is now kept for a tool-less answer, and a data source that is down ends the turn the same way.
+LAST_ROUND_NUDGE = (
+    "This is the last step allowed for this request: no more tools can be called. Answer now from the results above. Say plainly what is "
+    "finished and what is not (layers created, values found, steps not reached), name any layer the user can already use, and say what to "
+    "ask for next. Do not claim anything the results do not show.")
+DATA_SOURCE_DOWN_NUDGE = (
+    "A data source the request needs is temporarily unavailable (the tool said so). Do not call any more tools and do not rebuild the data "
+    "another way. Answer now: say what is finished, what could not be done and why, and suggest trying again in a few minutes or loading "
+    "the user's own layer. Do not claim anything the results do not show.")
+
+
+def last_round_due(iteration_index, max_rounds):
+    """True on the final allowed round of a turn that has room for a real wrap-up (4 or more rounds). Pure."""
+    return bool(max_rounds and max_rounds >= 4 and iteration_index == max_rounds - 1)
+
+
+def data_source_down(tool_result):
+    """True when a tool result says its data source is temporarily unavailable (the `retryable_later` flag ingest_osm_features sets
+    after its retries and mirrors fail). Pure."""
+    return isinstance(tool_result, dict) and tool_result.get("retryable_later") is True
+
+
+def answer_round_due(iteration_index, max_rounds, data_source_is_down, already_sent=False):
+    """(nudge, log status) when the next model call should be a tool-less answer round, else None. A data source that is down comes
+    first (the tool already told the model to stop), then the last allowed round; never twice in one turn. Pure."""
+    if already_sent:
+        return None
+    if data_source_is_down:
+        return DATA_SOURCE_DOWN_NUDGE, "data_source_down_wrap_up"
+    if last_round_due(iteration_index, max_rounds):
+        return LAST_ROUND_NUDGE, "last_round_wrap_up"
+    return None
+
+
+WRAP_UP_NUDGE = (
+    "You have gathered what you can with the tools. Do not call any more tools. Answer the user's request now from the results above: "
+    "state what you found, name the sources (titles or URLs) you actually received, and say plainly what you could not find or "
+    "verify. Do not invent anything the results do not show.")
+
+
+# rc22 hand test J13 (#231): the model made 20 calls on file paths it had invented, then hit the tool limit. With the exact
+# paths given the same tools worked, so the failure was guessing, not the tools. Two "file not found" results in a row is the
+# earliest reliable sign; the corrective message is injected once per turn by the orchestrator.
+MISSING_FILE_THRESHOLD = 2
+_MISSING_FILE_WORDS = ("file not found", "no such file", "does not exist", "cannot find the file", "path not found")
+MISSING_FILE_NUDGE = (
+    "Your last {n} calls failed because the file path does not exist. Stop guessing paths. Use only a path the user gave "
+    "in this conversation or one a tool returned (for example a layer's source from get_layers, or an output path in an "
+    "earlier result). If you do not have the real path, ask the user for the file or folder in one short question instead "
+    "of trying more names.")
+
+
+def missing_file_nudge(turn_tool_log, threshold=MISSING_FILE_THRESHOLD):
+    """The corrective message when the last `threshold` tool calls all failed with a missing-file error, else None. Pure.
+
+    `turn_tool_log` is the orchestrator's list of (tool name, is_error, message)."""
+    recent = list(turn_tool_log or [])[-threshold:]
+    if len(recent) < threshold:
+        return None
+    for _name, is_error, message in recent:
+        if not is_error or not any(w in str(message or "").lower() for w in _MISSING_FILE_WORDS):
+            return None
+    return MISSING_FILE_NUDGE.format(n=threshold)

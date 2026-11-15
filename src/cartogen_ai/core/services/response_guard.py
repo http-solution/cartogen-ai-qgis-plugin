@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Code-level defences against the assistant presenting invented tool output.
 
@@ -275,6 +274,16 @@ _PLACE_STOPWORDS = frozenset({
 _TERRAIN = re.compile(
     r"\b(mountainous|rugged|hilly|steep|unpaved|paved|gravel|asphalt|desert|plateau|escarpment|rocky)\b", re.IGNORECASE)
 _TERRAIN_TOOL_HINTS = ("slope", "elevation", "hillshade", "terrain", "dem")
+# rc22 hand test J9 (#228): the reply invented a "District_4" next to the real District_1..3. Identifiers shaped like a name,
+# an underscore and a number are cheap to check exactly against the evidence.
+_CODE_NAME = re.compile(r"\b([A-Za-z][A-Za-z]{2,}_\d{1,4})\b")
+# rc22 hand test J15 / T4 (#228): a wrong preliminary figure and a wrong overall mean. Only a number attached to a summary
+# word is checked, because a loose "any number" check would flag every derived figure; derived sums and differences of two
+# evidence numbers still count as grounded (see _number_grounded).
+_SUMMARY_FIGURE = re.compile(
+    r"\b(?:total|sum|mean|average|median|overall|preliminary|provisional|maximum|minimum|max|min)\b[^.\n|]{0,40}?"
+    r"(?<![\w.])(\d[\d,]*(?:\.\d+)?)(?![\w.,]*\d)", re.IGNORECASE)
+_MIN_SUMMARY_FIGURE = 100    # below this a bare number is usually a count of things in the sentence ("total of 3 layers")
 _NUMBER_TOLERANCE = 0.01     # 1%: rounding ("29.8M" for 29,812,345) is not a fabrication
 _MAX_EVIDENCE_NUMBERS = 400
 _MAX_FLAGGED = 6
@@ -317,7 +326,8 @@ def _to_float(text):
 def ungrounded_claims(final_text, evidence):
     """Short descriptions of claims in `final_text` that nothing in `evidence` supports. Pure.
 
-    Three kinds: large or scaled numbers (a million or more, "29.8M") and file sizes ("240 MB") that match no number in the
+    Five kinds: identifiers like "District_4" absent from the evidence, and a figure named as a total / mean / preliminary
+    value (100 or more) that matches no evidence number; plus large or scaled numbers (a million or more, "29.8M") and file sizes ("240 MB") that match no number in the
     evidence (nor the sum/difference of two, within 1%); named administrative places ("Amran Governorate") whose name is not
     in the evidence; and terrain / road-surface descriptions ("rugged", "unpaved") when neither the evidence nor a terrain
     tool run mentions them. `evidence` is the plain text of the user's messages, the project summary and the tool results."""
@@ -356,6 +366,21 @@ def ungrounded_claims(final_text, evidence):
             continue
         if not any(re.search(r"\b" + re.escape(w.lower()) + r"\b", low_evidence) for w in re.split(r"[ -]", m.group(1))):
             add(m.group(0))
+    seen_codes = set()
+    for m in _CODE_NAME.finditer(text):
+        code = m.group(1)
+        if code.lower() in seen_codes:
+            continue
+        seen_codes.add(code.lower())
+        if not re.search(r"(?<![A-Za-z0-9_])" + re.escape(code.lower()) + r"(?![A-Za-z0-9_])", low_evidence):
+            add(code)
+    for m in _SUMMARY_FIGURE.finditer(text):
+        raw = m.group(1)
+        if any(s0 <= m.start(1) < e0 for s0, e0 in scaled_spans):
+            continue
+        value = _to_float(raw.rstrip(",."))
+        if value >= _MIN_SUMMARY_FIGURE and not _number_grounded([value], numbers):
+            add(raw.rstrip(",."))
     terrain_tool_ran = any(h in low_evidence for h in _TERRAIN_TOOL_HINTS)
     for m in _TERRAIN.finditer(text):
         word = m.group(1).lower()
@@ -376,5 +401,68 @@ def apply_ungrounded_claims_note(final_text, evidence, data_tool_ran=True):
     if not claims:
         return final_text
     listed = "; ".join(claims)
-    return (f"{str(final_text).rstrip()}\n\nℹ️ **{_UNGROUNDED_MARKER} in this conversation:** {listed}. "
+    return (f"{str(final_text).rstrip()}\n\n\u2139\ufe0f **{_UNGROUNDED_MARKER} in this conversation:** {listed}. "
             "These come from the model's general knowledge, not from your data or a tool run here; verify them before relying on them.")
+
+
+# rc22 hand test T3 (#228): the reply said class colours had been applied while the layer stayed single-symbol. A claim that
+# a style was applied needs a style-type tool that succeeded in the same turn (or style words in a tool result, for tools
+# that style their own output). Narrow on purpose: it fires only on explicit "applied / coloured by class" wording.
+_STYLE_CLAIM = re.compile(
+    r"\b(?:i(?:'ve| have)?\s+)?(?:applied|set|changed|updated|styled|coloured|colored|symbolised|symbolized)\b[^.\n]{0,60}?"
+    r"\b(?:graduated|categori[sz]ed|class(?:es)?\s+colou?rs?|colou?r\s+ramp|gradient|by\s+class|per\s+class|"
+    r"red\s+to\s+\w+|\w+\s+to\s+(?:dark\s+)?red)\b", re.IGNORECASE)
+_STYLE_TOOL_HINTS = ("style", "symbol", "colour", "color", "renderer", "palette", "heatmap", "categoriz", "graduat", "look",
+                     "legend", "layout")
+_STYLE_RESULT_HINTS = ("renderer", "symbology", "styled", "style applied", "colour ramp", "color ramp", "classes")
+_STYLE_MARKER = "Style not confirmed"
+
+
+def unconfirmed_style_claim(final_text, turn_tool_log, evidence=""):
+    """True when `final_text` says a style / class colours were applied but no style-type call succeeded this turn. Pure.
+
+    `turn_tool_log` is the orchestrator's list of (tool name, is_error, message). Tools that style their own output
+    (service areas, humanitarian looks) are covered by the evidence check: their results mention the renderer or classes."""
+    if not final_text or _STYLE_MARKER in str(final_text) or not _STYLE_CLAIM.search(str(final_text)):
+        return False
+    for name, is_error, _msg in turn_tool_log or []:
+        if not is_error and any(h in str(name).lower() for h in _STYLE_TOOL_HINTS):
+            return False
+    low = (evidence or "").lower()
+    return not any(h in low for h in _STYLE_RESULT_HINTS)
+
+
+def apply_unconfirmed_style_note(final_text, turn_tool_log, evidence=""):
+    """`final_text` with a footnote when it claims an applied style that no successful tool call backs, or unchanged."""
+    if not unconfirmed_style_claim(final_text, turn_tool_log, evidence):
+        return final_text
+    return (f"{str(final_text).rstrip()}\n\n\u2139\ufe0f **{_STYLE_MARKER}:** no styling tool finished successfully in this turn, so the "
+            "colours or classes described above may not be on the layer. Check the map and ask again if it still looks unstyled.")
+
+
+def failed_checks(calls):
+    """[(tool, detail)] for every check that FAILED in this turn's tool results (PLAN-031). `calls` is the turn's (name, args, result) list; a
+    result carries `checks` only when the result gate ran on it. Pure; tolerates None and results that are not dicts."""
+    found = []
+    for call in calls or []:
+        name, result = call[0], call[2] if len(call) > 2 else None
+        checks = (result.get("checks") if isinstance(result, dict) else None) or []
+        found.extend((name, str(check["detail"])) for check in checks
+                     if isinstance(check, dict) and check.get("status") == "fail" and check.get("detail"))
+    return found
+
+
+def apply_failed_checks_note(final_text, failed):
+    """`final_text` with a visible warning for each failed result check the reply does not already repeat, or unchanged. A reply "repeats" a
+    failure when it contains the first 40 characters of the check's detail (the model quoting it) or says the check failed in its own words
+    ("check failed", "failed check"). Without this a model can accept a result the gate flagged and report it as correct."""
+    if not failed:
+        return final_text
+    lower = (final_text or "").lower()
+    if "check failed" in lower or "failed check" in lower or "checks failed" in lower:
+        return final_text
+    missing = [(tool, detail) for tool, detail in failed if detail[:40].lower() not in lower]
+    if not missing:
+        return final_text
+    lines = [f"- {tool}: {detail}" for tool, detail in missing[:5]]
+    return (final_text or "") + "\n\n\u26a0\ufe0f A result check failed in this request, and the answer above does not say so:\n" + "\n".join(lines)

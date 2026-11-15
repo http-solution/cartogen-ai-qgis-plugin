@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Layer Metadata and Lineage Tracking Engine for Cartogen AI.
 Tags modified or generated layers with tool lineage, parameters, source layers, and execution timestamps.
@@ -14,6 +13,7 @@ except ImportError:
     QGIS_AVAILABLE = False
 
 from ...infrastructure.settings_keys import PROJECT_PROPERTY_LINEAGE
+from ..logger import log_event
 
 LINEAGE_PROPERTY_KEY = PROJECT_PROPERTY_LINEAGE
 
@@ -72,8 +72,8 @@ def effective_source_names(entry, layers):
     return names
 
 
-def tag_layer_lineage(layer, tool_name: str, params: dict, source_layers: list = None, source_ids: list = None) -> bool:
-    """Attaches tool execution lineage metadata to a layer's custom properties."""
+def tag_layer_lineage(layer, tool_name: str, params: dict, source_layers: list | None = None, source_ids: list | None = None, extra: dict | None = None) -> bool:
+    """Attaches tool execution lineage metadata to a layer's custom properties. `extra` adds fields to the entry (PLAN-048: the workflow file a run came from)."""
     if not QGIS_AVAILABLE or layer is None:
         return False
 
@@ -93,12 +93,14 @@ def tag_layer_lineage(layer, tool_name: str, params: dict, source_layers: list =
             "source_ids": source_ids or [],
             "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
         }
+        if extra:
+            entry.update({k: v for k, v in extra.items() if k not in entry})
 
         history.append(entry)
         layer.setCustomProperty(LINEAGE_PROPERTY_KEY, json.dumps(history))
         return True
     except Exception as e:
-        print(f"[LineageEngine] Failed to tag layer lineage: {e}")
+        log_event("failed_to_tag_layer_lineage", tag="LineageEngine", error_class=type(e).__name__, error=True)
         return False
 
 
@@ -112,5 +114,5 @@ def get_layer_lineage(layer) -> list:
         if isinstance(raw, str) and raw.strip():
             return json.loads(raw)
     except Exception as e:
-        print(f"[LineageEngine] Failed to read layer lineage: {e}")
+        log_event("failed_to_read_layer_lineage", tag="LineageEngine", error_class=type(e).__name__, error=True)
     return []

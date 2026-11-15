@@ -1,0 +1,101 @@
+# Builds the documentation from the repository, checks every internal link, and publishes it to the GitHub WIKI.
+#   * Pull requests that touch the docs or the site: build both outputs with link validation, so a broken page cannot merge. No write access.
+#   * Pushes to main (and manual runs): the same check, then the wiki is rebuilt and pushed to <repo>.wiki.git, replacing its pages.
+# GitHub Pages is no longer deployed (owner decision, 2026-10-25: the wiki replaces it). The HTML build stays only as a link check.
+# One-time owner steps a workflow cannot do: save one first page in the wiki (Wiki tab > Create the first page) because GitHub creates the
+# wiki's git repository only then, and Settings > Pages > Unpublish site to take the old site down. Until the first page exists the sync job
+# ends with a visible warning instead of failing the run.
+name: docs-site
+
+on:
+  pull_request:
+    paths:
+      - "site/**"
+      - "docs/**"
+      - "*.md"
+      - "metadata.txt"
+      - "branding/**"
+      - "src/cartogen_ai/core/agent/task_register.json"
+      - "src/cartogen_ai/core/release_notes.py"
+      - ".github/workflows/docs-site.yml"
+  push:
+    branches: [main]
+    paths:
+      - "site/**"
+      - "docs/**"
+      - "*.md"
+      - "metadata.txt"
+      - "branding/**"
+      - "src/cartogen_ai/core/agent/task_register.json"
+      - "src/cartogen_ai/core/release_notes.py"
+      - ".github/workflows/docs-site.yml"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docs-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install the one build dependency
+        run: python -m pip install markdown==3.7
+
+      - name: Build the HTML site and validate every internal link and anchor (check only, not deployed)
+        run: python site/build.py --check --out _site
+
+      - name: Build the wiki pages and validate every link between them
+        run: python site/build_wiki.py --check --out _wiki
+
+  wiki:
+    if: github.event_name != 'pull_request'
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - run: python -m pip install markdown==3.7
+
+      - name: Build the wiki pages
+        run: python site/build_wiki.py --check --out _wiki
+
+      - name: Push the pages to the wiki
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+        run: |
+          set -e
+          auth="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)"
+          echo "::add-mask::$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)"
+          if ! git -c http.extraheader="$auth" clone --quiet "https://github.com/${REPO}.wiki.git" wiki 2>/tmp/wiki-clone.log; then
+            echo "::warning::The wiki repository could not be cloned, so nothing was published. GitHub creates it only when the first wiki page is saved in the browser: open the repository's Wiki tab, choose Create the first page, save it, then re-run this workflow."
+            exit 0
+          fi
+          find wiki -mindepth 1 -maxdepth 1 -not -name .git -exec rm -rf {} +
+          cp _wiki/*.md wiki/
+          cd wiki
+          git add -A
+          if git diff --cached --quiet; then
+            echo "The wiki is already up to date."
+            exit 0
+          fi
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" commit --quiet -m "Sync documentation from ${SHA}"
+          git -c http.extraheader="$auth" push --quiet origin HEAD
+          echo "Wiki updated from ${SHA}."

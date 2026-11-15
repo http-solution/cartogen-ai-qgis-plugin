@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Multi-criteria ranking of areas, with a check that the ranking is not just an artefact of the weights (H5,
 docs/HUMANITARIAN_WORKFLOW_GAP_ANALYSIS_2026-10-04.md).
@@ -19,6 +18,7 @@ import numbers
 import random
 from decimal import Decimal
 
+from ... import _chunked as _ck
 from .registry import register_tool
 from ._edit_session import EditError, add_numeric_field, edit_command, set_value
 from .humanitarian_style import look_hint
@@ -94,7 +94,7 @@ def normalise_weights(weights):
 def weighted_scores(columns, weights):
     """Per-unit weighted sum of already-scaled columns (list of lists, one per criterion). Pure."""
     n = len(columns[0])
-    return [sum(col[i] * w for col, w in zip(columns, weights)) for i in range(n)]
+    return [sum(col[i] * w for col, w in zip(columns, weights, strict=False)) for i in range(n)]
 
 
 def rank(scores):
@@ -110,7 +110,7 @@ def stability(columns, weights, trials=DEFAULT_TRIALS, perturbation=0.2, seed=0,
     """Re-rank `trials` times with each weight multiplied by a random factor in [1-perturbation, 1+perturbation] (then renormalised)
     and report per unit {rank_min, rank_max, top_k_share}. Reproducible for a seed. Pure."""
     n = len(columns[0])
-    rng = random.Random(seed)
+    rng = random.Random(seed)  # noqa: S311  # nosec B311 (seeded sampling for reproducibility, not security)
     best, worst, in_top = [n + 1] * n, [0] * n, [0] * n
     for _ in range(trials):
         w = normalise_weights([base * (1.0 + rng.uniform(-perturbation, perturbation)) for base in weights])
@@ -148,12 +148,12 @@ def evaluate(rows, criteria, trials=DEFAULT_TRIALS, perturbation=0.2, seed=0, to
     ranks = rank(scores)
     spread = stability(columns, weights, trials, perturbation, seed, top_k)
     results = []
-    for (row, _vals), score, r, sp in zip(complete, scores, ranks, spread):
+    for (row, _vals), score, r, sp in zip(complete, scores, ranks, spread, strict=False):
         results.append({"id": row.get("id"), "unit": row.get("label"), "score": round(score, 4), "rank": r,
                         "rank_min": sp["rank_min"], "rank_max": sp["rank_max"], "top_k_share": sp["top_k_share"]})
     results.sort(key=lambda x: (x["rank"], str(x["unit"])))
     return {"results": results, "excluded": excluded, "no_variation": no_variation,
-            "weights": {f: round(w, 4) for f, w in zip(fields, weights)}}
+            "weights": {f: round(w, 4) for f, w in zip(fields, weights, strict=False)}}
 
 
 # ---------------------------------------------------------------- QGIS --
@@ -193,6 +193,11 @@ def _layer(name):
         },
         "required": ["layer_name", "criteria"],
     },
+    # Multi-criteria ranking and survey aggregation (see tools/mcda_tools.py, tools/survey_tools.py). No bare "rank", "weights" or "survey".
+    keywords=[
+        "multi-criteria", "multicriteria", "mcda", "weighted ranking", "rank the districts", "rank districts",
+        "prioritise areas", "prioritize areas", "prioritisation", "prioritization", "weight sensitivity", "rank stability",
+    ],
 )
 def calculate_mcda_ranking(layer_name, criteria, unit_name_field=None, top_k=None, perturbation=0.2, trials=DEFAULT_TRIALS,
                            seed=None, output_prefix=None, confirmed: bool = False):
@@ -238,7 +243,7 @@ def calculate_mcda_ranking(layer_name, criteria, unit_name_field=None, top_k=Non
         seed = random.SystemRandom().randrange(2 ** 31)
     seed = int(seed)
     rows = []
-    for feat in layer.getFeatures():
+    for feat in _ck.features(layer, "Mcda: reading features"):
         row = {"id": feat.id(), "label": str(feat[unit_name_field]) if unit_name_field else str(feat.id())}
         for c in criteria:
             row[c["field"]] = feat[c["field"]]

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """The closure rule (audit F19, #155), offline. The network copy needs QGIS: tests/test_network_closure_live.py."""
 import unittest
 

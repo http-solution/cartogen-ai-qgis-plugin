@@ -1,16 +1,27 @@
-# -*- coding: utf-8 -*-
 """Data shared across dock_widget.py, chat_tab_widget.py, and help_tab_widget.py.
 Pulled out (rather than one of those modules importing from another) so none of
 the three tab modules has to import from dock_widget.py itself -- dock_widget.py
 imports all three, so any of them importing back from it would be circular."""
 
-PROVIDER_CHOICES = [
+from ...infrastructure.settings_keys import ENABLED_PROVIDERS
+
+_ALL_PROVIDER_CHOICES = [
     ("OpenRouter (Hosted)", "openrouter"),
     ("Google Gemini (Hosted)", "gemini"),
     ("Ollama (Local)", "ollama"),
     ("OpenAI (Hosted)", "openai"),
     ("Claude / Anthropic (Hosted)", "claude"),
 ]
+# Quick switcher lists only the providers this build enables (settings_keys.ENABLED_PROVIDERS).
+PROVIDER_CHOICES = [c for c in _ALL_PROVIDER_CHOICES if c[1] in ENABLED_PROVIDERS]
+
+# Experimental CLI providers (PLAN-038) are not in the quick switcher's fixed list; the dock adds the one in use so the switcher shows
+# what is actually active (settings_keys.CLI_PROVIDERS, off unless the user opted in).
+CLI_PROVIDER_LABELS = {
+    "claude_cli": "Claude Code CLI (experimental)",
+    "codex_cli": "Codex CLI (experimental)",
+    "agy_cli": "Antigravity CLI (experimental)",
+}
 
 # Module-level (not a local in some widget's init_ui) so the Help tab can list the same
 # example prompts as the Chat tab's quick suggestion chips without a second, driftable

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 import unittest
 from unittest.mock import patch, MagicMock
 from cartogen_ai.core.ui.canvas_highlight import _discard_highlight, find_mentioned_layers, zoom_to_layers

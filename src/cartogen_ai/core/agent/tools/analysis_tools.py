@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Data Analysis & Prediction Tools for Cartogen AI.
 
@@ -7,12 +6,16 @@ distribution-analysis approach already used in styling_tools.py's
 apply_graduated_style (mean/variance/skewness computed by hand there too).
 """
 
+import contextlib
 import datetime
 import os
+from ... import _chunked as _ck
 from .registry import register_tool
 from .humanitarian_style import look_hint
 from .raster_tools import estimate_population_exposure
 from .multimodal_remote_sensing import calculate_raster_change_detection
+from ...logger import log_event
+import itertools
 
 try:
     from qgis.core import QgsProject
@@ -37,7 +40,7 @@ def _unit_labels(layer, unit_name_field):
     'name [#<fid>]', an empty one 'feature <fid>' -- the same rule estimate_population_exposure uses."""
     from .raster_tools import unique_zone_keys
     pairs = []
-    for feat in layer.getFeatures():
+    for feat in _ck.features(layer, "Analysis: reading features"):
         value = feat[unit_name_field]
         label = None if value is None else str(value).strip()
         pairs.append((feat.id(), label or None))
@@ -87,17 +90,13 @@ def _parse_date(value):
     if isinstance(value, datetime.date):
         return value
     if hasattr(value, "toPyDate"):
-        try:
+        with contextlib.suppress(Exception):
             return value.toPyDate()
-        except Exception:
-            pass
     s = str(value).strip()
     if not s:
         return None
-    try:
+    with contextlib.suppress(ValueError):
         return datetime.date.fromisoformat(s[:10])
-    except ValueError:
-        pass
     for fmt in ("%Y/%m/%d", "%d-%m-%Y", "%m/%d/%Y", "%d/%m/%Y"):
         try:
             return datetime.datetime.strptime(s, fmt).date()
@@ -115,14 +114,14 @@ def _linear_regression(x_values, y_values):
     ss_xx = sum((x - mean_x) ** 2 for x in x_values)
     if ss_xx == 0:
         return {"slope": 0.0, "intercept": mean_y, "r_squared": 0.0}
-    ss_xy = sum((x - mean_x) * (y - mean_y) for x, y in zip(x_values, y_values))
+    ss_xy = sum((x - mean_x) * (y - mean_y) for x, y in zip(x_values, y_values, strict=False))
     slope = ss_xy / ss_xx
     intercept = mean_y - slope * mean_x
     ss_tot = sum((y - mean_y) ** 2 for y in y_values)
     if ss_tot == 0:
         r_squared = 1.0 if slope == 0 else 0.0
     else:
-        ss_res = sum((y - (slope * x + intercept)) ** 2 for x, y in zip(x_values, y_values))
+        ss_res = sum((y - (slope * x + intercept)) ** 2 for x, y in zip(x_values, y_values, strict=False))
         r_squared = 1 - ss_res / ss_tot
     return {"slope": slope, "intercept": intercept, "r_squared": r_squared}
 
@@ -135,7 +134,7 @@ def _forecast_series(dates, values, periods_ahead):
     if len(dates) < 3:
         return {"error": f"Need at least 3 data points to fit a trend, got {len(dates)}."}
 
-    pairs = sorted(zip(dates, values), key=lambda p: p[0])
+    pairs = sorted(zip(dates, values, strict=False), key=lambda p: p[0])
     dates_sorted = [p[0] for p in pairs]
     values_sorted = [p[1] for p in pairs]
 
@@ -146,7 +145,7 @@ def _forecast_series(dates, values, periods_ahead):
 
     # Project at the data's own observation cadence (median gap between
     # consecutive points), not an arbitrary fixed interval.
-    gaps = sorted(b - a for a, b in zip(x_values, x_values[1:])) or [1]
+    gaps = sorted(b - a for a, b in itertools.pairwise(x_values)) or [1]
     cadence_days = gaps[len(gaps) // 2] or 1
 
     last_x = x_values[-1]
@@ -290,7 +289,7 @@ def _compute_severity_index(rows, indicators, weights=None, invert_indicators=No
 
     scored = []
     for i, row in enumerate(complete):
-        score = sum(normalized_columns[f][i] * w for f, w in zip(indicators, norm_weights))
+        score = sum(normalized_columns[f][i] * w for f, w in zip(indicators, norm_weights, strict=False))
         scored.append({
             "unit": row.get("unit"),
             "severity_score": round(score, 4),
@@ -304,7 +303,7 @@ def _compute_severity_index(rows, indicators, weights=None, invert_indicators=No
         "method": "min-max normalization to 0-1, weighted sum, equal-interval 1-5 severity class",
         "methodological_authority_level": "TECHNICALLY VERIFIED — EXPLORATORY METHODOLOGY",
         "indicators": list(indicators),
-        "applied_weights": {f: round(w, 4) for f, w in zip(indicators, norm_weights)},
+        "applied_weights": {f: round(w, 4) for f, w in zip(indicators, norm_weights, strict=False)},
         "inverted_indicators": sorted(invert_set),
         "scored_units": len(scored),
         "results": scored,
@@ -341,6 +340,9 @@ def _compute_severity_index(rows, indicators, weights=None, invert_indicators=No
         },
         "required": ["layer_name", "indicator_fields", "unit_name_field"],
     },
+    keywords=[
+        "worst", "priority", "rank the districts", "how bad", "most affected", "needs index", "prioritize",
+    ],
 )
 def calculate_severity_index(layer_name, indicator_fields, unit_name_field, weights=None, invert_indicators=None, output_field=None, confirmed: bool = False):
     if not QGIS_AVAILABLE:
@@ -350,7 +352,7 @@ def calculate_severity_index(layer_name, indicator_fields, unit_name_field, weig
         return {"error": f"Layer '{layer_name}' not found"}
 
     field_names = [f.name() for f in layer.fields()]
-    missing = [f for f in list(indicator_fields) + [unit_name_field] if f not in field_names]
+    missing = [f for f in [*list(indicator_fields), unit_name_field] if f not in field_names]
     if missing:
         return {"error": f"Field(s) {missing} not found on '{layer_name}'. Available: {field_names}"}
 
@@ -373,14 +375,14 @@ def calculate_severity_index(layer_name, indicator_fields, unit_name_field, weig
                 "invert_indicators": invert_indicators, "output_field": output_field,
                 "confirmed": True,
             },
-            "code_snippet": f"layer.startEditing()\n# Add/update field '{output_field}' = composite severity score across features\nlayer.commitChanges()",
+            "code_snippet": f"layer = '{layer_name}'\nlayer.startEditing()\nlayer.changeAttributeValue(fid, field_index('{output_field}'), value)  # every feature: composite severity score; an existing field of that name is overwritten\nlayer.commitChanges()",
             "rationale": f"Data Mutation Preview: Add/update field '{output_field}' on layer '{layer_name}' with each unit's composite severity score.",
             "message": f"Confirmation required before mutating attribute field '{output_field}' on '{layer_name}'.",
         }
 
     labels, labels_changed = _unit_labels(layer, unit_name_field)
     rows = []
-    for feat in layer.getFeatures():
+    for feat in _ck.features(layer, "Analysis: reading features"):
         row = {"unit": labels[feat.id()], "__fid__": feat.id()}
         for f in indicator_fields:
             row[f] = feat[f]
@@ -412,57 +414,46 @@ def calculate_severity_index(layer_name, indicator_fields, unit_name_field, weig
     return result
 
 
-def _write_scores_to_layer(layer, rows, scored_results, output_field):
-    """Adds/updates a numeric field holding each unit's composite score, so it
-    can be styled with apply_graduated_style straight after. Returns an error
-    string on failure, or None on success -- a write failure downgrades to a
-    warning on an otherwise-valid result rather than discarding the scores."""
+def _write_unit_values(layer, rows, values_by_unit, output_field, what, text=False):
+    """Writes one value per unit into `output_field` through the layer's edit buffer (audit #143/#144, follow-up #293). The four
+    writers below used to add the field and the values straight to the data provider, which bypasses the edit buffer: a failure
+    half-way could not be undone, a layer the user was already editing was ignored, and nothing was checked until the end.
+    `edit_command` owns the commit only when the layer was not already editable, undoes exactly this write on failure, and a
+    rejected commit raises with the provider's text. Units are matched by feature id (rows carry __fid__; their labels are already
+    made unique by _unit_labels), so units that share a name cannot overwrite each other. Returns an error string, or None."""
     try:
-        from qgis.core import QgsField
-        from qgis.PyQt.QtCore import QVariant
+        from qgis.core import QgsField  # noqa: F401  (availability probe: no QGIS means no layer to write to)
     except ImportError:
-        return "QGIS field API unavailable -- scores not written to the layer."
+        return f"QGIS field API unavailable -- {what} not written to the layer."
+    from ._edit_session import EditError, add_numeric_field, add_text_field, edit_command, set_value
 
-    score_by_unit = {r["unit"]: r["severity_score"] for r in scored_results}
     fid_by_unit = {r["unit"]: r["__fid__"] for r in rows if "__fid__" in r}
-
-    provider = layer.dataProvider()
-    if output_field not in [f.name() for f in layer.fields()]:
-        if not provider.addAttributes([QgsField(output_field, QVariant.Double)]):
-            return f"Could not add field '{output_field}' to the layer."
-        layer.updateFields()
-
-    idx = layer.fields().indexOf(output_field)
-    if idx < 0:
-        return f"Field '{output_field}' not present after creation attempt."
-
-    updates = {
-        fid_by_unit[unit]: {idx: score}
-        for unit, score in score_by_unit.items()
-        if unit in fid_by_unit
-    }
-    if not provider.changeAttributeValues(updates):
-        return f"Could not write scores into '{output_field}'."
+    try:
+        with edit_command(layer, f"Cartogen: write {output_field}"):
+            idx = add_text_field(layer, output_field) if text else add_numeric_field(layer, output_field)
+            for unit, value in values_by_unit.items():
+                if unit in fid_by_unit:
+                    set_value(layer, fid_by_unit[unit], idx, value)
+    except EditError as e:
+        return f"Could not write {what} into '{output_field}': {e}"
     layer.updateFields()
+    # The edit buffer repaints on commit, but a layer left in the user's own edit session does not commit, so ask explicitly.
+    layer.triggerRepaint()
     return None
 
 
-def _write_presence_gap_status_to_layer(layer, rows, gap_units, covered_units, unmatched_units, output_field):
-    """Adds/updates a text field holding each high-severity unit's presence-gap
-    status ('gap'/'covered'/'unmatched'), so it can be styled with
-    apply_categorized_style or placed on generate_html_dashboard straight
-    after -- mirrors _write_scores_to_layer's pattern for
-    calculate_severity_index above. Units outside the high-severity classes
-    (never classified by this analysis at all) are left unset, not given a
-    fabricated 'fine' status. Returns an error string on failure, or None on
-    success -- a write failure downgrades to a warning on an otherwise-valid
-    result rather than discarding the classification."""
-    try:
-        from qgis.core import QgsField
-        from qgis.PyQt.QtCore import QVariant
-    except ImportError:
-        return "QGIS field API unavailable -- presence-gap status not written to the layer."
+def _write_scores_to_layer(layer, rows, scored_results, output_field):
+    """Adds/updates a numeric field holding each unit's composite score, so it can be styled with apply_graduated_style straight
+    after. Returns an error string on failure, or None on success -- a write failure downgrades to a warning on an otherwise-valid
+    result rather than discarding the scores."""
+    return _write_unit_values(layer, rows, {r["unit"]: r["severity_score"] for r in scored_results}, output_field, "scores")
 
+
+def _write_presence_gap_status_to_layer(layer, rows, gap_units, covered_units, unmatched_units, output_field):
+    """Adds/updates a text field holding each high-severity unit's presence-gap status ('gap'/'covered'/'unmatched'), so it can be
+    styled with apply_categorized_style or placed on generate_html_dashboard straight after. Units outside the high-severity classes
+    (never classified by this analysis at all) are left unset, not given a fabricated 'fine' status. Returns an error string on
+    failure, or None on success -- a write failure downgrades to a warning on an otherwise-valid result."""
     status_by_unit = {}
     for e in gap_units:
         status_by_unit[e["unit"]] = "gap"
@@ -470,28 +461,7 @@ def _write_presence_gap_status_to_layer(layer, rows, gap_units, covered_units, u
         status_by_unit[e["unit"]] = "covered"
     for e in unmatched_units:
         status_by_unit[e["unit"]] = "unmatched"
-
-    fid_by_unit = {r["unit"]: r["__fid__"] for r in rows if "__fid__" in r}
-
-    provider = layer.dataProvider()
-    if output_field not in [f.name() for f in layer.fields()]:
-        if not provider.addAttributes([QgsField(output_field, QVariant.String)]):
-            return f"Could not add field '{output_field}' to the layer."
-        layer.updateFields()
-
-    idx = layer.fields().indexOf(output_field)
-    if idx < 0:
-        return f"Field '{output_field}' not present after creation attempt."
-
-    updates = {
-        fid_by_unit[unit]: {idx: status}
-        for unit, status in status_by_unit.items()
-        if unit in fid_by_unit
-    }
-    if not provider.changeAttributeValues(updates):
-        return f"Could not write presence-gap status into '{output_field}'."
-    layer.updateFields()
-    return None
+    return _write_unit_values(layer, rows, status_by_unit, output_field, "presence-gap status", text=True)
 
 
 @register_tool(
@@ -530,6 +500,9 @@ def _write_presence_gap_status_to_layer(layer, rows, gap_units, covered_units, u
         },
         "required": ["layer_name", "indicator_fields", "unit_name_field", "presence_file_path", "presence_admin_field", "presence_org_field"],
     },
+    keywords=[
+        "underserved", "understaffed", "under-resourced", "who's helping", "who is helping", "operational gap", "coverage gap",
+    ],
 )
 def calculate_presence_gap(layer_name, indicator_fields, unit_name_field, presence_file_path, presence_admin_field, presence_org_field,
                             weights=None, invert_indicators=None, high_severity_classes=None, low_presence_threshold=1,
@@ -541,7 +514,7 @@ def calculate_presence_gap(layer_name, indicator_fields, unit_name_field, presen
         return {"error": f"Layer '{layer_name}' not found"}
 
     field_names = [f.name() for f in layer.fields()]
-    missing = [f for f in list(indicator_fields) + [unit_name_field] if f not in field_names]
+    missing = [f for f in [*list(indicator_fields), unit_name_field] if f not in field_names]
     if missing:
         return {"error": f"Field(s) {missing} not found on '{layer_name}'. Available: {field_names}"}
 
@@ -562,13 +535,13 @@ def calculate_presence_gap(layer_name, indicator_fields, unit_name_field, presen
                 "sheet_name": sheet_name, "delimiter": delimiter, "output_field": output_field,
                 "confirmed": True,
             },
-            "code_snippet": f"layer.startEditing()\n# Add/update field '{output_field}' = presence-gap status ('gap'/'covered'/'unmatched') across features\nlayer.commitChanges()",
+            "code_snippet": f"layer = '{layer_name}'\nlayer.startEditing()\nlayer.changeAttributeValue(fid, field_index('{output_field}'), value)  # every feature: presence-gap status ('gap'/'covered'/'unmatched'); an existing field of that name is overwritten\nlayer.commitChanges()",
             "rationale": f"Data Mutation Preview: Add/update field '{output_field}' on layer '{layer_name}' with each high-severity unit's presence-gap status.",
             "message": f"Confirmation required before mutating attribute field '{output_field}' on '{layer_name}'.",
         }
 
     labels, labels_changed = _unit_labels(layer, unit_name_field)
-    rows = [{"unit": labels[feat.id()], "__fid__": feat.id(), **{f: feat[f] for f in indicator_fields}} for feat in layer.getFeatures()]
+    rows = [{"unit": labels[feat.id()], "__fid__": feat.id(), **{f: feat[f] for f in indicator_fields}} for feat in _ck.features(layer, "Analysis: reading features")]
     severity = _compute_severity_index(rows, list(indicator_fields), weights, invert_indicators)
     if "error" in severity:
         return severity
@@ -664,41 +637,10 @@ def calculate_presence_gap(layer_name, indicator_fields, unit_name_field, presen
 
 
 def _write_population_to_layer(layer, rows, unit_results, output_field):
-    """Adds/updates a numeric field holding each unit's population-in-need
-    figure, so it can be styled with apply_graduated_style straight after --
-    mirrors _write_scores_to_layer's identical pattern for severity score.
-    Units excluded from severity scoring, or with no population data, are
-    left unset rather than given a fabricated zero. Returns an error string
-    on failure, or None on success -- a write failure downgrades to a
-    warning on an otherwise-valid result rather than discarding the figures."""
-    try:
-        from qgis.core import QgsField
-        from qgis.PyQt.QtCore import QVariant
-    except ImportError:
-        return "QGIS field API unavailable -- population not written to the layer."
-
-    pop_by_unit = {r["unit"]: r["population"] for r in unit_results}
-    fid_by_unit = {r["unit"]: r["__fid__"] for r in rows if "__fid__" in r}
-
-    provider = layer.dataProvider()
-    if output_field not in [f.name() for f in layer.fields()]:
-        if not provider.addAttributes([QgsField(output_field, QVariant.Double)]):
-            return f"Could not add field '{output_field}' to the layer."
-        layer.updateFields()
-
-    idx = layer.fields().indexOf(output_field)
-    if idx < 0:
-        return f"Field '{output_field}' not present after creation attempt."
-
-    updates = {
-        fid_by_unit[unit]: {idx: pop}
-        for unit, pop in pop_by_unit.items()
-        if unit in fid_by_unit
-    }
-    if not provider.changeAttributeValues(updates):
-        return f"Could not write population into '{output_field}'."
-    layer.updateFields()
-    return None
+    """Adds/updates a numeric field holding each unit's population-in-need figure, so it can be styled with apply_graduated_style
+    straight after. Units excluded from severity scoring, or with no population data, are left unset rather than given a fabricated
+    zero. Returns an error string on failure, or None on success."""
+    return _write_unit_values(layer, rows, {r["unit"]: r["population"] for r in unit_results}, output_field, "population")
 
 
 @register_tool(
@@ -746,7 +688,7 @@ def calculate_population_in_need(layer_name, indicator_fields, unit_name_field, 
         return {"error": f"Layer '{layer_name}' not found"}
 
     field_names = [f.name() for f in layer.fields()]
-    missing = [f for f in list(indicator_fields) + [unit_name_field] if f not in field_names]
+    missing = [f for f in [*list(indicator_fields), unit_name_field] if f not in field_names]
     if missing:
         return {"error": f"Field(s) {missing} not found on '{layer_name}'. Available: {field_names}"}
 
@@ -770,13 +712,13 @@ def calculate_population_in_need(layer_name, indicator_fields, unit_name_field, 
                 "high_severity_classes": high_severity_classes, "output_field": output_field,
                 "confirmed": True,
             },
-            "code_snippet": f"layer.startEditing()\n# Add/update field '{output_field}' = population-in-need figure across features\nlayer.commitChanges()",
+            "code_snippet": f"layer = '{layer_name}'\nlayer.startEditing()\nlayer.changeAttributeValue(fid, field_index('{output_field}'), value)  # every feature: population-in-need figure; an existing field of that name is overwritten\nlayer.commitChanges()",
             "rationale": f"Data Mutation Preview: Add/update field '{output_field}' on layer '{layer_name}' with each unit's population figure.",
             "message": f"Confirmation required before mutating attribute field '{output_field}' on '{layer_name}'.",
         }
 
     labels, labels_changed = _unit_labels(layer, unit_name_field)
-    rows = [{"unit": labels[feat.id()], "__fid__": feat.id(), **{f: feat[f] for f in indicator_fields}} for feat in layer.getFeatures()]
+    rows = [{"unit": labels[feat.id()], "__fid__": feat.id(), **{f: feat[f] for f in indicator_fields}} for feat in _ck.features(layer, "Analysis: reading features")]
     severity = _compute_severity_index(rows, list(indicator_fields), weights, invert_indicators)
     if "error" in severity:
         return severity
@@ -793,7 +735,7 @@ def calculate_population_in_need(layer_name, indicator_fields, unit_name_field, 
 
     unit_results = []
     units_missing_population = []
-    class_population = {c: 0.0 for c in range(1, 6)}
+    class_population = dict.fromkeys(range(1, 6), 0.0)
     population_in_need = 0.0
 
     for r in severity["results"]:
@@ -850,38 +792,9 @@ def calculate_population_in_need(layer_name, indicator_fields, unit_name_field, 
 
 
 def _write_damage_severity_to_layer(layer, rows, unit_results, output_field):
-    """Adds/updates a numeric field holding each unit's damage-severity score,
-    so it can be styled with apply_graduated_style straight after -- mirrors
-    _write_scores_to_layer's identical pattern. Returns an error string on
-    failure, or None on success."""
-    try:
-        from qgis.core import QgsField
-        from qgis.PyQt.QtCore import QVariant
-    except ImportError:
-        return "QGIS field API unavailable -- scores not written to the layer."
-
-    score_by_unit = {r["unit"]: r["severity_score"] for r in unit_results}
-    fid_by_unit = {r["unit"]: r["__fid__"] for r in rows if "__fid__" in r}
-
-    provider = layer.dataProvider()
-    if output_field not in [f.name() for f in layer.fields()]:
-        if not provider.addAttributes([QgsField(output_field, QVariant.Double)]):
-            return f"Could not add field '{output_field}' to the layer."
-        layer.updateFields()
-
-    idx = layer.fields().indexOf(output_field)
-    if idx < 0:
-        return f"Field '{output_field}' not present after creation attempt."
-
-    updates = {
-        fid_by_unit[unit]: {idx: score}
-        for unit, score in score_by_unit.items()
-        if unit in fid_by_unit
-    }
-    if not provider.changeAttributeValues(updates):
-        return f"Could not write scores into '{output_field}'."
-    layer.updateFields()
-    return None
+    """Adds/updates a numeric field holding each unit's damage-severity score, so it can be styled with apply_graduated_style straight
+    after. Returns an error string on failure, or None on success."""
+    return _write_unit_values(layer, rows, {r["unit"]: r["severity_score"] for r in unit_results}, output_field, "scores")
 
 
 def _build_polygon_index(admin_layer):
@@ -893,7 +806,7 @@ def _build_polygon_index(admin_layer):
     from qgis.core import QgsSpatialIndex
 
     index = QgsSpatialIndex(admin_layer.getFeatures())
-    admin_features_by_id = {f.id(): f for f in admin_layer.getFeatures()}
+    admin_features_by_id = {f.id(): f for f in _ck.features(admin_layer, "Analysis: reading features")}
     return index, admin_features_by_id
 
 
@@ -943,7 +856,7 @@ def _assign_points_to_polygons_indexed(index, admin_features_by_id, point_geomet
     whichever the spatial index happened to return first, and is counted in stats['ambiguous']. Points that match nothing
     are stats['unmatched']; empty/missing geometries are stats['skipped']. Every point is counted at most once, so the
     per-polygon counts never sum to more than the number of points."""
-    counts = {fid: 0 for fid in admin_features_by_id}
+    counts = dict.fromkeys(admin_features_by_id, 0)
     stats = {"matched": 0, "ambiguous": 0, "unmatched": 0, "skipped": 0}
 
     for geom in point_geometries:
@@ -980,6 +893,53 @@ def _count_points_in_polygons(admin_layer, point_geometries):
     return _count_points_in_polygons_indexed(index, admin_features_by_id, point_geometries)
 
 
+def _free_zonal_prefix(layer, base):
+    """A zonal-statistics column prefix ('chg_', then 'chg2_', 'chg3_' ...) whose '<prefix>mean' field is not on `layer` yet. Pure given the layer's
+    field names."""
+    names = {f.name() for f in layer.fields()}
+    prefix, n = base, 1
+    while f"{prefix}mean" in names:
+        n += 1
+        prefix = f"{base.rstrip('_')}{n}_"
+    return prefix
+
+
+def _drop_zonal_helper_fields(layer, names):
+    """Removes the zonal-statistics columns a damage run created on the user's layer ('chg_mean', 'chg2_mean', 'hzd_mean'), once their values are
+    read, and returns the names removed. DEF-5 (PLAN-026 class C): they stayed on the admin layer after every run, a second set per run, and on a
+    file-based layer they were written into the file. Only columns this run created are passed in. Skipped (returns []) when the layer is being
+    edited or its provider cannot delete fields; the columns then stay, as before, and the caller says so."""
+    if not names or layer.isEditable():
+        return []
+    try:
+        from qgis.core import QgsVectorDataProvider
+        provider = layer.dataProvider()
+        if not provider.capabilities() & QgsVectorDataProvider.Capability.DeleteAttributes:
+            return []
+        indexes = [i for i in (layer.fields().indexFromName(n) for n in names) if i >= 0]
+        if not indexes or not provider.deleteAttributes(indexes):
+            return []
+        layer.updateFields()
+        return list(names)
+    except Exception:   # a clean-up must never fail the analysis that already succeeded
+        return []
+
+
+def _absolute_change_raster(change_raster):
+    """In-memory (not added to the project) raster holding |change| for the damage score, or None if it cannot be built."""
+    try:
+        import processing
+        from qgis.core import QgsRasterLayer
+        out = processing.run("gdal:rastercalculator", {
+            "INPUT_A": change_raster, "BAND_A": 1, "FORMULA": "numpy.abs(A)", "NO_DATA": None, "RTYPE": 5,
+            "OUTPUT": "TEMPORARY_OUTPUT"})["OUTPUT"]
+        layer = QgsRasterLayer(out, "abs_change", "gdal")
+        return layer if layer.isValid() else None
+    except Exception as e:
+        log_event("swallowed_exception", tag="Tools", tool="absolute_change_raster", error_class=type(e).__name__, error=True)
+        return None
+
+
 @register_tool(
     "calculate_damage_exposure_severity",
     "Composite post-crisis damage-and-exposure assessment, in the same thin-composite pattern as "
@@ -1012,6 +972,11 @@ def _count_points_in_polygons(admin_layer, point_geometries):
         },
         "required": ["admin_layer", "unit_name_field", "raster_before", "raster_after", "building_footprints_layer"],
     },
+
+    keywords=[
+        "how many houses were damaged", "damaged houses", "damaged buildings", "estimate the damage", "houses damaged",
+        "buildings damaged",
+    ],
 )
 def calculate_damage_exposure_severity(admin_layer, unit_name_field, raster_before, raster_after,
                                         building_footprints_layer, hazard_intensity_raster=None,
@@ -1050,7 +1015,7 @@ def calculate_damage_exposure_severity(admin_layer, unit_name_field, raster_befo
                 "high_severity_classes": high_severity_classes, "output_field": output_field,
                 "confirmed": True,
             },
-            "code_snippet": f"layer.startEditing()\n# Add/update field '{output_field}' = damage-exposure severity score across features\nlayer.commitChanges()",
+            "code_snippet": f"layer = '{admin_layer}'\nlayer.startEditing()\nlayer.changeAttributeValue(fid, field_index('{output_field}'), value)  # every feature: damage-exposure severity score; an existing field of that name is overwritten\nlayer.commitChanges()",
             "rationale": f"Data Mutation Preview: Add/update field '{output_field}' on layer '{admin_layer}' with each unit's damage-exposure severity score.",
             "message": f"Confirmation required before mutating attribute field '{output_field}' on '{admin_layer}'.",
         }
@@ -1068,33 +1033,49 @@ def calculate_damage_exposure_severity(admin_layer, unit_name_field, raster_befo
         return {"error": "Could not resolve QgsZonalStatistics.Mean in this QGIS version."}
 
     change_raster = _find_layer_by_name(change["layer_name"])
-    zonal = QgsZonalStatistics(layer, change_raster, "chg_", 1, mean_flag)
+    # 1.18.3 hand test D7 (2026-10-26): the zonal mean of the SIGNED change (after - before) put a district that lost 70 at -70, the
+    # lowest value, so min-max scored it 0 and the unchanged districts 1: damage came out inverted. Severity needs the size of the
+    # change either way, so average the absolute change (what this tool's description says).
+    magnitude_raster = _absolute_change_raster(change_raster)
+    if magnitude_raster is None:
+        return {"error": "Could not build the absolute change raster needed to measure damage; the signed change would score losses as the lowest severity."}
+    # Self-audit round 2 (2026-10-26): a second run on the same layer found 'chg_mean' already there, QGIS wrote the new values to
+    # 'chg_mean_2', and the code went on reading the OLD 'chg_mean': stale numbers (the signed ones of 1.18.3, after an upgrade) scored the
+    # districts. Each run uses a prefix whose field does not exist yet and reads that field.
+    chg_prefix = _free_zonal_prefix(layer, "chg_")
+    chg_field = f"{chg_prefix}mean"
+    zonal = QgsZonalStatistics(layer, magnitude_raster, chg_prefix, 1, mean_flag)
     zonal.calculateStatistics(None)
-    if layer.fields().indexFromName("chg_mean") < 0:
-        return {"error": "Zonal statistics ran but no 'chg_mean' field was created -- check admin_layer overlaps the change-detection raster."}
+    if layer.fields().indexFromName(chg_field) < 0:
+        return {"error": f"Zonal statistics ran but no '{chg_field}' field was created -- check admin_layer overlaps the change-detection raster."}
 
     intensity_raster = None
     if hazard_intensity_raster:
         intensity_raster = _find_layer_by_name(hazard_intensity_raster)
         if intensity_raster is None:
             return {"error": f"Layer '{hazard_intensity_raster}' not found"}
-        zonal2 = QgsZonalStatistics(layer, intensity_raster, "hzd_", 1, mean_flag)
+        hzd_prefix = _free_zonal_prefix(layer, "hzd_")
+        hzd_field = f"{hzd_prefix}mean"
+        zonal2 = QgsZonalStatistics(layer, intensity_raster, hzd_prefix, 1, mean_flag)
         zonal2.calculateStatistics(None)
-        if layer.fields().indexFromName("hzd_mean") < 0:
-            return {"error": "Zonal statistics ran but no 'hzd_mean' field was created -- check hazard_intensity_raster overlaps admin_layer."}
+        if layer.fields().indexFromName(hzd_field) < 0:
+            return {"error": f"Zonal statistics ran but no '{hzd_field}' field was created -- check hazard_intensity_raster overlaps admin_layer."}
 
-    footprint_centroids = _geometries_in_crs((feat.geometry().centroid() for feat in footprints.getFeatures()),
+    footprint_centroids = _geometries_in_crs((feat.geometry().centroid() for feat in _ck.features(footprints, "Analysis: reading features")),
                                              footprints.crs(), layer.crs())
     index, admin_features_by_id = _build_polygon_index(layer)
     building_counts, assignment_stats = _assign_points_to_polygons_indexed(index, admin_features_by_id, footprint_centroids)
 
     rows = []
     labels, labels_changed = _unit_labels(layer, unit_name_field)
-    for feat in layer.getFeatures():
-        row = {"unit": labels[feat.id()], "__fid__": feat.id(), "change_magnitude": feat["chg_mean"]}
+    for feat in _ck.features(layer, "Analysis: reading features"):
+        row = {"unit": labels[feat.id()], "__fid__": feat.id(), "change_magnitude": feat[chg_field]}
         if intensity_raster is not None:
-            row["hazard_intensity"] = feat["hzd_mean"]
+            row["hazard_intensity"] = feat[hzd_field]
         rows.append(row)
+
+    helper_fields = [chg_field] + ([hzd_field] if intensity_raster is not None else [])
+    fields_removed = _drop_zonal_helper_fields(layer, helper_fields)
 
     indicators = ["change_magnitude"] + (["hazard_intensity"] if intensity_raster is not None else [])
     severity = _compute_severity_index(rows, indicators)
@@ -1103,7 +1084,7 @@ def calculate_damage_exposure_severity(admin_layer, unit_name_field, raster_befo
 
     fid_by_unit = {r["unit"]: r["__fid__"] for r in rows if "__fid__" in r}
     unit_results = []
-    class_buildings = {c: 0 for c in range(1, 6)}
+    class_buildings = dict.fromkeys(range(1, 6), 0)
     buildings_in_high_severity = 0
     for r in severity["results"]:
         fid = fid_by_unit.get(r["unit"])
@@ -1153,6 +1134,11 @@ def calculate_damage_exposure_severity(admin_layer, unit_name_field, raster_befo
             result["output_field"] = output_field
             result["layer_name"] = admin_layer
             result["map_look"] = look_hint(admin_layer, "severity", output_field)
+    if fields_removed:
+        result["temporary_fields_removed"] = fields_removed
+    elif helper_fields:
+        result["temporary_fields_kept"] = (f"The working columns {', '.join(helper_fields)} (zonal means used for the score) could not be removed from "
+                                           f"'{admin_layer}' (it is being edited or its format cannot delete fields); they stay on the layer.")
     if _label_note(labels_changed):
         result["unit_label_note"] = _label_note(labels_changed)
     return result
@@ -1195,7 +1181,7 @@ def forecast_trend(layer_name, date_field, value_field, periods_ahead=3, group_b
         return {"error": "periods_ahead must be between 1 and 24."}
 
     groups = {}
-    for feat in layer.getFeatures():
+    for feat in _ck.features(layer, "Analysis: reading features"):
         d = _parse_date(feat[date_field])
         raw_value = feat[value_field]
         if d is None or not isinstance(raw_value, (int, float)):
@@ -1240,6 +1226,10 @@ def forecast_trend(layer_name, date_field, value_field, periods_ahead=3, group_b
         },
         "required": ["point_layer", "date_field", "zone_layer", "zone_name_field"],
     },
+    keywords=[
+        "getting worse", "getting more dangerous", "more dangerous", "worsening", "improving", "increasing risk", "escalating",
+        "on the rise",
+    ],
 )
 def analyze_incident_trend(point_layer, date_field, zone_layer, zone_name_field, period_days=30, periods_ahead=1):
     if not QGIS_AVAILABLE:
@@ -1262,7 +1252,7 @@ def analyze_incident_trend(point_layer, date_field, zone_layer, zone_name_field,
         return {"error": f"Field '{zone_name_field}' not found on '{zone_layer}'. Available: {[f.name() for f in zones.fields()]}"}
 
     dated_geoms = []
-    for feat in layer.getFeatures():
+    for feat in _ck.features(layer, "Analysis: reading features"):
         d = _parse_date(feat[date_field])
         geom = feat.geometry()
         if d is None or geom is None or geom.isEmpty():
@@ -1271,7 +1261,7 @@ def analyze_incident_trend(point_layer, date_field, zone_layer, zone_name_field,
     # Points and zones may be in different CRSs (#161): move the points into the zones' CRS once, up front.
     if dated_geoms:
         moved = list(_geometries_in_crs((g for _d, g in dated_geoms), layer.crs(), zones.crs()))
-        dated_geoms = [(d, g) for (d, _old), g in zip(dated_geoms, moved) if g is not None]
+        dated_geoms = [(d, g) for (d, _old), g in zip(dated_geoms, moved, strict=False) if g is not None]
 
     if not dated_geoms:
         return {"error": f"No usable (date, geometry) pairs found in '{point_layer}' via '{date_field}'."}
@@ -1287,7 +1277,7 @@ def analyze_incident_trend(point_layer, date_field, zone_layer, zone_name_field,
         }
 
     buckets = {}
-    for idx, geom in zip(bucket_indices, geoms):
+    for idx, geom in zip(bucket_indices, geoms, strict=False):
         buckets.setdefault(idx, []).append(geom)
 
     zone_features = list(zones.getFeatures())

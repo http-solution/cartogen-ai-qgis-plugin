@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Tests for agent/tools/qa_checklist_tools.py -- point 26 of
 docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md: an automated
 per-map-product QA checklist, confirmed distinct from this plugin's own

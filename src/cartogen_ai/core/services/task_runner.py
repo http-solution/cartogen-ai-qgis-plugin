@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Native QgsTask / Async Runner for Cartogen AI.
 Executes non-blocking background LLM requests while keeping the QGIS GUI fully responsive.
@@ -20,7 +19,7 @@ try:
 except ImportError:
     QGIS_TASK_AVAILABLE = False
     _TASK_CAN_CANCEL = None
-    class QgsTask:
+    class QgsTask:  # type: ignore[no-redef]
         pass
 
 
@@ -112,8 +111,50 @@ class AgentQgsTask(QgsTask):
                     err_msg = str(self.error) if self.error else "Task failed or was cancelled."
                     self.on_complete(None, err_msg)
             except Exception as e:
-                print(f"[TaskRunner] AgentQgsTask.finished()'s on_complete callback raised: {e}")
+                log_event("agentqgstask_finished_s_on_complete_callback_raised", tag="TaskRunner", error_class=type(e).__name__, error=True)
                 traceback.print_exc()
+
+
+_INVOKER = {"obj": None}   # holder rather than a global (ruff PLW0603)
+
+
+def _get_main_thread_invoker():
+    """A QObject that lives on the Qt main thread and runs the callables emitted to it there (queued signal).
+
+    Audit A03: the thread fallback used to hand the completion callback to QTimer.singleShot(0, receiver, callable), which the Qt6
+    binding does not offer; the broad except then called the widget callback directly on the WORKER thread. A queued signal is the
+    supported way to cross threads. Create it first from the main thread (run_agent_task does); it is also moved there explicitly.
+    Returns None when Qt is not available."""
+    if _INVOKER["obj"] is not None:
+        return _INVOKER["obj"]
+    if not QGIS_TASK_AVAILABLE:
+        return None
+    try:
+        from qgis.PyQt.QtCore import QObject, Qt, pyqtSignal
+        queued = getattr(Qt, "ConnectionType", Qt).QueuedConnection
+
+        class _Invoker(QObject):
+            call = pyqtSignal(object)
+
+            def __init__(self):
+                super().__init__()
+                self.call.connect(self._run, queued)
+
+            def _run(self, fn):
+                try:
+                    fn()
+                except Exception:
+                    traceback.print_exc()
+
+        invoker = _Invoker()
+        app = QgsApplication.instance()
+        if app is not None:
+            invoker.moveToThread(app.thread())
+        _INVOKER["obj"] = invoker
+        return invoker
+    except Exception as e:
+        log_event("could_not_create_the_main_thread_invoker", tag="TaskRunner", error_class=type(e).__name__, error=True)
+        return None
 
 
 def run_agent_task(agent, user_text: str, description: str = "Cartogen AI Processing", on_complete=None, on_status=None, map_context=None, on_tool_step=None):
@@ -130,7 +171,7 @@ def run_agent_task(agent, user_text: str, description: str = "Cartogen AI Proces
             QgsApplication.taskManager().addTask(task)
             return task
         except Exception as e:
-            print(f"[TaskRunner] QgsTask dispatch failed, falling back to python thread: {e}")
+            log_event("qgstask_dispatch_failed_falling_back_to_python_thread", tag="TaskRunner", error_class=type(e).__name__, error=True)
 
     # Fallback thread for non-QGIS environments. Previously had no
     # cancellation mechanism at all -- dock_widget.py's Stop button calls
@@ -154,18 +195,21 @@ def run_agent_task(agent, user_text: str, description: str = "Cartogen AI Proces
     handle = _FallbackTaskHandle()
 
     epoch = project_session.plugin_epoch()
+    # Made here, on the thread that called run_agent_task (the GUI thread), never lazily from the worker.
+    invoker = _get_main_thread_invoker()
 
     def deliver(*args):
-        """Run on_complete on the Qt main thread when there is one (it touches widgets), and never after an unload."""
+        """Run on_complete on the Qt main thread when there is one (it touches widgets), and never after an unload. With Qt
+        available but no way to reach the main thread, the callback is NOT run on the worker: a widget must not be touched from
+        there (audit A03), so the failure is logged instead."""
         if on_complete is None or project_session.plugin_retired(epoch):
             return
         if QGIS_TASK_AVAILABLE:
-            try:
-                from qgis.PyQt.QtCore import QTimer
-                QTimer.singleShot(0, QgsApplication.instance(), lambda: None if project_session.plugin_retired(epoch) else on_complete(*args))
+            if invoker is None:
+                log_event("task_callback_dropped", tag="TaskRunner", error=True, reason="no main-thread invoker")
                 return
-            except Exception:
-                pass
+            invoker.call.emit(lambda: None if project_session.plugin_retired(epoch) else on_complete(*args))
+            return
         on_complete(*args)
 
     def worker():
@@ -217,7 +261,7 @@ class FunctionQgsTask(QgsTask):
             else:
                 self.on_done(None, self.error or InterruptedError("Cancelled"))
         except Exception as e:
-            print(f"[TaskRunner] FunctionQgsTask.finished()'s on_done callback raised: {e}")
+            log_event("functionqgstask_finished_s_on_done_callback_raised", tag="TaskRunner", error_class=type(e).__name__, error=True)
             traceback.print_exc()
 
 

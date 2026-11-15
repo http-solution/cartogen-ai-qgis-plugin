@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """JIAF 2 stage 4 on a real QGIS project: the decision store, the final figures on a layer and the pattern counts. Written without a local QGIS: CI's first
 run is its first execution."""
 import csv

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Default look for outputs that used to arrive in QGIS's raw defaults (visualization gap analysis, 2026-10-01).
 
 Measured gaps this closes (see docs/VISUALIZATION_AND_ANALYSIS_GAP_ANALYSIS_2026-10-01.md):
@@ -57,6 +56,29 @@ ALGORITHM_RASTER_KINDS = {
     "tininterpolation": "surface", "cellstatistics": "surface", "reclassifybytable": "surface",
     "heatmapkerneldensityestimation": "density",
 }
+# Integration audit 2026-10-16: only ~8 algorithms had a look, so the outputs of the 66 raster-family, the GRASS and the mesh algorithms that
+# arrived with packages D, I and the gap-closing work opened as plain greyscale. These add the ones whose result is a continuous surface or
+# a distance/cost/density field, where a colour ramp over the band's own range reads better than grey. Deliberately NOT listed: hillshade and
+# shaded-relief outputs (grey is right), classified or categorical results (r.clump, r.geomorphon, r.watershed, r.stream.extract, sieve,
+# reclass, boolean/logical rasters, viewshed): a continuous ramp on class codes would imply an order that is not there.
+ALGORITHM_RASTER_KINDS.update({
+    "roughness": "surface", "tpitopographicpositionindex": "surface", "triterrainruggednessindex": "surface", "ruggednessindex": "surface",
+    "totalcurvature": "surface", "proximity": "surface", "fillsinkswangliu": "surface", "fillnodata": "surface",
+    "gridaverage": "surface", "griddatametrics": "surface", "gridinversedistance": "surface", "gridinversedistancenearestneighbor": "surface",
+    "gridlinear": "surface", "gridnearestneighbor": "surface", "rastergaussianblur": "surface", "rasterfeaturepreservingsmoothing": "surface",
+    "rescaleraster": "surface", "dtmslopebasedfilter": "surface", "cellstackpercentile": "surface", "rasterrank": "surface",
+    "r.slope.aspect": "surface", "r.cost": "surface", "r.walk.rast": "surface", "r.walk.coords": "surface", "r.walk.points": "surface",
+    "r.grow.distance": "surface", "r.fillnulls": "surface", "r.fill.stats": "surface", "r.fill.dir": "surface", "r.resamp.bspline": "surface",
+    "r.resamp.interp": "surface", "r.resamp.rst": "surface", "r.resamp.stats": "surface", "r.surf.contour": "surface", "r.surf.fractal": "surface",
+    "r.surf.gauss": "surface", "r.surf.idw": "surface", "r.surf.random": "surface", "r.random.surface": "surface", "r.param.scale": "surface",
+    "r.topidx": "surface", "r.sun.insoltime": "surface", "r.sun.incidout": "surface", "r.sunhours": "surface", "r.plane": "surface",
+    "meshrasterize": "surface", "v.kernel.rast": "density",
+})
+ALGORITHM_VECTOR_ROLES.update({
+    "v.buffer": "proximity_buffer", "v.hull": "proximity_buffer", "v.voronoi": "proximity_buffer", "v.delaunay": "proximity_buffer",
+    "v.overlay": "selection_overlay", "v.dissolve": "selection_overlay",
+    "v.net.iso": "route_line", "v.net.spanningtree": "route_line", "v.net.steiner": "route_line",
+})
 # Field-name candidates for an automatic label, best first (matched case-insensitively). Only names a person would read.
 LABEL_FIELD_CANDIDATES = ("name", "name_en", "facility_name", "facility", "site_name", "adm3_en", "adm2_en", "adm1_en",
                           "admin3name_en", "admin2name_en", "admin1name_en", "shapename", "name_1", "name_2", "title",
@@ -275,6 +297,42 @@ def style_auto_labels(layer, limit=AUTO_LABEL_MAX_FEATURES):
             return None
         res = apply_labels(layer.name(), target_field=field, font_size=9)
         return field if isinstance(res, dict) and not res.get("error") else None
+    except Exception:
+        return None
+
+
+ZOOM_LABEL_MAX_FEATURES = 2000       # beyond this even zoomed-in labels are slow to place; the user can still ask for them
+ZOOM_LABEL_SCALE = 1_000_000         # labels appear when zoomed in to 1:1,000,000 or closer
+
+
+def style_zoom_labels(layer, limit=ZOOM_LABEL_MAX_FEATURES, scale=ZOOM_LABEL_SCALE):
+    """Name labels that show only when zoomed in, for a named layer too big to label at country scale. Returns the field used, or None.
+
+    GitHub #127, rc48 OI-127 (2026-10-24): a downloaded ADM2 layer (about 330 districts) got no labels, because style_auto_labels skips
+    anything over AUTO_LABEL_MAX_FEATURES (a label cloud hides the map). The screenshot shows a bare outline map with no names at all. Scale-
+    dependent labels give both: no cloud at country scale, names as soon as the user zooms in. Not re-run in a real QGIS session here; the live
+    test in CI is its first execution."""
+    if not QGIS_AVAILABLE or layer is None or not hasattr(layer, "featureCount") or hasattr(layer, "bandCount"):
+        return None
+    try:
+        ok, field = should_auto_label(layer.featureCount(), [f.name() for f in layer.fields()], limit)
+        if not ok or all(is_generic_label_value(f[field]) for f in layer.getFeatures()):
+            return None
+        from qgis.core import QgsProject
+        if QgsProject.instance().mapLayer(layer.id()) is None:
+            return None
+        from .vector_tools import apply_labels
+        res = apply_labels(layer.name(), target_field=field, font_size=9)
+        if not isinstance(res, dict) or res.get("error"):
+            return None
+        labeling = layer.labeling()
+        settings = labeling.settings()
+        settings.scaleVisibility = True
+        settings.minimumScale = float(scale)
+        settings.maximumScale = 0.0
+        labeling.setSettings(settings)
+        layer.triggerRepaint()
+        return field
     except Exception:
         return None
 

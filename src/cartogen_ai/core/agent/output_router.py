@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Make the answer come back in the shape the task promised.
 
 task_matcher.output_contract() says what a request should turn into -- a
@@ -35,6 +34,26 @@ _NO_RENDER = ("guidance", "analysis")
 MAX_FOLLOWUPS = 1
 
 
+# Tools that put a layer on the canvas. By name prefix, plus the tools whose names do not follow a prefix: find_incident_reports
+# builds the "Incident reports" layer but starts with find_, so a hand test on 2026-10-12 (Yemen, last 30 days) got the layer and
+# was still told "the step that writes it did not run".
+_LAYER_CREATOR_PREFIXES = ("add_", "create_", "fetch_", "load_", "geocode_", "interpolate_", "buffer_", "clip_", "merge_",
+                           "intersect_", "union_", "dissolve_", "spatial_join", "extract_features_from_imagery", "georeference_image")
+_LAYER_CREATOR_TOOLS = frozenset({"find_incident_reports"})
+
+
+# Styling tools. A request like "style the raster with a colour ramp" has a layer contract, and the style was applied by
+# apply_raster_stretch, which is not in the contract's own render list. rc40 hand test OI-128: the missing-deliverable follow-up
+# told the model to call apply_categorized_style, and the model re-ran apply_raster_stretch in plain stretch mode, which replaced
+# the ramp that had just been applied with a grey one.
+_STYLE_TOOLS = frozenset({"apply_raster_stretch", "apply_categorized_style", "apply_graduated_style", "apply_graduated_symbol_style",
+                          "apply_rule_based_style", "apply_heatmap_style", "apply_point_cluster_style", "apply_labels"})
+
+
+def _creates_layer(tool):
+    return tool in _LAYER_CREATOR_TOOLS or tool.startswith(_LAYER_CREATOR_PREFIXES)
+
+
 def required_renderers(contract):
     """The tools that would satisfy this contract. Any one of them is enough."""
     if not contract:
@@ -56,11 +75,7 @@ def satisfied(contract, executed_tools):
         # A layer contract is met by anything that puts a layer on the canvas,
         # not only by the two styling tools in `render` -- styling an
         # unstyleable layer is not a failure to deliver.
-        return any(t.startswith(("add_", "create_", "fetch_", "load_", "geocode_",
-                                 "interpolate_", "buffer_", "clip_", "merge_",
-                                 "intersect_", "union_", "dissolve_", "spatial_join",
-                                 "extract_features_from_imagery", "georeference_image"))
-                   or t in needed for t in ran)
+        return any(_creates_layer(t) or t in _STYLE_TOOLS or t in needed for t in ran)
     return any(t in ran for t in needed)
 
 
@@ -84,31 +99,31 @@ def followup_instruction(contract, executed_tools, already_retried=False, has_la
     # If the deliverable is a layer and no layer creation tool was executed (or the project has no layers),
     # we must explicitly instruct the agent to CREATE the layer rather than asking it to style a non-existent layer!
     if kind == "layer":
-        ran_creator = any(t.startswith(("add_", "create_", "fetch_", "load_", "geocode_",
-                                        "interpolate_", "buffer_", "clip_", "merge_",
-                                        "intersect_", "union_", "dissolve_", "spatial_join",
-                                        "extract_features_from_imagery", "georeference_image"))
-                          for t in (executed_tools or []))
+        ran_creator = any(_creates_layer(t) for t in (executed_tools or []))
         has_canvas_layer = (has_layers is True) or (ran_creator and has_layers is not False)
         if not has_canvas_layer:
+            # This text used to end "...generate an operational/representative sample dataset on the canvas...". Hand test 2026-10-12
+            # (RC37-A1, "check the internet for recent incidents near Amman"): after every source returned nothing the model put four
+            # invented incidents on the map as a "planning baseline". Inventing records is never the fix for "no data": say what was
+            # searched and found, and leave the layer empty or absent.
             return (
                 "The deliverable for this task is a layer on the QGIS canvas, and no layer has been created yet. "
-                "Call an appropriate layer creation tool now (such as add_point_layer, add_vector_layer, "
-                "geocode_and_enrich, fetch_osm_features, fetch_gdacs_disaster_alerts, or execute_pyqgis_script) "
-                "to create and display the requested spatial layer on the canvas. If real-time or live external feeds "
-                "are unavailable, generate an operational/representative sample dataset on the canvas with appropriate "
-                "attributes and coordinates so the user has the requested spatial layer. Do not answer in prose alone "
-                "without creating the layer."
+                "If real data exists: Call an appropriate layer creation tool now (such as add_point_layer, add_vector_layer, "
+                "geocode_and_enrich, fetch_osm_features, fetch_gdacs_disaster_alerts, fetch_usgs_earthquakes, "
+                "find_incident_reports or execute_pyqgis_script) to create and display it. "
+                "If every source returned nothing, or a feed is unavailable, do NOT invent, sample, simulate or illustrate records "
+                "to fill the layer: tell the user plainly which sources you tried and what each returned, and that no layer was "
+                "made because there was nothing real to show."
             )
 
     writer = file_io.writer_for(kind) or (needed[0] if needed else "apply_categorized_style")
     artifact = file_io.artifact_sentence(kind)
     return (
-        "The deliverable for this task is %s, and it has not been produced yet. "
+        f"The deliverable for this task is {artifact}, and it has not been produced yet. "
         "Using the layers and results already in the project from the previous "
-        "step, call %s now to produce it. Do not redo the analysis, and do not "
+        f"step, call {writer} now to produce it. Do not redo the analysis, and do not "
         "answer in prose instead -- if a required argument is genuinely missing, "
-        "say which one and stop." % (artifact, writer)
+        "say which one and stop."
     )
 
 
@@ -123,11 +138,10 @@ def delivery_note(contract, executed_tools):
     kind = contract.get("kind")
     artifact = file_io.artifact_sentence(kind)
     if kind in _NO_RENDER:
-        return "Delivered: %s." % artifact
+        return f"Delivered: {artifact}."
     if satisfied(contract, executed_tools):
-        return "Delivered: %s." % artifact
-    return ("Expected %s for this task, but the step that writes it did not run."
-            % artifact)
+        return f"Delivered: {artifact}."
+    return (f"Expected {artifact} for this task, but the step that writes it did not run.")
 
 
 def describe_contract(contract):
@@ -135,7 +149,7 @@ def describe_contract(contract):
     if not contract:
         return ""
     kind = contract.get("kind")
-    line = "Output: %s -- %s." % (kind, file_io.artifact_sentence(kind))
+    line = f"Output: {kind} -- {file_io.artifact_sentence(kind)}."
     if contract.get("overridden"):
         line += " (You asked for this explicitly; it overrides the task default.)"
     return line

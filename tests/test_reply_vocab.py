@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Tests for ui/reply_vocab.py -- which typed replies may resolve a pending DESTRUCTIVE
 confirmation (rc7 smoke test, 2026-09-30, finding F16).

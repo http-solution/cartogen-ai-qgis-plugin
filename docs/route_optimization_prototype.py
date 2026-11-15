@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 Route optimization prototype -- constrained shortest path for post-disaster /
 humanitarian logistics, using OSMnx + NetworkX + GeoPandas + rasterio.
@@ -223,7 +222,7 @@ def build_constrained_graph(north, south, east, west, dem_path=None,
         return elev
 
     try:
-        for u, v, key, data in G.edges(keys=True, data=True):
+        for u, v, _key, data in G.edges(keys=True, data=True):
             length_m = data.get("length", 0.0)
             speed_kmh = _edge_base_speed_kmh(data)
             base_time_hours = (length_m / 1000.0) / speed_kmh if speed_kmh > 0 else float("inf")
@@ -316,7 +315,7 @@ if __name__ == "__main__":
     # test suite; running this requires real network access to OSM's servers
     # (or a pre-downloaded .graphml, see ox.load_graphml) and, if you want the
     # slope penalty, a real local DEM GeoTIFF covering the same area.
-    example_bbox = dict(north=34.85, south=34.75, east=36.75, west=36.65)
+    example_bbox = {"north": 34.85, "south": 34.75, "east": 36.75, "west": 36.65}
 
     graph = build_constrained_graph(
         **example_bbox,

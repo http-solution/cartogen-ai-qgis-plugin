@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Dock Widget UI for Cartogen AI.
 Broadsheet redesign Phase 1 (mockup state 1k, "no tabs, one scroll"): this hosts ONE
@@ -30,13 +29,14 @@ from qgis.PyQt.QtWidgets import (
     QPushButton, QComboBox,
 )
 from qgis.core import QgsSettings
-from ...infrastructure.settings_keys import SETTINGS_PROVIDER
+from ...infrastructure.settings_keys import SETTINGS_PROVIDER, normalize_provider
 
 from .chat_formatting import build_dock_stylesheet
 from .theme import extract_theme_palette
-from .dock_constants import PROVIDER_CHOICES
+from .dock_constants import PROVIDER_CHOICES, CLI_PROVIDER_LABELS
 from .icons import themed_icon
 from .chat_tab_widget import ChatTabWidget
+from ..logger import log_event
 
 
 class CartogenAiDockWidget(QDockWidget):
@@ -138,7 +138,9 @@ class CartogenAiDockWidget(QDockWidget):
         self.provider_combo = QComboBox()
         for label, value in PROVIDER_CHOICES:
             self.provider_combo.addItem(label, value)
-        current_provider = QgsSettings().value(SETTINGS_PROVIDER, "openrouter")
+        current_provider = normalize_provider(QgsSettings().value(SETTINGS_PROVIDER, "openrouter"))
+        if current_provider in CLI_PROVIDER_LABELS:
+            self.provider_combo.addItem(CLI_PROVIDER_LABELS[current_provider], current_provider)
         idx = self.provider_combo.findData(current_provider)
 
         if idx >= 0:
@@ -224,7 +226,7 @@ class CartogenAiDockWidget(QDockWidget):
             try:
                 self._agent_provider()
             except Exception as e:
-                print(f"[DockWidget] Agent refresh after provider switch failed: {e}")
+                log_event("agent_refresh_after_provider_switch_failed", tag="DockWidget", error_class=type(e).__name__, error=True)
         self.receiveMessageSignal.emit("ai", f"🔀 Switched active provider to **{provider_label}**.")
 
     def open_memory(self):
@@ -245,18 +247,39 @@ class CartogenAiDockWidget(QDockWidget):
     def open_settings(self):
         from .settings_dialog import CartogenAiSettingsDialog
         dialog = CartogenAiSettingsDialog(self)
+        dialog.connection_saved.connect(self._refresh_after_connection_change)          # a connection saved from inside Settings counts even if Settings is cancelled
         if dialog.exec():
             self.statusSignal.emit("Settings saved")
-            # Keep the quick-switch dropdown in sync without re-triggering _on_provider_switch.
-            provider_value = QgsSettings().value(SETTINGS_PROVIDER, "openrouter")
+            self._refresh_after_connection_change()
+
+    def run_workflow(self, document, mapping, start_at=1):
+        """Runs a workflow file the person opened from Plugins > Cartogen AI > Open workflow file (PLAN-048); the chat tab does the work."""
+        self.chat_tab_widget.run_workflow(document, mapping, start_at)
+
+    def open_connections(self):
+        """The Connections window (PLAN-041): API keys, models, Ollama and CLI logins. Also reachable from Plugins > Cartogen AI."""
+        from .connections_dialog import CartogenAiConnectionsDialog
+        dialog = CartogenAiConnectionsDialog(self)
+        if dialog.exec():
+            self.statusSignal.emit("Connections saved")
+            self._refresh_after_connection_change()
+
+    def _refresh_after_connection_change(self):
+        # Keep the quick-switch dropdown in sync without re-triggering _on_provider_switch.
+        provider_value = normalize_provider(QgsSettings().value(SETTINGS_PROVIDER, "openrouter"))
+        idx = self.provider_combo.findData(provider_value)
+        if idx < 0 and provider_value in CLI_PROVIDER_LABELS:
+            self.provider_combo.blockSignals(True)
+            self.provider_combo.addItem(CLI_PROVIDER_LABELS[provider_value], provider_value)
+            self.provider_combo.blockSignals(False)
             idx = self.provider_combo.findData(provider_value)
 
-            if idx >= 0:
-                self.provider_combo.blockSignals(True)
-                self.provider_combo.setCurrentIndex(idx)
-                self.provider_combo.blockSignals(False)
-            if hasattr(self, '_agent_provider'):
-                try:
-                    self._agent_provider()
-                except Exception as e:
-                    print(f"[DockWidget] Agent refresh after settings save failed: {e}")
+        if idx >= 0:
+            self.provider_combo.blockSignals(True)
+            self.provider_combo.setCurrentIndex(idx)
+            self.provider_combo.blockSignals(False)
+        if hasattr(self, '_agent_provider'):
+            try:
+                self._agent_provider()
+            except Exception as e:
+                log_event("agent_refresh_after_settings_save_failed", tag="DockWidget", error_class=type(e).__name__, error=True)

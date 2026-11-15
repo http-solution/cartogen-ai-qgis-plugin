@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Automated per-map-product QA checklist for Cartogen AI -- point 26 of
 docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md, confirmed distinct
 from this plugin's own docs/RELEASE_SMOKE_TEST.md (that document verifies
@@ -32,10 +31,14 @@ TRANSITIONS entry for "map_qa")."""
 
 import os
 
+from ...logger import log_event
+from ... import _chunked as _ck
 from .registry import register_tool
+from ._paths import resolve_output_path
 from ...models import sensitivity as _sens
 from .dataset_status_tools import get_dataset_status
 from .provenance_tools import get_provenance_record
+from .layout_export_checks import ELEMENT_LABELS, MANDATORY_LAYOUT_ELEMENTS, current_profile, missing_elements
 from .layout_tools import list_layout_items
 
 try:
@@ -54,13 +57,16 @@ def _find_layer_by_name(name):
     return layers[0]
 
 
-_MANDATORY_LAYOUT_ELEMENTS = {
-    "MAP_MAIN": "map",
-    "TITLE": "title",
-    "LEGEND": "legend",
-    "SCALEBAR": "scale bar",
-    "NORTH_ARROW": "north arrow",
-}
+_MANDATORY_LAYOUT_ELEMENTS = MANDATORY_LAYOUT_ELEMENTS   # shared with the layout export report (layout_export_checks.py)
+
+
+def _required_elements(layout_name):
+    """The required_elements of the profile stored on the layout, or None (no profile, or the layout cannot be looked up)."""
+    try:
+        from .layout_tools import _find_layout_by_name
+        return current_profile(_find_layout_by_name(layout_name))[0].get("required_elements")
+    except Exception:
+        return None
 
 
 @register_tool(
@@ -89,6 +95,7 @@ _MANDATORY_LAYOUT_ELEMENTS = {
     },
 )
 def generate_map_product_qa_checklist(layer_name, layout_name=None, output_path=None):
+    output_path = resolve_output_path(output_path)   # rc22 smoke N3/N8/N9: anchor relative paths to the project (see _paths.py)
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
     layer = _find_layer_by_name(layer_name)
@@ -116,14 +123,11 @@ def generate_map_product_qa_checklist(layer_name, layout_name=None, output_path=
             categories["cartography"] = {"error": items_res.get("error")}
         else:
             ids_present = {item["id"] for item in items_res["items"]}
+            required = _required_elements(layout_name) or list(_MANDATORY_LAYOUT_ELEMENTS)      # a profile's list (PLAN-014 phase 2b), else the five
             categories["cartography"] = {
                 "layout_name": layout_name,
-                "mandatory_elements_present": [
-                    label for item_id, label in _MANDATORY_LAYOUT_ELEMENTS.items() if item_id in ids_present
-                ],
-                "mandatory_elements_missing": [
-                    label for item_id, label in _MANDATORY_LAYOUT_ELEMENTS.items() if item_id not in ids_present
-                ],
+                "mandatory_elements_present": [ELEMENT_LABELS.get(i, i) for i in required if i in ids_present],
+                "mandatory_elements_missing": missing_elements(ids_present, required),
             }
     else:
         categories["cartography"] = {
@@ -134,7 +138,15 @@ def generate_map_product_qa_checklist(layer_name, layout_name=None, output_path=
     # models/sensitivity.py) instead of a static "no classification exists"
     # reminder -- that classification has existed since point 24 shipped,
     # this checklist just never read it until now.
-    sensitivity_record = _sens.get_layer_sensitivity(layer)
+    sensitivity_record = dict(_sens.get_layer_sensitivity(layer))
+    if sensitivity_record.get("level") is None:
+        # PLAN-016 item 2: a layer made from a protected one is protected through lineage, like in the cloud gate and the export gate.
+        from ..protection import effective_sensitivity
+        try:
+            pool = list(QgsProject.instance().mapLayers().values())
+        except Exception:
+            pool = [layer]
+        sensitivity_record = effective_sensitivity(layer, pool)
     level = sensitivity_record.get("level")
     if level is None:
         categories["disclosure"] = {
@@ -151,7 +163,10 @@ def generate_map_product_qa_checklist(layer_name, layout_name=None, output_path=
             "tracked": True,
             "level": level,
             "reason": sensitivity_record.get("reason"),
-            "warning": _sens.export_warning_for(layer) or None,
+            "warning": _sens.export_warning_for(layer)
+            or (f"Derived from '{sensitivity_record['derived_from']}' ({level}): treat this layer as {level} before sharing."
+                if sensitivity_record.get("derived_from") else None),
+            "derived_from": sensitivity_record.get("derived_from"),
         }
 
     prov_res = get_provenance_record(layer_name)
@@ -175,15 +190,19 @@ def generate_map_product_qa_checklist(layer_name, layout_name=None, output_path=
     # relying on QVariant type-name strings, which vary in exact spelling
     # across QGIS versions.
     has_numeric_field = False
+    classification_error = None
     if hasattr(layer, "getFeatures"):
         try:
             has_numeric_field = any(
                 isinstance(feat.attribute(idx), (int, float))
-                for feat in layer.getFeatures()
+                for feat in _ck.features(layer, "Qa checklist: reading features")
                 for idx in range(feat.fields().count())
             )
-        except Exception:
-            has_numeric_field = False
+        except Exception as exc:
+            # PLAN-010: this used to set has_numeric_field=False, so a provider timeout or a dead layer was reported below as "No concern
+            # found". An unreadable layer is "could not check", not "checked and clean". Only the exception type is logged (no data values).
+            classification_error = type(exc).__name__
+            log_event("qa_classification_check_failed", error_class=classification_error)
 
     renderer = layer.renderer() if hasattr(layer, "renderer") else None
     try:
@@ -193,7 +212,12 @@ def generate_map_product_qa_checklist(layer_name, layout_name=None, output_path=
         # checklist -- e.g. QgsSingleSymbolRenderer unavailable for any
         # reason degrades to "no concern found" rather than a crash.
         is_default_shaped_renderer = False
-    if is_default_shaped_renderer and has_numeric_field:
+    if classification_error is not None:
+        categories["classification_sanity"] = {
+            "status": "unknown",
+            "note": f"Classification check could not be completed (reading the layer's features failed: {classification_error}). Not a pass.",
+        }
+    elif is_default_shaped_renderer and has_numeric_field:
         categories["classification_sanity"] = {
             "note": (
                 "This layer renders with a single symbol (QGIS's own default for an unstyled "
@@ -217,3 +241,10 @@ def generate_map_product_qa_checklist(layer_name, layout_name=None, output_path=
         }
 
     return {"success": True, "layer_name": layer_name, "categories": categories}
+
+
+# Supplies the map_qa check to the dataset status model, which may not import the tools (PLAN-040); looked up at call time so patches apply.
+from ...models import dataset_status as _dataset_status  # noqa: E402
+
+_dataset_status.register_check_runner(
+    "map_qa", lambda layer_name, layout_name=None: generate_map_product_qa_checklist(layer_name, layout_name=layout_name))

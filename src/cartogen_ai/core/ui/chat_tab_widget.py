@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Chat tab, extracted from dock_widget.py's CartogenAiDockWidget
 (docs/archive/DOCK_WIDGET_SPLIT_PLAN_2026-08-21.md). Owns the chat log, input row,
 quick-suggestion chips, prompt-refinement panel, and file-attachment analysis. The old
@@ -26,6 +25,7 @@ refinementFetchedSignal) stay defined on the parent CartogenAiDockWidget, not he
 emitted from dock-header code (open_settings) and the two dialogs above. This widget
 reaches them via self._dock, the same pattern those dialogs use too."""
 
+import contextlib
 import os
 import threading
 
@@ -35,7 +35,7 @@ from qgis.PyQt.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QTextBrowser,
     QPushButton, QTextEdit,
 )
-from ..logger import log_warning
+from ..logger import log_event, log_warning
 
 
 from . import reply_vocab
@@ -151,6 +151,10 @@ class ChatTabWidget(QWidget):
         # don't echo the user's message again (it was shown when the question was asked).
         self._resume_after_local_data = False
         self._original_already_shown = False
+        # Several separate requests pasted as one message run as a queue, one at a time (agent/job_queue.py).
+        self._job_queue = None
+        self._awaiting_job_queue_reply = False
+        self._job_queue_running = False
         # Files the user attached since the last send. attach_file() still
         # analyses each one immediately (unchanged); this list is what lets the
         # NEXT message know those files exist, so a sitrep PDF or a damage
@@ -248,7 +252,7 @@ class ChatTabWidget(QWidget):
         if confirmed:
             pending_tool = task.get("pending_tool")
             pending_args = task.get("pending_args", {})
-            exec_res = agent._real_execute_tool(pending_tool, pending_args, user_confirmed=True)
+            exec_res = agent.execute_confirmed(pending_tool, pending_args)
             # A readable line, not the raw dict (rc11 smoke test, #124). The full result stays in the task record.
             readable = summarize_tool_result(exec_res)
             failed = isinstance(exec_res, dict) and bool(exec_res.get("error"))
@@ -269,7 +273,7 @@ class ChatTabWidget(QWidget):
         The confirm button runs the tool directly, with no model turn (see _resolve_pending_confirmation), so a request such as
         "write the score to a field, then style the layer" ended at the write (rc15/rc17 hand tests, D05). At most
         reply_vocab.MAX_CONTINUATIONS follow-up turns per original request, so a chain of confirmations cannot loop."""
-        if failed or not original or not reply_vocab.has_followup_steps(original):
+        if failed or not original or not reply_vocab.has_followup_steps(original, tool_name):
             return
         if getattr(self, "_continuation_count", 0) >= reply_vocab.MAX_CONTINUATIONS:
             return
@@ -662,6 +666,7 @@ class ChatTabWidget(QWidget):
         """
 
         self.chat_browser.append(html)
+        self.presenter.trim_scrollback()
         self._scroll_to_bottom()
         self.input_edit.clear()
         self.send_btn.setEnabled(True)
@@ -675,13 +680,11 @@ class ChatTabWidget(QWidget):
             # The two delayed calls below can fire after the dock (and so the browser) was destroyed -- on QGIS shutdown,
             # plugin unload, or in CI when a test tears its window down. An uncaught RuntimeError inside a Qt slot aborts the
             # whole process under PyQt6 (seen: "Aborted (core dumped)" in the live job once the panel opened at startup).
-            try:
+            with contextlib.suppress(RuntimeError):
                 self.chat_browser.moveCursor(QTextCursor.MoveOperation.End)
                 sb = self.chat_browser.verticalScrollBar()
                 if sb:
                     sb.setValue(sb.maximum())
-            except RuntimeError:
-                pass
 
         self._follow_bottom = True        # a new message was added: show it, and keep following until the user scrolls up
         _do_scroll()
@@ -698,12 +701,10 @@ class ChatTabWidget(QWidget):
         from qgis.PyQt.QtCore import QTimer
 
         def _update():
-            try:
+            with contextlib.suppress(RuntimeError):
                 sb = self.chat_browser.verticalScrollBar()
                 if sb:
                     self._follow_bottom = (sb.maximum() - sb.value()) < 24
-            except RuntimeError:
-                pass
         QTimer.singleShot(0, _update)     # the slider moves after the signal, so read its position afterwards
 
     def _on_scrollbar_range_changed(self, min_val, max_val):
@@ -749,6 +750,22 @@ class ChatTabWidget(QWidget):
         """See chat_view_presenter.ChatViewPresenter.clear_plan."""
         self.presenter.clear_plan()
 
+    @staticmethod
+    def _open_external_link(url):
+        """Opens an http(s) link, or a file: link to an existing tool-output file, with the desktop's default program. Returns True when
+        the URL used one of those schemes (opened or deliberately refused), so the caller stops. Any other file is never launched: the
+        path came from a reply, and opening it with the default program would run whatever it is."""
+        scheme = url.scheme()
+        if scheme not in ("http", "https", "file"):
+            return False
+        if scheme == "file":
+            from .chat_formatting import is_openable_output_file
+            if not is_openable_output_file(url.toLocalFile()):
+                return True
+        from qgis.PyQt.QtGui import QDesktopServices
+        QDesktopServices.openUrl(url)
+        return True
+
     def _on_step_anchor_clicked(self, url):
         """Handles clicks on this app's own internal "cartogen://" anchors -- the
         Details/Hide-details toggle a tool-steps summary block renders (render_tool_steps_
@@ -762,10 +779,7 @@ class ChatTabWidget(QWidget):
         all share the scheme. Ignores anything that isn't "cartogen", so real markdown
         links in AI responses (opened via setOpenExternalLinks(True), untouched by this
         handler) are unaffected."""
-        # Handle standard external schemes via QDesktopServices
-        if url.scheme() in ("http", "https", "file"):
-            from qgis.PyQt.QtGui import QDesktopServices
-            QDesktopServices.openUrl(url)
+        if self._open_external_link(url):
             return
         if url.scheme() != "cartogen":
             return
@@ -777,26 +791,17 @@ class ChatTabWidget(QWidget):
                 host = path_parts[0]
                 path = "/" + "/".join(path_parts[1:])
 
-        if host == "starter":
-            self._on_starter_prompt_clicked(url)
-            return
-        if host == "refine":
-            self._on_refinement_card_clicked(url)
-            return
-        if host in ("confirm", "cancel"):
-            self._on_safety_gate_link_clicked(url)
+        simple = {
+            "starter": self._on_starter_prompt_clicked, "refine": self._on_refinement_card_clicked,
+            "confirm": self._on_safety_gate_link_clicked, "cancel": self._on_safety_gate_link_clicked,
+            "task": self._on_plan_task_clicked, "action": self._on_chat_action_clicked,
+            "export": self._on_export_action_clicked,
+        }
+        if host in simple:
+            simple[host](url)
             return
         if host == "clearplan":
             self._clear_plan()
-            return
-        if host == "task":
-            self._on_plan_task_clicked(url)
-            return
-        if host == "action":
-            self._on_chat_action_clicked(url)
-            return
-        if host == "export":
-            self._on_export_action_clicked(url)
             return
         if host == "prompt":
             import urllib.parse
@@ -824,7 +829,7 @@ class ChatTabWidget(QWidget):
                 if self._dock and res.get("success"):
                     self._dock.statusSignal.emit(f"Zoomed to {layer_name}")
             else:
-                try:
+                with contextlib.suppress(Exception):
                     from qgis.utils import iface
                     from qgis.core import QgsProject
                     layers = list(QgsProject.instance().mapLayers().values())
@@ -834,8 +839,6 @@ class ChatTabWidget(QWidget):
                         zoom_to_layer(layers[0].name())
                     elif iface and iface.mapCanvas():
                         iface.mapCanvas().zoomToFullExtent()
-                except Exception:
-                    pass
             return
 
         parts = [p for p in url.path().split("/") if p]
@@ -961,12 +964,10 @@ class ChatTabWidget(QWidget):
                 self._dock.receiveMessageSignal.emit(
                     "ai", f"🎨 **Applied Representation:** Configured `{rep_id}` on `{layer_name}`."
                 )
-                try:
+                with contextlib.suppress(Exception):
                     from qgis.utils import iface
                     if iface and iface.mapCanvas():
                         iface.mapCanvas().refresh()
-                except Exception:
-                    pass
             else:
                 err = res.get("error", "Failed to apply representation")
                 self._dock.receiveMessageSignal.emit("ai", f"❌ **Style Error:** {err}")
@@ -1016,15 +1017,25 @@ class ChatTabWidget(QWidget):
         self.input_edit.setPlainText(self._starter_prompts[index])
         self.input_edit.setFocus()
 
+    def _say_request_in_flight(self):
+        if self.input_edit.toPlainText().strip():
+            self._dock.statusSignal.emit("Still working on the previous request: your message is kept in the box. "
+                                         "Send it when this one finishes, or press Stop.")
+
     def send_message(self):
         if not self.send_btn.isEnabled():
             # A request is already in flight. send_btn.setEnabled(False) blocks
             # a second click, but ChatInputEdit.keyPressEvent emits
             # sendRequested on Enter unconditionally -- without this check,
             # Enter could still start a second, overlapping turn.
+            # rc40 hand test OI-97: 4 of 20 messages sent while a reply was running vanished without a word; say what happened.
+            self._say_request_in_flight()
             return
         text = self.input_edit.toPlainText().strip()
         if not text:
+            return
+
+        if self._job_queue_gate(text):
             return
 
         # The local-data question (see _ask_local_data_in_chat) is outstanding. A recognised
@@ -1077,14 +1088,17 @@ class ChatTabWidget(QWidget):
             self._pending_analysis_text = None
             self._pending_analysis = None
             self.input_edit.setPlaceholderText(self._default_input_placeholder)
-            reply_key = _normalize_preview_reply(text)
-            if reply_key in _PREVIEW_CONFIRM_REPLIES:
+            # rc22 hand test R2/A1 (issue 230): the exact-keyword sets missed "Yes, proceed." -- the rc18 fix (reply_vocab.router_reply)
+            # reached the other reply branches but not this one, so a natural yes was sent to the model as a new message and the
+            # original request never ran. router_reply accepts a short reply made only of yes words and fillers.
+            decision = reply_vocab.router_reply(text)
+            if decision == "confirm":
                 self._dock.receiveMessageSignal.emit("user", text)
                 # already_echoed=True: original_text was already shown as its own bubble
                 # by _ask_preview_in_chat when the question was first asked -- see that
                 # method's docstring.
                 self._dispatch_message(original_text, pending_analysis, already_echoed=True)
-            elif reply_key in _PREVIEW_CANCEL_REPLIES:
+            elif decision == "cancel":
                 self._dock.receiveMessageSignal.emit("user", text)
                 self._dock.receiveMessageSignal.emit(
                     "ai", "Okay, cancelled -- send a new message whenever you're ready.")
@@ -1160,6 +1174,19 @@ class ChatTabWidget(QWidget):
         # scrollback, not a widget that stays visible) -- only the pending-selection state
         # needs clearing, so a stale click on an old card's link can't resurrect it.
         self._pending_refinement_cards = None
+
+        # "List the layers" is a read of the open project: answer it here, with no model call (2026-10-10 hand test: 13 API calls
+        # for this one request). See ui/local_answers.py for how narrow the match is.
+        from .local_answers import is_list_layers_request, format_layer_list
+        if is_list_layers_request(text):
+            try:
+                from ..agent.map_context import get_map_context_summary as _summary
+                self._dock.receiveMessageSignal.emit("user", text)
+                self._dock.receiveMessageSignal.emit("ai", format_layer_list(_summary()))
+                return
+            except Exception as e:
+                from ..logger import log_event
+                log_event("swallowed_exception", tag="UI", tool="local_list_layers", error_class=type(e).__name__, error=True)
 
         from ..services.prompt_refiner import (
             analyze_request, should_refine, is_refinement_enabled, is_prompt_preview_enabled,
@@ -1249,6 +1276,102 @@ class ChatTabWidget(QWidget):
         question = analysis.get("question") or "Could you tell me a bit more about what you need?"
         self._dock.receiveMessageSignal.emit("ai", question)
 
+    # ------------------------------------------------------ job queue --
+
+    def _job_queue_gate(self, text):
+        """True when this message was consumed by the job-queue flow (proposed a split, or answered the proposal).
+
+        2026-10-09 cost investigation: five unrelated analyses pasted as one message ran as one turn and spent the whole round budget.
+        When the message holds several whole requests (agent/job_queue.split_jobs: numbered or blank-line-separated, never a sentence
+        count), this shows the split and asks first; confirmed jobs then run one at a time, each its own turn with its own budget."""
+        from ..agent import job_queue
+        if self._awaiting_job_queue_reply:
+            self._awaiting_job_queue_reply = False
+            self.input_edit.setPlaceholderText(self._default_input_placeholder)
+            lowered = text.lower().strip().rstrip("!.?")
+            if lowered in ("first", "only first", "just the first", "first one"):
+                self._dock.receiveMessageSignal.emit("user", text)
+                self.input_edit.clear()
+                self._job_queue.keep_only_first()
+                self._start_next_job()
+                return True
+            choice = reply_vocab.router_reply(text) or ("confirm" if lowered in ("run", "run all", "run them", "start", "go") else None)
+            if choice == "confirm":
+                self._dock.receiveMessageSignal.emit("user", text)
+                self.input_edit.clear()
+                self._start_next_job()
+                return True
+            if choice == "cancel":
+                self._dock.receiveMessageSignal.emit("user", text)
+                self.input_edit.clear()
+                self._job_queue = None
+                self._dock.receiveMessageSignal.emit("ai", "Cancelled; nothing was run. Send the requests one at a time when you are ready.")
+                return True
+            self._job_queue = None            # something else was typed: it is a new message, the proposal is dropped
+            return False
+        if self._job_queue_running or self._awaiting_requirement_reply or self._awaiting_preview_reply or self._awaiting_local_data_reply:
+            return False
+        jobs = job_queue.split_jobs(text)
+        if not jobs:
+            return False
+        self._dock.receiveMessageSignal.emit("user", text)
+        self.input_edit.clear()
+        self._job_queue = job_queue.JobQueue(jobs)
+        self._awaiting_job_queue_reply = True
+        self.input_edit.setPlaceholderText("Reply run, first, or cancel")
+        self._dock.receiveMessageSignal.emit("ai", (
+            f"**This looks like {len(jobs)} separate requests.** Running them as one message makes the assistant try all of them in "
+            f"one turn, which is slow and uses a lot of your API credit. I can run them one at a time, each with its own budget "
+            f"and its own result:\n\n{job_queue.preview_text(jobs)}\n\n"
+            f"Reply **run** to start with job 1, **first** to run only job 1, or **cancel**. (If this is really one analysis, "
+            f"cancel and send it again as a single numbered list of short steps.)"))
+        return True
+
+    def _start_next_job(self):
+        """Sends the next pending job through the normal send path; sets the running flag so a job is never split again."""
+        queue = self._job_queue
+        item = queue.next_pending() if queue is not None else None
+        if item is None:
+            self._finish_job_queue()
+            return
+        index, job = item
+        self._job_queue_running = True
+        self._dock.receiveMessageSignal.emit("ai", f"**Job {index + 1} of {len(queue)}**")
+        self.input_edit.setPlainText(job)
+        self.send_message()
+
+    def _finish_job_queue(self):
+        queue = self._job_queue
+        if queue is not None and len(queue) > 1:
+            self._dock.receiveMessageSignal.emit("ai", f"_All jobs finished: {queue.summary()}._")
+        self._job_queue = None
+        self._job_queue_running = False
+
+    def _advance_job_queue(self, ok):
+        """Called when a turn ends. Records the job's outcome and starts the next one, or pauses after a failure or a Stop."""
+        queue = self._job_queue
+        if queue is None or not self._job_queue_running:
+            return
+        if self._awaiting_preview_reply or self._awaiting_requirement_reply or self._awaiting_local_data_reply:
+            return          # the job is waiting for the user's answer; its turn will end again after that
+        queue.finish_current(ok)
+        if not ok:
+            self._job_queue_running = False
+            left = queue.pending_count()
+            self._awaiting_job_queue_reply = left > 0
+            if left:
+                self.input_edit.setPlaceholderText("Reply run to continue with the rest, or cancel")
+                self._dock.receiveMessageSignal.emit("ai", (
+                    f"**Paused: job {max(i for i, state in enumerate(queue.status) if state == 'failed') + 1} did not complete.** "
+                    f"{queue.summary()}. Reply **run** to continue with the {left} remaining, or **cancel**."))
+            else:
+                self._finish_job_queue()
+            return
+        if queue.pending_count():
+            QTimer.singleShot(400, self._start_next_job)
+        else:
+            self._finish_job_queue()
+
     def _echo_original(self, text):
         """Shows the user's message as their own bubble, unless it was already shown when the
         local-data question was asked about it (then the resumed request mustn't repeat it)."""
@@ -1287,7 +1410,7 @@ class ChatTabWidget(QWidget):
                 analysis.get("task"), text, local_data_loader.project_layer_facts(),
                 declined=self._local_data_declined)
         except Exception as e:  # never let the offer check break sending a message
-            log_warning("ChatTab", "local-data offer check failed: %s" % e)
+            log_warning("ChatTab", f"local-data offer check failed: {e}")
             return False
         if not themes:
             return False
@@ -1377,11 +1500,11 @@ class ChatTabWidget(QWidget):
             )
         if region:
             size = region.get("size_bytes") or 0
-            size_text = "%d MB" % round(size / 1e6) if size else "of unknown size"
-            lines.append("The OpenStreetMap extract for **%s** is **%s**." % (region["name"], size_text))
+            size_text = f"{round(size / 1e6)} MB" if size else "of unknown size"
+            lines.append("The OpenStreetMap extract for **{}** is **{}**.".format(region["name"], size_text))
         lines.append(
-            "[\U0001F4E5 Download local data](cartogen://action/%s)  "
-            "[\U0001F310 Continue online](cartogen://action/%s)" % (download_id, online_id)
+            f"[\U0001F4E5 Download local data](cartogen://action/{download_id})  "
+            f"[\U0001F310 Continue online](cartogen://action/{online_id})"
         )
         self._awaiting_local_data_reply = True
         self.input_edit.setPlaceholderText("Reply download or online, or use the buttons above...")
@@ -1414,16 +1537,16 @@ class ChatTabWidget(QWidget):
         from ..services.task_runner import run_background_call
         dest = local_data_loader.data_dir()
         self._dock.receiveMessageSignal.emit(
-            "ai", "Downloading the OpenStreetMap extract for **%s** (%s) from Geofabrik. This "
-                  "runs in the background; press Stop to cancel." % (
+            "ai", "Downloading the OpenStreetMap extract for **{}** ({}) from Geofabrik. This "
+                  "runs in the background; press Stop to cancel.".format(
                       region["name"],
-                      "%d MB" % round(region["size_bytes"] / 1e6) if region.get("size_bytes") else "size unknown"))
+                      f"{round(region['size_bytes'] / 1e6)} MB" if region.get("size_bytes") else "size unknown"))
         self._set_local_data_busy(True)
 
         def work(is_cancelled):
             return local_data_loader.download_and_extract(region, dest, is_cancelled=is_cancelled)
         self._active_task = run_background_call(
-            "Cartogen AI: download %s" % region["name"], work, self._on_local_download_done)
+            "Cartogen AI: download {}".format(region["name"]), work, self._on_local_download_done)
 
     def _on_local_download_done(self, result, error):
         self._set_local_data_busy(False)
@@ -1432,7 +1555,7 @@ class ChatTabWidget(QWidget):
             return
         if error is not None:
             self._dock.receiveMessageSignal.emit(
-                "ai", "The download didn't finish (%s). Continuing with online data." % error)
+                "ai", f"The download didn't finish ({error}). Continuing with online data.")
             self._resume_local_data_request()
             return
         from ..agent import local_data_loader
@@ -1441,12 +1564,11 @@ class ChatTabWidget(QWidget):
         except Exception as e:
             loaded = {"layers": [], "errors": [str(e)]}
         lines = ["Added to the project from Geofabrik (OpenStreetMap, ODbL):"]
-        lines += ["- **%s**: %s features%s" % (lyr["name"], format(lyr["count"], ","),
-                                              " (%s)" % lyr["note"] if lyr.get("note") else "")
+        lines += ["- **{}**: {} features{}".format(lyr["name"], format(lyr["count"], ","),
+                                              " ({})".format(lyr["note"]) if lyr.get("note") else "")
                   for lyr in loaded["layers"]]
-        lines += ["- %s" % err for err in loaded["errors"]]
-        lines.append("Saved in `%s`, so it's reused next time. Continuing with your request."
-                     % os.path.dirname(result["zip_path"]))
+        lines += [f"- {err}" for err in loaded["errors"]]
+        lines.append("Saved in `{}`, so it's reused next time. Continuing with your request.".format(os.path.dirname(result["zip_path"])))
         self._dock.receiveMessageSignal.emit("ai", "\n".join(lines))
         self._resume_local_data_request()
 
@@ -1532,10 +1654,9 @@ class ChatTabWidget(QWidget):
 
         def worker():
             result = refine(text, profile, client)
-            try:
+            # widget was closed/deleted before the call finished
+            with contextlib.suppress(RuntimeError):
                 self._dock.refinementFetchedSignal.emit(text, result)
-            except RuntimeError:
-                pass  # widget was closed/deleted before the call finished
 
         threading.Thread(target=worker, daemon=True).start()
 
@@ -1655,7 +1776,7 @@ class ChatTabWidget(QWidget):
                     agent.task_manager.plan_updated.connect(self._on_live_plan_updated)
                     self._connected_task_manager = agent.task_manager
                 except Exception as e:
-                    print(f"[ChatTabWidget] Failed to connect plan_updated signal: {e}")
+                    log_event("failed_to_connect_plan_updated_signal", tag="ChatTabWidget", error_class=type(e).__name__, error=True)
             self._on_live_plan_updated(agent.task_manager.get_plan())
 
         from ..services.task_runner import run_agent_task
@@ -1723,6 +1844,7 @@ class ChatTabWidget(QWidget):
             # summary, then the answer.
             self._flush_tool_steps_summary()
             if err:
+                self._advance_job_queue(False)
                 self._dock.receiveMessageSignal.emit("ai", format_send_error(err))
                 # A multi-tool-call turn can accumulate usage on earlier,
                 # successful client.complete() calls before a later one in the
@@ -1733,6 +1855,8 @@ class ChatTabWidget(QWidget):
             else:
                 self._dock.receiveMessageSignal.emit("ai", response if response else "_(empty response)_")
                 self._after_successful_response(agent, response)
+                # a tool that failed and was recovered from does not pause the queue; a Stop or a guard/budget stop does
+                self._advance_job_queue(not (self._turn_stopped or str(response or "").startswith("[Agent stopped]")))
                 # rc18 hand test R3 (2026-10-06): after the user pressed Stop on a run whose imagery tool had already failed, the
                 # contract check asked the model for a report nobody wanted ("Do not redo the analysis ... call generate_spatial_report").
                 # A deliverable is only owed for a turn that ran to its end: not one the user stopped, and not one where a tool failed
@@ -1769,6 +1893,62 @@ class ChatTabWidget(QWidget):
             on_tool_step=on_tool_step,
         )
 
+    def run_workflow(self, document, mapping, start_at=1):
+        """Runs a workflow file the person has read and mapped in WorkflowImportDialog (PLAN-048 stage 3). NO model call: the agent runs the steps
+        itself, one at a time, through the usual tool path, so confirmations, the egress gate and the result gate all apply. A step waiting for the
+        person's Confirm stops the run and shows the usual card. Runs on a QGIS worker thread; Stop cancels it between steps."""
+        from ..agent import workflow_import
+        from ..services.task_runner import run_background_call
+        if self._active_task is not None:
+            self._dock.receiveMessageSignal.emit("ai", "Another request is still running. Wait for it or press Stop, then open the workflow file again.")
+            return
+        agent = self._agent_provider() if self._agent_provider else None
+        if agent is None or not hasattr(agent, "run_workflow_steps"):
+            self._dock.receiveMessageSignal.emit("ai", "**Agent could not be initialized.** Check the QGIS Python console for details.")
+            return
+        available = None
+        with contextlib.suppress(Exception):
+            from qgis.core import QgsProject
+            available = {layer.name() for layer in QgsProject.instance().mapLayers().values()}
+        steps, problems = workflow_import.apply_mapping(document, mapping, start_at, available=available)
+        if problems:
+            self._dock.receiveMessageSignal.emit("ai", "The workflow was not started: " + " ".join(problems))
+            return
+        if hasattr(agent, "task_manager") and self._connected_task_manager is not agent.task_manager:
+            with contextlib.suppress(Exception):
+                agent.task_manager.plan_updated.connect(self._on_live_plan_updated)
+                self._connected_task_manager = agent.task_manager
+        self._executed_tools = []
+        self._current_turn_steps = []
+        self._turn_stopped = False
+        workflow = {"name": document["name"], "fingerprint": document["fingerprint"]}
+        self._dock.receiveMessageSignal.emit(
+            "ai", f"_Running the workflow file '{document['name']}': {len(steps)} step(s), checksum {document['fingerprint'][:12]}. "
+                  "Each step goes through the usual checks and confirmations; press Stop to cancel._")
+        self._dock.statusSignal.emit("Running workflow...")
+        self.send_btn.setEnabled(False)
+        self.stop_btn.setEnabled(True)
+
+        def on_tool_step(name, status, error):
+            self._dock.toolStepSignal.emit(name, status, error or "")      # called from the worker thread; the signal queues it onto the GUI thread
+
+        def work(is_cancelled):
+            return agent.run_workflow_steps(steps, workflow, should_stop=is_cancelled, tool_step_callback=on_tool_step)
+
+        def on_done(result, err):
+            self._active_task = None
+            self.stop_btn.setEnabled(False)
+            self.send_btn.setEnabled(True)
+            self._dock.statusSignal.emit("")
+            self._flush_tool_steps_summary()
+            if err:
+                self._dock.receiveMessageSignal.emit("ai", "The workflow stopped: " + ("cancelled." if isinstance(err, InterruptedError) else format_send_error(err)))
+            else:
+                self._dock.receiveMessageSignal.emit("ai", workflow_import.result_text(document, result, start_at))
+            self._show_safety_gate_in_chat(agent)
+
+        self._active_task = run_background_call("Cartogen AI workflow file", work, on_done)
+
     def _enforce_output_contract(self, sent_text):
         """After a turn: did the answer actually come back in the promised form?
 
@@ -1790,11 +1970,9 @@ class ChatTabWidget(QWidget):
             return
 
         has_layers = None
-        try:
+        with contextlib.suppress(Exception):
             from qgis.core import QgsProject
             has_layers = bool(QgsProject.instance().mapLayers())
-        except Exception:
-            pass
 
         instruction = output_router.followup_instruction(
             contract, executed, already_retried=self._contract_followup_used,
@@ -1802,14 +1980,14 @@ class ChatTabWidget(QWidget):
         if instruction is None:
             # Already retried once. Say so plainly rather than trying again.
             self._dock.receiveMessageSignal.emit(
-                "ai", "_%s_" % output_router.delivery_note(contract, executed))
+                "ai", f"_{output_router.delivery_note(contract, executed)}_")
             self._pending_contract = None
             self._contract_followup_used = False
             return
 
         self._contract_followup_used = True
         self._dock.receiveMessageSignal.emit(
-            "ai", "_%s Asking for it now._" % output_router.delivery_note(contract, executed))
+            "ai", f"_{output_router.delivery_note(contract, executed)} Asking for it now._")
         # Re-enter dispatch with the contract preserved, so the follow-up turn
         # is checked the same way -- and _contract_followup_used stops it there.
         followup_analysis = {"contract": contract, "user_message": instruction, "directive": ""}
@@ -1830,7 +2008,7 @@ class ChatTabWidget(QWidget):
         try:
             self._active_task.cancel()
         except Exception as e:
-            print(f"[ChatTabWidget] Failed to cancel task: {e}")
+            log_event("failed_to_cancel_task", tag="ChatTabWidget", error_class=type(e).__name__, error=True)
 
     def _stop_current_task(self):
         """Cancels the in-flight request. This is cooperative, not instant --
@@ -1871,8 +2049,13 @@ class ChatTabWidget(QWidget):
             turn = agent.get_turn_usage_text() if hasattr(agent, "get_turn_usage_text") else None
         except Exception:
             turn = None
-        if text and turn:
-            text = f"{turn} \u00b7 {text}"
+        try:     # observed, provider-reported breakdown (fresh vs cached input, output, last call) when the provider reports it
+            detail = agent.get_turn_usage_detail_text() if hasattr(agent, "get_turn_usage_detail_text") else None
+        except Exception:
+            detail = None
+        lead = detail or turn          # the observed breakdown replaces the older one-number turn text, never duplicates it
+        if text and lead:
+            text = f"{lead} \u00b7 {text}"
         self._dock.usageSignal.emit(text or "")
 
     def _after_successful_response(self, agent, response_text):
@@ -1889,7 +2072,7 @@ class ChatTabWidget(QWidget):
             history = agent._read_history_snapshot() if hasattr(agent, "_read_history_snapshot") else getattr(agent, "conversation_history", [])
             save_chat_history(history, user_ts=getattr(self, "_turn_sent_iso", None))
         except Exception as e:
-            print(f"[ChatTabWidget] Failed to save chat history: {e}")
+            log_event("failed_to_save_chat_history", tag="ChatTabWidget", error_class=type(e).__name__, error=True)
 
         try:
             from qgis.core import QgsProject
@@ -1917,7 +2100,7 @@ class ChatTabWidget(QWidget):
                 if highlight is not None:
                     self._active_highlights.append(highlight)
         except Exception as e:
-            print(f"[ChatTabWidget] Canvas highlight failed: {e}")
+            log_event("canvas_highlight_failed", tag="ChatTabWidget", error_class=type(e).__name__, error=True)
 
     @staticmethod
     def _attachment_disclosure_note():

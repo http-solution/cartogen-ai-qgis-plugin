@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """A failing layout re-run keeps the old layout; duplicate atlas values give distinct files (audit F28, #164).
 
 Written without a QGIS install here: CI's first run is its first execution."""
@@ -85,7 +84,7 @@ class TestLayoutSwapAndAtlas(unittest.TestCase):
         self.assertTrue(res.get("success"), res)
         self.assertEqual(res["feature_count"], 3)
         names = sorted(os.path.basename(p) for p in res["output_files"])
-        self.assertEqual(len(set(n.lower() for n in names)), 3, names)
+        self.assertEqual(len({n.lower() for n in names}), 3, names)
         self.assertEqual(sorted(os.listdir(out)), names)
         self.assertTrue(res["atlas_settings_restored"])
         atlas = QgsProject.instance().layoutManager().layoutByName(made["layout_name"]).atlas()
@@ -111,10 +110,12 @@ class TestSitrepTemplate(unittest.TestCase):
             sources=["OCHA COD-AB", "WorldPop 2020"])
         self.assertTrue(res.get("success"), res)
         self.assertEqual(res["template"], "sitrep")
-        self.assertNotIn("sitrep_warning", res)
+        # 1.18.5+ (PLAN-028): the typed 412,000 is in no project layer (the layer has only a name field), so it is printed with the "not
+        # found in the project data" marker and named in the warning; every section is still there.
+        self.assertIn("People in need", res["sitrep_warning"])
         layout = QgsProject.instance().layoutManager().layoutByName(res["layout_name"])
         text = layout.itemById("BODY_TEXT").text()
-        for part in ("SITUATION", "KEY FIGURES", "412,000 (estimate)", "SOURCES", "WorldPop 2020", "HANDLING"):
+        for part in ("SITUATION", "KEY FIGURES", "412,000 (estimate)", "SOURCES", "WorldPop 2020", "HANDLING", "[not found in the project data]"):
             self.assertIn(part, text)
         self.assertGreater(os.path.getsize(out), 1000)
 
@@ -127,6 +128,31 @@ class TestSitrepTemplate(unittest.TestCase):
         text = layout.itemById("BODY_TEXT").text()
         self.assertTrue(text.startswith("HANDLING"))
         self.assertNotIn("KEY FIGURES", text)
+
+
+@unittest.skipUnless(QGIS_LIVE_AVAILABLE, "requires real QGIS")
+class TestNorthArrowFollowsTheMap(unittest.TestCase):
+    """GitHub #165: the north arrow must follow the map's rotation (the rc20 hand test found it unlinked and at 0 degrees on a map
+    rotated 30 degrees)."""
+
+    def setUp(self):
+        _boot_qgis()
+        QgsProject.instance().clear()
+        self.addCleanup(QgsProject.instance().clear)
+        QgsProject.instance().addMapLayer(_districts(["Sanaa", "Aden"]))
+
+    def test_the_arrow_is_linked_to_the_map_and_turns_with_it(self):
+        from cartogen_ai.core.agent.tools.layout_tools import create_print_layout
+        res = create_print_layout("Rotated")
+        self.assertTrue(res.get("success"), res)
+        layout = QgsProject.instance().layoutManager().layoutByName(res["layout_name"])
+        arrow = layout.itemById("NORTH_ARROW")
+        self.assertIsNotNone(arrow, "the layout has no north arrow")
+        map_item = arrow.linkedMap()
+        self.assertIsNotNone(map_item, "the north arrow is not linked to the map")
+        map_item.setMapRotation(30.0)
+        self.assertAlmostEqual(arrow.pictureRotation(), 30.0, places=3,
+                               msg="the arrow did not turn with the rotated map")
 
 
 if __name__ == "__main__":

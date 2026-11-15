@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Live-QGIS regression tests for the rc7 smoke-test fixes (finding F17: the offline suite cannot
 see real-QGIS behaviour). Runs only where qgis.core exists (the CI `qgis-live-tests` job).
 

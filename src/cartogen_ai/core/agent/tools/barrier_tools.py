@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Road barriers for the routing tools (H1, docs/HUMANITARIAN_WORKFLOW_GAP_ANALYSIS_2026-10-04.md).
 
@@ -18,9 +17,11 @@ the layer work needs real QGIS and is covered by tests/test_barrier_tools_live.p
 """
 import math
 
+from ... import _chunked as _ck
 from .registry import register_tool
 from ._edit_session import EditError, add_numeric_field, edit_command, set_value
 from ._network_closure import CLOSED_SPEED_KMH
+from ._layer_checks import require_valid_layer
 
 try:
     from qgis.core import (QgsCoordinateReferenceSystem, QgsCoordinateTransform, QgsProject, QgsSpatialIndex)
@@ -38,7 +39,7 @@ MODES = ("block", "penalise")
 def utm_epsg(lon, lat):
     """EPSG code of the UTM zone containing (lon, lat) in degrees. Pure. Polar caps (beyond 84N / 80S) fall back to the
     nearest zone, where UTM is poor; callers cannot do better without a polar CRS, which is out of scope here."""
-    zone = int(math.floor((lon + 180.0) / 6.0)) % 60 + 1
+    zone = math.floor((lon + 180.0) / 6.0) % 60 + 1
     return (32600 if lat >= 0 else 32700) + zone
 
 
@@ -119,7 +120,7 @@ def affected_feature_ids(network, barriers, buffer_m):
     metric = _local_metric_crs(network)
     index = QgsSpatialIndex(network.getFeatures())
     hit = set()
-    for b in barriers.getFeatures():
+    for b in _ck.features(barriers, "Barrier: reading features"):
         g = b.geometry()
         if g is None or g.isEmpty():
             continue
@@ -143,10 +144,15 @@ def _affected_layer(network, hit, mode, speed_field, name):
     the layer name, or None (cosmetic: never fails the tool)."""
     try:
         from qgis.core import QgsFeature, QgsVectorLayer, QgsWkbTypes
+        from . import logistics_tools as _lt
+        # Audit A02: replace only an earlier layer of ours; a user's own layer with this name is renamed, not removed.
+        _lt.set_aside_user_layers(name)
         for old in QgsProject.instance().mapLayersByName(name):
-            QgsProject.instance().removeMapLayer(old.id())
+            if _lt.is_plugin_result(old):
+                QgsProject.instance().removeMapLayer(old.id())
         out = QgsVectorLayer(f"{QgsWkbTypes.displayString(network.wkbType())}?crs={network.crs().authid()}"
                              f"&field=source_id:integer&field={speed_field}:double", name, "memory")
+        require_valid_layer(out)
         feats = []
         for fid in sorted(hit):
             src = network.getFeature(fid)
@@ -156,6 +162,7 @@ def _affected_layer(network, hit, mode, speed_field, name):
             feats.append(f)
         out.dataProvider().addFeatures(feats)
         out.updateExtents()
+        _lt.mark_plugin_result(out)
         QgsProject.instance().addMapLayer(out)
         from .humanitarian_style import style_barrier_segments
         style_barrier_segments(out, mode)
@@ -187,6 +194,13 @@ def _affected_layer(network, hit, mode, speed_field, name):
         },
         "required": ["road_network_layer", "barrier_layer"],
     },
+    # Road barriers (see tools/barrier_tools.py). No bare "bridge" or "closed": they would boost this tool on unrelated queries.
+    keywords=[
+        "destroyed bridge", "damaged bridge", "blocked road", "road closure", "closed road", "flooded road", "checkpoint",
+        "barrier", "impassable", "avoid the", "cut off road",
+        "bridge is out", "road is closed", "avoid this road", "avoid the bridge", "block the road",
+        "road is blocked", "bridge is down",
+    ],
 )
 def apply_network_barriers(road_network_layer, barrier_layer, buffer_m=50, mode="block", penalty_factor=0.25,
                            speed_field=None, output_field="barrier_speed"):
@@ -219,7 +233,7 @@ def apply_network_barriers(road_network_layer, barrier_layer, buffer_m=50, mode=
     try:
         with edit_command(network, "Cartogen AI: write " + output_field) as owned:
             out_idx = add_numeric_field(network, output_field)
-            for feat in network.getFeatures():
+            for feat in _ck.features(network, "Barrier: reading features"):
                 base = _DEFAULT_SPEED_KMH
                 if speed_field is not None:
                     try:

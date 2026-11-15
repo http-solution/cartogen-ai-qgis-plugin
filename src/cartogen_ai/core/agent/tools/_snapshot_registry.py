@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Snapshot/restore pairs for a priority subset of MODIFY/DELETE tools --
 the real, still-open half of point 20 of
 docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md that
@@ -151,6 +150,70 @@ def _restore_field_write(snapshot):
         return False
 
 
+# -- add_field (MODIFY, schema) --
+#
+# #425 (left over from #138): undoing add_field used to do nothing, the layer kept the new column. The honest meaning of "undo" for a schema
+# change is: take the column away again while that loses nothing. A column that has been filled since (field_calculator, a manual edit) holds
+# somebody's data, so undo refuses, says so, and changes nothing; deleting a filled column stays a deliberate step (delete_field, which asks).
+
+def _snapshot_added_field(arguments):
+    layer = _find_layer(arguments.get("layer_name"))
+    field_name = arguments.get("field_name")
+    if layer is None or not field_name or layer.fields().indexOf(field_name) != -1:
+        return None          # add_field will refuse (unknown layer, bad name, field already there): nothing to undo
+    return {"kind": "restore_added_field", "layer_id": layer.id(), "field_name": field_name}
+
+
+def field_holds_values(layer, index):
+    """True when any feature has a real (non-NULL, non-empty-text) value in field `index`. Never raises: unknown counts as holding values."""
+    try:
+        for feature in layer.getFeatures():
+            value = feature.attribute(index)
+            if value is None or str(value) in ("NULL", ""):
+                continue
+            return True
+        return False
+    except Exception:
+        return True
+
+
+def _precheck_added_field(snapshot):
+    """The refusal text when undo cannot remove the field without losing data, else None. Asked BEFORE the confirmation card (live run 2026-11-04, row V9:
+    the card for a filled column offered a destructive remove and the refusal only came after Apply). A missing layer or field is not a refusal."""
+    layer = _layer_by_id(snapshot["layer_id"])
+    if layer is None:
+        return None
+    idx = layer.fields().indexOf(snapshot["field_name"])
+    if idx != -1 and field_holds_values(layer, idx):
+        return (f"The field '{snapshot['field_name']}' now holds values, so removing it would lose data. Nothing was changed. "
+                "If you want it gone anyway, ask me to delete the field; that asks for your confirmation first.")
+    return None
+
+
+def _restore_added_field(snapshot):
+    layer = _layer_by_id(snapshot["layer_id"])
+    if layer is None:
+        return False
+    idx = layer.fields().indexOf(snapshot["field_name"])
+    if idx == -1:
+        return True          # already gone some other way
+    refusal = _precheck_added_field(snapshot)
+    if refusal:
+        snapshot["refusal"] = refusal
+        return False
+    try:
+        from ._edit_session import EditError, edit_command
+        with edit_command(layer, "Cartogen AI: undo add field"):
+            if not layer.deleteAttribute(idx):
+                raise EditError("the field could not be removed")
+            layer.updateFields()
+        return True
+    except Exception as e:
+        log_event("swallowed_exception", tag="Tools", tool="snapshot_restore_added_field", error_class=type(e).__name__, error=True)
+        snapshot["refusal"] = "The field could not be removed (the layer refused). Nothing was changed."
+        return False
+
+
 # -- apply_categorized_style / apply_graduated_style / apply_graduated_symbol_style
 # (MODIFY, style) --
 #
@@ -245,6 +308,69 @@ def _make_property_restore_fn(set_value):
     return restore_fn
 
 
+# -- delete_features (DELETE, rc46) ------------------------------------------
+#
+# rc45 smoke run: deleting one feature worked (confirm card, 8 -> 7) but "undo the last operation" could not put it back, because nothing
+# remembered the features. The snapshot copies the features that are about to go (attributes and geometry), capped so a large deletion does not
+# hold the whole layer in memory; above the cap there is no undo and the tool's own confirm card is the safeguard. Only taken on the confirmed
+# call, like the field-write snapshots. Restoring re-adds them as NEW features (providers assign new ids; key columns such as a GeoPackage
+# "fid" are blanked so they do not collide), inside the same owned-edit helper the delete used.
+_MAX_UNDO_FEATURES = 5000
+
+
+def _snapshot_delete_features(arguments):
+    if not arguments.get("confirmed"):
+        return None
+    layer = _find_layer(arguments.get("layer_name"))
+    if layer is None:
+        return None
+    try:
+        from .attribute_edit_tools import _matching_ids
+        ids = _matching_ids(layer, arguments.get("expression"), bool(arguments.get("only_selected")))
+        if not ids or len(ids) > _MAX_UNDO_FEATURES:
+            return None
+        from qgis.core import QgsFeature, QgsFeatureRequest
+        features = [QgsFeature(f) for f in layer.getFeatures(QgsFeatureRequest().setFilterFids(ids))]
+        return {"kind": "restore_features", "layer_id": layer.id(), "features": features} if features else None
+    except Exception:
+        return None
+
+
+def _restore_delete_features(snapshot):
+    layer = _layer_by_id(snapshot.get("layer_id"))
+    if layer is None:
+        return False
+    try:
+        from qgis.core import QgsFeature
+        from ._edit_session import EditError, edit_command
+        pk = set(layer.primaryKeyAttributes())
+        fresh = []
+        for old in snapshot["features"]:
+            f = QgsFeature(layer.fields())
+            f.setGeometry(old.geometry())
+            for i in range(layer.fields().count()):
+                f.setAttribute(i, None if i in pk else old.attribute(i))
+            fresh.append(f)
+        try:
+            with edit_command(layer, "Cartogen AI: undo delete features"):
+                if not layer.addFeatures(fresh):
+                    raise EditError("the layer refused the features")
+        except EditError:
+            return False
+        layer.triggerRepaint()
+        return True
+    except Exception:
+        return False
+
+
+# Integration audit 2026-10-16: the MODIFY tools added since package A were not in this registry, so undo_last_operation could not reverse them
+# (it reported "no snapshot" for a layer filter, a diagram, a callout, an elevation setting...). Reused, not new, mechanisms: set_layer_filter
+# writes the subset string exactly as run_query does; the symbology, labelling, diagram, elevation and temporal tools change what a layer's
+# QML style holds, which _snapshot_style / _restore_style already round-trip. Not covered, on purpose: the edit-buffer tools (transform,
+# merge, split, change_field_type) have their own undo_manual_edit, and project-wide settings (snapping, terrain, time range) are not per-layer.
+_STYLE_TOOLS = ("set_rule_based_labels", "set_label_callout", "set_layer_diagram", "set_point_marker", "set_raster_relief",
+                "apply_saved_symbol", "set_layer_elevation", "set_layer_temporal")
+
 SNAPSHOT_REGISTRY = {
     "remove_layer": (_snapshot_remove_layer, _restore_remove_layer),
     "field_calculator": (
@@ -278,7 +404,22 @@ SNAPSHOT_REGISTRY = {
         _make_property_snapshot_fn(_subsetstring_get),
         _make_property_restore_fn(_subsetstring_set),
     ),
+    "delete_features": (_snapshot_delete_features, _restore_delete_features),
+    "add_field": (_snapshot_added_field, _restore_added_field),
+    "set_layer_filter": (
+        _make_property_snapshot_fn(_subsetstring_get),
+        _make_property_restore_fn(_subsetstring_set),
+    ),
+    **dict.fromkeys(_STYLE_TOOLS, (_snapshot_style, _restore_style)),
 }
+
+
+# Optional per-tool check run before the confirmation card: returns the reason undo cannot be done, or None. Only tools with a refusal rule are here.
+PRECHECK_REGISTRY = {"add_field": _precheck_added_field}
+
+
+def get_precheck_fn(tool_name):
+    return PRECHECK_REGISTRY.get(tool_name)
 
 
 def get_snapshot_fn(tool_name):

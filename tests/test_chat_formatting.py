@@ -1,5 +1,6 @@
-# -*- coding: utf-8 -*-
+from typing import ClassVar
 import unittest
+from cartogen_ai.core.ui import chat_formatting as cf
 from cartogen_ai.core.ui.chat_formatting import (
     render_markdown, _relative_time, _clock_time, _blend_hex, derive_bubble_colors,
     escape_plain_text, now_iso, friendly_tool_name, render_tool_step_html,
@@ -144,6 +145,33 @@ class TestRenderMarkdown(unittest.TestCase):
 
         hr_html = render_markdown("---", dark_colors)
         self.assertIn("#555555", hr_html)
+
+
+class TestModelBreaksAndComparisonSpans(unittest.TestCase):
+    """1.18.2 hand test A4/B6: a literal '<br>' in a facility list and raw '$' around '< 0.2' in class text."""
+
+    def test_model_written_br_stays_a_break_but_other_tags_stay_escaped(self):
+        out = render_markdown("Hospital A<br>Hospital B<br/>C <b>x</b>")
+        self.assertIn("Hospital A<br>Hospital B<br>C", out)
+        self.assertNotIn("&lt;br", out)
+        self.assertIn("&lt;b&gt;x&lt;/b&gt;", out)
+
+    def test_a_model_written_nbsp_is_a_space_not_literal_text(self):
+        out = render_markdown("Events&nbsp;in&nbsp;Yemen &amp; more")
+        self.assertIn("Events in Yemen", out)
+        self.assertNotIn("nbsp", out)
+
+    def test_br_inside_a_table_cell(self):
+        out = render_markdown("| a | b |\n|---|---|\n| x<br>y | z |")
+        self.assertIn("x<br>y</td>", out)
+
+    def test_comparison_only_dollar_spans_lose_their_dollars(self):
+        self.assertEqual(cf.simplify_latex("score $< 0.2$ and $>=$"), "score < 0.2 and >=")
+        self.assertEqual(cf.simplify_latex("$>= 80%$"), ">= 80%")
+
+    def test_prices_are_left_alone(self):
+        self.assertEqual(cf.simplify_latex("between $5 and $10"), "between $5 and $10")
+        self.assertEqual(cf.simplify_latex("$5 < $10"), "$5 < $10")
 
 
 class TestLinkifyOutputPaths(unittest.TestCase):
@@ -299,7 +327,7 @@ class TestFriendlyToolName(unittest.TestCase):
 
 
 class TestRenderToolStepHtml(unittest.TestCase):
-    _colors = {"subtle": "#888888", "text": "#222222"}
+    _colors: ClassVar = {"subtle": "#888888", "text": "#222222"}
 
     def test_running_status_shows_using_label(self):
         html = render_tool_step_html("apply_graduated_style", "running", None, self._colors)
@@ -336,7 +364,7 @@ class TestRenderToolStepsToggleHtml(unittest.TestCase):
     multi-tool-call turn) -- one compact toggleable summary line replacing the old
     one-line-per-event approach. See chat_tab_widget._flush_tool_steps_summary/
     _on_step_anchor_clicked for how the toggle actually gets wired up live."""
-    _colors = {"subtle": "#888888", "text": "#222222"}
+    _colors: ClassVar = {"subtle": "#888888", "text": "#222222"}
 
     def test_collapsed_shows_count_and_comma_joined_friendly_names(self):
         steps = [
@@ -382,7 +410,7 @@ class TestRenderToolStepsToggleHtml(unittest.TestCase):
 class TestRenderToolStepsFailureDetailsHtml(unittest.TestCase):
     """Failures are always shown regardless of the toggle above's collapsed/expanded state --
     never gated behind a click, matching this codebase's no-silent-failures posture elsewhere."""
-    _colors = {"subtle": "#888888", "text": "#222222"}
+    _colors: ClassVar = {"subtle": "#888888", "text": "#222222"}
 
     def test_no_failed_steps_returns_empty_string(self):
         steps = [{"name": "get_layers", "status": "done", "error": None}]
@@ -552,7 +580,7 @@ class TestSimplifyLatex(unittest.TestCase):
 
     def test_the_observed_fragments(self):
         self.assertEqual(self.f(r"area $\le$ 3,000 $\text{km}^2$"), "area ≤ 3,000 km²")
-        self.assertEqual(self.f(r"3 $\times$ 4"), "3 × 4")
+        self.assertEqual(self.f(r"3 $\times$ 4"), "3 \u00d7 4")
 
     def test_powers_and_percent(self):
         self.assertEqual(self.f(r"$10^3$ and $10^{-2}$"), "10³ and 10⁻²")
@@ -630,3 +658,37 @@ class TestSummarizeToolResult(unittest.TestCase):
         self.assertIn("Send to cloud once", card)
         self.assertNotIn("Apply edit", card)
         self.assertIn("Apply edit", render_safety_gate_html({"id": "2", "pending_args": {}}, {}))
+
+
+class TestModelTextCannotForgeInternalLinks(unittest.TestCase):
+    """2026-10-11 audit. A reply is model text, and the model reads layer attributes and web results an attacker can write. Before the
+    fix `[Apply edit](cartogen://confirm/7)` rendered as a live internal link that resolves a real pending confirmation, and a quote
+    in a link URL ended the href attribute and added its own."""
+
+    def test_confirmation_and_plan_links_are_not_rendered_from_model_text(self):
+        for host in ("confirm", "cancel", "task", "clearplan", "steps", "refine", "starter"):
+            html = cf.render_markdown(f"[Looks harmless](cartogen://{host}/1)")
+            self.assertNotIn("cartogen://", html, host)
+            self.assertIn("Looks harmless", html)
+
+    def test_the_four_chip_kinds_still_work(self):
+        for host in ("action", "export", "prompt", "zoom"):
+            self.assertIn(f'href="cartogen://{host}/x"', cf.render_markdown(f"[go](cartogen://{host}/x)"), host)
+
+    def test_a_quote_in_a_link_cannot_add_attributes(self):
+        html = cf.render_markdown('[x](https://example.com" style="font-size:99px)')
+        self.assertNotIn('" style="font-size', html)
+        self.assertIn("%22", html)
+
+    def test_only_existing_output_files_of_known_types_open(self):
+        import os
+        import tempfile
+        with tempfile.TemporaryDirectory() as d:
+            ok = os.path.join(d, "map.pdf")
+            exe = os.path.join(d, "run.bat")
+            for p in (ok, exe):
+                with open(p, "w") as fh:
+                    fh.write("x")
+            self.assertTrue(cf.is_openable_output_file(ok))
+            self.assertFalse(cf.is_openable_output_file(exe))
+            self.assertFalse(cf.is_openable_output_file(os.path.join(d, "missing.pdf")))

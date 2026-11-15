@@ -1,5 +1,13 @@
 # Cartogen AI — Implementation Tracker
 
+> **Current status (2026-11-05, HY-2 sweep).** The opening paragraphs below are the 2026-09-20 snapshot (177 tools, 1,958 tests, `v1.16.0-rc1`) and are **history**, kept as written.
+> Today: 335 tools in the live registry, about 6,000 offline tests, 162 guarded features in `docs/FEATURE_LEDGER.json`, 60 plans in `docs/plans/`, version 1.18.5 with 1.18.6 held.
+> The planning source is `docs/MASTER_TASK_LIST_2026-10-27.md` (open work, one row each), what has been seen working in a real QGIS run is `docs/LIVE_RESULTS.json`
+> (checked by `python tools/live_results.py --gate`), and the guarded features and their tests are in `docs/FEATURE_LEDGER.json`. This file keeps the decisions, the history and the
+> reasons; where it disagrees with those three, they win. Section numbers 1.19 to 1.24 were each used twice; the earlier set is now 1.19a to 1.24a (nothing outside this file
+> referred to it; the references to "1.23" in PLAN-021 and PLAN-022 mean the rc20 audit, which keeps its number).
+
+
 **Cut as `v1.5.7-rc5`, then corrected to `v1.16.0-rc1`, both 2026-09-20** — the Phase 11
 completion, the AST-sandbox bypass fix, and the 2 keyboard-navigation fixes this file's own
 entries below describe as "not yet cut into a release" were first released as rc5
@@ -64,6 +72,12 @@ frozen source docs themselves.
 
 ---
 
+> **2026-10-09 repository visibility:** this repository (`http-solution/cartogen-ai-qgis-plugin`) is now public. Older entries below that call
+> the remote private or say no public repository exists describe the earlier `cartogenai-glitch/CARTOGEN-AI` remote and are history, not current
+> state. A secret and personal-data scan of the tree and the full history (698 commits) found no real credentials; the one hard-coded smoke-test
+> password in `service/scripts/local_saas_smoke.sh` is now generated per run, and a personal email address was removed from
+> `docs/archive/DOCUMENTATION.md` (it remains in git history, which was not rewritten).
+
 ## 1. Open items that need a human decision (not an engineering call)
 
 These three are explicitly **not** something an agent should decide or silently implement —
@@ -94,6 +108,8 @@ with `CONTRIBUTING.md` §3 ("flag, don't silently fix if it's a judgment call").
 > everywhere: assumed speeds by road class would make travel times far more realistic (recommended, changes results).**
 > Earlier: QGIS no longer freezes (Stop and progress work), network tools work in real metres/hours, README tool counts
 > corrected to 178.
+>
+> **Update 2026-11-05 (HU-3).** (2) is fixed: `optimize_delivery_route` now builds its stop matrix from one shortest-path tree per origin (9 graph builds for 10 stops instead of 45), with the old per-pair call kept as the fallback (CI only; counted, not timed on real roads). (1) and (3) are still open: a country-sized network to profile is not available here, and default speeds by road class are a modelling choice for the owner.
 
 > **2026-09-24 — `v1.16.0-rc5` cut and published as a prerelease** (tag
 > `commercial-plugin-v1.16.0-rc5` on `d140adc`, PR #23 — renamed to `cartogen-ai-v1.16.0-rc5`
@@ -791,6 +807,8 @@ one confirmed live case; this decision just confirms that pattern as where the *
 rather than reopening the formula question each time.
 
 ---
+
+**Update 2026-11-05 (AR-3).** Measured, not changed (PLAN-060, master list AR-3). Asking every one of the 792 tasks' own titles for its task: 613 find it, 165 find none ("too short to be a request", the fragment guard, by design), 13 lose to a task whose keyword set is identical, 1 loses to a task with fewer strong keywords, none to one with more; and only 2 of the 385 plain prompts still get a task directive, both right. So no short-definition bias is measurable on the register's own wording, and the targeted re-rank of 2026-09-19 stands. Pinned by `tests/test_task_matcher_length_fairness.py`. Changing the shared formula would still be a routing change for the owner to decide; the recommendation is to close this as "no measurable bias".
 
 ### 1.9 ~~`run_allowlisted_processing_algorithm` outputs are always fully visible, even purely-internal ones~~
 
@@ -1497,6 +1515,8 @@ for the on-canvas behavior change itself (no live QGIS in this sandbox to confir
 names the right region against a real project); the text-extraction and reprojection-fallback
 logic themselves are fully unit-tested.
 
+**Update 2026-11-05.** Resolved, as the "Resolved, 2026-09-28" paragraph above says: the cause was the caller using the canvas centre, not `find_region`. The heading's "needs live Geofabrik data" is history.
+
 ### 1.16 "Smart mapping" -- analysis-tool output layers pile up uncoordinated across a multi-step session, beyond the one confirmed-and-fixed mechanism
 
 **Added 2026-09-28.** Live report, a multi-step session on the same project (the exact one
@@ -1594,6 +1614,8 @@ it deserves its own dedicated pass with its own live-verification plan.
 
 ---
 
+**Update 2026-11-05 (HU-5).** Scope measured, nothing changed: 63 `addMapLayer(` call sites in 26 files; only `calculate_service_area` (and one site in `critical_link_tools.py`) replaces a same-named layer. Whether to replace, group or mark superseded layers is still the owner's decision (master list HU-5).
+
 ### 1.17 rc7 smoke-test findings still open after rc8 (added 2026-09-30)
 
 Source: `docs/RC7_SMOKE_TEST_FINDINGS_2026-09-30.md`; GitHub #72 (umbrella) and #73-#97. rc8 fixed or mitigated
@@ -1638,6 +1660,173 @@ store needs a way out. Consequences to be aware of: anyone who never opens Setti
 they work in (SECURITY.md §7 updated); users who explicitly left the old default are unaffected only if the key was ever written by
 opening Settings and pressing OK; the UI still restores only the agent's 10-message window on reopen (showing the whole transcript is a
 possible follow-up). NOT verified in a real QGIS session; real-QGIS round-trip tests are in `tests/test_chat_transcript_live.py`.
+
+### 1.19a Advanced web search and filtering results against reliable sources (first version built 2026-10-12)
+
+**Status: first version built** as `find_incident_reports` (`tools/incident_search_tools.py`; 211 tools). It does not search the open web: it asks a fixed table of
+sources in parallel (GDACS, USGS, NASA EONET, UCDP candidate events, ReliefWeb disasters RSS), keeps what matches the country / bbox and dates, tags every record
+with source, tier, date and link, builds a point layer (ReliefWeb has no coordinates, so those are listed), and says in every reply which sources answered, which
+failed and which were not searched. The owner's decisions are applied as: structured keyless sources only; no social media; no API keys yet. Checked live on
+2026-10-11/12: all five answer; the fact-checkers the owner named cannot be read by a program (Reuters: JavaScript wall; AFP: HTTP 403; Full Fact: 404), ReliefWeb's
+API v2 refuses an unregistered appname (so the RSS is used), ACLED needs a key. Verified: the network phases against the live services and the logic offline; **not**
+verified in a running QGIS session (live layer tests are CI-only), and not whether the model picks the tool for plain requests.
+**Still open for the owner:** register a ReliefWeb appname (gives structured fields and country filters), decide on ACLED credentials (tracker HX4), decide whether a
+fact-check lookup is worth building given that none of the named outlets allows it. The original plan text follows for the record.
+
+**Original plan (2026-10-11), not built as written:**
+
+Why: a live chat on 2026-10-11 ("check the social media and internet for incidents") made six `search_web` calls and returned no
+usable answer. `search_web` (`core/agent/tools/system_tools.py`) is a thin wrapper over the `ddgs` package: general web results
+only, no date filter, no source ranking, no way to tell an agency report from a forum post, and it returned "No results found"
+for some queries. The stall guard now asks the model to summarise after a read-only stall (`loop_guard.WRAP_UP_NUDGE`), but that
+does not make the results trustworthy.
+
+Intended scope (to be confirmed by the owner before building):
+- A source allowlist with a reliability tier per source (for example UN and agency feeds such as ReliefWeb, GDACS, OCHA, ACLED,
+  USGS, national met and health agencies, then established news, then everything else), kept in a data file and editable in Settings.
+- Search that queries those sources' APIs or feeds directly where they exist, instead of general web search, with a date window and
+  a place filter.
+- Every returned item carries source, tier, publication date and URL; items outside the allowlist are dropped or clearly marked
+  unverified, and the reply names which sources were and were not reachable.
+- Social media: only through an official API the user has credentials for; no scraping. Treat posts as unverified signals.
+- Results that name a place can be turned into a points layer with the source fields kept, so the map shows provenance.
+
+Known limit of one source (owner note, 2026-10-11): GDACS disaster alerts are global only, with no country or region query. The
+feed has to be fetched whole and filtered locally (by the alert's country or coordinates against the user's area of interest), so a
+regional search cannot rely on GDACS for coverage or for "nothing found" answers. Each source needs its coverage recorded (global,
+regional, country) so the reply can say which sources could and could not answer for the area asked. Not verified against the live
+GDACS feed from this sandbox.
+
+Source list supplied by the owner 2026-10-11 (verification and incident tracking). None of the access notes below was checked from
+this sandbox; confirm each before building:
+- Fact-checkers: Reuters Fact Check, AFP Fact Check, Full Fact; aggregators Duke Reporters' Lab (database of fact-checkers) and the
+  IFCN signatory list. Mostly web pages or RSS, not structured APIs: usable as a "was this claim fact-checked" lookup by link or RSS,
+  not as an incident feed.
+- Incident trackers: ACLED (API, key and terms required), Liveuamap (map site; machine access is likely a paid API, to be confirmed).
+- OSINT collectives and tools: Bellingcat, OSINT Combine, InVID/WeVerify. These are methods and browser tools for a person, not data
+  sources; the plugin can point to them but not call them.
+Design consequence: the "reliable sources" list must say, per source, what it provides (incidents, fact-checks, methods), how it is
+reached (API, RSS, page), and what coverage it has (global, regional, country); only sources with structured access can be filtered
+automatically.
+
+Keyless structured sources suggested by the owner 2026-10-11 (GDACS, NASA EONET, USGS earthquakes, UCDP). Checked against the code:
+- **Already built:** `fetch_gdacs_disaster_alerts` (bbox and country filter, applied locally after the fetch), `fetch_nasa_eonet_events`,
+  `fetch_nasa_active_fires` (needs a FIRMS key) and `generate_situation_dashboard` in `tools/hazard_monitoring_tools.py`. So GDACS
+  and EONET need no new work for this item beyond making `search_web`-style requests use them.
+- **Not built:** USGS earthquakes (FDSN event API, GeoJSON, takes a bounding box, time window and minimum magnitude: the simplest
+  addition, same pattern as the EONET tool) and UCDP conflict events.
+- **UCDP caution:** the example given used dataset version 22.1 and no token. From memory the UCDP API now asks for an access token and
+  serves newer dataset versions, and its data is yearly-validated, not real time. Not checked: this sandbox has no outbound access to
+  these hosts (all four returned no response), so none of the endpoint behaviour in the suggestion could be tested here either.
+- **UCDP downloads page (owner pointed to https://ucdp.uu.se/downloads/, 2026-10-11): could not be opened from this sandbox** (the
+  egress proxy refuses the host), so nothing about its current datasets, version numbers or terms was read. From memory only, to be
+  confirmed: UCDP publishes the Georeferenced Event Dataset (GED) as a yearly versioned download (CSV and other formats) and a
+  "candidate events" dataset released more often for recent months, under an open licence that requires attribution. If so, UCDP is a
+  **download-and-cache source, not a live query**: the tool would fetch a versioned file once through `core/net`, cache it locally,
+  filter by country, bounding box and date, and label results with the dataset version and its release date, saying plainly that
+  the newest events are in the candidate set and are provisional. Owner to read the page and confirm the file URLs and licence before building.
+- **Live check 2026-10-11 (after the owner opened network access; this replaces the "unverified" notes above where they conflict):**
+  - USGS `earthquake.usgs.gov/fdsnws/event/1/query?format=geojson` answered 200 with GeoJSON, no key. NASA EONET `/api/v3/events`
+    answered 200, no key.
+  - **GDACS: the suggested URL is wrong.** `.../geteventlist/MAP?alertlevel=red` answered 400 `{"message":"Eventtype is required."}`.
+    The existing tool uses `.../geteventlist/SEARCH`; any change must keep using that and be tested against the live feed.
+  - **UCDP API needs a token.** `ucdpapi.pcr.uu.se/api/gedevents/25.1` answered 401 "API token required. Add header:
+    x-ucdp-access-token". The suggestion that it needs no key is wrong. A token is a credential, so it would go through the
+    Auth Manager like the other keys (HX4).
+  - **UCDP downloads need no token** (https://ucdp.uu.se/downloads/, licence CC BY 4.0, cite the publications listed with each
+    dataset): GED global version 26.1 yearly (`/downloads/ged/ged261-csv.zip`, codebook `ged261.pdf`) and the Candidate Events
+    dataset, monthly (`/downloads/candidateged/GEDEvent_v26_0_8.csv`, 1.4 MB, 1,806 rows dated 2026-01-01 to 2026-08-31, last
+    modified 2026-09-20). Columns include `latitude`, `longitude`, `country`, `adm_1`, `date_start`, `type_of_violence`, `best`, `high`,
+    `low`, `conflict_name`, `where_prec`, `event_clarity`. File names change with each release (`v26_0_7`, `v26_0_8`, ...), so the
+    tool must read the page for the current link, not hard-code one. The candidate data lags by weeks: not live.
+  - ReliefWeb API `v1` is decommissioned (HTTP 410); v2 would need checking, and it asks for a registered application name.
+- The suggested `requests.get` snippets must not be copied: plugin fetches go through `core/net` (QGIS network stack, task 71).
+- Sources that need no key still need terms of use recorded (attribution, rate limits) before they are called by default.
+
+Open decisions for the owner: which sources count as reliable, whether API keys (ACLED needs one) are acceptable, and whether
+social media is in scope at all. Related: HX4 (credentialed integrations) covers ACLED and similar and should be built together.
+Do not call this shipped in release notes until it exists and has been tested against the live services.
+
+### 1.20a Remaining requests/urllib calls moved to QGIS's network stack (task 71, 2026-10-11)
+
+Done in this change: the last direct `urllib` opener, `vector_tools._build_safe_opener()` (used by `add_layer_from_path` URL
+prefetch and the humanitarian downloads, including WorldPop and OSM extracts), now goes through `core/net.stream_following`:
+QgsNetworkAccessManager for the request (QGIS proxy, authentication and SSL settings apply), redirects followed one hop at a
+time, every target vetted by `_is_safe_url` first (the SSRF protection is kept), credential headers dropped on a cross-site hop.
+**Limit found by the first CI run (2026-10-11):** a second streamed QGIS reply opened after a redirect never delivers its body (same unexplained fault
+`_qgis_stream_open` already documents), so only the first request of a download goes through QGIS's stack and a redirected hop uses urllib
+after its target is vetted. Large downloads that redirect therefore still do not get QGIS authentication on the later hop.
+Offline tests: `tests/test_net.py::TestStreamFollowing` (urllib fallback path, local server). QGIS path: new
+`tests/test_net_live.py` case, **first run in CI; not hand-tested in desktop QGIS**.
+
+Deliberately left, with the reason:
+- `providers/base.py` still imports `requests`: it is the fallback when `QGIS_NETWORK_AVAILABLE` is false (unit tests, no QGIS) and
+  the path for a local Ollama server (`local=True`), which should not go through a proxy. Switch `cartogen_ai/hosted_requests_via_qgis`
+  turns the hosted-AI QGIS path off.
+- `search_web` uses the third-party `ddgs` package, which makes its own HTTP calls (not proxy-aware). Replaced by task 72 (tracker 1.19).
+- `urllib.parse` imports are string handling, not network calls.
+
+### 1.21a API-cost optimisation: measured request size and what is left (2026-10-11)
+
+Measured offline (no model call; ~4 characters per token, so approximate), on rc34 code:
+- All 208 tool schemas together: ~60,600 tokens. The router sends 9 to 40 per request: ~1,100 tokens for "hello", ~4,000 for a
+  precise request ("buffer the hubs by 500 m", 15 tools), ~15,500 for a broad one ("show a service area for hospitals", 40 tools; the
+  failed incident search sent 39 tools, ~15,400, although it needed one).
+- System prompt: ~9,600 tokens. Its stable part is the first 99.9% (the layer list is last), so provider prefix caching can hit.
+- Every model round re-sends system prompt + tool schemas + history, so one broad request of 6 rounds is roughly 150,000 input tokens
+  before history. Largest schemas: generate_temporal_dashboard, compute_jiaf_preliminary, add_point_layer, create_print_layout
+  (3,400-5,400 characters each).
+
+Already in place: automatic model choice (cost saver), 429 backoff, router with top_k 40, loop guard, per-turn token budget, local-data
+offer. Not done, and each needs a real model to verify (none is available in this sandbox, so none was changed):
+1. Lower top_k or send fewer schemas for research-only requests (saves up to ~10,000 tokens per round; risk: a missing tool).
+2. Shorten the ten largest tool descriptions (saves ~15,000 characters, ~3,700 tokens per request when they are all selected).
+3. Measure billed cost per provider, and prompt-cache hit rates (Gemini 6 of 23 calls seen earlier).
+4. Drop tool schemas from later rounds once the model has chosen its tools (risk: it cannot call a tool it needs next).
+Recommendation: do 3 first, so the others are judged on numbers, then 1 behind a setting.
+
+### 1.22a USGS earthquake and UCDP conflict-event tools (built 2026-10-11, not yet released)
+
+`tools/event_data_tools.py`: `fetch_usgs_earthquakes` (FDSN GeoJSON; bbox, days, minimum magnitude; layer coloured by magnitude band) and
+`fetch_ucdp_conflict_events` (UCDP Candidate Events CSV read from ucdp.uu.se/downloads: the newest file is found on the page each time,
+cached 12 hours, filtered by country, bbox, dates and deaths; layer coloured by type of violence). Two-phase like the EONET tool,
+CREATE operation, registered in the router, dispatch and docs (210 tools).
+- **Verified:** both network phases were run against the live services from this session (21 earthquakes in a Mediterranean box, 60 days,
+  M3+; 49 Sudan events since 2026-06-01 from `GEDEvent_v26_0_8.csv`, newest 2026-08-31) and offline tests cover parsing, filters and
+  dispatch (`tests/test_event_data_tools.py`).
+- **Not verified:** the layer phase and styling in a running QGIS session (no CI live test written yet; add one to
+  `tests/test_hazard_monitoring_tools*` style when the next live pass is done), and model behaviour (does the router pick these tools for
+  "earthquakes near X" or "conflict in Sudan").
+- UCDP data is preliminary and weeks old; every result says so and names the dataset's newest event date. UCDP's JSON API is not used
+  (it needs a token). Not yet in `metadata.txt` / CHANGELOG / in-plugin "what's new": do that with the next version bump (CONTRIBUTING §8).
+
+### 1.23a Chunked unsupervised classification (#222 / audit A15), built 2026-10-11
+
+`raster_numpy.classify_in_blocks` / `classify_raster_file`: first pass reads row blocks (about 4,000,000 values each) and draws a proportional random
+sample of valid cells; centres are fitted on that sample (`fit_centers`, factored out of `kmeans`); second pass assigns every cell and writes the
+block to the output GeoTIFF. Replaces the whole-raster read and the 25M-cell / 60M-value refusal with a 400M-cell time limit. Offline tests cover the
+block logic (`tests/test_raster_numpy.py`); a GDAL multi-block live test is in `tests/test_raster_numpy_live.py` (first CI run). **Not measured:** run time
+and peak memory on a real large raster; no mid-run cancel in this tool. See `docs/OPEN_ISSUES_STATUS_2026-10-11.md` for the issue list.
+
+### 1.24a Processing-cost audit and freeze fixes (2026-10-12)
+
+Full write-up: `docs/PROCESSING_COST_AUDIT_2026-10-12.md`; ranking tool: `tools/audit_processing_cost.py`. Built: `tools/_chunked.py` (slice long GUI-thread loops
+into about 50 ms pieces, honour Stop, report progress; used at 62 `getFeatures()` sites), hub-siting matrix in slices and its ranking / greedy / route ordering
+off the GUI thread, O(1)-per-move 2-opt (symmetric matrices), one `unaryUnion` and a prepared geometry in the route-risk tool, `geocode_batch` moved off the
+GUI thread with a test that fails for any network tool left on it, and a one-heavy-job-at-a-time gate for scheduled ticks. **Not measured on a real QGIS
+project; not hand-tested.** Second pass 2026-10-12: more sites sliced (validators, script snapshots, local data, styling, export, QA, imports), allocation arithmetic and JIAF pattern statistics off the GUI
+thread, chat scrollback bounded (`trim_scrollback`, 300 -> 200 items; live tests CI-only). The egress-gate scan test had to learn the new `_ck.features(` marker or it would have stopped seeing feature readers.
+Decided 2026-10-12: Python-implemented Processing algorithms (`gdal:*`) stay on the GUI thread; a CI probe (PR #287, closed unmerged) found no crash in 0 of 60+ background attempts, so the original crash is unreproducible, but nothing proves a worker is safe. Side finding fixed 2026-10-12: live modules that wrapped `import processing` in `contextlib.suppress` only worked when `test_agent_live` ran first and added QGIS's plugins directory to `sys.path`; the shared `_boot_qgis` now adds it. Hand test 2026-10-13 (`docs/RC37_LIVE_TEST_REPORT_2026-10-13.md`): 17 of 23 rows PASS or PASS (degraded), 2 INCONCLUSIVE (Stop not exercised), 2 not run, 2 optional skipped; found and fixed a registration bug that made `run_allowlisted_processing_algorithm` fail on every model call since rc24 (new registry signature test). rc39: row RC37-A1 re-judged FAIL (four invented incidents were added after every source returned nothing); cause was the missing-layer follow-up wording, now reversed with a test. No guard yet stops invented points added by another route. Open: sampling / survey compute interleaved with reads, single very long C++ calls.
+
+### 1.25 Roadmap step G: the owner's decisions on four product directions (recorded 2026-11-02)
+
+Workflow builder: share plans and presets as files, no node editor for now. Specialist agent roles: full team, but as a design plan with a measured cost and a stop condition before any code (the audit's "benefit unproven" caution stands). Cloud workers: the plugin stays local, nothing in this codebase sends project data to a service. Skills marketplace: files only, no store, no code in packages. What each rules out, and the follow-up plans to write, are in `docs/plans/PLAN-047-roadmap-g-owner-decisions.md`.
+
+### 1.26 Batch geocoding sends a layer's own text to a public server, outside the egress gate (found 2026-11-11, PLAN-023 R1-8)
+
+Building the data-source catalogue recorded what each outside source receives. `geocode_batch` sends the address or place text taken from a layer's own fields to the public OpenStreetMap Nominatim server (the catalogue marks `geocoding` as egress class `text`). The egress gate (`core/models/egress_gate.py`) protects against sending RESTRICTED or SENSITIVE layer data to a cloud model provider; it does not look at what a data-source tool sends to its own service, and `geocode_batch` has no sensitivity check of its own. So a layer tagged SENSITIVE (for example case addresses in a health project) can be geocoded against a public server with no question. Nothing was changed. Decision needed from the owner: (a) leave as it is and say so in the tool description and the User Guide, (b) make `geocode_batch` and `geocode_and_enrich` refuse or ask when the layer is protected, or (c) a Settings switch. My recommendation is (b), because the persona text for Public Health already promises to protect patient-level points.
+
+**Decided 2026-11-11 (owner: refuse) and built.** `geocode_batch` and `geocode_and_enrich` now refuse, before any lookup, place text that comes from a protected (RESTRICTED or SENSITIVE) layer: either the caller names it in the new `source_layer` argument, or the text equals a value in a text field of a protected layer in the project (so the refusal does not depend on the caller saying where the text came from). It applies whatever the AI provider is, never changes a tag, and fails closed on a protected layer it cannot compare. Limit: a retyped or derived text does not match, so it catches copies of protected values, not every derived text. Feature-ledger entry `geocoding-protected-refusal`, hand row C27. Options (a) and (c) were not taken; a Settings switch (c) remains possible later.
 
 ## 2. Open items blocked on this sandbox's environment (not a decision, not a bug)
 
@@ -2500,3 +2689,84 @@ Live tests for #164 (`tests/test_layout_swap_live.py`) were written without a lo
 
 **Update 2026-10-05 (#130 point 3, replace-by-name disclosure).** `calculate_service_area` now stores the parameters a result layer was built with (`cartogen_ai/result_params` custom property: strategy, travel cost(s), speed/direction field, default speed, road layer). When a later run replaces a same-named layer that was built with different parameters, the result carries `replaced_results` (layer, what changed) and a `replace_note` the reply must relay; an identical re-run and a layer made before this change stay silent. Pure helpers `describe_param_changes` / `replacement_note` are unit-tested; the layer behaviour has a live test (`tests/test_replace_result_warning.py`, added to the CI live runner; written without a local QGIS). **Not built, a design call for the owner:** asking for confirmation BEFORE replacing (the issue's wording was "say so in the preview"); this disclosure happens after the replacement. Only the service-area layers record parameters so far; other tools that replace by name (`optimize_delivery_route`, the access reach polygons) are unchanged. Not hand-tested.
 
+
+### 1.23 rc20 architectural audit -- findings still open (added 2026-10-07)
+
+Source: the external "Cartogen AI rc20 -- architectural and code audit" (18 findings, A01-A18). Fixed on branch
+`claude/eager-goldberg-aruysp` with offline tests (live checks run in the QGIS 4.2.2 Docker image only; **none hand-tested in desktop
+QGIS, none in a PR or release yet**): A01-A05 (the five P1s), A07/A08/A17 (already fixed by #219), A09 (equalised pixels never become
+NoData), A11 (projected-foot DEM z-factor), A12 (RFC 7946 GeoJSON export), A13 (failed CRS transform is an error, not a silent wrong zoom).
+
+Still open:
+
+| ID | Finding | Why not fixed yet | Recommendation |
+|----|---------|-------------------|----------------|
+| A06 | `execute_pyqgis_script` worker shares writable sources with the project | **Fixed (owner chose read-only copies)**: local-file vector layers are exported to a temp GeoPackage and local rasters copied, scratch layers repointed; live-tested in Docker. Database/web-service layers have no file to copy and stay writable by the script; a script's edits to file-backed layers are discarded, not reconciled | **Update 2026-10-10 (#220):** database / web-service layers are now locked read-only in the scratch project (`_lock_uncopyable_layers`), so a script reads them but `startEditing()` is refused; live-tested in Docker QGIS 4.2.2. Remaining limit: a script can still reach a database through its own connection code, which the AST sandbox (not this lock) restricts |
+| A14 | Expensive tools (large raster/vector ops) block the GUI thread | **Started (owner chose polygonize + zonal stats first)**: `zonal_statistics` computes on a geometry-only copy via `native:zonalstatisticsfb` through the background runner (>=200 zones) and writes `zs_mean/median/stdev` back as one edit command; `extract_features_from_imagery` runs model inference and polygonize/WKT export through the new `run_callable` (no QGIS objects off the GUI thread). Live-tested: zonal stats (both paths) and `run_callable` (result, error, GUI stays responsive, Stop); the extraction path needs FastSAM and is NOT live-tested. **Update 2026-10-10 (#221):** `run_allowlisted_processing_algorithm` calls of NATIVE algorithms (not the ones that change the user's own layer) now run through `run_algorithm`; live-tested in Docker QGIS 4.2.2. **Correction 2026-10-10:** the first version also sent the raster tools (`_run_raster_and_add`, gdal: algorithms) through the runner; that crashed the QGIS 4.2.2 CI live job with a segfault in 2 of 4 runs (PR #249, #251), so `is_thread_safe_algorithm` now keeps every non-`native:` algorithm (gdal:, qgis:, script:) on the GUI thread. The raster-tool freeze (#221) is therefore NOT fixed; the cause of the crash is not known. NOT done: the other direct `processing.run` calls (contours, task-grid zonal stats, several logistics merges and reprojections, `raster_tools` calls outside `_run_raster_and_add`) and tools that touch QGIS objects directly. No timing measurement on a large raster was made, so the responsiveness gain is by design, not measured here | Move the remaining direct `processing.run` calls over; measure on a large raster |
+| A15 | Classification holds the whole raster in memory | **Chunked k-means shipped 2026-10-11 (§1.23a, #222)**; the old "guard shipped, chunking not built" text is superseded. 2026-11-05: the classification also runs on a worker thread for large rasters (AR-4, CI only) | Chunk k-means later if larger rasters are needed |
+| A16 | Abandoned processing bundles are never released in `_background_processing.py` | **Fixed offline**: released when the task reports Complete/Terminated, swept on each run; the real QgsTask signal path is not live-tested | Add a live test that abandons a task |
+| A18 | Bootstrap namespace eviction in the root `__init__.py` | **Last-resort path now scoped** (`claimed_module_names`; the normal path was scoped by #167); reload/upgrade behaviour still needs the §1.10 human test | Run the fresh-profile/upgrade gate |
+
+Release note: the rc21 changelog/notes do not yet mention the audit fixes; update them (or cut a later rc) before publishing.
+
+### 1.24 rc22 hand test: triage and fixes (added 2026-10-09)
+
+The owner's hand run of rc22 (120 rows: 32 PASS, 33 FAIL, 6 INCONCLUSIVE, 49 NOT RUN) is stored in `docs/RC22_LIVE_SMOKE_REPORT_2026-10-09.md` and
+`docs/RC22_RESULT_MATRIX_2026-10-09.csv`; the cause-by-cause triage, what was fixed afterwards and what is still open is `docs/RC22_SMOKE_TRIAGE_2026-10-09.md`.
+Fixed on the branch after rc22 (offline tests; raster export and the path rule also in Docker QGIS 4.2.2; none re-hand-tested): relative output paths,
+raster GeoTIFF export, canvas rotation in layouts, hazard-task over-matching, display step after a confirmed write, stale plan across projects, explicit colour
+ramps, cluster synonyms, Help (new)-mark note. **Open:** reply-quality failures that are model behaviour (invented facts, wrong country in the JIAF set-up), the
+legend listing layers hidden under opaque polygons (#165), the imagery/footprint preview inventing a CSV deliverable, the hub-siting "Yes" that ran nothing (R2/A1,
+cause not found), and 49 rows not run.
+
+**Update, 2026-10-10 -- GitHub #151 (audit F15, `execute_read_only_sql`).** Tested against a real PostGIS 16 server (the pinned Docker image plus `postgis/postgis:16-3.4`, same setup as the CI live job): geometry and non-spatial SELECTs become valid layers, an unknown connection / unreachable server / bad SQL / blocked keyword are errors, a mutation hidden in a function call (`nextval`) is stopped by the database and leaves the sequence untouched, and the user's own pooled connection stays writable afterwards. New: the result layer is marked read-only, so QGIS refuses `startEditing()` on it. **Still not guaranteed, by design:** the result layer re-runs the SELECT through its own connection, and QGIS does not pass libpq session options (a test showed `options=-c default_transaction_read_only=on` is dropped from the connection string), so the real guarantee remains a read-only database role. **Not tested:** a QGIS Auth Manager `authcfg` connection (needs a master password this headless job does not have).
+
+**Open item added 2026-10-10 (owner request) -- use `QgsNetworkAccessManager` instead of `requests` / `urllib`.** The QGIS plugin directory's guidelines recommend it because `requests`/`urllib` often miss QGIS's proxy and authentication settings. Today all network calls go through `requests` (provider clients `infrastructure/providers/{openai,gemini,claude,ollama,openrouter,cartogen}.py` and the shared retry helpers in `providers/base.py`, `core/agent/account.py`, `core/agent/local_data_loader.py`) or `urllib` (`tools/_urllib_retry.py`, `humanitarian_tools.py`, `hazard_monitoring_tools.py`, `system_tools.py`, `imagery_extraction.py`, `multimodal_remote_sensing.py`, `vector_tools.py`); proxy settings are copied from QGIS by `get_qgis_proxy_dict()`, which covers the common case but not QGIS authentication configurations or per-URL proxy exclusions. Scope and risks: (1) QGIS's network classes want the main thread (use `QgsBlockingNetworkRequest` from worker threads, which the agent loop and the background runner use); (2) streaming, timeouts, the retry/backoff behaviour and the 404 model-fallback chain in `providers/base.py` must be reproduced; (3) every provider has offline tests that mock `requests`, which would need a transport seam; (4) the Windows proxy behaviour needs a hand test. Not done. Recommended order: one provider (Gemini) behind a transport interface, then the rest. Not a blocker for the directory ("recommendation", not "requirement").
+
+**Update 2026-10-10 -- phase 1 of the above done in code (CI only, not hand-tested).** `core/net.py` is a drop-in for `urllib.request.urlopen` that goes through `QgsBlockingNetworkRequest` (QGIS proxy, authentication and SSL settings; safe on the agent's worker thread), raises the same `urllib.error` exceptions, refuses non-http(s) schemes, and falls back to urllib outside QGIS. Every data-fetch call (`humanitarian_tools`, `hazard_monitoring_tools` through `_urllib_retry`, `system_tools`, `multimodal_remote_sensing`, `local_data_loader` probes and index) uses it; Bandit's 10 B310 findings are gone. Large streamed downloads (Geofabrik extract, model checkpoints) deliberately stay on urllib with `stream=True` because `QgsBlockingNetworkRequest` holds the whole reply in memory; they use the QGIS proxy via `get_qgis_proxy_dict()`. **Still open (phase 2):** the LLM provider clients and `account.py` still use `requests`, with the retry, 404 model-fallback and `requests`-mocking tests described above; `vector_tools` keeps its SSRF-guarded urllib opener. Tests: `tests/test_net.py` (offline) and `tests/test_net_live.py` (real QGIS against a local server).
+
+**Update 2026-10-10 -- phase 2 done in code (CI only, not hand-tested).** `providers/base.py`'s `post_with_retry`/`get_with_retry` -- the one seam every provider client calls -- now send hosted-provider requests (OpenRouter, Gemini, OpenAI, Claude, Cartogen) through `core.net.request` (QgsBlockingNetworkRequest) when QGIS is present, wrapped in a `QgisResponse` that has the parts of `requests.Response` the clients use, and raise the same `HTTPError` / `ConnectionError_` / `Timeout_` so every client's `except` is unchanged; retry, 429 backoff and the 404 model-fallback chain are untouched. Without QGIS (unit tests, the isolation worker) the `requests` path is exactly as before. **Deliberately left on `requests`:** (1) Ollama (`local=True`): a local model can take minutes and QGIS applies its own network timeout (default 60 s) instead of the per-call 180 s; (2) `core/agent/account.py` (cookie session for the undeployed Cartogen account service). `vector_tools` keeps its SSRF-guarded urllib opener, and large streamed downloads stay on urllib. **Behaviour to know:** a hosted-provider call now waits at most QGIS's configured network timeout (Settings > Options > Network); and while the user has QGIS's Network Logger panel open, request headers (including the API key's Authorization header) appear there -- local to the user's machine, but worth saying. **Not verified:** a real call to a real provider through this path (CI uses a local server); do that in the next hand test (Gemini and OpenRouter first).
+
+**Update 2026-10-13 (#293, follow-up to #159).** The four analysis output-field writers (`_write_scores_to_layer`, `_write_presence_gap_status_to_layer`, `_write_population_to_layer`, `_write_damage_severity_to_layer` in `tools/analysis_tools.py`) shared one provider-level pattern: the field and the values went straight to the data provider, bypassing the edit buffer, so a failure half-way could not be undone and a layer the user was already editing was ignored. They now call one `_write_unit_values`, which uses `_edit_session.edit_command` (owns the commit only when the layer was not already editable, undoes just this write on failure, surfaces a rejected commit with the provider's text) and matches units by feature id; the unique unit labels from `_unit_labels` already stopped same-name units colliding. New `_edit_session.add_text_field` for the presence-gap status. Offline tests with fake layers: `tests/test_analysis_score_writes.py` (7; they fail against the old code). Not exercised against a real provider or in QGIS; the live edit-session tests cover `edit_command` itself. Not hand-tested.
+
+**Update 2026-10-13 (the three code-side known gaps for 1.16.0).**
+- **Invented points via other tools.** New `core/services/coordinate_provenance.py`, called from `CartogenAi._check_point_provenance` after every `add_point_layer`, `add_incident_point` and `execute_pyqgis_script` call. Each coordinate pair the model typed (literal `QgsPointXY(x, y)` numbers for scripts) is checked against the grounding text (the user's words plus earlier tool results this conversation, within 0.005). A point whose pair appears nowhere is flagged: the tool result the model reads gets `unverified_coordinates` and a note saying so, and the final reply gets an "Unverified point positions" footnote (once). It never blocks. Limits: a number that matches an unrelated figure counts as grounded; coordinates computed or read from a file inside a script are not seen. 13 offline tests (`tests/test_coordinate_provenance.py`). Not run with a real model or in QGIS.
+- **F3, 9 calls for a 5-stop route.** Cause: the depot (Hub_A) and the stops were separate layers, `optimize_delivery_route` took one layer, so the model built a merged layer with four slow scripts. The tool now takes `additional_stops_layers` (merged, reprojected into the stops layer's CRS, `start_stop_name` can name a stop from any of them), and its description says not to script a merge. Offline tests added; not re-run on the live prompt, so whether the model now picks it in one call is unverified (rc37 row F3 should be re-run).
+- **geoBoundaries failure on the tester's machine: cause still unknown, now diagnosable.** The report that fixed nothing was one message for two requests. `fetch_geoboundaries_network_phase` now says which stage failed (API lookup keeps its wording; the file download names the host and the exception class and says the lookup worked) and logs `geoboundaries_fetch_failed` with the stage. Likely candidate, not confirmed: the lookup goes through QGIS's network stack but the file download follows a redirect to a GitHub raw URL, and a redirected hop uses urllib, which does not see QGIS's proxy settings (the limit already noted in `net.stream_following`). Next failure on a proxied machine will say whether that is it.
+- **#72 advanced web search.** Nothing buildable without the owner: the first version (`find_incident_reports`) is done; what is open is the ReliefWeb appname (structured fields and country filter), ACLED credentials (HX4) and whether a fact-check lookup is worth building given none of the named outlets allows machine access.
+
+**Update 2026-10-13 (owner decisions on tracker 1.19 and the geoBoundaries proxy suspicion).**
+- **Fact-check lookup built (owner: "build it").** New tool `search_fact_checks` (`tools/fact_check_tools.py`, tool 212; network-only, read-only, no QGIS object). It reads the published feeds of Snopes, PolitiFact, FactCheck.org, Full Fact, Lead Stories and the Arabic-language Fatabyyano, matches the user's words (all words ranked first, at least half accepted and labelled "some words"; Arabic works), and returns outlet, date, link and a short plain-text summary. Checked live on 2026-10-13 from a development session: all six feeds answered; "Houthi video Dhale" found a Lead Stories check and an Arabic Fatabyyano check of a Houthi-in-Dhale video; two feeds needed handling (PolitiFact starts with blank lines and uses undeclared XML prefixes, both tolerated now; Fatabyyano is slow, so a 45 s read timeout) and Fatabyyano's own announcements are skipped. **Limit, stated in every reply:** a feed holds only an outlet's newest 10-25 entries, so the tool can say "these outlets recently published this" and never "nobody checked this"; no match is not evidence either way. Reuters (HTTP 401), AFP (403), Africa Check (403) and AP (403) cannot be asked and are listed in every reply; Full Fact was wrongly listed as 404 in `find_incident_reports` and now points here. The search is by words in the title and summary; there is no claim-matching or similarity scoring. Offline tests `tests/test_fact_check_tools.py` (16); not run with a real model or in QGIS, so whether the model picks it for plain requests is unverified (router keywords added).
+- **ReliefWeb appname.** Registered by the owner, no confirmation received, and no API is needed: `find_incident_reports` keeps reading the disasters RSS. Nothing to build.
+- **ACLED.** Owner: ignore. HX4's ACLED item stays deferred.
+- **geoBoundaries download behind a proxy: fix built.** A redirected hop of a download is opened with urllib plus QGIS's proxy dictionary, which lacks what QGIS's own stack has (PAC or system proxy, proxy authentication, the Authentication database's SSL setup). `net.stream_following` now retries a redirected hop that urllib could not connect to through QGIS's buffered stack (`_qgis_buffered_hop`, whole body in memory, capped at `MAX_DOWNLOAD_BYTES`); a machine where urllib works keeps its streaming download unchanged, an HTTP status from urllib is not retried, and when both fail the message names both. Tests in `tests/test_net.py` use fakes; not exercised against a real proxy, and the cause on the tester's machine is still unconfirmed, so this is the fix for the best-supported explanation, not a proven one.
+
+**Update 2026-10-13: rc40 cut** (fact-check lookup, flagged point positions, depot layers in routes, analysis writes through the edit session, redirected downloads retried through QGIS's stack, security alerts, documentation site). CI-checked, not hand-tested; the rc39 hand rows (A1, F4, N1, Stop on a real long job) are still to run, now on rc40.
+
+**Update 2026-10-13: complete live-test bundle for rc40.** `tools/build_live_test_bundle.py` now builds Part A (what is new: RC37-*, RC40-*) and Part B (open issues: 38 `OI-*` rows in `docs/FULL_LIVE_TEST_open_issues_ROWS.csv`, mapped to all 46 open issues by `docs/OPEN_ISSUES_COVERAGE_rc40.csv`, shipped as `5_OPEN_ISSUES_COVERAGE.csv`), with the evidence-folder, log and output-file instructions rewritten in `docs/LIVE_TEST_rc37_README.txt` (step 6 recorders, step 7 saving the log, step 9 what to send back), empty `evidence/`, `logs/` and `outputs/` folders, a checksum list for the inputs, and no `.py` file inside the bundle (the builder fails if one is added). New input `smoke_network.gpkg` (roads with Geofabrik-style F/T/B one-way values, facilities with a duplicate and an empty name, districts with duplicate names, lon/lat copies, a U-shaped road) is generated by `tools/make_smoke_network.py` (standard library only; `--check` verifies the committed file). `tests/test_smoke_network_live.py` opens every layer in real QGIS and runs `optimize_delivery_route(additional_stops_layers=...)` and the #293 field writes on it; **its first run is CI**. Issues that cannot be tested with the synthetic data and need your real data or a database: #151 (PostGIS, already closed), the Yemen-specific timings in #80 and #131, #97's long session; the rows give the closest synthetic version. Not hand-tested.
+
+**Update 2026-10-14: rc41 cut** (fixes from the rc40 hand test: Stop during a model call, honest script edits to file layers, styled raster kept, task-template defaults only where a tool uses them, routing words, Bandit marks). #137 closed and #304 resolved by owner decision (recommended options). CI-checked, not hand-tested.
+
+**Update 2026-10-14: 1.16.1 (stable) prepared.** Same code as rc41; version number and release text only. Needed because plugins.qgis.org takes a stable version number. The rc41 fixes are CI-checked, not hand-tested; the open hand-test rows are listed in the 1.16.1 notes.
+
+**Update 2026-10-14: 1.16.2 (stable) prepared.** A failed boundary download no longer ends with points drawn from memory (tool results tell the model not to substitute). Otherwise 1.16.1 unchanged. CI-checked; the model-side effect is not tried against a real model.
+
+**Update 2026-10-14: 1.16.3 (stable) prepared.** Router regression since rc23 fixed (plain requests are offered their layer tools again), QGIS vocabulary and Processing-tool coverage guards, recorded-session replay. See docs/ROUTER_REGRESSION_AUDIT_2026-10-14.md. CI-checked; routing is deterministic and tested, model behaviour is not hand-tested. Open owner decision: widen the Processing allow-list for 8 safe algorithms (audit note, third pass).
+
+**Update 2026-10-15: 1.17.0-rc42 (release candidate) prepared.** Roadmap work M0 to M3, M6 (124 more Processing algorithms, each run live in CI), M7 raster calculator, and the S1 to S4 showcase fixes (watershed, web research, news source). CI-checked on QGIS 4.2.2; **not hand-tested**. The version is 1.17.0-rc42 so that it sorts above the 1.16.3 stable build while keeping the rc42 number agreed with the owner.
+
+**Update 2026-10-16: 1.17.0-rc43 (release candidate) prepared.** Completion-plan packages A to E and the M4/M5 first parts: 34 more tools (276), 101 more Processing algorithms (267), editing, data sources, symbology, layouts, project settings, and a measured reach of the showcase services. CI-checked on QGIS 4.2.2; **not hand-tested**. Open: the rest of M4/M5 (rule-based labels, diagrams, reports), M8 layer types and M9 GRASS (probe first), and the owner's hand tests.
+
+**Update 2026-10-16: 1.17.0-rc44 (release candidate) prepared.** Completion-plan packages F to I and the gap-closing work: 18 more tools (294), about 160 more Processing algorithms (427, of which 154 GRASS and 6 mesh), symbology, layout charts/atlas/profile, point cloud, vector tile and 3D tiles layers, elevation settings, and the fixes from the integration audit (docs/INTEGRATION_AUDIT_2026-10-16.md). CI-checked on QGIS 4.2.2; **not hand-tested**. Done-versus-tested detail: docs/STATUS_DONE_VS_TESTED_2026-10-16.md. Not built: GPS, PDAL algorithms, 3D map layout item.
+
+**Update 2026-10-16: 1.17.0-rc45 (release candidate) prepared.** Four calls to QGIS methods that do not exist (zoom_history, diagnose_topology, proxy detection, point-displacement representation) fixed after checking the code against the QGIS 4.2.3 reference, plus an API-name ratchet test (docs/RC44_STATUS_AND_API_REVIEW_2026-10-16.md). CI-checked on QGIS 4.2.2; **not hand-tested**.
+
+**Update 2026-10-17: 1.17.0-rc46 (release candidate) prepared.** Fixes from the rc45 hand-test run: plain-language algorithm discovery (topic index over the 427 approved algorithms), no task-library hijack of algorithm, computation or chart requests, undo across messages and for delete_features, 300 s limit and layer-kind check for Processing runs, small defects (docs/RC46_SMOKE_FIXES_2026-10-17.md). CI-checked on QGIS 4.2.2; **not hand-tested**. Open: the plain-language hand test (docs/HAND_TEST_SHEET_plain_language_2026-10-17.md), the cause of five stalled algorithms, the r.stream.extract crash, GRASS run time on Windows.
+
+**Update 2026-10-23: 1.17.0-rc47 (pre-release) published; docs and issues reviewed.** rc47: 28 tool definitions per request instead of 40, the rc46 hand-test defects (issues #358 to #361, closed), elevation profile along a line layer, lean hand-test tooling (docs/LEAN_HAND_TEST_PROTOCOL.md). CI-checked on QGIS 4.2.2; **not hand-tested**. Open issues (28) are listed with their last evidence in docs/OPEN_ISSUES_STATUS_2026-10-23.md; none is closed without a hand-verified PASS. Open: #362 (animate, elevation-profile loop, chart routing), the lean hand test of rc47, the plain-language hand test, the cause of five stalled algorithms, the r.stream.extract crash.
+
+**Update 2026-10-23 (PLAN-004): QGIS coverage list re-baselined.** 164 actions: covered 111 (was 107), partial 33 (28), missing 18 (27), blocked 2. Rows that rc44/rc46 made possible through approved Processing algorithms (raster warp, proximity, fill no-data, sieve, viewshed, vertices, densify, polygons to lines, bounding boxes, smoothing, random points) are no longer marked missing; each names its algorithm ids, checked against the allow-list, and says hand-tested rc46 only for the 21 priority algorithms. Generated summary: docs/qgis_coverage/SUMMARY.md. Next packages (not started): the 60 file-writing algorithms, the 63 approved-candidate algorithms, vertex/part/ring editing.
+
+**Update 2026-10-23 (PLAN-005): the 60 file-writing Processing algorithms are planned, not built.** docs/plans/PLAN-005-file-writing-algorithms.md gives each one a wave: 16 in wave E1 (6 statistics reports, 10 GDAL vector tools; outputs forced to temporary files), 30 in E2 (info, plots, exports to a user path with a confirm card; dedicated tools reused where they exist), 14 not planned. Needs the owner's confirmation of safety rules R1 to R6 (a trust-boundary change) before E1 is built.
+
+**Update 2026-10-23 (PLAN-005 wave E1 built, unreleased): 8 more approved Processing algorithms (427 to 435).** Six statistics reports (basic statistics for fields, unique values, nearest-neighbour analysis, raster layer statistics, raster unique values report, raster surface volume) and two GDAL vector tools (polygonize, contour polygons). File destinations become temporary files, the numbers come back in the reply, small vector results are copied to memory and flagged temporary; the owner confirmed rules R1 to R6 and the reduction from 16 to 8 (seven GDAL twins of approved algorithms and gdal:contour not added). CI-checked only (the live test runs in CI for the first time); not hand-tested. Coverage list: 112 covered, 32 partial, 18 missing. Next: wave E2 (needs the plot probe and the export-path rules), then the 63 approved-candidate algorithms.

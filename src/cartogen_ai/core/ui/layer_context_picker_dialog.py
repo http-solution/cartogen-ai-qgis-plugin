@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Layer context picker -- Broadsheet redesign Phase 3, mockup state 1l ("Context for
 this question ... Cartogen sends schema and a sample of rows -- never the whole table.
 Uncheck anything sensitive."). Explicit, per-question control over which loaded layers'

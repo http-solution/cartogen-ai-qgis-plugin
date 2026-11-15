@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Single source for the release-facing text that must change on EVERY version bump: the in-plugin Help ("What's new" and the
 humanitarian tool list) and the README's "What's new" section and humanitarian table. Qt-free so tests can read it.
 
@@ -9,17 +8,18 @@ metadata changelog, CHANGELOG.md, README and this module agree). Checklist: CONT
 releases listed in NEW_MARK_VERSIONS.
 """
 
-WHATS_NEW_VERSION = "1.16.0-rc20"
-NEW_MARK_VERSIONS = ("1.16.0-rc19", "1.16.0-rc20")
+WHATS_NEW_VERSION = "1.18.5"
+NEW_MARK_VERSIONS = ("1.18.4", "1.18.5")
 
 # Headline items of the current version (the full list is the metadata.txt changelog block and CHANGELOG.md).
 WHATS_NEW_ITEMS = [
-    ("Database", "A read-only database query no longer leaves the shared QGIS connection read-only for everything else."),
-    ("Rasters and units", "Rasters on different grids are aligned before arithmetic, and elevation and population units are stated instead of assumed."),
-    ("Privacy", "A layer derived from a protected layer stays protected after a rename, and scheduling a stored workflow needs the same override as running it."),
-    ("Saving", "A refused save is reported as an error instead of success, and edits you had pending on the layer are left alone."),
-    ("Routing", "One-way streets are recognised on road layers where some segments have no direction."),
-    ("Not hand-tested", "Everything here ran offline and in CI (including a real PostGIS server) but has not been hand-tested in a desktop session or against a real model."),
+    ('GDACS alerts are limited to the country you name', "fetch_gdacs_disaster_alerts has filtered by country since September, but the agent's own call path never passed the country on, so a request for Yemen fetched 86 alerts from around the world (1.18.4 smoke N7c and A7). The country is now passed. A new test reads the agent code and fails if any two-phase fetch call leaves out an argument the tool declares."),
+    ('Windows paths with single backslashes work', 'A model that writes C:\\data\\fixtures\\before.asc with single backslashes lost the characters after \\f and \\b to JSON decoding, so the tool looked for a file that does not exist and the reply told the user to add the raster by hand (1.18.4 smoke D6). Control characters in a drive path are turned back into backslash and letter before any tool runs.'),
+    ('A geocoded place brings its bounding box', "geocode_and_enrich and geocode_batch now return the place's own extent in both coordinate orders. The model had a point for Aden but no area, then asked the user for a bounding box or searched for boundary layers instead of calling the satellite-scene and building tools (1.18.4 smoke A5, A6 and A13)."),
+    ('update_task without an id', 'update_task with a missing id updated nothing and printed "Task ID \'None\' not found" after a good fetch. It now updates the one open task, says plainly that there is no plan, or asks for the id when several are open.'),
+    ('Evidence collector for hand tests', "tools/collect_evidence.py is now in the repository: after each row it saves the log, screenshots, layer table and the plugin's own evidence folders and lists the tools called. In the first real run the log files were empty; that is not yet explained and the change that tries to fix it is not verified in QGIS."),
+    ('Known and open', 'The model typed key figures into a print layout that are not in the layer (B8); the elevation-profile print item sometimes renders empty in CI (#379); the cause of a script-worker crash (B7), a changed population figure between identical runs (C5) and an empty severity in the JIAF preliminary (E2) is not found because the matching evidence was missing.'),
+    ('Not hand-tested', 'Everything above is checked by the offline suite and, for the QGIS parts, by CI on QGIS 4.2.2; none of it has been hand-tested in desktop QGIS.'),
 ]
 
 HUMANITARIAN_WORKFLOWS = [('1. Rapid crisis and base mapping',
@@ -85,6 +85,10 @@ HUMANITARIAN_WORKFLOWS = [('1. Rapid crisis and base mapping',
   ['evaluate_forecast_trigger',
    'fetch_gdacs_disaster_alerts',
    'fetch_nasa_eonet_events',
+   'fetch_usgs_earthquakes',
+   'fetch_ucdp_conflict_events',
+   'find_incident_reports',
+   'search_fact_checks',
    'fetch_nasa_active_fires',
    'generate_situation_dashboard',
    'run_monitoring_workflow',
@@ -134,7 +138,11 @@ TOOL_NEW_IN = {'aggregate_survey_indicator': '1.16.0-rc12',
  'record_jiaf_decisions': '1.16.0-rc14',
  'get_jiaf_decisions': '1.16.0-rc14',
  'finalize_jiaf_results': '1.16.0-rc14',
- 'compute_jiaf_patterns': '1.16.0-rc14'}
+ 'compute_jiaf_patterns': '1.16.0-rc14',
+ 'fetch_usgs_earthquakes': '1.16.0-rc35',
+ 'fetch_ucdp_conflict_events': '1.16.0-rc35',
+ 'find_incident_reports': '1.16.0-rc37',
+ 'search_fact_checks': '1.16.0-rc40'}
 
 
 def tool_is_new(name):

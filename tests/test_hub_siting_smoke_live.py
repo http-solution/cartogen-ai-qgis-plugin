@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """optimal_hub_siting on the release smoke fixture, against distances computed independently (rc15 hand test D03, 2026-10-06).
 
 The hand test reported Hub_A at 1,632.74 m where the straight-line average is 886.98 m, but the raw tool return was not captured, so

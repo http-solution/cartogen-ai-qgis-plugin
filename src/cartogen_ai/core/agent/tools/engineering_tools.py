@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Deterministic hydrologic engineering checks and calculations (watershed / peak-flow requests).
 
@@ -13,8 +12,8 @@ authoritative design inputs.
 What it does and does NOT do, stated plainly (CONTRIBUTING.md: say shipped vs unverified):
   * It converts DMS, checks that the inputs are explicit, and computes slope, Kirpich Tc and the Rational Method discharge
     from numbers the caller supplies.
-  * It does NOT delineate a basin, build a flow path or sample a DEM. That GIS phase needs a loaded DEM and a hydrology
-    provider and is not implemented here, so none of it is verified in a live QGIS session.
+  * It does NOT delineate a basin, build a flow path or sample a DEM. That GIS phase is delineate_watershed (watershed_tools.py,
+    added 2026-10-14, D8 on a DEM); this module only turns its measurements into Tc and a discharge.
   * Every result is labelled preliminary and subject to the governing local drainage standard.
 
 The equations are the standard published ones (FHWA HDS-2 / HDS-4, USDA-NRCS NEH 630 ch. 15); see
@@ -29,7 +28,7 @@ from .registry import register_tool
 
 _DMS_COMPONENT = re.compile(
     r"(?P<degrees>\d{1,3})\s*[°º]\s*"
-    r"(?P<minutes>\d{1,2})\s*['′]\s*"
+    r"(?P<minutes>\d{1,2})\s*['\u2032]\s*"
     r"(?P<seconds>\d{1,2}(?:\.\d+)?)\s*(?:[\"″])?\s*"
     r"(?P<hemisphere>[NSEW])",
     re.IGNORECASE,
@@ -113,6 +112,14 @@ def rational_peak_flow_m3_s(coefficient, intensity_mm_h, area_km2):
         },
         "required": ["location"],
     },
+    # Other ways to ask for the same places ("list medical service in Al Maharah", owner's chat 2026-10-30, was answered "the available
+    # tools cannot retrieve health-facility listings" because none of these tools was offered for that wording).
+    # Hydrology (see tools/engineering_tools.py). "steam length" is the typo in the request that motivated these tools. No bare
+    # "tc" alias: aliases match as substrings of the query, so it would boost these tools on "match", "batch" or "catchment".
+    keywords=[
+        "degrees minutes seconds", "dms coordinate", "watershed outlet", "watershed area", "stream length", "steam length",
+        "peak flow",
+    ],
 )
 def parse_dms_location(location):
     try:
@@ -158,6 +165,10 @@ def parse_dms_location(location):
         },
         "required": ["location", "return_period_years"],
     },
+    keywords=[
+        "watershed", "catchment", "drainage basin", "stream length", "steam length", "return period", "rainfall intensity",
+        "time of concentration", "peak flow",
+    ],
 )
 def assess_watershed_hydrology_request(
     location,
@@ -213,8 +224,8 @@ def assess_watershed_hydrology_request(
         },
         "calculation_tool": "calculate_rational_watershed_peak_flow",
         "gis_phase_note": (
-            "This plugin does not yet delineate the basin or measure the flow path. Those measurements need a loaded "
-            "DEM and a hydrology provider; do not report area, flow length or elevations until they are measured."
+            "Measure the basin with the tools, never by estimate: fetch_dem (if no DEM covers the point), then delineate_watershed, which "
+            "returns area, longest flow path, H, slope and Tc from the DEM. Do not report area, flow length or elevations from any other source."
         ),
         "engineering_note": (
             "The Rational Method is a preliminary small-catchment method. Confirm its applicability "
@@ -272,6 +283,10 @@ def assess_watershed_hydrology_request(
             "return_period_years",
         ],
     },
+    keywords=[
+        "watershed", "catchment", "rational method", "return period", "rainfall intensity", "time of concentration", "peak flow",
+        "kirpich",
+    ],
 )
 def calculate_rational_watershed_peak_flow(
     area_km2,

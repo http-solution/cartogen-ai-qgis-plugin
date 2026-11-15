@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Layer data-sensitivity classification dialog.
 
 IMPLEMENTATION_TRACKER.md §1.4 decision 3 (who classifies layers, and how),
@@ -35,6 +34,7 @@ from ..agent.tools.sensitivity_tools import (
 from ..models.sensitivity import SENSITIVITY_LEVELS
 from ..models import egress_gate as _egress
 from ..models.model_view import SCHEMA_DISCLOSURE
+from .dialog_messages import push_dialog_message
 
 
 class LayerSensitivityDialog(QDialog):
@@ -116,10 +116,21 @@ class LayerSensitivityDialog(QDialog):
         result = _get_layer_sensitivity(name)
         level = result.get("level")
         reason = result.get("reason")
-        if level:
-            text = f"Current: {level}" + (f" ({reason})" if reason else "")
-        else:
-            text = "Current: untagged"
+        derived_from = None
+        if not level:
+            # PLAN-016 item 2: an untagged layer made from a protected one is protected through lineage; say so instead of "untagged".
+            try:
+                from ..agent.protection import effective_sensitivity
+                layers = QgsProject.instance().mapLayersByName(name)
+                if len(layers) == 1:
+                    inherited = effective_sensitivity(layers[0], list(QgsProject.instance().mapLayers().values()))
+                    level, reason, derived_from = inherited.get("level"), None, inherited.get("derived_from")
+            except Exception:
+                level, derived_from = None, None
+        from ..agent.protection import sensitivity_label
+        text = sensitivity_label(level, reason, derived_from)
+        if derived_from:
+            level = None            # the combo below shows the layer's OWN tag, which it does not have
         self.current_level_label.setText(text)
         idx = self.level_combo.findText(level) if level else -1
         self.level_combo.setCurrentIndex(idx if idx >= 0 else 0)
@@ -138,10 +149,11 @@ class LayerSensitivityDialog(QDialog):
         # instead of silently picking one.
         matches = QgsProject.instance().mapLayersByName(name)
         if len(matches) > 1:
-            QMessageBox.warning(
+            push_dialog_message(
                 self, "Layer Data Sensitivity",
                 f"'{name}' matches {len(matches)} layers in this project -- rename the "
                 "duplicates in the Layers panel first so this can act on the right one.",
+                "warning",
             )
             return
         level = self.level_combo.currentText()
@@ -177,11 +189,11 @@ class LayerSensitivityDialog(QDialog):
         # what actually earns that confirmation for a loosening change.
         result = _set_layer_sensitivity(name, level, reason, confirmed=True)
         if result.get("error"):
-            QMessageBox.warning(self, "Layer Data Sensitivity", f"Failed: {result['error']}")
+            push_dialog_message(self, "Layer Data Sensitivity", f"Failed: {result['error']}", "warning")
             return
         self.reason_edit.clear()
         self._on_layer_changed()
         # rc7 smoke test F15: a successful change used to give no feedback at all, so the operator
         # could not tell whether the click had applied anything.
-        QMessageBox.information(
-            self, "Layer Data Sensitivity", f"'{name}' is now tagged {level}.")
+        push_dialog_message(
+            self, "Layer Data Sensitivity", f"'{name}' is now tagged {level}.", "success")

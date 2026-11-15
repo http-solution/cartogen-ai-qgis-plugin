@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """H7 table importers (IPC / INFORM / UNOSAT): detection, validation, joining and the CSV read, offline. The layer join needs QGIS
 (tests/test_table_importers_live.py). Column layouts are UNVERIFIED against real HDX files; these tests pin the behaviour, not the files."""
 import os
@@ -78,6 +77,23 @@ class TestValidation(unittest.TestCase):
         self.assertIsNone(recs[2]["damage_class"])
         self.assertIsNone(recs[2]["longitude"])
         self.assertEqual(len(issues), 3)
+
+
+class TestIssuesNameTheArea(unittest.TestCase):
+    """1.18.3 hand test D1: the IPC import reported 'row 3' and 'row 4' but not which areas they were."""
+
+    def test_issue_carries_the_area_and_a_name_column_with_admin_in_its_name_is_found(self):
+        import csv
+        fd, path = tempfile.mkstemp(suffix=".csv")
+        os.close(fd)
+        self.addCleanup(os.remove, path)
+        with open(path, "w", newline="", encoding="utf-8") as fh:
+            csv.writer(fh).writerows([["admin1_pcode", "admin1_name", "ipc_phase", "population"],
+                                      ["YE01", "A", 3, 10], ["YE03", "C", "", 20], ["YE04", "D", 7, 30]])
+        res = ti.import_humanitarian_table(path, "ipc")
+        self.assertEqual([i["area"] for i in res["issues"]], ["YE03", "YE04"])
+        self.assertEqual(res["mapping_used"]["area_name"], "admin1_name")
+        self.assertEqual(res["records"][0]["area_name"], "A")
 
 
 class TestJoin(unittest.TestCase):

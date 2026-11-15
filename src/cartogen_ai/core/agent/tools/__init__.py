@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Tools package for Cartogen AI.
 Imports all tool modules to trigger tool registration into the central registry.
@@ -8,11 +7,54 @@ from .registry import TOOL_REGISTRY, TOOLS_SCHEMA, get_tool_registry, get_tools_
 
 # Import tool modules to populate TOOL_REGISTRY & TOOLS_SCHEMA
 from . import vector_tools
+from . import data_source_tools
+from . import attribute_edit_tools
+from . import edit_ops_tools
+from . import data_layer_tools
+from . import new_layer_tools
+from . import elevation_tools
+from . import layout_chart_profile_tools
+from . import project_ops_tools
+from . import layout_extra_tools
+from . import symbology_extra_tools
+from . import web_research_tools
+from . import watershed_tools
+from . import raster_calculator_tool
+from . import spectral_index_tool
+from . import stac_load_tool
+from . import land_cover_look_tool
+from . import spatial_stats_tool
+from . import hotspot_tool
+from . import cluster_scan_tool
+from . import health_rates_tool
+from . import public_health_look_tool
+from . import raster_series_tool
+from . import raster_change_tool
+from . import management_zones_tool
+from . import batch_tool
+from . import copy_features_tool
+from . import field_rules_tools
+from . import identify_tool
+from . import in_place_tool
+from . import layer_display_tools
+from . import line_edit_tools
+from . import parts_edit_tool
+from . import model_tool
+from . import project_settings_tools
+from . import raster_inspect_tools
+from . import renderer_tool
+from . import vertex_edit_tool
+from . import symbology_tools
+from . import layout_item_tools
+from . import map_view_tools
 from . import raster_tools
 from . import styling_tools
 from . import export_tools
 from . import system_tools
 from . import task_tools
+from . import tool_discovery
+from . import corridor_tools
+from . import dem_tools
 from . import humanitarian_tools
 from . import layout_tools
 from . import db_and_workflow_tools
@@ -27,6 +69,7 @@ from . import dataset_status_tools
 from . import schema_contract_tools
 from . import pcode_validation_tools
 from . import provenance_tools
+from . import workflow_file_tools
 from . import qa_checklist_tools
 from . import sensitivity_tools
 from . import tool_operations_tools
@@ -37,6 +80,9 @@ from . import processing_allowlist_tools
 from . import impedance_tools
 from . import cartographic_advisory_tools
 from . import hazard_monitoring_tools
+from . import event_data_tools
+from . import incident_search_tools
+from . import fact_check_tools
 from . import representation_tools
 from . import map_tools
 from . import project_tidy_tools
@@ -57,57 +103,104 @@ from . import jiaf_review
 from . import jiaf_patterns
 
 __all__ = [
-    "TOOL_REGISTRY",
     "TOOLS_SCHEMA",
+    "TOOL_REGISTRY",
+    "allocation_tools",
+    "analysis_tools",
+    "attribute_edit_tools",
+    "barrier_tools",
+    "batch_tool",
+    "cartographic_advisory_tools",
+    "cluster_scan_tool",
+    "confidence_tools",
+    "copy_features_tool",
+    "corridor_tools",
+    "critical_link_tools",
+    "data_export_tools",
+    "data_layer_tools",
+    "data_source_tools",
+    "dataset_status_tools",
+    "db_and_workflow_tools",
+    "dem_tools",
+    "edit_ops_tools",
+    "elevation_tools",
+    "engineering_tools",
+    "event_data_tools",
+    "export_tools",
+    "fact_check_tools",
+    "field_rules_tools",
     "get_tool_registry",
     "get_tools_schema",
-    "register_tool",
-    "vector_tools",
-    "raster_tools",
-    "styling_tools",
-    "export_tools",
-    "system_tools",
-    "task_tools",
-    "humanitarian_tools",
-    "layout_tools",
-    "db_and_workflow_tools",
-    "multimodal_remote_sensing",
-    "analysis_tools",
-    "project_tools",
-    "project_tidy_tools",
-    "engineering_tools",
-    "barrier_tools",
-    "trigger_tools",
-    "task_grid_tools",
-    "sampling_tools",
-    "mcda_tools",
-    "survey_tools",
+    "hazard_monitoring_tools",
+    "health_rates_tool",
+    "hotspot_tool",
     "humanitarian_look_tools",
-    "allocation_tools",
-    "table_importers",
-    "critical_link_tools",
-    "jiaf_inputs",
-    "jiaf_engine",
-    "jiaf_review",
-    "jiaf_patterns",
-    "reporting_tools",
-    "logistics_tools",
-    "monitoring_tools",
+    "humanitarian_tools",
+    "identify_tool",
     "imagery_extraction",
-    "dataset_status_tools",
-    "schema_contract_tools",
+    "impedance_tools",
+    "in_place_tool",
+    "incident_search_tools",
+    "jiaf_engine",
+    "jiaf_inputs",
+    "jiaf_patterns",
+    "jiaf_review",
+    "land_cover_look_tool",
+    "layer_display_tools",
+    "layout_chart_profile_tools",
+    "layout_extra_tools",
+    "layout_item_tools",
+    "layout_tools",
+    "line_edit_tools",
+    "logistics_tools",
+    "management_zones_tool",
+    "map_tools",
+    "map_view_tools",
+    "mcda_tools",
+    "model_tool",
+    "monitoring_tools",
+    "multimodal_remote_sensing",
+    "new_layer_tools",
+    "parts_edit_tool",
     "pcode_validation_tools",
+    "processing_allowlist_tools",
+    "project_ops_tools",
+    "project_settings_tools",
+    "project_tidy_tools",
+    "project_tools",
     "provenance_tools",
+    "public_health_look_tool",
     "qa_checklist_tools",
+    "raster_calculator_tool",
+    "raster_change_tool",
+    "raster_inspect_tools",
+    "raster_series_tool",
+    "raster_tools",
+    "register_tool",
+    "renderer_tool",
+    "reporting_tools",
+    "representation_tools",
+    "sampling_tools",
+    "schema_contract_tools",
     "sensitivity_tools",
+    "spatial_stats_tool",
+    "spectral_index_tool",
+    "stac_load_tool",
+    "styling_tools",
+    "survey_tools",
+    "symbology_extra_tools",
+    "symbology_tools",
+    "system_tools",
+    "table_importers",
+    "task_grid_tools",
+    "task_tools",
+    "tool_discovery",
     "tool_operations_tools",
     "transaction_tools",
-    "confidence_tools",
-    "data_export_tools",
-    "processing_allowlist_tools",
-    "impedance_tools",
-    "cartographic_advisory_tools",
-    "hazard_monitoring_tools",
-    "representation_tools",
-    "map_tools",
+    "trigger_tools",
+    "vector_tools",
+    "vertex_edit_tool",
+    "watershed_tools",
+    "web_research_tools",
+    "workflow_file_tools",
 ]

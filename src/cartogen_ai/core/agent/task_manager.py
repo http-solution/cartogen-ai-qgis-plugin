@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Agent Task Manager for Cartogen AI.
 Handles multi-step spatial workflow planning, task status tracking,
@@ -6,17 +5,27 @@ preview-before-apply safety confirmation, and action explainability.
 """
 
 import datetime
-from typing import List, Dict, Optional
 
 try:
     from qgis.PyQt.QtCore import QObject, pyqtSignal
     QT_AVAILABLE = True
 except ImportError:
     QT_AVAILABLE = False
-    class QObject:
+
+    class QObject:  # type: ignore[no-redef]
         pass
 
 MAX_PLAN_HISTORY = 5
+
+PLAN_RESULT_PROMPT_CHARS = 160
+
+
+def _clip_result(result, limit=PLAN_RESULT_PROMPT_CHARS):
+    """A task result shortened for the system prompt: `limit` characters, with a marker saying how much was left out. Pure."""
+    text = str(result)
+    if len(text) <= limit:
+        return text
+    return f"{text[:limit].rstrip()}... [{len(text) - limit} more characters in the tool result]"
 
 
 def _now_iso() -> str:
@@ -34,11 +43,11 @@ class AgentTaskManager(QObject):
         if QT_AVAILABLE:
             super().__init__()
         self.title = ""
-        self.tasks: List[Dict] = []
+        self.tasks: list[dict] = []
         self._next_id = 1
-        self.plan_history: List[Dict] = []
+        self.plan_history: list[dict] = []
 
-    def create_plan(self, title: str, task_descriptions: List[str]) -> dict:
+    def create_plan(self, title: str, task_descriptions: list[str]) -> dict:
         """Creates a new multi-step execution plan. Archives the previous plan into
         plan_history first (if it had any tasks), so starting a new plan doesn't
         silently erase what the last one accomplished."""
@@ -136,10 +145,26 @@ class AgentTaskManager(QObject):
 
     def update_task(self, task_id: str, status: str, result: str = "", rationale: str = "", code_snippet: str = "", tool_name: str = "") -> dict:
         """Updates status of a specific task in the plan."""
-        status_upper = status.upper()
+        if not isinstance(status, str) or not status.strip():
+            return {"error": "status is required: one of TODO, IN_PROGRESS, PREVIEW_READY, CONFIRMED, DONE, FAILED."}
+        status_upper = status.strip().upper()
         valid_statuses = ("TODO", "IN_PROGRESS", "PREVIEW_READY", "CONFIRMED", "DONE", "FAILED")
         if status_upper not in valid_statuses:
             return {"error": f"Invalid status '{status}'. Must be one of {valid_statuses}."}
+
+        # A model that never made a plan, or forgot the id, sends null: 1.18.4 smoke N7c showed the reply "Task ID 'None' not found" after a good GDACS
+        # fetch. With one open task the intent is unambiguous; otherwise say what is true instead of quoting "None".
+        if task_id is None or str(task_id).strip().lower() in ("", "none", "null"):
+            open_tasks = [t for t in self.tasks if t["status"] in ("TODO", "IN_PROGRESS", "PREVIEW_READY", "CONFIRMED")]
+            if len(open_tasks) == 1:
+                task_id = open_tasks[0]["id"]
+            elif not self.tasks:
+                return {"error": "There is no active plan, so there is no task to update. Carry on without update_task."}
+            elif not open_tasks:
+                # Every task is already DONE or FAILED. The branch below used to answer "more than one task is open. Open task ids: " with an empty list.
+                return {"error": "Every task in the plan is already finished, so there is nothing to update. Carry on without update_task."}
+            else:
+                return {"error": "task_id is required when more than one task is open. Open task ids: " + ", ".join(t["id"] for t in open_tasks)}
 
         for task in self.tasks:
             if task["id"] == str(task_id):
@@ -171,7 +196,7 @@ class AgentTaskManager(QObject):
         """Returns the archived plan snapshots, most recent first."""
         return [dict(p) for p in self.plan_history]
 
-    def auto_advance_if_unambiguous(self, result_summary: str, tool_name: str = "") -> Optional[dict]:
+    def auto_advance_if_unambiguous(self, result_summary: str, tool_name: str = "") -> dict | None:
         """Best-effort safety net for when the model creates a plan but then forgets to call
         update_task after actually doing the work (a real, observed failure mode -- a plan can
         sit frozen at TODO forever even though the underlying tool calls genuinely succeeded).
@@ -215,7 +240,9 @@ class AgentTaskManager(QObject):
             elif task["status"] == "FAILED":
                 icon = "🔴"
 
-            res_str = f" → {task['result']}" if task["result"] else ""
+            # The full result is already in the conversation as the tool's own message; repeating it here sent every returned value to the
+            # provider again on each round (the 2026-10-10 captured prompt carried a whole severity result, about 2,000 characters).
+            res_str = f" → {_clip_result(task['result'])}" if task["result"] else ""
             lines.append(f"{task['id']}. [{icon} {task['status']}] {task['description']}{res_str}")
             # Real live bug, 2026-09-16: a user confirmed a destructive-action gate
             # (field_calculator etc.) by replying "Confirm" in chat; the model had no

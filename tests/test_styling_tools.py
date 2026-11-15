@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 import os
 import tempfile
 import unittest
@@ -78,7 +77,7 @@ class TestLogarithmicBreaks(unittest.TestCase):
         breaks = _logarithmic_breaks([1, 10000], num_classes=4)
         # log10(1)=0, log10(10000)=4 -- 3 interior breaks at 1, 2, 3 in log space.
         self.assertEqual(len(breaks), 3)
-        for b, expected_log in zip(breaks, [1, 2, 3]):
+        for b, expected_log in zip(breaks, [1, 2, 3], strict=False):
             self.assertAlmostEqual(b, 10 ** expected_log, places=6)
 
     def test_none_when_any_value_non_positive(self):
@@ -204,6 +203,20 @@ class TestApplyGraduatedStyleWithBreaks(unittest.TestCase):
         return layer
 
     @patch("cartogen_ai.core.agent.tools.styling_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.styling_tools.QColor", create=True)
+    @patch("cartogen_ai.core.agent.tools.styling_tools.QgsGradientColorRamp", create=True)
+    @patch("cartogen_ai.core.agent.tools.styling_tools._find_layer_by_name")
+    def test_explicit_colours_become_the_ramp_and_bad_colours_are_an_error(self, mock_find, mock_ramp, mock_qcolor):
+        """rc22 smoke F2: 'pale yellow to dark red' was ignored."""
+        mock_find.return_value = self._make_layer([5, 10, 15])
+        bad = apply_graduated_style("districts", "pop_affected", color_from="pale yellow", color_to=None)
+        self.assertIn("error", bad)
+        mock_qcolor.return_value.isValid.return_value = False
+        bad = apply_graduated_style("districts", "pop_affected", color_from="not a colour", color_to="also not")
+        self.assertIn("error", bad)
+        self.assertIn("colours", bad["error"])
+
+    @patch("cartogen_ai.core.agent.tools.styling_tools.QGIS_AVAILABLE", True)
     @patch("cartogen_ai.core.agent.tools.styling_tools.QgsWkbTypes", create=True)
     @patch("cartogen_ai.core.agent.tools.styling_tools.QgsGraduatedSymbolRenderer", create=True)
     @patch("cartogen_ai.core.agent.tools.styling_tools.QgsRendererRange", create=True)
@@ -263,7 +276,9 @@ class TestApplyGraduatedStyleWithBreaks(unittest.TestCase):
         mock_find.return_value = layer
         res = apply_graduated_style("layer", "field", breaks=[100])
         self.assertIn("error", res)
-        self.assertIn("outside the field's data range", res["error"])
+        # The wording is _validate_manual_breaks' own (the single canonical validator both
+        # sides' conflict resolutions now route through).
+        self.assertIn("outside the data range", res["error"])
 
     @patch("cartogen_ai.core.agent.tools.styling_tools.QGIS_AVAILABLE", True)
     @patch("cartogen_ai.core.agent.tools.styling_tools.QgsWkbTypes", create=True)
@@ -1147,3 +1162,32 @@ class TestApplyPointClusterStyle(unittest.TestCase):
 if __name__ == "__main__":
     unittest.main()
 
+
+
+class TestValidateManualBreaks(unittest.TestCase):
+    """GitHub #165: manual class boundaries must sit inside the field's own range."""
+
+    def test_in_range_breaks_are_sorted_and_kept(self):
+        from cartogen_ai.core.agent.tools.styling_tools import _validate_manual_breaks
+        self.assertEqual(_validate_manual_breaks([10, 7], 5, 15), ([7.0, 10.0], None))
+
+    def test_a_break_beyond_the_maximum_is_rejected_with_the_range_named(self):
+        from cartogen_ai.core.agent.tools.styling_tools import _validate_manual_breaks
+        ordered, error = _validate_manual_breaks([100], 5, 15)        # the rc20 hand test: 100 for values 5-15
+        self.assertIsNone(ordered)
+        self.assertIn("100", error)
+        self.assertIn("5", error)
+        self.assertIn("15", error)
+
+    def test_a_break_below_the_minimum_is_rejected(self):
+        from cartogen_ai.core.agent.tools.styling_tools import _validate_manual_breaks
+        self.assertIsNone(_validate_manual_breaks([-3, 8], 5, 15)[0])
+
+    def test_repeated_breaks_are_rejected(self):
+        from cartogen_ai.core.agent.tools.styling_tools import _validate_manual_breaks
+        self.assertIn("distinct", _validate_manual_breaks([8, 8], 5, 15)[1])
+
+    def test_non_numbers_and_non_finite_values_are_rejected(self):
+        from cartogen_ai.core.agent.tools.styling_tools import _validate_manual_breaks
+        for bad in ("8", None, float("nan"), float("inf"), True):
+            self.assertIsNotNone(_validate_manual_breaks([bad], 5, 15)[1], repr(bad))

@@ -19,14 +19,18 @@ env:
   PRIVATE_REPO: "REPLACE-ME/cartogen-ai-pro"
   PRIVATE_REPO_BRANCH: "sync/public-core"
 
+# Least privilege: the mirror pushes with its own deploy key, so the token only needs to read.
+permissions:
+  contents: read
+
 jobs:
   mirror:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # Remove this guard once PRIVATE_REPO is real and
     # secrets.PRIVATE_REPO_DEPLOY_KEY is configured in this repo's settings.
     if: false
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
 

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 /***************************************************************************
  CartogenAi
@@ -15,8 +14,8 @@
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
- *   the Free Software Foundation; either version 2 of the License, or     *
- *   (at your option) any later version.                                   *
+ *   the Free Software Foundation, version 2 of the License only (no       *
+ *   "or later" option; SPDX GPL-2.0-only, as in pyproject.toml).          *
  *                                                                         *
  ***************************************************************************/
  This script initializes the plugin, making it known to QGIS.
@@ -90,15 +89,17 @@ def _bootstrap_namespace():
         # Scoped eviction leaves modules that are not ours alone. If what resolved still comes from somewhere else (a stale
         # copy cached from another location -- cause 3 in the header), fall through to the unconditional eviction below.
         from ._module_ownership import _under
-        core_file = getattr(core, "__file__", None) or (list(getattr(core, "__path__", []) or [""])[0])
+        core_file = getattr(core, "__file__", None) or (next(iter(getattr(core, "__path__", []) or [""])))
         if not _under(core_file, _PKG_DIR):
             raise ImportError("cartogen_ai.core resolved outside this plugin's package directory")
         return "resolved-normally"
     except ImportError:
         # sys.modules is checked before any finder, so an explicit registration
-        # cannot be beaten by a shadowing package. This is the last resort, so it evicts every cartogen_ai module, as the
-        # whole bootstrap did before #167 scoped the normal path.
-        for name in [n for n in list(sys.modules) if n == "cartogen_ai" or n.startswith("cartogen_ai.")]:
+        # cannot be beaten by a shadowing package. This is the last resort, so it evicts our namespace's modules by name.
+        # Rc20 audit A18: "every cartogen_ai module" also removed children another distribution contributes to the shared
+        # namespace. Evict only what this package directory claims by name (stale copies of ours cached from elsewhere).
+        from ._module_ownership import claimed_module_names
+        for name in claimed_module_names(sys.modules, _PKG_DIR):
             del sys.modules[name]
         ns = types.ModuleType("cartogen_ai")
         ns.__path__ = [_PKG_DIR]

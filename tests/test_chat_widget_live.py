@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Headless functional test of the chat send path against REAL Qt widgets.
 
 Every other check in this repo's test suite proves the wiring exists and the
@@ -49,16 +48,24 @@ try:
 except ImportError:
     QGIS_LIVE_AVAILABLE = False
 
-_APP = None
+_APP_HOLDER = {"app": None}   # holder rather than a global (ruff PLW0603)
 
 
 def _boot_qgis():
-    global _APP
-    if _APP is None:
-        _APP = QgsApplication([b"livetest"], False)
+    if _APP_HOLDER["app"] is None:
+        _APP_HOLDER["app"] = QgsApplication([b"livetest"], False)
         QgsApplication.setPrefixPath("/usr", True)
-        _APP.initQgis()
-    return _APP
+        _APP_HOLDER["app"].initQgis()
+    # QGIS's built-in `processing` package lives in its own python/plugins directory, which is not on sys.path by default.
+    # Found 2026-10-12 (gdal probe): without it every live module that wraps `import processing` in contextlib.suppress
+    # skips Processing.initialize() silently, and only passes when test_agent_live happens to run first and add the path.
+    # Doing it here makes every module independent of run order.
+    import os
+    import sys
+    plugins_dir = os.path.join(QgsApplication.pkgDataPath(), "python", "plugins")
+    if os.path.isdir(plugins_dir) and plugins_dir not in sys.path:
+        sys.path.insert(0, plugins_dir)
+    return _APP_HOLDER["app"]
 
 
 def _pump(ms=4000, until=None):
@@ -82,7 +89,7 @@ def _pump(ms=4000, until=None):
     loop.exec()
     timer.stop()
     if until is not None:
-        assert until(), "condition never became true within %dms" % ms
+        assert until(), f"condition never became true within {ms}ms"
 
 
 class _FakeClient:
@@ -142,6 +149,11 @@ class _FakeAgent:
     def _real_execute_tool(self, name, arguments, user_confirmed=False):
         self.real_execute_tool_calls.append((name, arguments, user_confirmed))
         return {"success": True, "layer_name": arguments.get("layer_name", "")}
+
+    def execute_confirmed(self, name, arguments):
+        """What the Apply button runs since PLAN-051; the real one wraps _real_execute_tool(user_confirmed=True) with the result gate and the
+        transaction record. Delegating keeps every existing assertion on real_execute_tool_calls meaningful."""
+        return self._real_execute_tool(name, arguments, user_confirmed=True)
 
     def get_session_usage_text(self):
         return None
@@ -288,7 +300,7 @@ class TestChatWidgetLive(unittest.TestCase):
                       "the composed prompt must carry the answer forward, not just the original text")
 
         self._reply(ct, "yes")
-        _pump(until=lambda: agent.client.calls >= 1)
+        _pump(until=lambda agent=agent: agent.client.calls >= 1)
         self.assertEqual(agent.client.calls, 1,
                          "the merged, now-answerable request must actually reach the agent")
 
@@ -349,7 +361,7 @@ class TestChatWidgetLive(unittest.TestCase):
         self.assertEqual(agent.client.calls, 0, "must not have sent anything while awaiting the reply")
 
         self._reply(ct, "yes")
-        _pump(until=lambda: agent.client.calls >= 1)
+        _pump(until=lambda agent=agent: agent.client.calls >= 1)
 
         self.assertFalse(ct._awaiting_preview_reply)
         self.assertEqual(agent.client.calls, 1, "a confirming reply must be what actually dispatches the call")
@@ -382,7 +394,7 @@ class TestChatWidgetLive(unittest.TestCase):
             "quoted back inside it afterward")
 
         self._reply(ct, "yes")
-        _pump(until=lambda: agent.client.calls >= 1)
+        _pump(until=lambda agent=agent: agent.client.calls >= 1)
 
         log_after = self._chat_text(ct)
         occurrences = log_after.count("map health facilities")
@@ -419,12 +431,29 @@ class TestChatWidgetLive(unittest.TestCase):
         self._reply(ct, "map health facilities")
         self.assertTrue(ct._awaiting_preview_reply)
         self._reply(ct, "just show me clinics instead")
-        _pump(until=lambda: agent.client.calls >= 1)
+        _pump(until=lambda agent=agent: agent.client.calls >= 1)
         self.assertEqual(agent.client.calls, 1,
                          "an unrecognized reply must dispatch exactly once, with no contract "
                          "follow-up -- the whole point is opting OUT of the register's "
                          "enrichment, contract included")
         self.assertIn("just show me clinics instead", self._chat_text(ct).lower())
+
+    def test_a_natural_yes_at_the_preview_dispatches_the_original_request(self):
+        """rc22 hand test R2/A1 (issue 230): "Yes, proceed." at the in-chat preview was not an exact keyword, so it was sent to the
+        model as a NEW message ("no pending operation") and the request itself never ran. rc18 fixed the same defect for the other
+        reply branches via reply_vocab.router_reply; this branch still used set membership."""
+        for reply in ("Yes, proceed.", "yes please", "Sounds good, go ahead"):
+            agent = _FakeAgent(script=[{"message": {"role": "assistant", "content": "Loaded.", "tool_calls": []}}])
+            dock = self._make_dock(agent)
+            ct = dock.chat_tab_widget
+            self._reply(ct, "map health facilities")
+            self.assertTrue(ct._awaiting_preview_reply)
+            self._reply(ct, reply)
+            _pump(until=lambda agent=agent: agent.client.calls >= 1)
+            self.assertEqual(agent.client.calls, 1, reply)
+            sent = agent.conversation_history[0]["content"]
+            self.assertIn("health facilities", sent.lower(), f"{reply!r} must run the original request, but the model got {sent!r}")
+            self.assertNotEqual(sent.strip().lower(), reply.strip().lower())
 
     # Both boxed-panel-growth-reclamps-a-floating-dock tests that used to live here were
     # deleted, not adapted, 2026-09-16: their entire premise (a QGroupBox that becomes visible
@@ -545,8 +574,7 @@ class TestChatWidgetLive(unittest.TestCase):
         _pump(500)  # let the follow-up's on_complete/chat emit finish landing
 
         self.assertEqual(agent.client.calls, 2,
-                         "expected exactly one follow-up call (2 total), got %d -- either the "
-                         "contract check never fired, or it looped" % agent.client.calls)
+                         f"expected exactly one follow-up call (2 total), got {agent.client.calls} -- either the contract check never fired, or it looped")
         log = self._chat_text(ct)
         self.assertIn("generate_html_dashboard", log,
                       "the follow-up instruction must name the missing renderer")
@@ -563,7 +591,7 @@ class TestChatWidgetLive(unittest.TestCase):
 
         self._reply(ct, "build me a dashboard of displacement by district")
         self._reply(ct, "yes")
-        _pump(until=lambda: agent.client.calls >= 1)
+        _pump(until=lambda agent=agent: agent.client.calls >= 1)
         _pump(500)
 
         self.assertEqual(agent.client.calls, 1,
@@ -886,7 +914,7 @@ class TestChatWidgetLive(unittest.TestCase):
         task["pending_args"] = {"layer_name": "GDACS Disaster Alerts - Yemen", "new_field": "severity"}
 
         ct._dispatch_message("calculate severity", None)
-        _pump(until=lambda: agent.client.calls >= 1)
+        _pump(until=lambda agent=agent: agent.client.calls >= 1)
         _pump(500)
 
         log = self._chat_text(ct)
@@ -1053,7 +1081,7 @@ class TestChatWidgetLive(unittest.TestCase):
         dock = self._make_dock(agent)
         ct = dock.chat_tab_widget
         for i in range(40):
-            ct.chat_browser.append("line %d<br><br><br>" % i)
+            ct.chat_browser.append(f"line {i}<br><br><br>")
         QApplication.processEvents()
         sb = ct.chat_browser.verticalScrollBar()
         self.assertGreater(sb.maximum(), 0)
@@ -1065,7 +1093,7 @@ class TestChatWidgetLive(unittest.TestCase):
         sb.actionTriggered.emit(QAbstractSlider.SliderAction.SliderToMinimum.value)   # the signal takes an int
         QApplication.processEvents()
         for i in range(20):
-            ct.chat_browser.append("more %d<br><br><br>" % i)
+            ct.chat_browser.append(f"more {i}<br><br><br>")
         QApplication.processEvents()
         self.assertEqual(sb.value(), 0, "document growth pulled a scrolled-up user back to the bottom")
         # a new message always brings the view back to the end
@@ -1149,6 +1177,25 @@ class TestChatWidgetLive(unittest.TestCase):
             dialog._clear_saved_chat_clicked()
         self.assertEqual(cp.load_chat_transcript(), [])
 
+    def test_dialog_message_bar_shows_notices_inside_the_dialog_without_a_modal_box(self):
+        """PyQGIS cookbook (communicating): notices go in a QgsMessageBar, which can sit inside our own dialog. Warnings stay until
+        dismissed, a second notice replaces the first, and no QMessageBox is opened."""
+        from unittest.mock import patch
+        from qgis.PyQt.QtWidgets import QDialog, QMessageBox, QVBoxLayout, QLabel
+        from cartogen_ai.core.ui.dialog_messages import push_dialog_message
+
+        dialog = QDialog()
+        self.addCleanup(dialog.close)
+        QVBoxLayout(dialog).addWidget(QLabel("content"))
+        with patch.object(QMessageBox, "warning") as warning, patch.object(QMessageBox, "information") as info:
+            bar = push_dialog_message(dialog, "Export", "Failed", "warning")
+            self.assertIs(dialog.layout().itemAt(0).widget(), bar, "the bar sits above the dialog's content")
+            self.assertEqual(len(bar.items()), 1)
+            self.assertIs(push_dialog_message(dialog, "Export", "Done", "success"), bar, "one bar per dialog, reused")
+            self.assertEqual(len(bar.items()), 1, "a new notice replaces the old one")
+        warning.assert_not_called()
+        info.assert_not_called()
+
     def test_memory_button_opens_a_dialog(self):
         """The header's Memory button (dock_widget.py's open_memory) must exist and use
         the "notes" icon -- confirms icons.py's new template renders without raising."""
@@ -1168,7 +1215,7 @@ class TestChatWidgetLive(unittest.TestCase):
         ]
         sensitivity = {"Beneficiary Registry": "SENSITIVE"}
         dialog = LayerContextPickerDialog(
-            layers, selection={}, sensitivity_lookup=lambda name: sensitivity.get(name))
+            layers, selection={}, sensitivity_lookup=sensitivity.get)
         self.addCleanup(dialog.close)
 
         self.assertTrue(dialog._checkboxes["Health Facilities"].isChecked())
@@ -1283,6 +1330,23 @@ def _geofabrik_fixture(folder):
                                        [("POLYGON((35.95 31.95, 35.96 31.95, 35.96 31.96, 35.95 31.96, 35.95 31.95))",
                                          ["20", "hospital", "Outline Hospital"])]),
     }
+
+    def test_list_layers_is_answered_locally_without_calling_the_model(self):
+        """2026-10-10 hand test: 'List the layers' took 13 API calls. It is a read of the open project and must not reach the
+        model at all."""
+        from qgis.core import QgsProject, QgsVectorLayer
+        QgsProject.instance().clear()
+        self.addCleanup(QgsProject.instance().clear)
+        QgsProject.instance().addMapLayer(QgsVectorLayer("Point?crs=EPSG:4326&field=name:string", "local_list_probe", "memory"))
+        agent = _FakeAgent(script=[])               # an empty script: any model call would fail the turn
+        dock = self._make_dock(agent)
+        ct = dock.chat_tab_widget
+        self._reply(ct, "List the layers in the project.")
+        text = self._chat_text(ct)
+        self.assertIn("local_list_probe", text)
+        self.assertIn("No model was called", text)
+        self.assertEqual(agent.conversation_history, [])        # the agent never saw the request
+    return None
 
 
 @unittest.skipUnless(QGIS_LIVE_AVAILABLE, "needs real qgis.core/qgis.PyQt bindings -- run from an OSGeo4W/QGIS Python")

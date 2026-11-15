@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """The egress gate's lock on set_layer_sensitivity (docs/OLLAMA_ENFORCEMENT_GATE_SCOPE_2026-09-24.md):
 when the gate is on, the model must not be able to lower a protected layer's tag itself, or the way
 past a blocked call would be to re-tag the layer PUBLIC and retry. Gate off => unchanged behaviour."""

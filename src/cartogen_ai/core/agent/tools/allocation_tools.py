@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Allocation envelope: split a budget the user supplies across areas by need (H8,
 docs/HUMANITARIAN_WORKFLOW_GAP_ANALYSIS_2026-10-04.md).
 
@@ -18,6 +17,8 @@ areas above their ceiling. No rate, price or coefficient is ever supplied by thi
 Areas are identified by feature id, so duplicate names cannot merge two areas. Pure logic is unit tested offline; the layer work needs
 QGIS (tests/test_allocation_tools_live.py, written without a local QGIS).
 """
+from ... import _background_processing as _bg
+from ... import _chunked as _ck
 from .registry import register_tool
 from ._edit_session import EditError, add_numeric_field, edit_command, set_value
 from .humanitarian_style import look_hint
@@ -96,7 +97,7 @@ def allocate(weights, budget, max_share=None, min_amount=0.0, rounding=None):
             return {"error": "rounding must be above zero."}
         total_target = sum(amounts)
         floored = [int((a + _EPS) // unit) * unit for a in amounts]
-        pieces = int(round((total_target - sum(floored)) / unit))
+        pieces = round((total_target - sum(floored)) / unit)
         order = sorted(range(n), key=lambda i: (-(amounts[i] - floored[i]), i))
         for i in order:
             if pieces <= 0:
@@ -179,6 +180,11 @@ def _layer(name):
         },
         "required": ["layer_name", "budget", "need_field"],
     },
+    keywords=[
+        "tonnes", "truck can carry", "carry only", "capacity of the truck", "vehicle capacity",
+        "allocation envelope", "split the budget", "allocate the budget", "divide the budget", "distribute the budget",
+        "budget across districts", "budget by severity", "funding envelope", "share the funding", "allocate funding",
+    ],
 )
 def calculate_allocation_envelope(layer_name, budget, need_field, population_field=None, unit_name_field=None, need_exponent=1.0,
                                   max_share_per_unit=None, min_amount_per_unit=0.0, exclude_need_below=None, rounding=None,
@@ -216,7 +222,7 @@ def calculate_allocation_envelope(layer_name, budget, need_field, population_fie
         }
 
     rows, weights, excluded = [], [], []
-    for feat in layer.getFeatures():
+    for feat in _ck.features(layer, "Allocation: reading features"):
         label = str(feat[unit_name_field]) if unit_name_field else str(feat.id())
         w, reason = weight_for(feat[need_field], feat[population_field] if population_field else None, need_exponent, exclude_need_below,
                                   use_population=bool(population_field))
@@ -225,13 +231,15 @@ def calculate_allocation_envelope(layer_name, budget, need_field, population_fie
         else:
             rows.append({"id": feat.id(), "unit": label})
             weights.append(w)
-    out = allocate(weights, budget, max_share_per_unit, min_amount_per_unit or 0.0, rounding)
+    # Pure arithmetic on plain numbers: off the GUI thread, Stop honoured (processing-cost audit 2026-10-12).
+    out = _bg.run_callable(lambda: allocate(weights, budget, max_share_per_unit, min_amount_per_unit or 0.0, rounding),
+                           label="Calculating the allocation")
     if "error" in out:
         out["excluded_units"] = excluded
         return out
 
     results = [{"unit": r["unit"], "id": r["id"], "amount": round(a, 6), "share_of_budget": round(a / float(budget), 4),
-                "at_ceiling": i in out["capped"]} for i, (r, a) in enumerate(zip(rows, out["amounts"]))]
+                "at_ceiling": i in out["capped"]} for i, (r, a) in enumerate(zip(rows, out["amounts"], strict=False))]
     results.sort(key=lambda x: (-x["amount"], str(x["unit"])))
     result = {
         "success": True,
@@ -254,11 +262,11 @@ def calculate_allocation_envelope(layer_name, budget, need_field, population_fie
         result["results"], result["truncated"] = results, False
 
     if output_field:
-        by_id = {r["id"]: a for r, a in zip(rows, out["amounts"])}
+        by_id = {r["id"]: a for r, a in zip(rows, out["amounts"], strict=False)}
         try:
             with edit_command(layer, "Cartogen AI: write " + output_field) as owned:
                 idx = add_numeric_field(layer, output_field)
-                for fid in (f.id() for f in layer.getFeatures()):
+                for fid in (f.id() for f in _ck.features(layer, "Allocation: reading features")):
                     set_value(layer, fid, idx, by_id.get(fid, 0.0))
             result["output_field"] = output_field
             result["layer_name"] = layer_name

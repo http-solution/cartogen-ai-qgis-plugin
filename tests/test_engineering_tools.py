@@ -81,15 +81,15 @@ class TestEngineeringHydrologyTools(unittest.TestCase):
         self.assertTrue(result["design_inputs"]["intensity_source"].startswith("Local authority"))
 
     def test_rational_calculation_rejects_uncited_or_wrong_duration_intensity(self):
-        base = dict(
-            area_km2=0.25,
-            flow_length_km=0.8,
-            upstream_elevation_m=850,
-            outlet_elevation_m=810,
-            return_period_years=20,
-            rainfall_intensity_mm_h=60,
-            runoff_coefficient=0.5,
-        )
+        base = {
+            "area_km2": 0.25,
+            "flow_length_km": 0.8,
+            "upstream_elevation_m": 850,
+            "outlet_elevation_m": 810,
+            "return_period_years": 20,
+            "rainfall_intensity_mm_h": 60,
+            "runoff_coefficient": 0.5,
+        }
         self.assertIn("error", calculate_rational_watershed_peak_flow(
             **base, intensity_duration_minutes=15, intensity_source=""
         ))
@@ -114,10 +114,13 @@ class TestEngineeringHydrologyTools(unittest.TestCase):
         self.assertEqual(verdict["best"]["id"], "36.01")
         self.assertEqual(verdict["best"]["cname"], "Engineering hydrology and drainage")
         self.assertFalse(verdict["ambiguous"])
-        self.assertEqual(
-            task_matcher.missing_slots(verdict["best"], REPORTED_QUERY),
-            ["dem_source", "idf_source", "runoff_coefficient"],
-        )
+        # S1 (2026-10-14): the request used to be BLOCKED up front by three questions (DEM, IDF, runoff coefficient) and no tool could
+        # measure the basin, so the live demo produced nothing. The DEM is now fetched and the basin measured automatically, and the two
+        # design inputs are asked once, after the measurements, by delineate_watershed's reply; calculate_rational_watershed_peak_flow
+        # still refuses a guessed intensity or C, so nothing is guessed. The task must therefore no longer block on slots.
+        self.assertEqual(task_matcher.missing_slots(verdict["best"], REPORTED_QUERY), [])
+        self.assertIn("delineate_watershed", verdict["best"]["tools"])
+        self.assertIn("fetch_dem", verdict["best"]["tools"])
 
     def test_hydrology_prompt_rule_is_present_when_engineering_tool_is_active(self):
         prompt = build_system_prompt(
@@ -155,9 +158,9 @@ class TestEngineeringAdjustments(unittest.TestCase):
         length_m, drop = 1200.0, 60.0
         from cartogen_ai.core.agent.tools.engineering_tools import kirpich_tc_minutes
         tc = kirpich_tc_minutes(length_m, drop / length_m)
-        common = dict(flow_length_km=1.2, upstream_elevation_m=910, outlet_elevation_m=850, return_period_years=20,
-                      rainfall_intensity_mm_h=55, intensity_duration_minutes=tc, intensity_source="Cited IDF",
-                      runoff_coefficient=0.4)
+        common = {"flow_length_km": 1.2, "upstream_elevation_m": 910, "outlet_elevation_m": 850, "return_period_years": 20,
+                      "rainfall_intensity_mm_h": 55, "intensity_duration_minutes": tc, "intensity_source": "Cited IDF",
+                      "runoff_coefficient": 0.4}
         small = calculate_rational_watershed_peak_flow(area_km2=0.2, **common)
         mid = calculate_rational_watershed_peak_flow(area_km2=0.6, **common)
         large = calculate_rational_watershed_peak_flow(area_km2=0.9, **common)
@@ -166,9 +169,9 @@ class TestEngineeringAdjustments(unittest.TestCase):
         self.assertTrue(any("80 ha" in w for w in large["warnings"]))  # past FHWA's Rational Method limit too
 
     def test_no_router_alias_is_short_enough_to_match_inside_ordinary_words(self):
-        from cartogen_ai.core.services.tool_router import _TOOL_ALIASES
+        from cartogen_ai.core.services.tool_router import routing_phrases
         for tool in ("parse_dms_location", "assess_watershed_hydrology_request", "calculate_rational_watershed_peak_flow"):
-            for alias in _TOOL_ALIASES[tool]:
+            for alias in routing_phrases(tool):
                 self.assertGreaterEqual(len(alias), 5, (tool, alias))     # aliases match as substrings of the query
 
     def test_the_tools_are_classified_as_read_only_calculations(self):

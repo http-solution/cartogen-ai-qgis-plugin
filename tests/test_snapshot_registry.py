@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Tests for agent/tools/_snapshot_registry.py -- the priority-subset
 undo/rollback mechanism for MODIFY/DELETE tools, v1.7.0 workstream 2 of
 docs/QGIS_PRODUCTION_ARCHITECTURE_REVIEW_2026-09-04.md point 20. Mocks
@@ -37,6 +36,13 @@ class TestRegistryLookups(unittest.TestCase):
             "remove_layer", "field_calculator", "calculate_area", "calculate_length",
             "apply_categorized_style", "apply_graduated_style", "apply_graduated_symbol_style",
             "set_dataset_status", "set_layer_sensitivity", "set_layer_confidence", "run_query",
+            # integration audit 2026-10-16: the MODIFY tools added since package A that undo_last_operation can now reverse
+            "set_layer_filter", "set_rule_based_labels", "set_label_callout", "set_layer_diagram", "set_point_marker",
+            "set_raster_relief", "apply_saved_symbol", "set_layer_elevation", "set_layer_temporal",
+            # rc46: the confirmed deletion of features can be put back
+            "delete_features",
+            # PLAN-021 WP-E (#425): a new field can be taken away again while it is empty
+            "add_field",
         }
         self.assertEqual(set(SNAPSHOT_REGISTRY.keys()), expected)
 

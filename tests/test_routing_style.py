@@ -1,8 +1,9 @@
-# -*- coding: utf-8 -*-
 """Pure half of the routing/reach styling (tools/routing_style.py): band edges, labels, palettes, group order."""
+from typing import ClassVar
 import unittest
 
 from cartogen_ai.core.agent.tools import routing_style as rs
+import itertools
 
 
 class TestBandEdges(unittest.TestCase):
@@ -11,7 +12,7 @@ class TestBandEdges(unittest.TestCase):
         self.assertEqual(len(edges), 5)
         self.assertEqual(edges[0][0], 0.0)
         self.assertEqual(edges[-1][1], 5000.0)
-        for (_, hi), (lo, _) in zip(edges, edges[1:]):
+        for (_, hi), (lo, _) in itertools.pairwise(edges):
             self.assertAlmostEqual(hi, lo)
 
     def test_a_degenerate_max_still_gives_one_band(self):
@@ -59,7 +60,7 @@ class TestPalette(unittest.TestCase):
 
 
 class TestReachGroup(unittest.TestCase):
-    METHODS = ["concave_hull", "road_buffer", "convex_hull"]
+    METHODS: ClassVar = ["concave_hull", "road_buffer", "convex_hull"]
 
     def test_headline_is_first_then_tightest_to_loosest(self):
         self.assertEqual(rs.reach_layer_order(self.METHODS, "concave_hull"), ["concave_hull", "road_buffer", "convex_hull"])

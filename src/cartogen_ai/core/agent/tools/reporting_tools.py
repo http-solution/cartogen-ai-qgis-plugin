@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Reporting & Document Analysis Tools for Cartogen AI.
 Statistical charting, structured table extraction from PDF/Word documents,
@@ -13,6 +12,7 @@ network-only tools (see NETWORK_ONLY_TOOLS in agent/agent_orchestrator.py).
 import os
 import tempfile
 from .registry import register_tool
+from ._paths import resolve_output_path
 
 _CHART_TYPES = {"bar", "pie", "line"}
 _AGG_FUNCS = {"sum", "count", "mean", "min", "max"}
@@ -40,7 +40,7 @@ def _apply_pie_slice_cap(labels, values, max_slices=_PIE_MAX_SLICES):
     actually the smallest meaningful grouping. Pure Python, no matplotlib needed."""
     if len(labels) <= max_slices:
         return labels, values, None
-    paired = sorted(zip(labels, values), key=lambda lv: lv[1], reverse=True)
+    paired = sorted(zip(labels, values, strict=False), key=lambda lv: lv[1], reverse=True)
     kept = paired[: max_slices - 1]
     rest = paired[max_slices - 1 :]
     other_total = sum(v for _, v in rest)
@@ -79,6 +79,7 @@ def _temp_png_path():
     },
 )
 def generate_chart(chart_type, title, labels, values, x_label=None, y_label=None, output_path=None, color_palette=None, dpi=300):
+    output_path = resolve_output_path(output_path)   # rc22 smoke N3/N8/N9: anchor relative paths to the project (see _paths.py)
     chart_type = (chart_type or "").lower()
     if chart_type not in _CHART_TYPES:
         return {"error": f"chart_type must be one of {sorted(_CHART_TYPES)}."}
@@ -90,8 +91,8 @@ def generate_chart(chart_type, title, labels, values, x_label=None, y_label=None
         return {"error": "Pie charts can't represent negative values -- use a bar chart instead."}
 
     try:
-        import matplotlib
-        matplotlib.use("Agg")  # headless -- no Qt/Tk backend clash inside QGIS's own event loop
+        import matplotlib as mpl
+        mpl.use("Agg")  # headless -- no Qt/Tk backend clash inside QGIS's own event loop
         import matplotlib.pyplot as plt
     except ImportError:
         return {"error": "matplotlib is required for chart generation. Install via qpip, or in the OSGeo4W Shell: python -m pip install matplotlib"}
@@ -171,7 +172,7 @@ def extract_pdf_tables(file_path, page=None):
                         continue
                     header, *data_rows = table
                     header = [str(h).strip() if h else f"col_{i}" for i, h in enumerate(header)]
-                    rows = [dict(zip(header, row)) for row in data_rows]
+                    rows = [dict(zip(header, row, strict=False)) for row in data_rows]
                     tables_found.append({
                         "page": start_index + offset,
                         "columns": header,
@@ -216,7 +217,7 @@ def extract_word_tables(file_path):
                 continue
             header, *data_rows = grid
             header = [h if h else f"col_{i}" for i, h in enumerate(header)]
-            rows = [dict(zip(header, row)) for row in data_rows]
+            rows = [dict(zip(header, row, strict=False)) for row in data_rows]
             tables_found.append({"columns": header, "row_count": len(rows), "rows": rows})
 
         if not tables_found:
@@ -237,7 +238,7 @@ def _read_tabular_rows(file_path, sheet_name=None, delimiter=","):
     ext = os.path.splitext(file_path)[1].lower()
     if ext == ".csv":
         import csv
-        with open(file_path, "r", encoding="utf-8-sig", errors="ignore", newline="") as f:
+        with open(file_path, encoding="utf-8-sig", errors="ignore", newline="") as f:
             reader = csv.DictReader(f, delimiter=delimiter)
             rows = list(reader)
             return rows, list(reader.fieldnames or [])
@@ -307,6 +308,10 @@ def _aggregate_3w_presence(rows, admin_field, org_field, sector_field=None):
         },
         "required": ["file_path", "admin_field", "org_field"],
     },
+    keywords=[
+        "who else is working", "who is working", "3w", "4w", "operational presence", "who's active", "who's responding",
+        "who is active", "who is responding", "which organizations are present", "which organisations are present",
+    ],
 )
 def load_3w_data(file_path, admin_field, org_field, sector_field=None, sheet_name=None, delimiter=","):
     if not os.path.exists(file_path):
@@ -420,6 +425,10 @@ def _aggregate_rows(rows, group_by_field, value_field, agg):
         },
         "required": ["rows", "group_by_field"],
     },
+
+    keywords=[
+        "per district", "percent of households", "aggregate the percent", "by district",
+    ],
 )
 def aggregate_data(rows, group_by_field, value_field=None, agg="sum"):
     agg = (agg or "sum").lower()
@@ -467,8 +476,13 @@ def aggregate_data(rows, group_by_field, value_field=None, agg="sum"):
         },
         "required": ["rows", "group_by_field", "reached_field"],
     },
+
+    keywords=[
+        "sectors are covered", "sector coverage", "which sectors", "who covers which sector", "coverage by sector",
+    ],
 )
 def generate_sector_coverage_report(rows, group_by_field, reached_field, target_field=None, title=None, output_path=None):
+    output_path = resolve_output_path(output_path)   # rc22 smoke N3/N8/N9: anchor relative paths to the project (see _paths.py)
     reached_result = aggregate_data(rows, group_by_field, reached_field, agg="sum")
     if "error" in reached_result:
         return reached_result
@@ -498,15 +512,24 @@ def generate_sector_coverage_report(rows, group_by_field, reached_field, target_
         table.sort(key=lambda e: e["reached"], reverse=True)
 
     chart_title = title or f"Coverage by {group_by_field}"
+    chart_rows = table
+    no_target_groups = []
     if target_field:
-        chart_values = [e["coverage_percent"] if e["coverage_percent"] is not None else 0 for e in table]
+        # PLAN-010: a group with no usable target (missing, unparseable or zero) has NO coverage, not 0% coverage. Plotting it as 0 drew a
+        # confident empty bar for what is a data gap; it stays in the table (sorted first) and is named in the result, but is not charted.
+        chart_rows = [e for e in table if e["coverage_percent"] is not None]
+        no_target_groups = [str(e[group_by_field]) for e in table if e["coverage_percent"] is None]
+        chart_values = [e["coverage_percent"] for e in chart_rows]
         y_label = "Coverage %"
     else:
         chart_values = [e["reached"] for e in table]
         y_label = "Reached"
 
+    if not chart_rows:
+        return {"error": "No group has a usable target, so there is no coverage percentage to chart.",
+                "table": table, "no_target_groups": no_target_groups}
     chart_res = generate_chart(
-        "bar", chart_title, [str(e[group_by_field]) for e in table], chart_values,
+        "bar", chart_title, [str(e[group_by_field]) for e in chart_rows], chart_values,
         x_label=group_by_field, y_label=y_label, output_path=output_path,
     )
     if "error" in chart_res:
@@ -521,4 +544,7 @@ def generate_sector_coverage_report(rows, group_by_field, reached_field, target_
         "chart_path": chart_res["output_path"],
         "reached_skipped_rows": reached_result["skipped_rows"],
         "target_skipped_rows": target_skipped_rows,
+        "no_target_groups": no_target_groups,
+        **({"chart_note": f"{len(no_target_groups)} group(s) have no usable target and are not charted (a missing target is not 0% coverage): "
+                          + ", ".join(no_target_groups)} if no_target_groups else {}),
     }

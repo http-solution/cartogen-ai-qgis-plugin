@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 P-code depth tools for Cartogen AI -- the agent-facing surface of
 validators/pcode_validation.py (point 6 of

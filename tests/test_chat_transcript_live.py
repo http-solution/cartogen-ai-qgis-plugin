@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """The full chat transcript in a real QgsProject (F25 option B, owner decision 2026-09-30).
 
 What offline tests cannot show: that QgsProject.writeEntry/readEntry hold the transcript, that it is saved

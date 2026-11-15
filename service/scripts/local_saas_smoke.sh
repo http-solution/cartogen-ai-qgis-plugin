@@ -9,7 +9,8 @@ cd "$SERVICE_DIR"
 COOKIE_FILE="${TEMP:-/tmp}/cartogen-saas-cookie.txt"
 STAMP="$(date +%s)"
 EMAIL="cartogen-smoke-${STAMP}@example.com"
-PASSWORD='CartogenSmokePassword123!'
+# Generated per run: this repository is public, so no fixed password is kept in the file.
+PASSWORD="Smoke-$(python -c 'import secrets; print(secrets.token_urlsafe(18))')"
 SESSION_ID="cs_smoke_${STAMP}"
 RETRIEVAL_TOKEN="retrieval_${STAMP}_$(python -c 'import secrets; print(secrets.token_hex(12))')"
 SUBSCRIPTION_ID="sub_smoke_${STAMP}"

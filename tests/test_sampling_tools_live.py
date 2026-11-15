@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Live-QGIS tests for H3 design_sampling_frame. Written without a QGIS install: CI's first run is their first execution."""
 import unittest
 

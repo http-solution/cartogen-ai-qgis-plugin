@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Automated packaging and release script for Cartogen AI.
 Zips plugin assets for deployment and upload to QGIS Plugin Repository.
@@ -21,17 +20,19 @@ PLUGIN_NAME = "cartogen_ai"
 # happened to be called. Confirmed live: v1.4.3 was built from a scratch
 # directory and shipped with a top-level folder "_tmp_v143_build", so QGIS
 # installed it as a SECOND, separately-named plugin sitting alongside the
-# existing "cartogen-ai" install instead of replacing it. Two copies of the
+# existing install instead of replacing it. Two copies of the
 # same plugin then load in one session, each inserting its own src/ onto
 # sys.path, and whichever loads first wins the cartogen_ai namespace for both.
 #
-# MUST NOT be "cartogen_ai". The plugins directory is on sys.path, so a folder
-# with that exact name is a REGULAR package (it has __init__.py) that contains
-# no core/ -- it would beat the PEP-420 namespace package under src/ at any
-# sys.path position and produce "No module named 'cartogen_ai.core'". The
-# hyphen is deliberate: it cannot be imported as a top-level Python name, so it
-# cannot shadow anything. See __init__.py's _bootstrap_namespace().
-PACKAGE_DIR = "cartogen-ai"
+# MUST be a valid Python identifier (letters, digits, underscores, not starting with a digit):
+# plugins.qgis.org rejects any other top-level name (2026-10-10: the old "cartogen-ai" was refused),
+# and QGIS imports the folder by this name. MUST NOT be exactly "cartogen_ai": the plugins directory
+# is on sys.path, so a folder with that name is a REGULAR package (it has __init__.py) that contains
+# no core/ -- it would beat the PEP-420 namespace package under src/ at any sys.path position and
+# produce "No module named 'cartogen_ai.core'". See __init__.py's _bootstrap_namespace().
+# Upgrade note: an install made from a release before rc25 lives in a folder named "cartogen-ai";
+# the new folder installs beside it, so users must remove the old one (README, Installation).
+PACKAGE_DIR = "cartogen_ai_plugin"
 
 if PACKAGE_DIR == "cartogen_ai":
     raise SystemExit(
@@ -45,6 +46,10 @@ EXCLUDE_DIRS = {
     # Tool caches. A build from a working checkout shipped .ruff_cache/ and src/cartogen_ai_core.egg-info/ (21 junk files) in the
     # rc17 zip rebuilt by hand on 2026-10-06; a clean CI checkout has neither, so the published zips were not affected.
     ".ruff_cache", ".mypy_cache",
+    # Sample data for the live-test runbook (rasters, GeoPackage, QGIS project, Word and PDF tables). The QGIS plugin directory says "don't
+    # include binaries", the files do nothing inside an installed plugin, and the runbook (docs/RELEASE_LIVE_TEST_SCENARIOS.md) copies them
+    # from the repository checkout, not from the installed plugin.
+    "release_smoke_assets",
     # setuptools output: a stale second copy of the plugin (build/lib/cartogen_ai) rode into the 2026-10-03 audited zip.
     "build",
     # Brand assets (guidelines HTML, SVG lockups) have no function inside an
@@ -95,8 +100,11 @@ EXCLUDE_DIRS = {
 # and a bare-name exclusion drops all 19 of those modules from the release zip,
 # shipping a plugin whose agent has nothing to call. Verified: adding "tools" to
 # EXCLUDE_DIRS took the zip from 63 source files to 44.
-EXCLUDE_ROOT_ONLY_DIRS = {"agent", "ui", "tools"}
-EXCLUDE_EXTS = {".pyc", ".zip", ".tmp"}
+# site/ is the documentation-site generator, theme and authored pages (GitHub Pages); like tools/ it has no caller inside an installed
+# plugin. Root-only for the same reason as tools/ above.
+EXCLUDE_ROOT_ONLY_DIRS = {"agent", "ui", "tools", "site"}
+# Binary documents and data. Their only users in this repository are tests and the runbook, which read them from the checkout.
+EXCLUDE_EXTS = {".pyc", ".zip", ".tmp", ".docx", ".pdf", ".tif", ".tiff", ".gpkg", ".qgz"}
 # Internal dev docs/scripts/config that have no purpose inside an installed QGIS
 # plugin and shouldn't ship in the release package.
 #
@@ -117,6 +125,10 @@ EXCLUDE_FILES = {
     # A git WORKTREE has a .git FILE (a pointer to a path on the builder's machine), not a directory, so the ".git" directory
     # exclusion above does not catch it; it must never ship.
     ".git",
+    # Hidden repository files. The QGIS plugin directory's guidance is that a package carries none, they do nothing inside an installed
+    # plugin, and a rejected upload costs a round trip. (.gitkeep only holds empty folders open in git; the live-test runbook tells the
+    # tester to create outputs/, screenshots/ and logs/ when they are missing.)
+    ".gitattributes", ".gitignore", ".gitkeep",
     "API open router.txt", "CLAUDE.md",
     # Leftover stub from consolidating this repo out of the old dual-tree
     # setup -- see the file's own docstring. Not git-tracked; safe to delete
@@ -156,6 +168,30 @@ EXCLUDE_FILES = {
 # path). Confirmed live: _register_page.html and _reg_compact.json shipped in a
 # build before this pattern existed. Nothing the plugin needs starts with an
 # underscore at the repo root, so the pattern is safe to be broad.
+# User-facing documentation is the only part of docs/ that ships. The rest (dated smoke reports, triage notes, scope studies, audits,
+# trackers, the archive) is project history: 3+ MB of it did nothing inside an installed plugin, and it made the package look like a
+# repository dump. Nothing at runtime reads docs/ (the in-plugin Help comes from core/release_notes.py). Everything under images/ ships
+# because the README and the user guide embed those screenshots.
+SHIPPED_DOCS = {"README.md", "USER_GUIDE.md", "TOOLS_REFERENCE.md", "HUMANITARIAN_TOOLS_CATALOGUE.md"}
+SHIPPED_DOCS_DIRS = {"images"}
+
+
+def is_hidden(name):
+    """Dotfiles and dot-directories never ship (the plugin directory asks for none). A by-hand build from a working checkout once
+    carried a 92 KB .coverage file that the enumerated lists above did not name, so this is a rule, not another list entry."""
+    return name.startswith(".")
+
+
+def docs_entry_ships(rel_path):
+    """True when a path relative to the repository root is allowed to ship. Only paths under docs/ are restricted."""
+    parts = rel_path.replace("\\", "/").split("/")
+    if parts[0] != "docs" or len(parts) == 1:
+        return True
+    if len(parts) == 2:
+        return parts[1] in SHIPPED_DOCS
+    return parts[1] in SHIPPED_DOCS_DIRS
+
+
 EXCLUDE_FILE_PATTERNS = ("scratch_test_*", ".git_commit_msg*", "_delete_probe.py",
                          "*.bak", "*.bak-*", "*.orig", "*.rej",
                          "_*.json", "_*.html", "_*.tgz", "_*.tar.gz",
@@ -165,7 +201,7 @@ EXCLUDE_FILE_PATTERNS = ("scratch_test_*", ".git_commit_msg*", "_delete_probe.py
 def get_plugin_version(script_dir):
     metadata_path = os.path.join(script_dir, "metadata.txt")
     if os.path.exists(metadata_path):
-        with open(metadata_path, "r", encoding="utf-8") as f:
+        with open(metadata_path, encoding="utf-8") as f:
             for line in f:
                 match = re.match(r"^version\s*=\s*(.+)$", line.strip())
                 if match:
@@ -173,9 +209,27 @@ def get_plugin_version(script_dir):
     return "0.1.0"
 
 
+def check_metadata_parses(script_dir):
+    """Refuses to package a metadata.txt that the QGIS plugin directory would reject.
+
+    2026-10-10: plugins.qgis.org answered "Errors parsing cartogen-ai/metadata.txt. '%' must be followed by '%' or '('" because it reads the
+    file with Python's ConfigParser (default interpolation) and an old changelog block said "25% keyword coverage". Desktop QGIS did not
+    mind, so nothing caught it. Reading every value the same way here makes the build fail instead of the upload."""
+    import configparser
+    parser = configparser.ConfigParser()
+    parser.read(os.path.join(script_dir, "metadata.txt"), encoding="utf-8")
+    try:
+        for _key, _value in parser["general"].items():
+            pass
+    except (configparser.Error, KeyError) as e:
+        raise SystemExit(f"[Release] metadata.txt would be rejected by plugins.qgis.org: {e}\n"
+                         "Write 'percent' instead of '%' (and check the [general] section).") from e
+
+
 def package_plugin():
     script_dir = os.path.dirname(os.path.abspath(__file__))
     version = get_plugin_version(script_dir)
+    check_metadata_parses(script_dir)
 
     dist_dir = os.path.join(script_dir, "dist")
     os.makedirs(dist_dir, exist_ok=True)
@@ -187,13 +241,15 @@ def package_plugin():
 
     with zipfile.ZipFile(versioned_filename, "w", zipfile.ZIP_DEFLATED) as zipf:
         for root, dirs, files in os.walk(script_dir):
-            dirs[:] = [d for d in dirs if d not in EXCLUDE_DIRS and not d.endswith(".egg-info")]
+            dirs[:] = [d for d in dirs if d not in EXCLUDE_DIRS and not d.endswith(".egg-info") and not is_hidden(d)]
             if root == script_dir:
                 dirs[:] = [d for d in dirs if d not in EXCLUDE_ROOT_ONLY_DIRS]
 
             for file in files:
                 if (
-                    file in EXCLUDE_FILES
+                    is_hidden(file)
+                    or not docs_entry_ships(os.path.relpath(os.path.join(root, file), script_dir))
+                    or file in EXCLUDE_FILES
                     or any(file.endswith(ext) for ext in EXCLUDE_EXTS)
                     or any(fnmatch.fnmatch(file, pat) for pat in EXCLUDE_FILE_PATTERNS)
                 ):

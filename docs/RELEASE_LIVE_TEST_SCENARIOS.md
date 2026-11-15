@@ -21,6 +21,44 @@ artifact below was actually inspected.
 6. **SKIP** is allowed only for PostGIS when no disposable test database exists.
 7. Save evidence under a dedicated test folder and cancel recurring schedules before exit.
 
+## 1a. Data and destination (read before the first prompt)
+
+Every prompt below goes to the model provider named in the candidate record, and so does what the agent reads to answer it. For the
+hub-ranking prompt (A3) that is the prompt text, the project's layer and field names, feature counts and CRS, and the tool result
+(the three candidate names and their distances; a result can include coordinates). Nothing in this runbook authorises sending
+anything else, anywhere else.
+
+1. **Data:** run these prompts only on the synthetic Amman-area fixtures in `docs/release_smoke_assets/` (`smoke_hubs`,
+   `smoke_points` and the rest). Never run them on a real project, on a layer marked SENSITIVE or RESTRICTED, or on any data you are
+   not free to send to the provider.
+2. **Destination:** write the provider and model into the candidate record before starting. Use only a provider you are authorised to
+   send the synthetic fixtures to. For anything else use a local Ollama model.
+3. **The data-protection gate:** if an egress card appears, read which layers and which provider it names, and approve it only for
+   the fixtures above. If it names a layer you did not expect, cancel and report it as a finding; do not approve to get past the step.
+4. **Record it:** in the notes for A3 write which provider and model received the request.
+
+## 1b. Recording the API trace (every run)
+
+From the build after rc24 the plugin can write every model call to disk. This is how an unexpected number of calls, a loop, or a large prompt is
+diagnosed afterwards; a chat transcript cannot show it, and the Log Messages panel is metadata-only by policy.
+
+1. **Before the first prompt:** Settings > tick "Record every model request and reply to a local folder (diagnostics)". Use a fresh `TEST_ROOT`
+   project folder (or a saved project in it) so the trace lands in `TEST_ROOT/cartogen_api_trace/`.
+2. **Run the rows as usual.** One line is written per model call: system instruction (stored once per distinct text), messages sent, tool names
+   offered, the reply and tool calls, token usage, latency and outcome.
+3. **After the last row:** run
+   `python tools/summarize_api_trace.py TEST_ROOT/cartogen_api_trace > TEST_ROOT/logs/api_trace_summary.txt`
+   and, for any row that took more than 3 calls, `python tools/summarize_api_trace.py TEST_ROOT/cartogen_api_trace --show-turn <turn id>`.
+4. **Record per row** (add to the result notes): the number of model calls, input and cached tokens, and any flag the summary raised
+   (a request with six or more calls, an identical tool call repeated, a system instruction that changed inside one request, a failed call).
+   A row that passes functionally but makes more than 4 calls is a **finding**, not a pass with a footnote.
+5. **Send back** `api_trace_summary.txt` and the `--show-turn` output for any flagged turn. Do not send the raw `.jsonl` unless asked: it holds
+   layer names, attribute values and tool results (same data-and-destination rule as section 1a: synthetic fixtures only). Turn the setting off
+   when the run ends.
+
+Calls made outside the agent loop (the optional prompt refinement step, an attached-image question) are not traced yet; on a build before this
+feature, read the `model_call` lines (tag `Agent`) in the Log Messages panel instead and note the build.
+
 ## 2. Candidate record and preparation
 
 | Field | Value |
@@ -36,10 +74,10 @@ artifact below was actually inspected.
 The inputs are already prepared under this repository's `docs/release_smoke_assets/`; do not ask the
 chat agent to invent them. After installing the candidate through **Plugins → Manage and Install
 Plugins → Install from ZIP**, copy the entire `docs/release_smoke_assets/` folder from this
-repository (or from the installed plugin if the candidate includes it) to a writable location such
+repository checkout (the plugin package does NOT contain it: sample data was removed from the package for the QGIS plugin directory; clone the repository or download that folder from GitHub) to a writable location such
 as `C:\Cartogen-AI-Smoke\<version>\` or
 `~/Cartogen-AI-Smoke/<version>/`. Keep its `inputs/`, `outputs/`, `screenshots/`, and `logs/`
-subfolders together. Never write test output inside the installed plugin folder. Call the copied
+subfolders together (create `outputs/`, `screenshots/` and `logs/` if your copy lacks them). Never write test output inside the installed plugin folder. Call the copied
 folder `TEST_ROOT`: substitute its full absolute path for every `<test-output>` below. In chat,
 replace the placeholder before sending the prompt; do not send angle-bracket placeholders
 literally. Restart QGIS,

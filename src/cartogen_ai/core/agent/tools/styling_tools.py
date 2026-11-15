@@ -1,15 +1,19 @@
-# -*- coding: utf-8 -*-
 """
 Layer Cartography & Styling Tools for Cartogen AI.
 """
 
+import contextlib
 import math
 import os
 
+from ... import _chunked as _ck
 from .registry import register_tool
+from ._paths import resolve_output_path
 from .plain_colour import resolve_colour
 from ._qgis_enum_compat import resolve_qgis_enum
 from ...logger import log_event
+from ._layer_checks import degrees_value_problem
+import itertools
 
 try:
     from qgis.core import (
@@ -157,6 +161,28 @@ def _derive_style_path(layer, output_path):
     if not os.path.isdir(desktop):
         desktop = os.path.expanduser("~")
     return os.path.join(desktop, f"{_sanitize_filename(layer.name())}.qml"), True
+
+
+def _validate_manual_breaks(breaks, vmin, vmax):
+    """(sorted breaks, None) or (None, error text). Manual class boundaries must be finite numbers, distinct, and strictly inside
+    the field's own range (GitHub #165): the breaks used to be only sorted, so a boundary of 100 for values 5-15 made an inverted
+    "100 - 15" class and a legend that matched nothing. A boundary equal to the minimum or maximum is allowed (a single-value
+    class is legal). Pure."""
+    import math
+    cleaned = []
+    for b in breaks:
+        if isinstance(b, bool) or not isinstance(b, (int, float)) or not math.isfinite(b):
+            return None, f"breaks must be finite numbers; got {b!r}."
+        cleaned.append(float(b))
+    ordered = sorted(cleaned)
+    if len(set(ordered)) != len(ordered):
+        return None, "breaks must be distinct values; a repeated boundary would make an empty class."
+    outside = [b for b in ordered if not (vmin <= b <= vmax)]
+    if outside:
+        shown = ", ".join(f"{b:g}" for b in outside)
+        return None, (f"break(s) {shown} fall outside the data range {vmin:g} to {vmax:g} of this field, which would "
+                      f"make an empty or inverted class. Use boundaries between {vmin:g} and {vmax:g}.")
+    return ordered, None
 
 
 def _logarithmic_breaks(values, num_classes):
@@ -321,11 +347,9 @@ def _geometry_sort_key(geometry_kind):
 def _layer_geometry_kind(layer):
     if not QGIS_AVAILABLE:
         return "unknown"
-    try:
+    with contextlib.suppress(Exception):
         if layer.type() == QgsMapLayer.LayerType.RasterLayer:
             return "raster"
-    except Exception:
-        pass
     try:
         gt = layer.geometryType()
         if gt == QgsWkbTypes.GeometryType.PointGeometry:
@@ -350,6 +374,34 @@ def _default_opacity_for_geometry(geometry_type):
 def _apply_opacity(layer, opacity):
     resolved = max(0, min(100, opacity))
     layer.setOpacity(resolved / 100.0)
+    return resolved
+
+
+def _apply_fill_opacity(layer, opacity):
+    """Opacity for a plain polygon layer WITHOUT fading its outline. Layer opacity fades everything, so a governorate layer made 25 percent
+    opaque lost the borders between its provinces (owner report 2026-10-26, Yemen ADM1: the borders were visible in the map the owner
+    wanted and gone in ours). For a single-symbol polygon layer with simple fill symbol layers the opacity goes into the fill colour's alpha
+    and the layer's own opacity is put back to 100 percent; any other layer keeps the old layer-opacity behaviour."""
+    resolved = max(0, min(100, opacity))
+    try:
+        is_plain_polygon = (layer.geometryType() == QgsWkbTypes.GeometryType.PolygonGeometry
+                            and isinstance(layer.renderer(), QgsSingleSymbolRenderer))
+    except (NameError, AttributeError):     # the offline tests switch QGIS_AVAILABLE on without the QGIS classes (names are None)
+        is_plain_polygon = False
+    if not is_plain_polygon:
+        return _apply_opacity(layer, resolved)
+    changed = False
+    symbol = layer.renderer().symbol()
+    for i in range(symbol.symbolLayerCount()):
+        sl = symbol.symbolLayer(i)
+        if hasattr(sl, "setFillColor") and hasattr(sl, "strokeColor"):
+            fill = QColor(sl.fillColor())
+            fill.setAlpha(round(resolved * 2.55))
+            sl.setFillColor(fill)
+            changed = True
+    if not changed:
+        return _apply_opacity(layer, resolved)
+    layer.setOpacity(1.0)
     return resolved
 
 
@@ -405,6 +457,12 @@ def _reorder_top_level_layers(ordered_layers):
         },
         "required": ["layer_name", "field"],
     },
+    keywords=[
+        "different colour for each", "different color for each", "each type in its own colour", "each type in its own color",
+        "colour by type", "color by type", "colour each", "color each", "separate colours", "separate colors",
+        "categorize the layer", "categorise the layer", "categorized style", "categorised style", "unique values",
+        "colour by", "color by", "by type", "by category", "by class",
+    ],
 )
 def apply_categorized_style(layer_name, field, opacity=None, palette=None):
     if not QGIS_AVAILABLE:
@@ -484,6 +542,40 @@ def apply_categorized_style(layer_name, field, opacity=None, palette=None):
         return {"error": f"apply_categorized_style failed: {e}"}
 
 
+NO_DATA_COLOUR = "#bdbdbd"
+
+
+def count_no_data(values):
+    """How many of `values` are not a number (NULL, empty, text): the features a graduated style would leave undrawn. Pure."""
+    return sum(1 for v in values if isinstance(v, bool) or not isinstance(v, (int, float)))
+
+
+def _with_no_data_rule(layer, renderer, field):
+    """A rule-based copy of a graduated renderer plus a grey 'No data' rule for features with no value in `field`.
+
+    PLAN-014 phase 1, reproduced in CI on QGIS 4.2.2 before this fix: a graduated renderer has no class for NULL, so a feature with no value was
+    not drawn at all (control feature 48 pixels, NULL feature 0) and the legend did not say so; a district with missing data looked like a
+    district with nothing there. Only used when the layer actually has such features, so every other graduated layer keeps its renderer."""
+    converted = QgsRuleBasedRenderer.convertFromRenderer(renderer, layer)
+    if converted is None:
+        return renderer
+    symbol = QgsSymbol.defaultSymbol(layer.geometryType())
+    symbol.setColor(QColor(NO_DATA_COLOUR))
+    converted.rootRule().appendChild(QgsRuleBasedRenderer.Rule(symbol, 0, 0, f"{QgsExpression.quotedColumnRef(field)} IS NULL", "No data"))
+    return converted
+
+
+def _mark_no_data(layer, renderer, field):
+    """(renderer, result fields): the renderer with a 'No data' rule when some features have no value in `field`, else unchanged and {}."""
+    no_data = count_no_data(feat[field] for feat in _ck.features(layer, "Styling: counting features with no value"))
+    if not no_data:
+        return renderer, {}
+    return _with_no_data_rule(layer, renderer, field), {
+        "no_data_features": no_data,
+        "no_data_note": (f"{no_data} feature(s) have no value in '{field}'; they are drawn grey and listed as 'No data' in the legend "
+                         "instead of being left off the map.")}
+
+
 @register_tool(
     "apply_graduated_style",
     "Apply smart graduated choropleth style analyzing field distribution for optimal breaks. Pass "
@@ -511,6 +603,8 @@ def apply_categorized_style(layer_name, field, opacity=None, palette=None):
                 "description": "Optional IASC cluster name/alias (e.g. 'WASH', 'Health') to tint the ramp "
                 "toward that cluster's color instead of the auto-selected one.",
             },
+            "color_from": {"type": "string", "description": "Optional start colour of an explicit ramp, as plain words ('pale yellow') or #rrggbb. Use with color_to when the user names the colours."},
+            "color_to": {"type": "string", "description": "Optional end colour of an explicit ramp ('dark red' or #rrggbb). Overrides the automatic ramp and cluster tint."},
             "breaks": {
                 "type": "array",
                 "items": {"type": "number"},
@@ -522,8 +616,15 @@ def apply_categorized_style(layer_name, field, opacity=None, palette=None):
         },
         "required": ["layer_name", "field"],
     },
+    keywords=[
+        "colour the districts from", "color the districts from", "from few to many", "colour the districts by", "color the districts by", "colour them by the", "graduated map", "diverging palette", "style the districts by", "in five classes", "classes with a colour ramp", "shown in a graduated",
+        "colour the districts by", "color the districts by", "shade the districts", "darker where", "darker the more",
+        "colour by how many", "color by how many", "from light to dark", "light to dark", "darker for higher", "show how much",
+        "show how many",
+        "in red on the map", "map of cases per", "map of rates", "choropleth",
+    ],
 )
-def apply_graduated_style(layer_name, field, mode="auto", opacity=None, cluster=None, breaks=None, num_classes=5):
+def apply_graduated_style(layer_name, field, mode="auto", opacity=None, cluster=None, breaks=None, num_classes=5, color_from=None, color_to=None):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
     if breaks is not None and len(breaks) < 1:
@@ -537,7 +638,7 @@ def apply_graduated_style(layer_name, field, mode="auto", opacity=None, cluster=
         return {"error": f"Field '{field}' not found in '{layer_name}'"}
 
     try:
-        values = [float(feat[field]) for feat in layer.getFeatures() if isinstance(feat[field], (int, float))]
+        values = [float(feat[field]) for feat in _ck.features(layer, "Styling: reading features") if isinstance(feat[field], (int, float))]
         # Computed unconditionally (cheap, pure Python) so it's available
         # below whenever breaks is None, regardless of which ramp branch
         # runs -- a cluster-color match still needs a real classification
@@ -554,48 +655,21 @@ def apply_graduated_style(layer_name, field, mode="auto", opacity=None, cluster=
             breaks = classification["breaks"]
 
         sorted_breaks = None
-        min_val = None
-        max_val = None
-        if breaks is not None:
-            if not values:
-                return {"error": f"No numeric values found in '{field}' to build breaks against."}
-            min_val = min(values)
-            max_val = max(values)
-            if min_val >= max_val:
-                return {
-                    "error": (
-                        f"Field '{field}' does not have a range of distinct values (min={min_val}, max={max_val}). "
-                        f"Cannot create graduated classes."
-                    )
-                }
-
-            clean_breaks = []
-            for b in breaks:
-                try:
-                    fb = float(b)
-                except (ValueError, TypeError):
-                    return {"error": f"Manual class boundary '{b}' is not a valid number."}
-                if not math.isfinite(fb):
-                    return {"error": f"Manual class boundary '{b}' must be a finite number."}
-                clean_breaks.append(fb)
-
-            if len(clean_breaks) != len(set(clean_breaks)):
-                return {"error": f"Manual class boundaries must be distinct numbers, got {breaks}."}
-
-            for fb in clean_breaks:
-                if fb <= min_val or fb >= max_val:
-                    return {
-                        "error": (
-                            f"Manual class boundary {fb} is outside the field's data range [{min_val:,.2f}, {max_val:,.2f}]. "
-                            f"All class boundaries must be finite, distinct numbers strictly inside the data range."
-                        )
-                    }
-
-            sorted_breaks = sorted(clean_breaks)
 
         cluster_color = _match_cluster_color(cluster) if cluster else None
         cluster_warning = None
-        if cluster_color:
+        explicit_ramp = None
+        if color_from or color_to:
+            # rc22 smoke F2: an explicit "pale yellow to dark red" was ignored (the map came out Viridis) because the tool had no
+            # way to take colours. A ramp the user spelled out beats every automatic choice.
+            start, end = resolve_colour(color_from or "") or color_from, resolve_colour(color_to or "") or color_to
+            if not (start and end and QColor(start).isValid() and QColor(end).isValid()):
+                return {"error": "color_from and color_to must both be colours (a plain phrase such as 'pale yellow' / 'dark red' or a #rrggbb code)."}
+            explicit_ramp = QgsGradientColorRamp(QColor(start), QColor(end))
+        if explicit_ramp is not None:
+            color_ramp = explicit_ramp
+            ramp_label = f"{color_from} to {color_to}"
+        elif cluster_color:
             # Near-white to the cluster's color -- a sequential single-hue
             # ramp, the correct ramp family for ordered/graduated data
             # (matches this file's own qualitative-vs-diverging distinction
@@ -624,11 +698,18 @@ def apply_graduated_style(layer_name, field, mode="auto", opacity=None, cluster=
             # path builds QgsRendererRange objects directly from caller-
             # supplied boundaries instead of going through
             # QgsGraduatedSymbolRenderer.createRenderer's Jenks/equal-
-            # interval/quantile modes. Boundaries are verified finite, distinct,
-            # and strictly inside the data range (issue #165).
-            bounds = [min_val] + sorted_breaks + [max_val]
+            # interval/quantile modes. Not run against a live QGIS
+            # session yet -- QgsRendererRange/updateColorRamp are stable,
+            # long-standing PyQGIS API, but flagged per this project's own
+            # convention for anything not live-verified.
+            if not values:
+                return {"error": f"No numeric values found in '{field}' to build breaks against."}
+            sorted_breaks, breaks_error = _validate_manual_breaks(breaks, min(values), max(values))
+            if breaks_error:
+                return {"error": breaks_error}
+            bounds = [min(values), *sorted_breaks, max(values)]
             ranges = []
-            for lower, upper in zip(bounds[:-1], bounds[1:]):
+            for lower, upper in itertools.pairwise(bounds):
                 label = f"{lower:,.2f} - {upper:,.2f}"
                 symbol = QgsSymbol.defaultSymbol(layer.geometryType()) if QgsSymbol else None
                 ranges.append(QgsRendererRange(lower, upper, symbol, label))
@@ -659,6 +740,7 @@ def apply_graduated_style(layer_name, field, mode="auto", opacity=None, cluster=
         if renderer is None:
             return {"error": "Failed to create graduated renderer"}
 
+        renderer, no_data_info = _mark_no_data(layer, renderer, field)
         layer.setRenderer(renderer)
         resolved_opacity = _apply_opacity(
             layer, opacity if opacity is not None else _default_opacity_for_geometry(layer.geometryType())
@@ -673,6 +755,7 @@ def apply_graduated_style(layer_name, field, mode="auto", opacity=None, cluster=
             "color_ramp": ramp_label,
             "opacity_percent": resolved_opacity,
         }
+        result.update(no_data_info)
         if breaks is not None:
             result["breaks"] = sorted(breaks)
         if cluster_warning:
@@ -702,6 +785,10 @@ def apply_graduated_style(layer_name, field, mode="auto", opacity=None, cluster=
         },
         "required": ["layer_name", "field"],
     },
+    keywords=[
+        "bigger dots", "bigger circles", "larger dots", "larger circles", "bigger the more", "size by", "scale the dots",
+        "scale the circles", "dot size", "bigger symbols",
+    ],
 )
 def apply_graduated_symbol_style(layer_name, field, min_size=4, max_size=24, mode="auto", num_classes=5, color="#3182bd"):
     if not QGIS_AVAILABLE:
@@ -719,7 +806,7 @@ def apply_graduated_symbol_style(layer_name, field, min_size=4, max_size=24, mod
         return {"error": "apply_graduated_symbol_style only supports point layers -- use apply_graduated_style for polygon choropleths."}
 
     try:
-        values = [float(feat[field]) for feat in layer.getFeatures() if isinstance(feat[field], (int, float))]
+        values = [float(feat[field]) for feat in _ck.features(layer, "Styling: reading features") if isinstance(feat[field], (int, float))]
         if len(values) < 2:
             return {"error": f"Not enough numeric values in '{field}' to build a graduated symbol style."}
 
@@ -889,7 +976,13 @@ def apply_rule_based_style(layer_name, field, rules):
         return {"error": f"apply_rule_based_style failed: {e}"}
 
 
-@register_tool("apply_heatmap_style", "Apply heatmap renderer to point layer with transparent zero-density baseline so basemaps remain visible.", {"type": "object", "properties": {"layer_name": {"type": "string"}, "field": {"type": "string"}}, "required": ["layer_name"]})
+@register_tool("apply_heatmap_style", "Apply heatmap renderer to point layer with transparent zero-density baseline so basemaps remain visible.", {"type": "object", "properties": {"layer_name": {"type": "string"}, "field": {"type": "string"}}, "required": ["layer_name"]},
+    keywords=[
+        "crowded", "crowding", "where people are concentrated", "where most", "concentrated", "density map", "hot spots",
+        "hotspots", "busy areas", "clusters of",
+        "heat map", "heatmap", "hot spot map", "hotspot map",
+    ],
+)
 def apply_heatmap_style(layer_name, field=None):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
@@ -902,7 +995,7 @@ def apply_heatmap_style(layer_name, field=None):
             renderer.setWeightExpression(f'"{field}"')
         renderer.setRadius(12.0)
         if QgsUnitTypes is not None and hasattr(QgsUnitTypes, "RenderMillimeters"):
-            renderer.setRadiusUnit(QgsUnitTypes.RenderMillimeters)
+            renderer.setRadiusUnit(QgsUnitTypes.RenderUnit.RenderMillimeters)
 
         # CRITICAL: Baseline stop (0.0) MUST have alpha = 0 (100% transparent) so
         # zero-density areas do not blot out the basemap with solid purple/dark color!
@@ -940,14 +1033,12 @@ def _heatmap_algorithm_id():
     `qgis:heatmapkerneldensityestimation` missing from the QGIS 4.2.2 registry (772 algorithms); the `native:` spelling is
     the likely replacement but is NOT confirmed here, so ask the registry and fall back to the old id (whose failure then
     reports the real error) rather than guess."""
-    try:
+    with contextlib.suppress(Exception):
         from qgis.core import QgsApplication
         registry = QgsApplication.processingRegistry()
         for candidate in ("qgis:heatmapkerneldensityestimation", "native:heatmapkerneldensityestimation"):
             if registry.algorithmById(candidate) is not None:
                 return candidate
-    except Exception:
-        pass
     return "qgis:heatmapkerneldensityestimation"
 
 
@@ -969,6 +1060,11 @@ def _heatmap_algorithm_id():
         },
         "required": ["point_layer", "radius"],
     },
+    keywords=[
+        "dbscan", "density clusters", "clusters of incidents", "hot spots",
+        "hotspots", "find hotspots", "cluster analysis",
+        "where they cluster", "where incidents cluster", "where the incidents are concentrated", "clustering of",
+    ],
 )
 def hotspot_analysis(point_layer, radius, pixel_size=None, weight_field=None):
     if not QGIS_AVAILABLE:
@@ -978,6 +1074,9 @@ def hotspot_analysis(point_layer, radius, pixel_size=None, weight_field=None):
     layer = _find_layer_by_name(point_layer)
     if layer is None:
         return {"error": f"Layer '{point_layer}' not found"}
+    problem = degrees_value_problem(layer, radius, "the radius")
+    if problem:
+        return {"error": problem}
     if weight_field and weight_field not in [f.name() for f in layer.fields()]:
         return {"error": f"Field '{weight_field}' not found in '{point_layer}'"}
 
@@ -1002,11 +1101,9 @@ def hotspot_analysis(point_layer, radius, pixel_size=None, weight_field=None):
         if not raster_layer.isValid():
             return {"error": "Generated density raster is invalid."}
         QgsProject.instance().addMapLayer(raster_layer)
-        try:
+        with contextlib.suppress(Exception):
             from .output_style import style_continuous_raster
             style_continuous_raster(raster_layer, "density")   # a density surface in the default grey stretch was unreadable
-        except Exception:
-            pass
         return {"success": True, "layer_name": result_name, "radius": radius, "pixel_size": resolved_pixel_size}
     except Exception as e:
         return {"error": f"hotspot_analysis failed: {e}"}
@@ -1024,6 +1121,10 @@ def hotspot_analysis(point_layer, radius, pixel_size=None, weight_field=None):
         },
         "required": ["layer_name", "color_hex"],
     },
+    keywords=[
+        "make it red", "make them red", "in red", "in blue", "in green", "in dark", "in light", "in pale", "make it stand out",
+        "make them stand out", "stand out", "change the colour", "change the color", "recolour", "recolor",
+    ],
 )
 def change_layer_color(layer_name, color_hex, opacity=None):
     if not QGIS_AVAILABLE:
@@ -1052,7 +1153,7 @@ def change_layer_color(layer_name, color_hex, opacity=None):
         # the caller never asked to touch opacity at all -- directly contradicting this
         # tool's own schema doc above ("Leaves current opacity unchanged if omitted").
         if opacity is not None:
-            result["opacity_percent"] = _apply_opacity(layer, opacity)
+            result["opacity_percent"] = _apply_fill_opacity(layer, opacity)
         layer.triggerRepaint()
         return result
     except Exception as e:
@@ -1072,6 +1173,11 @@ def change_layer_color(layer_name, color_hex, opacity=None):
         },
         "required": ["layer_name", "opacity_percent"],
     },
+    keywords=[
+        "with some transparency", "with transparency", "semi-transparent", "make it transparent", "drape the",
+        "see-through", "see through", "less solid", "so i can see underneath", "so i can see what is below", "fade the",
+        "more transparent",
+    ],
 )
 def set_layer_transparency(layer_name, opacity_percent):
     if not QGIS_AVAILABLE:
@@ -1082,7 +1188,7 @@ def set_layer_transparency(layer_name, opacity_percent):
     if layer is None:
         return {"error": f"Layer '{layer_name}' not found"}
     try:
-        resolved = _apply_opacity(layer, opacity_percent)
+        resolved = _apply_fill_opacity(layer, opacity_percent)
         layer.triggerRepaint()
         return {"success": True, "layer_name": layer_name, "opacity_percent": resolved}
     except Exception as e:
@@ -1098,6 +1204,9 @@ def set_layer_transparency(layer_name, opacity_percent):
     "the usual fix when a map with several layers looks 'messy' or a small icon layer has "
     "disappeared under a larger area layer.",
     {"type": "object", "properties": {}},
+    keywords=[
+        "easier to read", "tidy the map", "clean up the map", "declutter", "map is cluttered", "looks messy", "hide the clutter",
+    ],
 )
 def auto_arrange_layer_order():
     if not QGIS_AVAILABLE:
@@ -1138,6 +1247,12 @@ def auto_arrange_layer_order():
         },
         "required": ["layer_names"],
     },
+    keywords=[
+        "move the layer to the top", "move the layer to the bottom", "bring the layer to the front",
+        "send the layer to the back", "layer order", "draw order", "put the layer above", "put the layer below",
+        "move the layer", "move layer", "put the layer", "move the layer above", "move the layer below", "reorder the layers",
+        "stacking order",
+    ],
 )
 def set_layer_order(layer_names):
     if not QGIS_AVAILABLE:
@@ -1186,6 +1301,7 @@ def set_layer_order(layer_names):
     },
 )
 def save_layer_style(layer_name, output_path=None):
+    output_path = resolve_output_path(output_path)   # rc22 smoke N3/N8/N9: anchor relative paths to the project (see _paths.py)
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
     layer = _find_layer_by_name(layer_name)
@@ -1281,6 +1397,7 @@ def load_layer_style(layer_name, style_path):
     },
 )
 def export_layer_sld(layer_name, output_path=None):
+    output_path = resolve_output_path(output_path)   # rc22 smoke N3/N8/N9: anchor relative paths to the project (see _paths.py)
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
     layer = _find_layer_by_name(layer_name)

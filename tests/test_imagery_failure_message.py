@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """A failed model download must not print a signed URL and must say what to do (rc15 hand test D06, 2026-10-06)."""
 import unittest
 

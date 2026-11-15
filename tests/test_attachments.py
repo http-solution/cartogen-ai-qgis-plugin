@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Tests for ui/attachments.py's read_attached_file(). Extracted out of
 ui/dock_widget.py in v1.2.31 specifically because it has zero Qt/QGIS
 dependencies, unlike the rest of dock_widget.py which cannot be imported
@@ -118,7 +117,7 @@ class TestReadAttachedFileCsv(unittest.TestCase):
             # which is not valid UTF-8 -- this is the exact real-world case
             # (Excel-exported CSVs with "smart quotes") the encoding fallback
             # chain exists for.
-            f.write("org,note\nNRC,it’s shelter\n".encode("cp1252"))
+            f.write("org,note\nNRC,it\u2019s shelter\n".encode("cp1252"))
         data, err = read_attached_file(path)
         self.assertIsNone(err)
         self.assertIn("1 rows, 2 columns", data["text"])

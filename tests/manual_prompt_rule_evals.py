@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Manual prompt-rule eval set for src/cartogen_ai/core/agent/prompts.py's BASE_SYSTEM_PROMPT.
 

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 File-attachment reading, analysis, and disclosure for Cartogen AI's chat tab.
 
@@ -14,6 +13,7 @@ test_chat_widget_live.py calls read_and_analyze_file/attachment_disclosure_note 
 by name (via chat_tab_widget.py's thin delegators), so those two stay reachable there.
 """
 
+import contextlib
 import os
 import threading
 import traceback
@@ -21,8 +21,8 @@ import traceback
 from qgis.core import QgsSettings
 
 from .attachments import read_attached_file as _read_attached_file
-from .settings_dialog import PROVIDERS as _PROVIDERS
-from ...infrastructure.settings_keys import SETTINGS_PROVIDER
+from .settings_dialog import PROVIDERS as _PROVIDERS, _CLI_PROVIDERS
+from ...infrastructure.settings_keys import SETTINGS_PROVIDER, normalize_provider
 
 
 class ChatInputController:
@@ -39,11 +39,11 @@ class ChatInputController:
         specific moment it becomes true for THIS file. Ollama is local -- nothing leaves
         the machine -- so it gets a different, accurate note rather than a generic
         third-party-sending warning that would be false for it."""
-        provider_value = QgsSettings().value(SETTINGS_PROVIDER, "openrouter")
+        provider_value = normalize_provider(QgsSettings().value(SETTINGS_PROVIDER, "openrouter"))
         if provider_value == "ollama":
             return "This file's content stays local (Ollama) -- nothing is sent to a third party."
         label = next(
-            (p["provider_label"] for p in _PROVIDERS if p["value"] == provider_value),
+            (p["provider_label"] for p in [*_PROVIDERS, *_CLI_PROVIDERS] if p["value"] == provider_value),
             provider_value,
         )
         return f"This file's content will be sent to {label} for analysis."
@@ -96,8 +96,7 @@ class ChatInputController:
 
         from ..agent import file_io
         kind = file_io.classify(path)
-        carried = (" It will also be used with your next message as a %s input."
-                   % kind) if kind else ""
+        carried = (f" It will also be used with your next message as a {kind} input.") if kind else ""
         w._dock.receiveMessageSignal.emit(
             "ai", f"📎 **File attached:** {name}{carried}\n\nAnalyzing...")
         w._dock.statusSignal.emit("Analyzing...")
@@ -134,7 +133,7 @@ class ChatInputController:
                     return
 
             if client is not None and hasattr(client, "set_status_callback"):
-                client.set_status_callback(lambda msg: w._dock.statusSignal.emit(msg))
+                client.set_status_callback(w._dock.statusSignal.emit)
 
             if data.get("is_image"):
                 response = self.analyze_image(agent, name, data)
@@ -244,7 +243,7 @@ class ChatInputController:
                 "The current model did not return any analysis. "
                 "Vision support depends on the model; try a vision-capable model in Settings."
             )
-        try:
+        with contextlib.suppress(Exception):
             user_entry = {"role": "user", "content": f"[Attached image: {name}]"}
             assistant_entry = {"role": "assistant", "content": content}
             if hasattr(agent, "_append_history"):
@@ -254,6 +253,4 @@ class ChatInputController:
                 agent.conversation_history.append(assistant_entry)
                 if hasattr(agent, "_trim_history"):
                     agent._trim_history()
-        except Exception:
-            pass
         return content

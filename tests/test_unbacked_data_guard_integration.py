@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 run()-level test of the anti-fabrication guard (rc7 smoke test F03, 2026-09-30): a blocked tool
 call followed by a model answer that contains an invented table must not reach the user

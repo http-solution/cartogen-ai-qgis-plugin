@@ -7,7 +7,7 @@ Private operational runbook. Do not publish this file in the Community repositor
 - Docker Desktop with Compose v2;
 - Node.js 22+ for website development outside Docker;
 - Git;
-- a copy of this private repository;
+- a copy of this repository (it is public; keep your `.env` and any keys out of it);
 - test-mode Stripe account for checkout testing;
 - Directus CMS/auth configuration;
 - provider credentials only when testing real LLM calls.
@@ -185,7 +185,7 @@ After the Directus customer registration permission is configured:
 2. Configure a non-root deployment user.
 3. Configure a firewall allowing only SSH and HTTPS; keep Postgres, Directus internal,
    and LiteLLM internal unless a deliberate access policy says otherwise.
-4. Clone the private repository using an authenticated deployment method.
+4. Clone the repository. It is public, so no credentials are needed to clone; keep the real `.env` out of version control.
 5. Copy `service/.env.example` to `service/.env` and generate unique production values.
 6. Configure DNS:
    - `cartogen.ai` → reverse proxy / website;

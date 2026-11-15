@@ -1,0 +1,556 @@
+[
+  {
+    "prompt": "Our team collected a spreadsheet of cholera cases per village with GPS columns. Put them on the map as points, tell me which villages are hotspots, draw a heat map style and give me a one page PDF with a legend for the health cluster meeting.",
+    "tools": [
+      [
+        "add_point_layer",
+        "load_tabular_data_as_layer"
+      ],
+      "hotspot_analysis",
+      "apply_heatmap_style",
+      "create_print_layout"
+    ],
+    "source": "PLAN-043 held-out long requests, written 2026-11-01 before any router change"
+  },
+  {
+    "prompt": "Get the district boundaries for Sudan, pull the hospitals and clinics from OpenStreetMap for the whole country, work out how many facilities each district has and colour the districts from few to many with a legend.",
+    "tools": [
+      [
+        "fetch_hdx_admin_boundaries",
+        "fetch_geoboundaries"
+      ],
+      [
+        "ingest_osm_features",
+        "fetch_osm_features"
+      ],
+      [
+        "spatial_join",
+        "aggregate_data",
+        "run_allowlisted_processing_algorithm",
+        "find_processing_algorithm",
+        "zonal_statistics"
+      ],
+      "apply_graduated_style"
+    ],
+    "source": "PLAN-043 held-out long requests, written 2026-11-01 before any router change"
+  },
+  {
+    "prompt": "I want to know how many people live within thirty minutes of a drive from each health centre in smoke_facilities using the road layer smoke_roads, then show the areas that are not covered in red on a map I can print.",
+    "tools": [
+      "calculate_service_area",
+      [
+        "estimate_population_exposure",
+        "population_access_gap",
+        "fetch_worldpop_population"
+      ],
+      "create_print_layout"
+    ],
+    "source": "PLAN-043 held-out long requests, written 2026-11-01 before any router change"
+  },
+  {
+    "prompt": "Download the WorldPop population for Yemen clipped to the Taiz area, calculate the total population of each district, rank the districts from highest to lowest and make a bar chart of the top ten for my report.",
+    "tools": [
+      "fetch_worldpop_population",
+      "zonal_statistics",
+      "generate_chart"
+    ],
+    "source": "PLAN-043 held-out long requests, written 2026-11-01 before any router change"
+  },
+  {
+    "prompt": "After the earthquake show me the epicentres from USGS for the past week on the map, buffer each one by fifty kilometres, and tell me which towns in smoke_towns fall inside those circles and how many people that is.",
+    "tools": [
+      "fetch_usgs_earthquakes",
+      "buffer_analysis",
+      [
+        "select_by_location",
+        "intersect_layers",
+        "spatial_join"
+      ]
+    ],
+    "source": "PLAN-043 held-out long requests, written 2026-11-01 before any router change"
+  },
+  {
+    "prompt": "Make a map of active fires in South Sudan from NASA for the last three days over the district boundaries, label the districts, add a basemap underneath and export the whole thing as a PNG for the daily briefing.",
+    "tools": [
+      "fetch_nasa_active_fires",
+      [
+        "fetch_hdx_admin_boundaries",
+        "fetch_geoboundaries"
+      ],
+      "apply_labels",
+      "add_basemap",
+      [
+        "export_layout",
+        "print_map"
+      ]
+    ],
+    "source": "PLAN-043 held-out long requests, written 2026-11-01 before any router change"
+  },
+  {
+    "prompt": "Find the nearest warehouse for each of the ten villages in smoke_villages, draw the delivery routes on the road network, tell me the total distance and save the routes as a new layer called routes_out.",
+    "tools": [
+      [
+        "location_allocation",
+        "find_nearest_features",
+        "optimal_hub_siting"
+      ],
+      "optimize_delivery_route"
+    ],
+    "source": "PLAN-043 held-out long requests, written 2026-11-01 before any router change"
+  },
+  {
+    "prompt": "Compare the vegetation greenness between last year and this year for the farmland polygons in smoke_farms using Sentinel images, show where it got worse and report the share of farmland affected.",
+    "tools": [
+      [
+        "search_stac_satellite_imagery",
+        "calculate_ndvi"
+      ],
+      "calculate_raster_change_detection"
+    ],
+    "source": "PLAN-043 held-out long requests, written 2026-11-01 before any router change"
+  },
+  {
+    "prompt": "Cut the roads layer to the boundary of Hodeidah governorate, work out the total length of roads in kilometres for each district, and give me that table as a CSV file that I can open in Excel.",
+    "tools": [
+      "clip_layer",
+      "calculate_length",
+      [
+        "export_to_csv",
+        "export_layer",
+        "export_layers_to_spreadsheet"
+      ]
+    ],
+    "source": "PLAN-043 held-out long requests, written 2026-11-01 before any router change"
+  },
+  {
+    "prompt": "Reproject smoke_admin to the local UTM zone, calculate the area of each district in square kilometres, add the result as a new field named area_km2 and then style the districts by that area in five classes.",
+    "tools": [
+      "reproject_layer",
+      "calculate_area",
+      "apply_graduated_style"
+    ],
+    "source": "PLAN-043 held-out long requests, written 2026-11-01 before any router change"
+  },
+  {
+    "prompt": "Pull the funding figures from FTS for the Yemen response this year, put them in a chart by sector next to a table, and write a short situation report summarising which sectors are the least funded.",
+    "tools": [
+      "fetch_fts_funding_data",
+      "generate_chart",
+      [
+        "generate_report",
+        "generate_spatial_report"
+      ]
+    ],
+    "source": "PLAN-043 held-out long requests, written 2026-11-01 before any router change"
+  },
+  {
+    "prompt": "Check which schools in smoke_schools are inside the flood extent in smoke_flood, count them per district in smoke_admin, highlight the affected ones in red and prepare a printable map with a legend and scale bar.",
+    "tools": [
+      [
+        "select_by_location",
+        "intersect_layers",
+        "spatial_join"
+      ],
+      [
+        "spatial_join",
+        "aggregate_data",
+        "run_allowlisted_processing_algorithm",
+        "find_processing_algorithm",
+        "zonal_statistics"
+      ],
+      "create_print_layout"
+    ],
+    "source": "PLAN-043 held-out long requests, written 2026-11-01 before any router change"
+  },
+  {
+    "prompt": "Load the CSV smoke_idps.csv with the displaced families per camp, join it to the camp polygons by the camp code, and make a graduated map of the number of families per hectare with the camp names as labels.",
+    "tools": [
+      [
+        "load_tabular_data_as_layer",
+        "add_layer_from_path"
+      ],
+      "join_by_attribute",
+      "apply_graduated_style",
+      "apply_labels"
+    ],
+    "source": "PLAN-043 held-out long requests, written 2026-11-01 before any router change"
+  },
+  {
+    "prompt": "Create a hillshade from the elevation data of the Jordan valley, generate contour lines every twenty metres, drape the districts on top with some transparency and export a large A3 layout of it as a PDF.",
+    "tools": [
+      [
+        "fetch_dem",
+        "hillshade"
+      ],
+      "generate_contours",
+      "set_layer_transparency",
+      "create_print_layout"
+    ],
+    "source": "PLAN-043 held-out long requests, written 2026-11-01 before any router change"
+  },
+  {
+    "prompt": "Which health facilities in Taiz are more than five kilometres away from any paved road? Download the roads and the facilities from OSM, measure the distances and mark the isolated ones on the map with a label.",
+    "tools": [
+      [
+        "ingest_osm_features",
+        "fetch_osm_features"
+      ],
+      [
+        "find_nearest_features",
+        "measure_distance",
+        "buffer_analysis"
+      ],
+      "apply_labels"
+    ],
+    "source": "PLAN-043 held-out long requests, written 2026-11-01 before any router change"
+  },
+  {
+    "prompt": "Search the web for news about flooding in Marib this week, put the reported locations on the map with the source link and the date, and then check them against the GDACS alert layer.",
+    "tools": [
+      [
+        "find_incident_reports",
+        "search_web",
+        "web_research"
+      ],
+      "fetch_gdacs_disaster_alerts"
+    ],
+    "source": "PLAN-043 held-out long requests, written 2026-11-01 before any router change"
+  },
+  {
+    "prompt": "Build a dashboard with charts and a map showing the number of incidents per district over time for the conflict events I loaded from UCDP, and let me filter by month, as a single HTML file I can share.",
+    "tools": [
+      [
+        "fetch_ucdp_conflict_events",
+        "analyze_incident_trend"
+      ],
+      [
+        "generate_html_dashboard",
+        "generate_temporal_dashboard"
+      ]
+    ],
+    "source": "PLAN-043 held-out long requests, written 2026-11-01 before any router change"
+  },
+  {
+    "prompt": "Merge the three shapefiles of damaged buildings from the different teams into one layer, fix any broken geometries, remove duplicates by dissolving on the building id, and save the clean result as a GeoPackage.",
+    "tools": [
+      "merge_layers",
+      "fix_geometries",
+      "dissolve_layer",
+      [
+        "export_layer",
+        "save_layer_as"
+      ]
+    ],
+    "source": "PLAN-043 held-out long requests, written 2026-11-01 before any router change"
+  },
+  {
+    "prompt": "Where should we put two new water points so that the most people in smoke_villages are within one kilometre of one? Use the existing wells in smoke_wells and show the best sites with the people covered in a table.",
+    "tools": [
+      [
+        "optimal_hub_siting",
+        "location_allocation",
+        "calculate_presence_gap"
+      ]
+    ],
+    "source": "PLAN-043 held-out long requests, written 2026-11-01 before any router change"
+  },
+  {
+    "prompt": "Classify the Sentinel image of the camp into built-up, bare soil and vegetation using the training polygons I drew, show the classes with a proper colour table and count the hectares of each class.",
+    "tools": [
+      "supervised_classification",
+      [
+        "calculate_area",
+        "zonal_statistics"
+      ]
+    ],
+    "source": "PLAN-043 held-out long requests, written 2026-11-01 before any router change"
+  },
+  {
+    "prompt": "Rename the field NAME_EN to district, change the type of pop_total to integer, delete the field junk, create a bookmark called Taiz centre for the current view and then save the project.",
+    "tools": [
+      "rename_field",
+      "change_field_type",
+      "delete_field",
+      "create_bookmark",
+      "save_project"
+    ],
+    "source": "PLAN-043 held-out long requests, written 2026-11-01 before any router change"
+  },
+  {
+    "prompt": "Zoom to Aden, add the satellite basemap, show the layer with the health facilities as small red crosses with their names, and take a screenshot style export of the map view as an image for WhatsApp.",
+    "tools": [
+      "zoom_to_feature",
+      "add_basemap",
+      [
+        "set_layer_symbol",
+        "set_point_marker",
+        "change_layer_color"
+      ],
+      "apply_labels",
+      "print_map"
+    ],
+    "source": "PLAN-043 held-out long requests, written 2026-11-01 before any router change"
+  },
+  {
+    "prompt": "For every governorate in Yemen calculate the share of the population living in a flooded cell using the flood raster smoke_flood and WorldPop, rank the governorates and show them in a graduated map with a table of the top five.",
+    "tools": [
+      "fetch_worldpop_population",
+      "zonal_statistics",
+      "apply_graduated_style"
+    ],
+    "source": "PLAN-043 held-out long requests, written 2026-11-01 before any router change"
+  },
+  {
+    "prompt": "Digitise nothing, just import the GPS points from smoke_gps.csv as a layer, convert the points into a line in the order of the time field, measure its length and show the line over the satellite basemap in blue.",
+    "tools": [
+      "add_point_layer",
+      [
+        "calculate_length",
+        "measure_distance"
+      ],
+      "add_basemap"
+    ],
+    "source": "PLAN-043 held-out long requests, written 2026-11-01 before any router change"
+  },
+  {
+    "prompt": "Prepare the monthly report pack: refresh the incident layer, update the dashboard, export the A4 map layout as a PDF named after the month, and send me the list of files that were written.",
+    "tools": [
+      [
+        "run_monitoring_workflow",
+        "schedule_recurring_workflow",
+        "run_steps"
+      ],
+      "export_layout"
+    ],
+    "source": "PLAN-043 held-out long requests, written 2026-11-01 before any router change"
+  },
+  {
+    "prompt": "Estimate the travel time by car between each pair of our five field offices, give me the matrix as a table, and mark the pair that takes longest on the map as a line with a label of the minutes.",
+    "tools": [
+      "travel_time_matrix",
+      "apply_labels"
+    ],
+    "source": "PLAN-043 held-out long requests, written 2026-11-01 before any router change"
+  },
+  {
+    "prompt": "List the layers in my project, tell me which ones have no coordinate system or a broken source, repair the paths that moved to the new folder and group the cleaned layers under a group called Base data.",
+    "tools": [
+      "get_layers",
+      [
+        "find_broken_layers",
+        "get_crs",
+        "assign_layer_crs"
+      ],
+      "repair_layer_source",
+      "create_layer_group"
+    ],
+    "source": "PLAN-043 held-out long requests, written 2026-11-01 before any router change"
+  },
+  {
+    "prompt": "Show me where the roads are most at risk of being cut by the floods this season: take the road network, the flood hazard layer smoke_hazard, give each road segment a risk score and show the worst segments in a thick red line.",
+    "tools": [
+      [
+        "score_route_incident_risk",
+        "analyze_critical_links",
+        "apply_network_barriers"
+      ],
+      "apply_graduated_style"
+    ],
+    "source": "PLAN-043 held-out long requests, written 2026-11-01 before any router change"
+  },
+  {
+    "prompt": "Take the survey results in smoke_survey.csv, aggregate the percent of households without clean water by district, join the result to the district boundaries from HDX and map it with a diverging palette and a legend title.",
+    "tools": [
+      [
+        "load_tabular_data_as_layer",
+        "add_layer_from_path"
+      ],
+      [
+        "aggregate_survey_indicator",
+        "aggregate_data"
+      ],
+      [
+        "fetch_hdx_admin_boundaries",
+        "fetch_geoboundaries"
+      ],
+      "apply_graduated_style"
+    ],
+    "source": "PLAN-043 held-out long requests, written 2026-11-01 before any router change"
+  },
+  {
+    "prompt": "Extract only the districts of Taiz and Ibb from the national admin layer, merge them into one study area polygon, buffer it by ten kilometres and use that to clip the roads and the facilities layers.",
+    "tools": [
+      [
+        "select_by_attribute",
+        "select_by_expression"
+      ],
+      "dissolve_layer",
+      "buffer_analysis",
+      "clip_layer"
+    ],
+    "source": "PLAN-043 held-out long requests, written 2026-11-01 before any router change"
+  },
+  {
+    "prompt": "Highlight in yellow the camps that have more than five thousand people, zoom to them, show their attribute table and export the selected camps to a CSV file with the camp name and the population columns only.",
+    "tools": [
+      [
+        "select_by_attribute",
+        "select_by_expression"
+      ],
+      "highlight_features",
+      "zoom_to_layer",
+      [
+        "export_to_csv",
+        "export_layer",
+        "save_layer_as"
+      ]
+    ],
+    "source": "PLAN-043 held-out long requests, written 2026-11-01 before any router change"
+  },
+  {
+    "prompt": "Compute the NDWI for the two Sentinel scenes from before and after the dam breach, subtract them to find the newly flooded land, polygonise the result and report the flooded area in hectares and the affected villages.",
+    "tools": [
+      "calculate_ndwi",
+      [
+        "calculate_raster_change_detection",
+        "raster_calculator"
+      ],
+      [
+        "calculate_area",
+        "zonal_statistics"
+      ]
+    ],
+    "source": "PLAN-043 held-out long requests, written 2026-11-01 before any router change"
+  },
+  {
+    "prompt": "Make a printable A4 poster of the camp with the shelters coloured by type, the water points as blue icons, the latrines as brown icons, a north arrow, a scale bar and the legend on the right hand side.",
+    "tools": [
+      "apply_categorized_style",
+      "create_print_layout",
+      [
+        "set_point_marker",
+        "set_layer_symbol"
+      ]
+    ],
+    "source": "PLAN-043 held-out long requests, written 2026-11-01 before any router change"
+  },
+  {
+    "prompt": "Give me a quick quality check of the district layer: are the P-codes unique, do they follow the parent child hierarchy, are the geometries valid, and does it overlap with itself anywhere? Write down the problems found.",
+    "tools": [
+      "check_pcode_uniqueness",
+      "check_pcode_hierarchy",
+      [
+        "diagnose_topology",
+        "fix_geometries"
+      ]
+    ],
+    "source": "PLAN-043 held-out long requests, written 2026-11-01 before any router change"
+  },
+  {
+    "prompt": "A truck can carry only twenty tonnes. Plan how to serve the thirty distribution points in smoke_points from the two warehouses so the total driving is smallest and show the routes in different colours for each warehouse.",
+    "tools": [
+      [
+        "optimal_hub_siting",
+        "location_allocation",
+        "optimize_delivery_route"
+      ],
+      "calculate_allocation_envelope"
+    ],
+    "source": "PLAN-043 held-out long requests, written 2026-11-01 before any router change"
+  },
+  {
+    "prompt": "Look at the raster of rainfall for the last month, calculate the average rainfall per district, flag the districts with less than half of the long term average and make a map and a short written summary of them.",
+    "tools": [
+      "zonal_statistics",
+      [
+        "apply_graduated_style",
+        "apply_raster_stretch"
+      ],
+      [
+        "generate_report",
+        "generate_spatial_report"
+      ]
+    ],
+    "source": "PLAN-043 held-out long requests, written 2026-11-01 before any router change"
+  },
+  {
+    "prompt": "اريد خريطة للمدارس والمستشفيات في تعز من خريطة الشارع المفتوحة، واحسب عددها في كل مديرية، ولون المديريات حسب العدد، ثم اطبع الخريطة مع مفتاح الخريطة",
+    "tools": [
+      [
+        "ingest_osm_features",
+        "fetch_osm_features"
+      ],
+      [
+        "spatial_join",
+        "aggregate_data",
+        "run_allowlisted_processing_algorithm",
+        "find_processing_algorithm",
+        "zonal_statistics"
+      ],
+      "apply_graduated_style",
+      "create_print_layout"
+    ],
+    "source": "PLAN-043 held-out long requests, written 2026-11-01 before any router change"
+  },
+  {
+    "prompt": "Je voudrais télécharger les limites des districts du Tchad, ajouter les hôpitaux depuis OpenStreetMap, compter les hôpitaux par district, colorer les districts selon ce nombre et exporter une carte imprimable en PDF avec une légende",
+    "tools": [
+      [
+        "fetch_hdx_admin_boundaries",
+        "fetch_geoboundaries"
+      ],
+      [
+        "ingest_osm_features",
+        "fetch_osm_features"
+      ],
+      [
+        "spatial_join",
+        "aggregate_data",
+        "run_allowlisted_processing_algorithm",
+        "find_processing_algorithm",
+        "zonal_statistics"
+      ],
+      "apply_graduated_style",
+      "create_print_layout"
+    ],
+    "source": "PLAN-043 held-out long requests, written 2026-11-01 before any router change"
+  },
+  {
+    "prompt": "Which villages are flooded? Take the flood polygon smoke_flood, use the village points smoke_villages, select the villages inside, count the people with the population column pop and save a layer named flooded_villages.",
+    "tools": [
+      [
+        "select_by_location",
+        "intersect_layers",
+        "spatial_join"
+      ],
+      [
+        "field_statistics",
+        "aggregate_data",
+        "zonal_statistics"
+      ],
+      [
+        "export_layer",
+        "save_layer_as"
+      ]
+    ],
+    "source": "PLAN-043 held-out long requests, written 2026-11-01 before any router change"
+  },
+  {
+    "prompt": "Take the locations of the health facilities in Hajjah, compute Voronoi catchment areas around them, calculate the population in each catchment from WorldPop and highlight the catchments with more than fifty thousand people.",
+    "tools": [
+      "voronoi_polygons",
+      "fetch_worldpop_population",
+      "zonal_statistics"
+    ],
+    "source": "PLAN-043 held-out long requests, written 2026-11-01 before any router change"
+  },
+  {
+    "prompt": "Start editing the facilities layer, change the status of the selected features to closed, save the edits, and then create a new theme called closed facilities with only that layer visible so I can come back to it.",
+    "tools": [
+      "set_layer_editing",
+      "set_attribute_value",
+      "create_map_theme"
+    ],
+    "source": "PLAN-043 held-out long requests, written 2026-11-01 before any router change"
+  }
+]

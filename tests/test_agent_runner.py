@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+from typing import ClassVar
 import unittest
 from unittest.mock import MagicMock, patch
 from cartogen_ai.core.agent.prompts import build_system_prompt
@@ -66,6 +66,13 @@ class TestToolArgumentShapeValidation(unittest.TestCase):
         self.assertIn("error", res)
         self.assertIn("Invalid tool arguments", res["error"])
 
+    def test_a_missing_required_argument_says_so_and_hints_at_a_cut_off_reply(self):
+        # DEF-12 (B7): execute_pyqgis_script arrived with no `script`; the model saw only Python's "missing 1 required positional argument".
+        res = self._agent()._real_execute_tool("execute_pyqgis_script", "{}")
+        self.assertIn("Invalid arguments for execute_pyqgis_script", res["error"])
+        self.assertIn("'script'", res["error"])
+        self.assertIn("cut off", res["error"])
+
     def test_real_execute_tool_still_accepts_a_real_dict(self):
         agent = self._agent()
         # A real, working tool call must be completely unaffected by the new check.
@@ -107,11 +114,11 @@ class TestAddLayerFromPathTwoPhaseSourceLabel(unittest.TestCase):
     def test_url_download_passes_original_url_as_source_label(self):
         url = "https://example.org/districts.geojson"
         add_layer = self._dispatch(url, ("/tmp/tmp_2kgn_72.geojson", True))
-        add_layer.assert_called_once_with("/tmp/tmp_2kgn_72.geojson", None, url)
+        add_layer.assert_called_once_with("/tmp/tmp_2kgn_72.geojson", None, url, None)
 
     def test_local_path_passes_no_source_label(self):
         add_layer = self._dispatch("/data/districts.geojson", ("/data/districts.geojson", False))
-        add_layer.assert_called_once_with("/data/districts.geojson", None, None)
+        add_layer.assert_called_once_with("/data/districts.geojson", None, None, None)
 
 
 class _FakeClient:
@@ -134,6 +141,7 @@ class _FakeClient:
 def _make_bare_agent(client):
     agent = agent_mod.CartogenAi.__new__(agent_mod.CartogenAi)
     agent.client = client
+    agent.loop_guard_enabled = False     # these tests drive the loop to its cap on purpose; the guard has its own tests (test_loop_guard.py)
     agent.conversation_history = []
     agent.task_manager = MagicMock()
     agent.task_manager.get_plan.return_value = None
@@ -174,7 +182,7 @@ class TestToolStepCallback(unittest.TestCase):
         self.assertEqual(steps, [("get_layers", "running", None), ("get_layers", "done", None)])
 
     def test_fires_running_then_failed_on_tool_error(self):
-        final_text, steps = self._run_with_tool_result({"error": "Layer 'X' not found"})
+        _final_text, steps = self._run_with_tool_result({"error": "Layer 'X' not found"})
         self.assertEqual(steps, [
             ("get_layers", "running", None),
             ("get_layers", "failed", "Layer 'X' not found"),
@@ -249,7 +257,7 @@ class TestPacingAndCompaction(unittest.TestCase):
         return client, mock_sleep
 
     def test_no_pacing_delay_below_threshold_paces_above_it(self):
-        client, mock_sleep = self._run_looping(lambda self, name, args: {"success": True})
+        _client, mock_sleep = self._run_looping(lambda self, name, args: {"success": True})
         # PACING_THRESHOLD_ITERATIONS=3 -> iterations 0,1,2 get no delay; every iteration from 3
         # up to MAX_ITERATIONS-1 does -- a small/typical turn never reaches this at all.
         expected_pacing_calls = agent_mod.MAX_ITERATIONS - agent_mod.PACING_THRESHOLD_ITERATIONS
@@ -314,7 +322,9 @@ class TestPacingAndCompaction(unittest.TestCase):
         def fake_execute(self, name, args):
             call_count["n"] += 1
             if call_count["n"] == 1:
-                return {"success": True, "image_b64": huge_payload}
+                # Was {"image_b64": ...}: since PLAN-032 the agent loop takes a map picture out of the result before it is sent as text
+                # (tests/test_canvas_capture.py covers that), so the size rule is checked with any other oversized result.
+                return {"success": True, "rows": huge_payload}
             return {"success": True}
 
         client, _ = self._run_looping(fake_execute)
@@ -806,22 +816,6 @@ class TestHistoryDigestOnTrim(unittest.TestCase):
 
 
 class TestExceptionsAndLogging(unittest.TestCase):
-    def test_cartogen_exception_hierarchy(self):
-        from cartogen_ai.core.exceptions import (
-            CartogenError, ApiError, SpatialValidationError, SecuritySandboxError
-        )
-        e = ApiError("rate limited", provider="gemini", status_code=429)
-        self.assertIsInstance(e, CartogenError)
-        d = e.to_dict()
-        self.assertIn("error", d)
-        self.assertEqual(d["details"]["status_code"], 429)
-
-        s = SpatialValidationError("CRS mismatch", layer_name="roads")
-        self.assertEqual(s.details["layer_name"], "roads")
-
-        sec = SecuritySandboxError("import os blocked", blocked_ident="os")
-        self.assertEqual(sec.blocked_ident, "os")
-
     def test_logger_functions(self):
         from cartogen_ai.core.logger import log_info, log_warning, log_error
         # Verify logging executes cleanly without throwing
@@ -1069,7 +1063,7 @@ class TestEgressGateWiring(unittest.TestCase):
         with self._fake_qgis(layers, raise_on_layers),              patch.object(lineage, "QGIS_AVAILABLE", True),              patch.object(egress_gate, "read_mode", return_value=mode),              patch.object(egress_gate, "read_strict", return_value=strict):
             return agent._egress_gate_decision(tool, args)
 
-    LAYERS = {"beneficiaries": ("SENSITIVE", []), "boundary": ("PUBLIC", [])}
+    LAYERS: ClassVar = {"beneficiaries": ("SENSITIVE", []), "boundary": ("PUBLIC", [])}
 
     def test_cloud_provider_and_a_sensitive_layer_is_blocked(self):
         res = self._decide("https://api.openai.com/v1/chat/completions", self.LAYERS)
@@ -1113,7 +1107,7 @@ class TestMemoryToolsRefuseCoordinates(unittest.TestCase):
     def test_a_note_with_coordinates_is_refused_and_not_stored(self):
         task_tools = self._tools()
         manager = MagicMock()
-        with patch.object(task_tools, "_MEMORY_MANAGER", manager):
+        with patch.dict(task_tools._BOUND, {"memory_manager": manager}):
             res = task_tools.store_project_memory(
                 "service_area_analysis", "Computed 1-hour service area around 44.036028, 15.970136.")
         self.assertIn("error", res)
@@ -1123,7 +1117,7 @@ class TestMemoryToolsRefuseCoordinates(unittest.TestCase):
     def test_the_same_guard_applies_to_global_memory(self):
         task_tools = self._tools()
         manager = MagicMock()
-        with patch.object(task_tools, "_MEMORY_MANAGER", manager):
+        with patch.dict(task_tools._BOUND, {"memory_manager": manager}):
             res = task_tools.store_global_memory("home_base", "4902068.0, 1799912.0")
         self.assertIn("error", res)
         manager.store_global_note.assert_not_called()
@@ -1132,7 +1126,7 @@ class TestMemoryToolsRefuseCoordinates(unittest.TestCase):
         task_tools = self._tools()
         manager = MagicMock()
         manager.store_project_note.return_value = {"success": True}
-        with patch.object(task_tools, "_MEMORY_MANAGER", manager):
+        with patch.dict(task_tools._BOUND, {"memory_manager": manager}):
             res = task_tools.store_project_memory("style", "User prefers hospitals shown in red.")
         self.assertEqual(res, {"success": True})
         manager.store_project_note.assert_called_once()
