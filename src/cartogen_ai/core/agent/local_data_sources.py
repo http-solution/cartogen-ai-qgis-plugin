@@ -333,9 +333,9 @@ def find_region_by_name(index, name_or_code):
         p_id = (props.get("id") or "").lower()
         p_name = (props.get("name") or "").lower()
         p_iso2 = [x.lower() for x in (props.get("iso3166-1:alpha2") or [])]
-        
+
         # Exact match on id, name, or iso2
-        if target == p_id or target == p_name or target in p_iso2:
+        if target in (p_id, p_name) or target in p_iso2:
             geom = f.get("geometry")
             area = _bbox_area(geom) if geom else float("inf")
             if best is None or area < best[0]:
@@ -386,7 +386,7 @@ def extract_country_from_layers(layers):
         m = re.search(r"\b([A-Za-z]{3})_", name or "")
         if m and m.group(1).upper() in iso_map:
             return iso_map[m.group(1).upper()]
-        for iso, country in iso_map.items():
+        for country in iso_map.values():
             if re.search(r"\b" + country + r"\b", name or "", re.I):
                 return country
     return None

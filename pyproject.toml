@@ -113,6 +113,11 @@ max-complexity = 25
 "__init__.py" = ["N999", "T201"]  # runs before the package is importable, so it cannot use core/logger.py; folder name is the repo's
 "docs/**" = ["T201", "N803", "N806"]  # command-line helper scripts and a prototype that print their results
 "tools/**" = ["T201"]
+# The QGIS-only tests start with a skip guard (the plain job has no QGIS) and the golden-scenario runner sets sys.path first, so their imports legitimately follow other statements.
+"tests/test_golden_scenario_*.py" = ["E402"]
+"tests/test_humanitarian_smoke_live.py" = ["E402"]
+"tests/test_humanitarian_full_smoke_live.py" = ["E402"]
+"tests/run_all_golden_scenarios.py" = ["E402"]
 "site/build.py" = ["T201"]  # command-line docs builder
 "site/build_wiki.py" = ["T201"]  # command-line wiki exporter
 "plugin_upload.py" = ["T201"]  # command-line release builder

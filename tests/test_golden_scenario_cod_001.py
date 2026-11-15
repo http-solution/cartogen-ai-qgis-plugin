@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Golden Scenario GS-COD-001: Common Operational Datasets (COD-AB) P-Code Validation & Hierarchy Integrity.
 
@@ -9,6 +8,12 @@ Validates:
 """
 
 import unittest
+
+try:
+    import qgis.core  # noqa: F401
+except ImportError:
+    raise unittest.SkipTest("requires real QGIS") from None  # the plain test job has no QGIS: skip the module instead of failing the whole run at import
+
 from qgis.core import (
     QgsProject,
     QgsVectorLayer,

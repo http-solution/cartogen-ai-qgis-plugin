@@ -353,15 +353,15 @@ def _osm_feature(elem, clean_key, clean_value, geometry):
     return {"type": "Feature", "geometry": geometry, "properties": props}
 
 
-def _fallback_to_local_osm_extract(key: str, value: str, bbox: list = None,
-                                  center_lat: float = None, center_lon: float = None,
-                                  layer_name: str = None) -> dict:
+def _fallback_to_local_osm_extract(key: str, value: str, bbox: list | None = None,  # noqa: C901  (a linear chain of fallbacks; splitting it is a separate change)
+                                  center_lat: float | None = None, center_lon: float | None = None,
+                                  layer_name: str | None = None) -> dict | None:
     """Finds cached Geofabrik OSM extract or shapefiles on disk for the query area."""
     try:
         import os
         import zipfile
         from .. import local_data_loader
-        from ..local_data_sources import find_region, find_region_by_name, HEALTH_FCLASSES, _HEALTH_WORDS
+        from ..local_data_sources import find_region, find_region_by_name, _HEALTH_WORDS
     except Exception as e:
         log_event("local_osm_fallback_unavailable", tag="humanitarian_tools",
                   error_class=type(e).__name__, error=True)
@@ -370,9 +370,9 @@ def _fallback_to_local_osm_extract(key: str, value: str, bbox: list = None,
     lon = None
     lat = None
     if bbox and len(bbox) == 4:
-        s, w, n, e = [float(x) for x in bbox]
-        lon = (w + e) / 2.0
-        lat = (s + n) / 2.0
+        south, west, north, east = [float(x) for x in bbox]
+        lon = (west + east) / 2.0
+        lat = (south + north) / 2.0
     elif center_lat is not None and center_lon is not None:
         lat = float(center_lat)
         lon = float(center_lon)
@@ -384,16 +384,15 @@ def _fallback_to_local_osm_extract(key: str, value: str, bbox: list = None,
         region = find_region(index, lon, lat)
 
     # If region not resolved by coords, check active project layers for ISO/name hints
-    if not region:
-        if QGIS_AVAILABLE:
-            with contextlib.suppress(Exception):      # layer-name hints are best-effort
-                from qgis.core import QgsProject
-                for l in QgsProject.instance().mapLayers().values():
-                    m_iso = re.search(r"\b([A-Z]{3})\b", l.name())
-                    if m_iso:
-                        region = find_region_by_name(index, m_iso.group(1))
-                        if region:
-                            break
+    if not region and QGIS_AVAILABLE:
+        with contextlib.suppress(Exception):      # layer-name hints are best-effort
+            from qgis.core import QgsProject
+            for lyr in QgsProject.instance().mapLayers().values():
+                m_iso = re.search(r"\b([A-Z]{3})\b", lyr.name())
+                if m_iso:
+                    region = find_region_by_name(index, m_iso.group(1))
+                    if region:
+                        break
 
     if not region:
         return None

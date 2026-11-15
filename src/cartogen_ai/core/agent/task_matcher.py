@@ -555,7 +555,7 @@ def unresolvable(missing, layer_names=None):
     """Missing slots that have no safe default and genuinely need an answer."""
     unres = []
     for s in missing:
-        val, kind = reg.SLOT_DEFAULTS.get(s, (None, "ask"))
+        val, _kind = reg.SLOT_DEFAULTS.get(s, (None, "ask"))
         if val is None:
             unres.append(s)
         elif s == "aoi" and (layer_names is not None and len(layer_names) == 0):

@@ -160,6 +160,17 @@ class _FakeAgent:
 
 
 @unittest.skipUnless(QGIS_LIVE_AVAILABLE, "needs real qgis.core/qgis.PyQt bindings -- run from an OSGeo4W/QGIS Python")
+
+def _project_has_data(test):
+    """Puts one layer in the open project. Since the rc22 area rule, a request that names no place on an EMPTY project cannot default its area to
+    'the current canvas extent', so it asks for the area instead of showing the prompt preview; these tests are about the preview, so they run
+    the way a real session does, with data loaded. (The empty-project rule itself is tested in tests/test_slot_defaults_need.py.)"""
+    from qgis.core import QgsProject, QgsVectorLayer
+    layer = QgsVectorLayer("Point?crs=EPSG:4326&field=id:integer", "context_layer", "memory")
+    QgsProject.instance().addMapLayer(layer)
+    test.addCleanup(QgsProject.instance().removeMapLayer, layer.id())
+
+
 class TestChatWidgetLive(unittest.TestCase):
     """Each test gets its own dock -- QDockWidget construction is cheap and
     this keeps one test's state (e.g. an open panel) from leaking into the
@@ -266,6 +277,7 @@ class TestChatWidgetLive(unittest.TestCase):
         merged into the original request text so the previously-missing
         hazard_type slot now resolves (task_matcher's regex evidence check
         matches "flood" literally) and the turn can proceed."""
+        _project_has_data(self)
         # tool_calls includes export_to_csv -- the merged request's own output contract
         # (task 3.15, "analysis" kind) needs one of field_statistics/export_to_csv to be
         # satisfied on the first turn, or output_router fires a real second followup call
@@ -344,6 +356,7 @@ class TestChatWidgetLive(unittest.TestCase):
     # --------------------------------------------------------- Scenario 2 --
 
     def test_preview_question_shows_real_prompt_and_confirm_reply_dispatches_it(self):
+        _project_has_data(self)
         agent = _FakeAgent(script=[
             {"message": {"role": "assistant", "content": "Loaded 3 facility layers.",
                          "tool_calls": ["add_layer_from_path", "apply_categorized_style"]}},
@@ -377,6 +390,7 @@ class TestChatWidgetLive(unittest.TestCase):
         precise ordering (echoed BEFORE the AI's question, not just present somewhere in the
         log eventually) and that confirming doesn't show the exact same text a second time,
         verbatim, as if the user had retyped it."""
+        _project_has_data(self)
         agent = _FakeAgent(script=[
             {"message": {"role": "assistant", "content": "Loaded 3 facility layers.", "tool_calls": []}},
         ])
@@ -412,6 +426,7 @@ class TestChatWidgetLive(unittest.TestCase):
         abandons it with no dispatch, and anything else is sent exactly as typed (the free-text
         equivalent of the old 'Send as typed instead' button) -- checked here as three separate,
         independent turns."""
+        _project_has_data(self)
         agent = _FakeAgent(script=[
             {"message": {"role": "assistant", "content": "Loaded 3 facility layers.", "tool_calls": []}},
             {"message": {"role": "assistant", "content": "OK.", "tool_calls": []}},
@@ -442,6 +457,7 @@ class TestChatWidgetLive(unittest.TestCase):
         """rc22 hand test R2/A1 (issue 230): "Yes, proceed." at the in-chat preview was not an exact keyword, so it was sent to the
         model as a NEW message ("no pending operation") and the request itself never ran. rc18 fixed the same defect for the other
         reply branches via reply_vocab.router_reply; this branch still used set membership."""
+        _project_has_data(self)
         for reply in ("Yes, proceed.", "yes please", "Sounds good, go ahead"):
             agent = _FakeAgent(script=[{"message": {"role": "assistant", "content": "Loaded.", "tool_calls": []}}])
             dock = self._make_dock(agent)
@@ -1429,6 +1445,7 @@ class TestLocalDataOfferLive(unittest.TestCase):
         self.assertEqual(agent.client.calls, 0, "the preview is waiting; nothing sent yet")
 
     def test_a_large_extract_asks_with_its_size_as_a_single_round_trip(self):
+        _project_has_data(self)
         from unittest.mock import patch
         ct, _ = self._dock()
         region = {"id": "germany", "name": "Germany", "shp_url": "https://example.invalid/x.zip",
@@ -1452,6 +1469,7 @@ class TestLocalDataOfferLive(unittest.TestCase):
         dl.assert_not_called()
 
     def test_poor_connection_asks_even_for_a_small_extract(self):
+        _project_has_data(self)
         # Field/humanitarian context: a slow or offline connection must not be silently
         # guessed either way -- the user gets an explicit choice.
         from unittest.mock import patch
@@ -1472,6 +1490,7 @@ class TestLocalDataOfferLive(unittest.TestCase):
         self.assertEqual(agent.client.calls, 0, "nothing goes to the model before the user answers")
 
     def test_online_continues_to_the_preview_and_is_not_asked_again(self):
+        _project_has_data(self)
         from unittest.mock import patch
         ct, agent = self._dock()
         # resolve_region is patched like its siblings: unpatched it does a real region-index lookup, which in CI can

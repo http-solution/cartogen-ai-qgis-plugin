@@ -333,7 +333,7 @@ def export_layer(layer_name, format, output_path=None, only_selected=None, confi
     if not allowed:
         return {"error": block_msg, "blocked_by_protection_policy": True}
 
-    format = format or "gpkg"
+    format = format or "gpkg"  # noqa: A001  (`format` is the tool's own argument name in its schema)
 
     fmt_map = {
         "shp": ("ESRI Shapefile", ".shp", "ESRI Shapefile (*.shp)"),

@@ -20,8 +20,7 @@ import zipfile
 
 from .coordinates import interpret_request_pair
 from .local_data_sources import (
-    GEOFABRIK_INDEX_URL, HEALTH_FCLASSES, extract_coordinate_pair, extract_named_location,
-    find_region, find_region_by_name,
+    GEOFABRIK_INDEX_URL, HEALTH_FCLASSES, extract_coordinate_pair, find_region, find_region_by_name,
 )
 from .tools._urllib_retry import urlopen_with_retry
 from ..net import build_request as _net_build_request
@@ -167,7 +166,7 @@ def resolve_region(lon, lat, cache_dir, name_or_code=None):
         return {"error": f"Couldn't read Geofabrik's region list: {e}"}
     if not region:
         if name_or_code:
-            return {"error": "No Geofabrik extract covers %s. Zoom the map to your area of interest and try again." % name_or_code}
+            return {"error": f"No Geofabrik extract covers {name_or_code}. Zoom the map to your area of interest and try again."}
         return {"error": f"No Geofabrik extract covers this location ({lat:.3f}, {lon:.3f}). Zoom the map to "
                          "your area of interest and try again."}
     region["size_bytes"] = _remote_size(region["shp_url"])  # 0 = unknown: the caller treats it as "ask first"

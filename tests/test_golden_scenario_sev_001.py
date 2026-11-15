@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Golden Scenario GS-SEV-001: Exploratory Composite Severity Index Conformance.
 
@@ -12,7 +11,6 @@ Validates:
 """
 
 import unittest
-from cartogen_ai.core.agent.tools.analysis_tools import _normalize_minmax, calculate_severity_index
 
 
 class TestGoldenScenarioSev001(unittest.TestCase):

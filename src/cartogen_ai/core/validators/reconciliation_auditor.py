@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Cross-Output Reconciliation Auditor & Invariant Assertions.
 
@@ -13,9 +12,7 @@ within explicit tolerances, AND verifies semantic/cartographic state:
 """
 
 import dataclasses
-import hashlib
-import json
-from typing import Dict, Any, List, Optional, Union, Set
+from typing import Any
 
 
 @dataclasses.dataclass
@@ -23,35 +20,35 @@ class CartographicSignature:
     layer_name: str
     renderer_type: str  # e.g., 'graduated', 'categorized', 'single'
     symbolized_field: str
-    class_breaks: List[float] = dataclasses.field(default_factory=list)
-    class_labels: List[str] = dataclasses.field(default_factory=list)
-    color_ramp_name: Optional[str] = None
+    class_breaks: list[float] = dataclasses.field(default_factory=list)
+    class_labels: list[str] = dataclasses.field(default_factory=list)
+    color_ramp_name: str | None = None
 
 
 @dataclasses.dataclass
 class DashboardSignature:
-    dashboard_id: Optional[str] = None
-    kpi_metric_name: Optional[str] = None
-    kpi_value: Optional[Union[float, int]] = None
-    active_filters: Dict[str, Any] = dataclasses.field(default_factory=dict)
+    dashboard_id: str | None = None
+    kpi_metric_name: str | None = None
+    kpi_value: float | int | None = None
+    active_filters: dict[str, Any] = dataclasses.field(default_factory=dict)
 
 
 @dataclasses.dataclass
 class LayoutSignature:
-    layout_name: Optional[str] = None
-    title: Optional[str] = None
-    indicator_label: Optional[str] = None
-    legend_layer_names: List[str] = dataclasses.field(default_factory=list)
-    reported_key_figure: Optional[Union[float, int]] = None
+    layout_name: str | None = None
+    title: str | None = None
+    indicator_label: str | None = None
+    legend_layer_names: list[str] = dataclasses.field(default_factory=list)
+    reported_key_figure: float | int | None = None
 
 
 @dataclasses.dataclass
 class ExportSignature:
-    output_path: Optional[str] = None
+    output_path: str | None = None
     format: str = "gpkg"
     feature_count: int = 0
-    field_names: List[str] = dataclasses.field(default_factory=list)
-    sum_value: Optional[Union[float, int]] = None
+    field_names: list[str] = dataclasses.field(default_factory=list)
+    sum_value: float | int | None = None
 
 
 @dataclasses.dataclass
@@ -60,16 +57,16 @@ class AnalysisIntegritySignature:
     indicator_name: str
     methodology_id: str
     dataset_name: str
-    pcode_set: Set[str] = dataclasses.field(default_factory=set)
+    pcode_set: set[str] = dataclasses.field(default_factory=set)
     feature_count: int = 0
-    calculated_total: Optional[Union[float, int]] = None
-    analysis_id: Optional[str] = None
-    
+    calculated_total: float | int | None = None
+    analysis_id: str | None = None
+
     # Semantic & Cartographic Channels
-    cartography: Optional[CartographicSignature] = None
-    dashboard: Optional[DashboardSignature] = None
-    layout: Optional[LayoutSignature] = None
-    export: Optional[ExportSignature] = None
+    cartography: CartographicSignature | None = None
+    dashboard: DashboardSignature | None = None
+    layout: LayoutSignature | None = None
+    export: ExportSignature | None = None
 
 
 class OutputReconciliationAuditor:
@@ -81,10 +78,10 @@ class OutputReconciliationAuditor:
     def __init__(self, indicator_name: str, tolerance: float = 1e-4):
         self.indicator_name = indicator_name
         self.tolerance = tolerance
-        self.channel_values: Dict[str, Union[float, int]] = {}
-        self.signature: Optional[AnalysisIntegritySignature] = None
+        self.channel_values: dict[str, float | int] = {}
+        self.signature: AnalysisIntegritySignature | None = None
 
-    def record_channel_value(self, channel: str, value: Union[float, int]):
+    def record_channel_value(self, channel: str, value: float | int):
         """
         Records the numerical value from a delivery channel:
         'gis_attribute', 'dashboard_kpi', 'layout_metric', 'export_sum'
@@ -95,7 +92,7 @@ class OutputReconciliationAuditor:
         """Attaches full semantic and cartographic state signature."""
         self.signature = signature
 
-    def reconcile(self) -> Dict[str, Any]:
+    def reconcile(self) -> dict[str, Any]:
         """
         Compares all numerical channels AND semantic signatures.
         Returns a verification report dict.
@@ -143,37 +140,34 @@ class OutputReconciliationAuditor:
                     })
 
             # B. Dashboard metric verification
-            if sig.dashboard and sig.dashboard.kpi_value is not None:
-                if self.channel_values:
-                    base_val = float(list(self.channel_values.values())[0])
-                    if abs(sig.dashboard.kpi_value - base_val) > self.tolerance:
-                        discrepancies.append({
-                            "type": "DASHBOARD_KPI_MISMATCH",
-                            "expected_value": base_val,
-                            "dashboard_kpi_value": sig.dashboard.kpi_value,
-                        })
+            if sig.dashboard and sig.dashboard.kpi_value is not None and self.channel_values:
+                base_val = float(next(iter(self.channel_values.values())))
+                if abs(sig.dashboard.kpi_value - base_val) > self.tolerance:
+                    discrepancies.append({
+                        "type": "DASHBOARD_KPI_MISMATCH",
+                        "expected_value": base_val,
+                        "dashboard_kpi_value": sig.dashboard.kpi_value,
+                    })
 
             # C. Layout metric verification
-            if sig.layout and sig.layout.reported_key_figure is not None:
-                if self.channel_values:
-                    base_val = float(list(self.channel_values.values())[0])
-                    if abs(sig.layout.reported_key_figure - base_val) > self.tolerance:
-                        discrepancies.append({
-                            "type": "LAYOUT_FIGURE_MISMATCH",
-                            "expected_value": base_val,
-                            "layout_key_figure": sig.layout.reported_key_figure,
-                        })
+            if sig.layout and sig.layout.reported_key_figure is not None and self.channel_values:
+                base_val = float(next(iter(self.channel_values.values())))
+                if abs(sig.layout.reported_key_figure - base_val) > self.tolerance:
+                    discrepancies.append({
+                        "type": "LAYOUT_FIGURE_MISMATCH",
+                        "expected_value": base_val,
+                        "layout_key_figure": sig.layout.reported_key_figure,
+                    })
 
             # D. Export verification
-            if sig.export and sig.export.sum_value is not None:
-                if self.channel_values:
-                    base_val = float(list(self.channel_values.values())[0])
-                    if abs(sig.export.sum_value - base_val) > self.tolerance:
-                        discrepancies.append({
-                            "type": "EXPORT_SUM_MISMATCH",
-                            "expected_value": base_val,
-                            "export_sum_value": sig.export.sum_value,
-                        })
+            if sig.export and sig.export.sum_value is not None and self.channel_values:
+                base_val = float(next(iter(self.channel_values.values())))
+                if abs(sig.export.sum_value - base_val) > self.tolerance:
+                    discrepancies.append({
+                        "type": "EXPORT_SUM_MISMATCH",
+                        "expected_value": base_val,
+                        "export_sum_value": sig.export.sum_value,
+                    })
 
         reconciled = len(discrepancies) == 0
         return {
