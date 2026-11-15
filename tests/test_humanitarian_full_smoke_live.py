@@ -146,6 +146,7 @@ def _render_layer_to_png(layers, output_png, extent=None, size=(1000, 700), bg_c
     job.waitForFinished()
     img = job.renderedImage()
     img.save(output_png)
+    job.deleteLater()           # a render job left alive until interpreter exit is one more Qt object for the CI job's shutdown crash to trip on
     return os.path.exists(output_png) and os.path.getsize(output_png) > 0
 
 

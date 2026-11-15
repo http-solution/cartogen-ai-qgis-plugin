@@ -33,7 +33,16 @@ class TestSmokeDock(unittest.TestCase):
         self.taken = []
         self.session = sc.Session(self.tmp.name, self.cards, lambda row, note: self.taken.append((row, note)))
         self.dock = smoke_dock.SmokeDock(self.session, self.cards, extra_shot=lambda name: self.taken.append(("shot", name)), qgis_version="4.2.3")
-        self.addCleanup(self.dock.close)
+        self.addCleanup(self._destroy, self.dock)
+
+    @staticmethod
+    def _destroy(widget):
+        """close() alone leaves the C++ widget alive until interpreter exit, and the CI job's shutdown crash is sensitive to what Qt objects exist then
+        (see tests/_ci_run_live_tests.py): delete it now and let Qt run the deferred delete."""
+        from qgis.PyQt.QtCore import QCoreApplication, QEvent
+        widget.close()
+        widget.deleteLater()
+        QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
 
     def test_start_then_pass_takes_evidence_and_writes_the_line_and_moves_on(self):
         self.assertIn("Do a thing.", self.dock.view.toPlainText())
@@ -55,7 +64,7 @@ class TestSmokeDock(unittest.TestCase):
         self.assertEqual(self.sc.load_results(self.tmp.name)["X2"]["status"], "SKIP")
         self.assertNotIn("WARNING", self.dock.version.text())
         other = self.smoke_dock.SmokeDock(self.session, self.cards, qgis_version="4.2.2")
-        self.addCleanup(other.close)
+        self.addCleanup(self._destroy, other)
         self.assertIn("WARNING", other.version.text())
 
     def test_extra_screenshot_needs_a_started_row_and_a_name(self):
