@@ -3384,6 +3384,29 @@
     ],
     "hand_verified": "not verified: CI only (offline comparison rules and a live run on tagged QGIS layers with the lookup replaced by a counter, written without a local QGIS); never tried by a person on a real tagged layer",
     "hand_row": "C27-geocode-protected"
+  },
+  {
+    "id": "agent-run-smoke",
+    "feature": "tools/run_smoke_headless.py runs the rows of docs/AGENT_RUN_ROWS.json against the real plugin tools in a headless QGIS and writes every evidence file itself (row.json with each step's arguments, result and timing, checks.txt, verdict.json, RESULTS.csv, SUMMARY.md); a row is PASS only when at least one check ran and all held, an unevaluable check is a failure, a crash is ERROR; tools/build_agent_run.py builds the zip with a README that tells an agent to run one command and not to write evidence itself",
+    "issues": [],
+    "since": "1.18.6",
+    "sources": [
+      "tools/run_smoke_headless.py",
+      "tools/smoke_core.py",
+      "tools/build_agent_run.py",
+      "docs/AGENT_RUN_ROWS.json",
+      "docs/plans/PLAN-073-agent-run-smoke.md",
+      "tests/test_smoke_core.py",
+      "tests/test_run_smoke_headless_live.py"
+    ],
+    "guards": [
+      "tests/test_smoke_core.py::TestVerdict::test_pass_needs_checks_that_all_held",
+      "tests/test_smoke_core.py::TestEvidenceFolder::test_write_and_verify",
+      "tests/test_smoke_core.py::TestRowsFile::test_every_row_has_steps_and_checks_that_name_real_steps",
+      "tests/test_run_smoke_headless_live.py::TestAgentRunSmoke::test_every_shipped_row_passes_with_complete_evidence"
+    ],
+    "hand_verified": "not verified: offline tests and a QGIS CI run only (written without a local QGIS); never run on a real Windows QGIS by a person",
+    "hand_row": "none: this is test tooling, proved by the dry run in its README"
   }
 ]
 }
