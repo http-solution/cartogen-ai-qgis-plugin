@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Full Humanitarian Live Smoke Test Suite:
 Exhaustively tests all humanitarian tools across 8 Scenario Families with realistic sample data,
@@ -9,7 +8,6 @@ screenshots from live QGIS 4.2.3.
 import os
 import sys
 import json
-import math
 import shutil
 import tempfile
 import unittest
@@ -17,6 +15,12 @@ import datetime
 
 # Ensure Qt offscreen platform
 os.environ["QT_QPA_PLATFORM"] = "offscreen"
+
+
+try:
+    import qgis.core  # noqa: F401
+except ImportError:
+    raise unittest.SkipTest("requires real QGIS") from None  # the plain test job has no QGIS: skip the module instead of failing the whole run at import
 
 from qgis.core import (
     QgsApplication,
@@ -32,16 +36,15 @@ from qgis.core import (
     QgsMapSettings,
     QgsMapRendererSequentialJob,
     QgsLayoutExporter,
-    QgsLayoutItemMap,
-    QgsLayoutItemPicture,
 )
 from qgis.PyQt.QtCore import QVariant, QSize
-from qgis.PyQt.QtGui import QColor, QImage
+from qgis.PyQt.QtGui import QColor
 
 # Initialize QgsApplication if running headless
-if not QgsApplication.instance():
-    _qgs_app = QgsApplication([], False)
-    _qgs_app.initQgis()
+# One QgsApplication per process, made by the shared boot helper: this module is imported while the CI runner is still collecting every live module,
+# and a second application created here (before the helper makes its own) is the leading suspect for the exit-139 shutdown crash seen on PR 640.
+from tests.test_chat_widget_live import _boot_qgis
+_boot_qgis()
 
 from processing.core.Processing import Processing
 Processing.initialize()
@@ -55,7 +58,6 @@ from cartogen_ai.core.agent.tools.analysis_tools import (
     calculate_severity_index,
     calculate_population_in_need,
     calculate_presence_gap,
-    calculate_damage_exposure_severity,
     analyze_incident_trend,
     forecast_trend,
 )
@@ -65,7 +67,6 @@ from cartogen_ai.core.agent.tools.reporting_tools import (
     generate_sector_coverage_report,
     aggregate_data,
 )
-from cartogen_ai.core.agent.tools.table_importers import import_humanitarian_table
 from cartogen_ai.core.agent.tools.pcode_validation_tools import (
     check_pcode_hierarchy,
     check_pcode_uniqueness,
@@ -73,26 +74,18 @@ from cartogen_ai.core.agent.tools.pcode_validation_tools import (
 from cartogen_ai.core.agent.tools.logistics_tools import (
     calculate_service_area,
     population_access_gap,
-    classify_facilities_by_access,
     travel_time_matrix,
-    optimize_delivery_route,
-    score_route_incident_risk,
     optimal_hub_siting,
     location_allocation,
     estimate_road_speeds,
 )
-from cartogen_ai.core.agent.tools.barrier_tools import apply_network_barriers
-from cartogen_ai.core.agent.tools.critical_link_tools import analyze_critical_links
-from cartogen_ai.core.agent.tools.impedance_tools import build_composite_impedance_field
-from cartogen_ai.core.agent.tools.jiaf_inputs import import_jiaf_inputs, record_jiaf_setup, get_jiaf_setup
+from cartogen_ai.core.agent.tools.jiaf_inputs import record_jiaf_setup, get_jiaf_setup
 from cartogen_ai.core.agent.tools.jiaf_engine import compute_jiaf_preliminary
 from cartogen_ai.core.agent.tools.jiaf_patterns import compute_jiaf_patterns
-from cartogen_ai.core.agent.tools.jiaf_review import record_jiaf_decisions, get_jiaf_decisions, finalize_jiaf_results
+from cartogen_ai.core.agent.tools.jiaf_review import record_jiaf_decisions, finalize_jiaf_results
 from cartogen_ai.core.agent.tools.hazard_monitoring_tools import (
     fetch_gdacs_disaster_alerts,
     fetch_nasa_active_fires,
-    fetch_nasa_eonet_events,
-    generate_situation_dashboard,
 )
 from cartogen_ai.core.agent.tools.trigger_tools import evaluate_forecast_trigger
 from cartogen_ai.core.agent.tools.sensitivity_tools import set_layer_sensitivity, get_layer_sensitivity
@@ -114,7 +107,9 @@ from cartogen_ai.core.agent.tools.raster_numpy import write_single_band
 import numpy as np
 
 
-OUTPUT_DIR = r"C:\http-solution\Cartogen-AI-QGIS\outputs"
+# Was a hard-coded Windows folder (C:\http-solution\...), which on the Linux CI image made the renders and the final report land in oddly named
+# folders and the report write fail in tearDownClass. CARTOGEN_SMOKE_OUTPUT overrides it for a run whose files should be kept.
+OUTPUT_DIR = os.environ.get("CARTOGEN_SMOKE_OUTPUT") or tempfile.mkdtemp(prefix="hum_smoke_out_")
 RENDERS_DIR = os.path.join(OUTPUT_DIR, "humanitarian_smoke_renders")
 IO_REPORT_FILE = os.path.join(OUTPUT_DIR, "humanitarian_smoke_io_report.json")
 os.makedirs(RENDERS_DIR, exist_ok=True)
@@ -132,8 +127,9 @@ SMOKE_EXECUTION_LOG = {
 }
 
 
-def _render_layer_to_png(layers, output_png, extent=None, size=(1000, 700), bg_color=QColor(248, 249, 250)):
+def _render_layer_to_png(layers, output_png, extent=None, size=(1000, 700), bg_color=None):
     """Helper to render map layers to a PNG screenshot."""
+    bg_color = bg_color or QColor(248, 249, 250)
     settings = QgsMapSettings()
     settings.setLayers(layers)
     if extent:
@@ -141,8 +137,8 @@ def _render_layer_to_png(layers, output_png, extent=None, size=(1000, 700), bg_c
     elif layers:
         combined_box = QgsRectangle()
         combined_box.setNull()
-        for l in layers:
-            combined_box.combineExtentWith(l.extent())
+        for lyr in layers:
+            combined_box.combineExtentWith(lyr.extent())
         settings.setExtent(combined_box)
     settings.setOutputSize(QSize(*size))
     settings.setBackgroundColor(bg_color)
@@ -151,6 +147,7 @@ def _render_layer_to_png(layers, output_png, extent=None, size=(1000, 700), bg_c
     job.waitForFinished()
     img = job.renderedImage()
     img.save(output_png)
+    job.deleteLater()           # a render job left alive until interpreter exit is one more Qt object for the CI job's shutdown crash to trip on
     return os.path.exists(output_png) and os.path.getsize(output_png) > 0
 
 
@@ -553,9 +550,9 @@ class TestHumanitarianFullSmokeLive(unittest.TestCase):
         screenshot_path = os.path.join(RENDERS_DIR, "screenshot_03_health_service_catchments.png")
         layers_to_render = [aoi_layer, roads_layer, hosp_layer]
         # Include service area layers if created
-        for l in self.project.mapLayers().values():
-            if "Service_Area" in l.name() or "Catchment" in l.name() or "Hulls" in l.name():
-                layers_to_render.insert(1, l)
+        for lyr in self.project.mapLayers().values():
+            if "Service_Area" in lyr.name() or "Catchment" in lyr.name() or "Hulls" in lyr.name():
+                layers_to_render.insert(1, lyr)
         rendered = _render_layer_to_png(layers_to_render, screenshot_path)
         self.assertTrue(rendered)
 

@@ -64,15 +64,15 @@ class TestEvidenceFolder(unittest.TestCase):
 class TestRowsFile(unittest.TestCase):
     def test_every_row_has_steps_and_checks_that_name_real_steps(self):
         rows = json.loads((ROOT / "docs" / "AGENT_RUN_ROWS.json").read_text(encoding="utf-8"))["rows"]
-        self.assertGreaterEqual(len(rows), 4)
+        self.assertGreaterEqual(len(rows), 10)
         ids = [r["id"] for r in rows]
         self.assertEqual(len(ids), len(set(ids)))
         import make_full_smoke_fixtures as fx
         for r in rows:
             self.assertTrue(r["steps"] and r["checks"], r["id"])
             for s in r["steps"]:
-                self.assertIn(s["do"], ("load", "tag", "tool"))
-                if s["do"] == "load":
+                self.assertIn(s["do"], ("load", "load_raster", "tag", "tool"))
+                if s["do"] in ("load", "load_raster"):
                     self.assertIn(s["file"], fx.FILES)
             for c in r["checks"]:
                 self.assertIn("what", c)

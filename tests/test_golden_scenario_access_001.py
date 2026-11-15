@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Golden Scenario GS-ACCESS-001: Service-Area Network Hull -> Population Access Gap Integrity.
 
@@ -60,11 +59,11 @@ class TestGoldenScenarioAccess001(unittest.TestCase):
             hull_mock = MagicMock()
             lines_mock = MagicMock()
 
-            mock_find.side_effect = lambda name: {
+            mock_find.side_effect = {
                 "district_boundary": area_mock,
                 "Facilities_service_area_0": hull_mock,
                 "Facilities_service_area_lines_0": lines_mock,
-            }.get(name)
+            }.get
 
             mock_calc.return_value = {
                 "facility_count": 3,

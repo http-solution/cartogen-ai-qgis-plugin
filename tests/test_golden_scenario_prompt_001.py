@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Golden Scenario GS-PROMPT-001: Natural-Language Intent -> Exact Humanitarian Analysis Contract Mapping.
 
@@ -33,7 +32,7 @@ from cartogen_ai.core.validators.humanitarian_contract import (
 class TestGoldenScenarioPrompt001(unittest.TestCase):
     def test_gs_prompt_001_complete_positive_intent_mapping(self):
         query = "Show the population outside 60-minute health-service access in Admin 2 areas, with a map and summary statistics."
-        
+
         # 1. Parse natural-language intent to contract
         contract = parse_humanitarian_intent(query)
         self.assertIsNotNone(contract)
@@ -43,7 +42,7 @@ class TestGoldenScenarioPrompt001(unittest.TestCase):
         self.assertEqual(contract.humanitarian_context.cluster_sector, "health")
         self.assertEqual(contract.geography.admin_level, 2)
         self.assertEqual(contract.humanitarian_context.unit_of_measurement, "population")
-        
+
         thresholds = contract.methodology.thresholds
         self.assertEqual(thresholds.get("travel_cost"), 60.0)
         self.assertEqual(thresholds.get("travel_unit"), "minutes")

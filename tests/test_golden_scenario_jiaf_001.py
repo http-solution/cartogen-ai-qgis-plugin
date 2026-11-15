@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Golden Scenario GS-JIAF-001: End-to-End JIAF 2 Preliminary to Final Results Traceability.
 
@@ -28,7 +27,7 @@ class TestGoldenScenarioJiaf001(unittest.TestCase):
           Sector Severities: health=4, wash=4, fsac=4, nut=4, edu=3, shl=3, cccm=1, pro=3
           Count of sectors >= 4: 4 (health, wash, fsac, nut).
           Box 22 Rule: At least 4 sectors in phase 4 -> Preliminary Severity = 4.
-        
+
         Unit 2 (YE0102):
           Sector PiNs: fsac=90000, health=20000, wash=10000, nut=5000, edu=0, shl=0, cccm=0, pro=0
           Pop = 100000
@@ -56,7 +55,7 @@ class TestGoldenScenarioJiaf001(unittest.TestCase):
             "health": 4, "wash": 4, "food_security": 4, "nutrition": 4,
             "education": 3, "shelter": 3, "cccm": 1, "protection": 3
         }
-        
+
         # PiN Flags & Preliminary PiN
         u1_flags, u1_ranks = jr.pin_flags(u1_pins, 100000, settings, None)
         self.assertEqual(u1_ranks["highest"], 50000)

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Golden Scenario Runner: Executes all Golden Humanitarian Scenarios in sequence.
 """

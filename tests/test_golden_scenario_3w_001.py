@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Golden Scenario GS-3W-001: Operational Presence & Severity Gap Analysis.
 
@@ -13,6 +12,12 @@ import os
 import unittest
 import tempfile
 import csv
+
+
+try:
+    import qgis.core  # noqa: F401
+except ImportError:
+    raise unittest.SkipTest("requires real QGIS") from None  # the plain test job has no QGIS: skip the module instead of failing the whole run at import
 
 from qgis.core import (
     QgsProject,
@@ -103,7 +108,7 @@ class TestGoldenScenario3W001(unittest.TestCase):
             )
 
             self.assertTrue(res.get("success"), f"Failed: {res}")
-            
+
             # Verify classification buckets
             # ADM01 -> covered
             covered_units = [u["unit"] for u in res["covered_high_severity_units"]]

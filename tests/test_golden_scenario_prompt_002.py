@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Golden Scenario GS-PROMPT-002: Mandatory Contract Execution Gate & HALT & CLARIFY Verification.
 

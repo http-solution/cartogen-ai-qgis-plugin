@@ -53,6 +53,8 @@ def evaluate(check, results, layer_values=None):
                 ok = bool(nums) and len(nums) == len(values) and all(_approx(v, want, tol) for v in nums)
             elif op == "max_approx":
                 ok = bool(nums) and _approx(max(float(v) for v in nums), want, tol)
+            elif op == "sorted_eq":
+                ok = len(nums) == len(want) and all(_approx(a, b, tol) for a, b in zip(sorted(float(v) for v in nums), sorted(want), strict=True))
             elif op == "count_eq":
                 ok = len(values) == want
             elif op == "any_empty_count_eq":

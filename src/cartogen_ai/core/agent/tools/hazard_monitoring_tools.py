@@ -107,9 +107,8 @@ def _point_in_bbox(lon, lat, bbox):
         return False
     if min_lon <= max_lon:
         return min_lon <= lon <= max_lon
-    else:
-        # Crosses antimeridian: point is either >= min_lon or <= max_lon
-        return lon >= min_lon or lon <= max_lon
+    # Crosses antimeridian: point is either >= min_lon or <= max_lon
+    return lon >= min_lon or lon <= max_lon
 
 
 def _clip_to_field_width(layer, fname, value):

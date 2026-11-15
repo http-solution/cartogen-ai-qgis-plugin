@@ -3407,6 +3407,31 @@
     ],
     "hand_verified": "not verified: offline tests and a QGIS CI run only (written without a local QGIS); never run on a real Windows QGIS by a person",
     "hand_row": "none: this is test tooling, proved by the dry run in its README"
+  },
+  {
+    "id": "computer-use-smoke",
+    "feature": "tools/build_computer_use.py builds a package for a computer-use agent on QGIS 4.2.3: one short card per smoke row (tools/smoke_cards.py), an in-QGIS dock (tools/smoke_dock.py) whose Pass/Partial/Fail/Skip buttons take the evidence themselves and refuse a result for a row that was never started, a headless runner that checks the numbers of ten rows with no agent (docs/AGENT_RUN_ROWS.json), and tools/analyze_smoke_run.py, which marks an agent's PASS UNSUPPORTED unless program-made evidence exists",
+    "issues": [],
+    "since": "1.18.6",
+    "sources": [
+      "tools/build_computer_use.py",
+      "tools/smoke_cards.py",
+      "tools/smoke_dock.py",
+      "tools/smoke_dock_start.py",
+      "tools/analyze_smoke_run.py",
+      "docs/plans/PLAN-074-computer-use-smoke.md",
+      "tests/test_smoke_cards.py",
+      "tests/test_smoke_dock_live.py"
+    ],
+    "guards": [
+      "tests/test_smoke_cards.py::TestSession::test_no_result_without_start_and_evidence_is_taken_before_the_line_is_written",
+      "tests/test_smoke_cards.py::TestAnalysis::test_judge",
+      "tests/test_smoke_cards.py::TestCards::test_every_row_has_one_card_without_console_instructions",
+      "tests/test_smoke_cards.py::TestTheBuiltPackage::test_the_package_has_everything_it_promises",
+      "tests/test_smoke_dock_live.py::TestSmokeDock::test_start_then_pass_takes_evidence_and_writes_the_line_and_moves_on"
+    ],
+    "hand_verified": "not verified: offline tests and a QGIS CI run of the dock only (written without a local QGIS); the dock, START_QGIS.bat, the plugin auto-start and window screenshots have never run on a desktop QGIS 4.2.3, and nothing has been run with Haiku 5",
+    "hand_row": "none: this is test tooling, proved by the dry run in its README"
   }
 ]
 }
