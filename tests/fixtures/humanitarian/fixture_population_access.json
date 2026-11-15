@@ -1,0 +1,29 @@
+{
+  "description": "Population exposure, health facility catchment, and road network accessibility reference pack with zero-population zones and boundary facilities.",
+  "version": "1.0.0",
+  "aoi_name": "District Alpha",
+  "admin_unit": {
+    "pcode": "BF0101",
+    "name": "District Alpha",
+    "total_population": 150000,
+    "zero_pop_subzones": ["Desert Area 1", "National Park 2"]
+  },
+  "facilities": [
+    {"id": "FAC-01", "name": "District Hospital", "type": "hospital", "x": 10.2, "y": 14.5, "operational_status": "functional"},
+    {"id": "FAC-02", "name": "Primary Clinic", "type": "clinic", "x": 10.4, "y": 14.7, "operational_status": "functional"},
+    {"id": "FAC-03", "name": "Border Post Health Center", "type": "clinic", "x": 10.99, "y": 14.99, "operational_status": "functional"}
+  ],
+  "road_network": {
+    "total_length_km": 145.2,
+    "speed_limit_kmh": 40,
+    "severed_bridges": [{"bridge_id": "BR-09", "status": "impassable"}]
+  },
+  "benchmark_analysis": {
+    "travel_cost_minutes": 60,
+    "reach_geometry": "concave_hull",
+    "reachable_population": 105000,
+    "gap_population": 45000,
+    "gap_percent": 30.0,
+    "invariant_check": "reachable_population + gap_population == total_population"
+  }
+}

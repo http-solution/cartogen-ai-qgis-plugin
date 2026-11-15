@@ -279,6 +279,12 @@ jobs:
           fi
           exit $status
 
+      - name: Run Humanitarian Golden Suite (Mandatory Release Integrity Gate)
+        # Enforces 14/14 Humanitarian Golden Scenarios pass inside live QGIS container.
+        # Zero tolerance: Any failure or regression blocks the CI release pipeline.
+        run: |
+          python3 tests/run_all_golden_scenarios.py
+
       - name: Build the actual release zip
         # Review correction, 2026-09-20: this smoke test previously imported plugin_main
         # straight from the checkout's own src/ tree, which proves the dev tree loads --

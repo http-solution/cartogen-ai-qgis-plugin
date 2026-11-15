@@ -1,0 +1,48 @@
+{
+  "description": "Multi-sectoral JIAF 2 needs assessment fixture with missing sector observations, Box 22 intersectoral severity rules, and consensus override records.",
+  "version": "1.0.0",
+  "methodology": "JIAF 2.0 (Table 3A Flags & Box 22 Decision Rules)",
+  "units": [
+    {
+      "pcode": "YE0101",
+      "population": 100000,
+      "sector_pins": {
+        "health": 50000, "wash": 48000, "food_security": 45000, "nutrition": 10000,
+        "education": 5000, "shelter": 5000, "cccm": 0, "protection": 10000
+      },
+      "sector_phases": {
+        "health": 4, "wash": 4, "food_security": 4, "nutrition": 4,
+        "education": 3, "shelter": 3, "cccm": 1, "protection": 3
+      },
+      "preliminary_pin": 50000,
+      "preliminary_severity": 4,
+      "is_flagged": false,
+      "final_pin": 50000,
+      "final_severity": 4
+    },
+    {
+      "pcode": "YE0102",
+      "population": 100000,
+      "sector_pins": {
+        "food_security": 90000, "health": 20000, "wash": 10000, "nutrition": 5000,
+        "education": null, "shelter": null, "cccm": null, "protection": null
+      },
+      "sector_phases": {
+        "food_security": 5, "health": 3, "wash": 2, "nutrition": 2
+      },
+      "preliminary_pin": 90000,
+      "flag_2_triggered": true,
+      "consensus_override": {
+        "agreed_pin": 20000,
+        "agreed_severity": 3,
+        "rationale": "Accepted 2nd highest sector after cluster review of localized pocket assessment"
+      },
+      "final_pin": 20000,
+      "final_severity": 3
+    }
+  ],
+  "expected_totals": {
+    "preliminary_national_pin": 140000,
+    "final_national_pin": 70000
+  }
+}

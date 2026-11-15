@@ -1,0 +1,32 @@
+{
+  "description": "Anonymized COD-AB Admin 0-2 boundaries and 3W Operational Presence reference dataset with edge cases (Unicode names, duplicate names, missing/malformed P-codes).",
+  "version": "1.0.0",
+  "country_iso3": "YEM",
+  "admin_levels": {
+    "adm0": {"pcode": "YE", "name_en": "Yemen", "name_ar": "اليمن"},
+    "adm1": [
+      {"pcode": "YE13", "name_en": "Sana'a", "name_ar": "صنعاء"},
+      {"pcode": "YE14", "name_en": "Aden", "name_ar": "عدن"}
+    ],
+    "adm2": [
+      {"pcode": "YE1301", "parent_pcode": "YE13", "name_en": "Sanhan", "name_ar": "سنحان"},
+      {"pcode": "YE1302", "parent_pcode": "YE13", "name_en": "Bani Hushaysh", "name_ar": "بني حشيش"},
+      {"pcode": "YE1401", "parent_pcode": "YE14", "name_en": "Crater", "name_ar": "كريتر"},
+      {"pcode": "YE1402", "parent_pcode": "YE14", "name_en": "Al Mualla", "name_ar": "المعلا"},
+      {"pcode": "YE_MALFORMED_01", "parent_pcode": "YE13", "name_en": "Unmatched Settlement", "is_valid_pcode": false}
+    ]
+  },
+  "presence_3w": [
+    {"org": "UNICEF", "cluster": "WASH", "adm2_pcode": "YE1301", "status": "active"},
+    {"org": "WHO", "cluster": "Health", "adm2_pcode": "YE1301", "status": "active"},
+    {"org": "WFP", "cluster": "Food Security", "adm2_pcode": "YE1302", "status": "active"},
+    {"org": "MSF", "cluster": "Health", "adm2_pcode": "YE1401", "status": "active"},
+    {"org": "Local NGO A", "cluster": "Shelter", "adm2_pcode": "UNKNOWN_PCODE", "status": "unmatched"}
+  ],
+  "expected_invariants": {
+    "valid_adm2_count": 4,
+    "malformed_adm2_count": 1,
+    "matched_presence_records": 4,
+    "unmatched_presence_records": 1
+  }
+}
