@@ -41,9 +41,10 @@ from qgis.PyQt.QtCore import QVariant, QSize
 from qgis.PyQt.QtGui import QColor
 
 # Initialize QgsApplication if running headless
-if not QgsApplication.instance():
-    _qgs_app = QgsApplication([], False)
-    _qgs_app.initQgis()
+# One QgsApplication per process, made by the shared boot helper: this module is imported while the CI runner is still collecting every live module,
+# and a second application created here (before the helper makes its own) is the leading suspect for the exit-139 shutdown crash seen on PR 640.
+from tests.test_chat_widget_live import _boot_qgis
+_boot_qgis()
 
 from processing.core.Processing import Processing
 Processing.initialize()
