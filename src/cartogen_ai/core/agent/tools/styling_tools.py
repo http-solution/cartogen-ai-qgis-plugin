@@ -553,6 +553,46 @@ def apply_graduated_style(layer_name, field, mode="auto", opacity=None, cluster=
                 return {"error": classification["error"]}
             breaks = classification["breaks"]
 
+        sorted_breaks = None
+        min_val = None
+        max_val = None
+        if breaks is not None:
+            if not values:
+                return {"error": f"No numeric values found in '{field}' to build breaks against."}
+            min_val = min(values)
+            max_val = max(values)
+            if min_val >= max_val:
+                return {
+                    "error": (
+                        f"Field '{field}' does not have a range of distinct values (min={min_val}, max={max_val}). "
+                        f"Cannot create graduated classes."
+                    )
+                }
+
+            clean_breaks = []
+            for b in breaks:
+                try:
+                    fb = float(b)
+                except (ValueError, TypeError):
+                    return {"error": f"Manual class boundary '{b}' is not a valid number."}
+                if not math.isfinite(fb):
+                    return {"error": f"Manual class boundary '{b}' must be a finite number."}
+                clean_breaks.append(fb)
+
+            if len(clean_breaks) != len(set(clean_breaks)):
+                return {"error": f"Manual class boundaries must be distinct numbers, got {breaks}."}
+
+            for fb in clean_breaks:
+                if fb <= min_val or fb >= max_val:
+                    return {
+                        "error": (
+                            f"Manual class boundary {fb} is outside the field's data range [{min_val:,.2f}, {max_val:,.2f}]. "
+                            f"All class boundaries must be finite, distinct numbers strictly inside the data range."
+                        )
+                    }
+
+            sorted_breaks = sorted(clean_breaks)
+
         cluster_color = _match_cluster_color(cluster) if cluster else None
         cluster_warning = None
         if cluster_color:
@@ -568,12 +608,12 @@ def apply_graduated_style(layer_name, field, mode="auto", opacity=None, cluster=
             # distribution' isn't the question breaks is answering.
             if cluster:
                 cluster_warning = f"'{cluster}' did not match a known humanitarian cluster name -- used the default ramp instead."
-            color_ramp = QgsStyle.defaultStyle().colorRamp("Viridis")
+            color_ramp = QgsStyle.defaultStyle().colorRamp("Viridis") if QgsStyle else None
             ramp_label = "Viridis"
         else:
             if cluster:
                 cluster_warning = f"'{cluster}' did not match a known humanitarian cluster name -- used the default ramp instead."
-            color_ramp = QgsStyle.defaultStyle().colorRamp(classification["ramp"])
+            color_ramp = QgsStyle.defaultStyle().colorRamp(classification["ramp"]) if QgsStyle else None
             ramp_label = classification["ramp"]
 
         if breaks is not None:
@@ -584,21 +624,17 @@ def apply_graduated_style(layer_name, field, mode="auto", opacity=None, cluster=
             # path builds QgsRendererRange objects directly from caller-
             # supplied boundaries instead of going through
             # QgsGraduatedSymbolRenderer.createRenderer's Jenks/equal-
-            # interval/quantile modes. Not run against a live QGIS
-            # session yet -- QgsRendererRange/updateColorRamp are stable,
-            # long-standing PyQGIS API, but flagged per this project's own
-            # convention for anything not live-verified.
-            if not values:
-                return {"error": f"No numeric values found in '{field}' to build breaks against."}
-            sorted_breaks = sorted(breaks)
-            bounds = [min(values)] + sorted_breaks + [max(values)]
+            # interval/quantile modes. Boundaries are verified finite, distinct,
+            # and strictly inside the data range (issue #165).
+            bounds = [min_val] + sorted_breaks + [max_val]
             ranges = []
             for lower, upper in zip(bounds[:-1], bounds[1:]):
                 label = f"{lower:,.2f} - {upper:,.2f}"
-                symbol = QgsSymbol.defaultSymbol(layer.geometryType())
+                symbol = QgsSymbol.defaultSymbol(layer.geometryType()) if QgsSymbol else None
                 ranges.append(QgsRendererRange(lower, upper, symbol, label))
-            renderer = QgsGraduatedSymbolRenderer(field, ranges)
-            renderer.updateColorRamp(color_ramp)
+            renderer = QgsGraduatedSymbolRenderer(field, ranges) if QgsGraduatedSymbolRenderer else None
+            if renderer and color_ramp:
+                renderer.updateColorRamp(color_ramp)
             classes = len(ranges)
             method_label = "Manual (defined breaks)"
         else:

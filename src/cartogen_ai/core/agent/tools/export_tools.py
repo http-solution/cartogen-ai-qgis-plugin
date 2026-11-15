@@ -135,8 +135,18 @@ def _write_vector(layer, output_path, driver_name, layer_options=None, only_sele
         # layer_options was accepted by this function but never applied: the CSV's GEOMETRY=AS_XY (F13) and SEPARATOR never
         # reached OGR, so point exports had no X/Y columns at all. Found on the rc10 smoke test from the exported file's
         # header (fid, osm_id, fclass, name, ... with no X/Y); the offline test only covered the option-choosing helper.
+        layer_options = list(layer_options or [])
+        # Rc20 audit A12: a bare GeoJSON export wrote the layer's own CRS (e.g. projected metres) under a legacy "crs" member, which
+        # most readers (RFC 7946) ignore, so the file landed in the wrong place. RFC7946=YES makes the OGR driver reproject to WGS84
+        # and write standards-compliant output; a caller-supplied RFC7946 option still wins.
+        # RFC 7946 precision optimization: COORDINATE_PRECISION=6 provides ~0.1m ground precision, optimizing payload size.
+        if driver_name == "GeoJSON":
+            if not any(str(o).upper().startswith("RFC7946=") for o in layer_options):
+                layer_options.append("RFC7946=YES")
+            if not any(str(o).upper().startswith("COORDINATE_PRECISION=") for o in layer_options):
+                layer_options.append("COORDINATE_PRECISION=6")
         if layer_options:
-            options.layerOptions = list(layer_options)
+            options.layerOptions = layer_options
         has_selection = False
         if hasattr(layer, "selectedFeatureCount"):
             try:
@@ -268,11 +278,17 @@ def overwrite_preview(tool_name, arguments, path):
     return None
 
 
-@register_tool("export_layer", "Export vector layer to file format (ESRI Shapefile, GeoJSON, GPKG, KML).", {"type": "object", "properties": {"layer_name": {"type": "string"}, "format": {"type": "string"}, "output_path": {"type": "string"}, "only_selected": {"type": "boolean"}}, "required": ["layer_name", "format"]})
-def export_layer(layer_name, format, output_path=None, only_selected=None, confirmed=False):
+@register_tool("export_layer", "Export vector layer to file format (GeoPackage GPKG recommended, GeoJSON, ESRI Shapefile, KML). GeoPackage is canonical and preserves full field names; Shapefile truncates to 10 chars.", {"type": "object", "properties": {"layer_name": {"type": "string"}, "format": {"type": "string", "description": "Format to export to: 'gpkg' (canonical recommended), 'geojson', 'shp', 'kml'. Defaults to 'gpkg'."}, "output_path": {"type": "string"}, "only_selected": {"type": "boolean"}}, "required": ["layer_name"]})
+def export_layer(layer_name, format="gpkg", output_path=None, only_selected=None, confirmed=False):
     layer = _find_layer_by_name(layer_name)
     if layer is None:
         return {"error": f"Layer '{layer_name}' not found"}
+
+    allowed, block_msg = _sens.check_export_allowed(layer)
+    if not allowed:
+        return {"error": block_msg, "blocked_by_protection_policy": True}
+
+    format = format or "gpkg"
 
     fmt_map = {
         "shp": ("ESRI Shapefile", ".shp", "ESRI Shapefile (*.shp)"),

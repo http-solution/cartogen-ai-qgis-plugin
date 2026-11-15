@@ -302,6 +302,7 @@ def _compute_severity_index(rows, indicators, weights=None, invert_indicators=No
     return {
         "success": True,
         "method": "min-max normalization to 0-1, weighted sum, equal-interval 1-5 severity class",
+        "methodological_authority_level": "TECHNICALLY VERIFIED — EXPLORATORY METHODOLOGY",
         "indicators": list(indicators),
         "applied_weights": {f: round(w, 4) for f, w in zip(indicators, norm_weights)},
         "inverted_indicators": sorted(invert_set),

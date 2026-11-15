@@ -532,6 +532,8 @@ def create_print_layout(title: str, page_orientation: str = "Landscape", output_
             north_arrow.setPicturePath(default_arrow_path)
             layout.addLayoutItem(north_arrow)
             north_arrow.setId("NORTH_ARROW")
+            if hasattr(north_arrow, "setLinkedMap") and map_item is not None:
+                north_arrow.setLinkedMap(map_item)
             north_arrow.attemptMove(QgsLayoutPoint(north_x, north_y, LAYOUT_MM))
             north_arrow.attemptResize(QgsLayoutSize(12, 12, LAYOUT_MM))
 
