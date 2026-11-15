@@ -80,9 +80,16 @@ def build_provenance_record(layer, lookup=None) -> dict:
 
     from .lineage import get_layer_lineage
     from ..models.dataset_status import get_dataset_status
+    from ...infrastructure.settings_keys import PROJECT_PROPERTY_ANALYSIS_ID
     from . import source_record
 
-    return {
+    analysis_id = None
+    try:
+        analysis_id = layer.customProperty(PROJECT_PROPERTY_ANALYSIS_ID, None)
+    except Exception:
+        analysis_id = None
+
+    record = {
         "layer_name": layer.name(),
         "generated_at": time.strftime("%Y-%m-%d %H:%M:%S"),
         "qgis_version": _qgis_version(),
@@ -91,3 +98,6 @@ def build_provenance_record(layer, lookup=None) -> dict:
         "result_checks": _stored_result_checks(layer),
         "sources": source_record.collect(layer, lookup),
     }
+    if analysis_id:
+        record["analysis_id"] = analysis_id
+    return record

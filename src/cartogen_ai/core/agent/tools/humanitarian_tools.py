@@ -353,6 +353,163 @@ def _osm_feature(elem, clean_key, clean_value, geometry):
     return {"type": "Feature", "geometry": geometry, "properties": props}
 
 
+def _fallback_to_local_osm_extract(key: str, value: str, bbox: list = None,
+                                  center_lat: float = None, center_lon: float = None,
+                                  layer_name: str = None) -> dict:
+    """Finds cached Geofabrik OSM extract or shapefiles on disk for the query area."""
+    try:
+        import os
+        import zipfile
+        from .. import local_data_loader
+        from ..local_data_sources import find_region, find_region_by_name, HEALTH_FCLASSES, _HEALTH_WORDS
+    except Exception:
+        return None
+
+    lon = None
+    lat = None
+    if bbox and len(bbox) == 4:
+        s, w, n, e = [float(x) for x in bbox]
+        lon = (w + e) / 2.0
+        lat = (s + n) / 2.0
+    elif center_lat is not None and center_lon is not None:
+        lat = float(center_lat)
+        lon = float(center_lon)
+
+    cache_dir = local_data_loader.data_dir()
+    index = local_data_loader.load_index(cache_dir)
+    region = None
+    if index and lon is not None and lat is not None:
+        region = find_region(index, lon, lat)
+
+    # If region not resolved by coords, check active project layers for ISO/name hints
+    if not region:
+        if QGIS_AVAILABLE:
+            try:
+                from qgis.core import QgsProject
+                for l in QgsProject.instance().mapLayers().values():
+                    m_iso = re.search(r"\b([A-Z]{3})\b", l.name())
+                    if m_iso:
+                        region = find_region_by_name(index, m_iso.group(1))
+                        if region:
+                            break
+            except Exception:
+                pass
+
+    if not region:
+        return None
+
+    region_id = region["id"]
+    region_name = region.get("name", region_id.title())
+
+    # Candidate search folders for local data
+    search_dirs = [
+        cache_dir,
+        os.path.join(cache_dir, region_id),
+        os.path.join(os.path.expanduser("~"), "cartogen_ai", "data", "osm"),
+        os.path.join(os.path.expanduser("~"), "cartogen_ai", "data", "osm", region_id),
+    ]
+    if QGIS_AVAILABLE:
+        try:
+            from qgis.core import QgsApplication
+            qbase = QgsApplication.qgisSettingsDirPath()
+            search_dirs.extend([
+                os.path.join(qbase, "cartogen_ai", "data", "osm"),
+                os.path.join(qbase, "cartogen_ai", "data", "osm", region_id),
+            ])
+        except Exception:
+            pass
+
+    # Check if zip exists
+    zip_name = f"{region_id}-latest-free.shp.zip"
+    zip_path = None
+    for d in search_dirs:
+        candidate = os.path.join(d, zip_name)
+        if os.path.isfile(candidate) and zipfile.is_zipfile(candidate):
+            zip_path = candidate
+            break
+
+    target_extract_dir = os.path.join(cache_dir, region_id)
+    clean_key = re.sub(r'[^a-zA-Z0-9_:-]', '', key)
+    clean_value = (value or "").lower()
+    is_health = (clean_key in ("amenity", "healthcare") or
+                 bool(_HEALTH_WORDS.search(clean_value)) or
+                 bool(_HEALTH_WORDS.search(clean_key)))
+    is_roads = clean_key in _OSM_LINEAR_KEYS or clean_key in ("highway", "roads") or "highway" in clean_value
+
+    if is_health:
+        gpkg_name = f"health_facilities_{region_id}.gpkg"
+        for d in search_dirs:
+            p = os.path.join(d, gpkg_name)
+            if os.path.isfile(p):
+                return {
+                    "success": True,
+                    "key": key,
+                    "value": value,
+                    "geometry_type": "Point",
+                    "local_path": p,
+                    "keep_local_file": True,
+                    "layer_name": layer_name or f"Health Facilities (OSM, {region_name})",
+                    "source": f"Local Geofabrik extract ({region_name})",
+                }
+        pois_shp = None
+        shp_dict = {}
+        for d in search_dirs:
+            p = os.path.join(d, "gis_osm_pois_free_1.shp")
+            if os.path.isfile(p):
+                pois_shp = p
+                shp_dict["gis_osm_pois_free_1"] = p
+                a_p = os.path.join(d, "gis_osm_pois_a_free_1.shp")
+                if os.path.isfile(a_p):
+                    shp_dict["gis_osm_pois_a_free_1"] = a_p
+                break
+        if not pois_shp and zip_path:
+            shp_dict = local_data_loader.extract_members(zip_path, target_extract_dir)
+            pois_shp = shp_dict.get("gis_osm_pois_free_1")
+
+        if pois_shp:
+            out_gpkg = os.path.join(os.path.dirname(pois_shp), gpkg_name)
+            count, err = local_data_loader._write_health_facilities(shp_dict, out_gpkg)
+            if not err and os.path.isfile(out_gpkg):
+                return {
+                    "success": True,
+                    "feature_count": count,
+                    "key": key,
+                    "value": value,
+                    "geometry_type": "Point",
+                    "local_path": out_gpkg,
+                    "keep_local_file": True,
+                    "layer_name": layer_name or f"Health Facilities (OSM, {region_name})",
+                    "source": f"Local Geofabrik extract ({region_name})",
+                }
+
+    if is_roads:
+        roads_shp = None
+        for d in search_dirs:
+            p = os.path.join(d, "gis_osm_roads_free_1.shp")
+            if os.path.isfile(p):
+                roads_shp = p
+                break
+        if not roads_shp and zip_path:
+            shp_dict = local_data_loader.extract_members(zip_path, target_extract_dir)
+            roads_shp = shp_dict.get("gis_osm_roads_free_1")
+
+        if roads_shp:
+            from ..local_data_loader import DRIVABLE_FILTER
+            return {
+                "success": True,
+                "key": key,
+                "value": value,
+                "geometry_type": "LineString",
+                "local_path": roads_shp,
+                "keep_local_file": True,
+                "subset_filter": DRIVABLE_FILTER,
+                "layer_name": layer_name or f"OSM Roads ({region_name})",
+                "source": f"Local Geofabrik extract ({region_name})",
+            }
+
+    return None
+
+
 def ingest_osm_features_network_phase(
     key: str,
     value: str,
@@ -387,6 +544,15 @@ def ingest_osm_features_network_phase(
     clean_key = re.sub(r'[^a-zA-Z0-9_:-]', '', key)
     clean_value = value.replace('\\', '\\\\').replace('"', '\\"')
     op = "~" if "|" in clean_value else "="
+
+    # Country-scale or large regional queries frequently hit Overpass timeouts. If a local Geofabrik
+    # extract or shapefile is cached on disk, prefer it directly.
+    if (n - s) > 3.0 or (e - w) > 3.0:
+        local_extract = _fallback_to_local_osm_extract(
+            clean_key, clean_value, bbox=[s, w, n, e], layer_name=layer_name
+        )
+        if local_extract and "local_path" in local_extract:
+            return local_extract
 
     # Only a linear key needs the ways' vertex nodes (`>; out skel`) to build lines. A point
     # layer uses each way's centre, so asking for every outline corner just made the response
@@ -443,6 +609,14 @@ def ingest_osm_features_network_phase(
     except Exception as fetch_error:
         # HTTPError is a URLError subclass, so check the status first: a 400 (bad query) must
         # not be reported as "overloaded, try later".
+        # A local Geofabrik extract or shapefile already on disk can answer the request without
+        # Overpass (country-scale queries hit timeouts).
+        local_extract = _fallback_to_local_osm_extract(
+            clean_key, clean_value, bbox=[s, w, n, e], layer_name=layer_name
+        )
+        if local_extract and "local_path" in local_extract:
+            return local_extract
+
         if _is_transient_overpass_error(fetch_error):
             return {"error": (
                 f"The OpenStreetMap Overpass server is overloaded right now ({fetch_error}); tried "
@@ -556,11 +730,14 @@ def add_osm_layer_main_thread_phase(fetch_result: dict) -> dict:
 
     layer = QgsVectorLayer(local_path, layer_name, "ogr")
     if layer.isValid():
+        if fetch_result.get("subset_filter"):
+            layer.setSubsetString(fetch_result["subset_filter"])
         QgsProject.instance().addMapLayer(layer)
         from .humanitarian_style import style_osm_layer
         style_osm_layer(layer)          # HX1b: graded roads / quiet areas instead of a random default colour (best effort)
         result["layer_id"] = layer.id()
-        result["layer_name"] = layer_name
+        result["layer_name"] = layer.name()
+        result["feature_count"] = layer.featureCount()
         result["success"] = True
     else:
         result["error"] = f"Failed to instantiate QGIS vector layer from '{local_path}'"
@@ -621,7 +798,7 @@ def ingest_osm_features(
     try:
         return add_osm_layer_main_thread_phase(fetch_result)
     finally:
-        if local_path:
+        if local_path and not fetch_result.get("keep_local_file"):
             import os
             with contextlib.suppress(OSError):
                 os.remove(local_path)

@@ -143,8 +143,11 @@ def _write_vector(layer, output_path, driver_name, layer_options=None, only_sele
         # Rc20 audit A12: a bare GeoJSON export wrote the layer's own CRS (e.g. projected metres) under a legacy "crs" member, which
         # most readers (RFC 7946) ignore, so the file landed in the wrong place. RFC7946=YES makes the OGR driver reproject to WGS84
         # and write standards-compliant output; a caller-supplied RFC7946 option still wins.
+        # Rc20 audit A12 precision: COORDINATE_PRECISION=6 is about 0.1 m on the ground and keeps the payload small.
         if driver_name == "GeoJSON" and not any(str(o).upper().startswith("RFC7946=") for o in layer_options):
             layer_options.append("RFC7946=YES")
+        if driver_name == "GeoJSON" and not any(str(o).upper().startswith("COORDINATE_PRECISION=") for o in layer_options):
+            layer_options.append("COORDINATE_PRECISION=6")
         if layer_options:
             options.layerOptions = layer_options
         has_selection = False
@@ -325,6 +328,12 @@ def export_layer(layer_name, format, output_path=None, only_selected=None, confi
         return {"error": f"Layer '{layer_name}' not found"}
     if QGIS_AVAILABLE and isinstance(layer, QgsRasterLayer):
         return _export_raster_layer(layer, layer_name, format, output_path, confirmed)
+
+    allowed, block_msg = _sens.check_export_allowed(layer)
+    if not allowed:
+        return {"error": block_msg, "blocked_by_protection_policy": True}
+
+    format = format or "gpkg"
 
     fmt_map = {
         "shp": ("ESRI Shapefile", ".shp", "ESRI Shapefile (*.shp)"),

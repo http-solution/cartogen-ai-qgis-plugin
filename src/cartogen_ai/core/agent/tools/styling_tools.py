@@ -654,6 +654,8 @@ def apply_graduated_style(layer_name, field, mode="auto", opacity=None, cluster=
                 return {"error": classification["error"]}
             breaks = classification["breaks"]
 
+        sorted_breaks = None
+
         cluster_color = _match_cluster_color(cluster) if cluster else None
         cluster_warning = None
         explicit_ramp = None
@@ -680,12 +682,12 @@ def apply_graduated_style(layer_name, field, mode="auto", opacity=None, cluster=
             # distribution' isn't the question breaks is answering.
             if cluster:
                 cluster_warning = f"'{cluster}' did not match a known humanitarian cluster name -- used the default ramp instead."
-            color_ramp = QgsStyle.defaultStyle().colorRamp("Viridis")
+            color_ramp = QgsStyle.defaultStyle().colorRamp("Viridis") if QgsStyle else None
             ramp_label = "Viridis"
         else:
             if cluster:
                 cluster_warning = f"'{cluster}' did not match a known humanitarian cluster name -- used the default ramp instead."
-            color_ramp = QgsStyle.defaultStyle().colorRamp(classification["ramp"])
+            color_ramp = QgsStyle.defaultStyle().colorRamp(classification["ramp"]) if QgsStyle else None
             ramp_label = classification["ramp"]
 
         if breaks is not None:
@@ -709,10 +711,11 @@ def apply_graduated_style(layer_name, field, mode="auto", opacity=None, cluster=
             ranges = []
             for lower, upper in itertools.pairwise(bounds):
                 label = f"{lower:,.2f} - {upper:,.2f}"
-                symbol = QgsSymbol.defaultSymbol(layer.geometryType())
+                symbol = QgsSymbol.defaultSymbol(layer.geometryType()) if QgsSymbol else None
                 ranges.append(QgsRendererRange(lower, upper, symbol, label))
-            renderer = QgsGraduatedSymbolRenderer(field, ranges)
-            renderer.updateColorRamp(color_ramp)
+            renderer = QgsGraduatedSymbolRenderer(field, ranges) if QgsGraduatedSymbolRenderer else None
+            if renderer and color_ramp:
+                renderer.updateColorRamp(color_ramp)
             classes = len(ranges)
             method_label = "Manual (defined breaks)"
         else:

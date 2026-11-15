@@ -19,13 +19,28 @@ try:
     )
     from qgis.PyQt.QtCore import QVariant, Qt
     from qgis.PyQt.QtGui import QColor, QFont
-    import processing
-    from qgis.utils import iface
     QGIS_AVAILABLE = True
 except ImportError:
     QGIS_AVAILABLE = False
-    iface = None
     QFont = None
+
+try:
+    import processing
+except ImportError:
+    try:
+        import sys
+        for p in list(sys.path):
+            cand = os.path.join(p, "plugins")
+            if os.path.isdir(cand) and cand not in sys.path:
+                sys.path.append(cand)
+        import processing
+    except Exception:
+        processing = None
+
+try:
+    from qgis.utils import iface
+except ImportError:
+    iface = None
 
 from ._qgis_enum_compat import resolve_qgis_enum
 from ...validators.expression_screen import screen_expression

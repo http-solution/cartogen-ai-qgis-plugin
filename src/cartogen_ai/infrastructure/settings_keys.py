@@ -102,6 +102,7 @@ PROJECT_PROPERTY_LINEAGE = "cartogen_ai/lineage"
 PROJECT_PROPERTY_SENSITIVITY = "cartogen_ai/sensitivity"
 PROJECT_PROPERTY_CONFIDENCE = "cartogen_ai/confidence"
 PROJECT_PROPERTY_FETCHED_AT = "cartogen_ai/fetched_at"
+PROJECT_PROPERTY_ANALYSIS_ID = "cartogen_ai/analysis_id"
 
 # Workflow Settings Prefixes
 SETTINGS_WORKFLOW_PREFIX = "cartogen_ai/workflows/"

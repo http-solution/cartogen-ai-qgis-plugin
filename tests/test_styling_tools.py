@@ -254,7 +254,7 @@ class TestApplyGraduatedStyleWithBreaks(unittest.TestCase):
     @patch("cartogen_ai.core.agent.tools.styling_tools._find_layer_by_name")
     def test_unsorted_breaks_are_sorted(self, mock_find, mock_wkb):
         mock_wkb.GeometryType.PolygonGeometry = "polygon-sentinel"
-        layer = self._make_layer([1, 2, 3], field_name="field")
+        layer = self._make_layer([0, 1, 2, 3, 4], field_name="field")
         layer.geometryType.return_value = "polygon-sentinel"
         mock_find.return_value = layer
 
@@ -266,6 +266,39 @@ class TestApplyGraduatedStyleWithBreaks(unittest.TestCase):
 
         self.assertTrue(res.get("success"), res)
         self.assertEqual(res["breaks"], [1, 2, 3])
+
+    @patch("cartogen_ai.core.agent.tools.styling_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.styling_tools.QgsWkbTypes", create=True)
+    @patch("cartogen_ai.core.agent.tools.styling_tools._find_layer_by_name")
+    def test_breaks_outside_data_range_rejected(self, mock_find, mock_wkb):
+        # Issue #165: A break outside data range must be rejected rather than creating inverted intervals
+        layer = self._make_layer([5, 15], field_name="field")
+        mock_find.return_value = layer
+        res = apply_graduated_style("layer", "field", breaks=[100])
+        self.assertIn("error", res)
+        # The wording is _validate_manual_breaks' own (the single canonical validator both
+        # sides' conflict resolutions now route through).
+        self.assertIn("outside the data range", res["error"])
+
+    @patch("cartogen_ai.core.agent.tools.styling_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.styling_tools.QgsWkbTypes", create=True)
+    @patch("cartogen_ai.core.agent.tools.styling_tools._find_layer_by_name")
+    def test_breaks_duplicate_rejected(self, mock_find, mock_wkb):
+        layer = self._make_layer([1, 10], field_name="field")
+        mock_find.return_value = layer
+        res = apply_graduated_style("layer", "field", breaks=[5, 5])
+        self.assertIn("error", res)
+        self.assertIn("distinct", res["error"])
+
+    @patch("cartogen_ai.core.agent.tools.styling_tools.QGIS_AVAILABLE", True)
+    @patch("cartogen_ai.core.agent.tools.styling_tools.QgsWkbTypes", create=True)
+    @patch("cartogen_ai.core.agent.tools.styling_tools._find_layer_by_name")
+    def test_breaks_non_finite_rejected(self, mock_find, mock_wkb):
+        layer = self._make_layer([1, 10], field_name="field")
+        mock_find.return_value = layer
+        res = apply_graduated_style("layer", "field", breaks=[float("inf")])
+        self.assertIn("error", res)
+        self.assertIn("finite", res["error"])
 
     @patch("cartogen_ai.core.agent.tools.styling_tools.QGIS_AVAILABLE", True)
     def test_empty_breaks_list_rejected(self):

@@ -19,7 +19,10 @@ from ..net import urlopen as _qgis_urlopen
 import zipfile
 
 from .coordinates import interpret_request_pair
-from .local_data_sources import GEOFABRIK_INDEX_URL, HEALTH_FCLASSES, extract_coordinate_pair, find_region
+from .local_data_sources import (
+    GEOFABRIK_INDEX_URL, HEALTH_FCLASSES, extract_coordinate_pair, extract_named_location,
+    find_region, find_region_by_name,
+)
 from .tools._urllib_retry import urlopen_with_retry
 from ..net import build_request as _net_build_request
 from ..net import read_capped as _read_capped
@@ -36,7 +39,7 @@ except ImportError:
 
 _UA = {"User-Agent": "QGIS-AI-Assistant"}
 INDEX_MAX_AGE_S = 30 * 24 * 3600    # region outlines barely change
-EXTRACT_MAX_AGE_S = 7 * 24 * 3600   # Geofabrik rebuilds daily; a week-old copy is fine to reuse
+EXTRACT_MAX_AGE_S = 30 * 24 * 3600  # Geofabrik rebuilds daily; a month-old copy is fine to reuse
 LARGE_DOWNLOAD_BYTES = 50 * 1000 * 1000   # the default; see ask_threshold_bytes()
 MEMBERS = ("gis_osm_roads_free_1", "gis_osm_pois_free_1", "gis_osm_pois_a_free_1")
 
@@ -96,6 +99,15 @@ def ask_threshold_bytes(read_setting=None):
 def extract_is_cached(region, dest_dir):
     """True when download_extract() would reuse a fresh local copy, i.e. nothing crosses the network."""
     path = os.path.join(dest_dir, "{}-latest-free.shp.zip".format(region["id"]))
+    if not (os.path.exists(path) and zipfile.is_zipfile(path)):
+        for alt in [
+            os.path.join(os.path.expanduser("~"), "cartogen_ai", "data", "osm"),
+            os.path.join(QgsApplication.qgisSettingsDirPath() if QGIS_AVAILABLE else "", "cartogen_ai", "data", "osm"),
+        ]:
+            candidate = os.path.join(alt, "{}-latest-free.shp.zip".format(region["id"])) if alt else ""
+            if candidate and os.path.exists(candidate) and zipfile.is_zipfile(candidate):
+                path = candidate
+                break
     return _fresh(path, EXTRACT_MAX_AGE_S) and zipfile.is_zipfile(path)
 
 
@@ -143,13 +155,18 @@ def load_index(cache_dir):
         return json.load(f)
 
 
-def resolve_region(lon, lat, cache_dir):
+def resolve_region(lon, lat, cache_dir, name_or_code=None):
     """{"id", "name", "shp_url", "iso2", "size_bytes"} for the area, or {"error": ...}."""
     try:
-        region = find_region(load_index(cache_dir), lon, lat)
+        index = load_index(cache_dir)
+        region = find_region_by_name(index, name_or_code) if name_or_code else None
+        if not region and lon is not None and lat is not None:
+            region = find_region(index, lon, lat)
     except Exception as e:
         return {"error": f"Couldn't read Geofabrik's region list: {e}"}
     if not region:
+        if name_or_code:
+            return {"error": "No Geofabrik extract covers %s. Zoom the map to your area of interest and try again." % name_or_code}
         return {"error": f"No Geofabrik extract covers this location ({lat:.3f}, {lon:.3f}). Zoom the map to "
                          "your area of interest and try again."}
     region["size_bytes"] = _remote_size(region["shp_url"])  # 0 = unknown: the caller treats it as "ask first"
@@ -206,22 +223,35 @@ def probe_connectivity():
     return (time.monotonic() - start) < CONNECTIVITY_PROBE_TIMEOUT_S
 
 
-def resolve_region_with_connectivity(lon, lat, cache_dir):
+def resolve_region_with_connectivity(lon, lat, cache_dir, name_or_code=None):
     """One background-thread call combining probe_connectivity() with the existing
     resolve_region() lookup -- chat_tab_widget.py's _maybe_ask_local_data runs this once, in
     the background, to decide silently (good connection, reasonable size -- just download it)
     versus needing to ask (poor connection, or a large/unknown-size extract), instead of always
     asking up front regardless of either."""
-    return {"online_ok": probe_connectivity(), "region": resolve_region(lon, lat, cache_dir)}
+    return {"online_ok": probe_connectivity(), "region": resolve_region(lon, lat, cache_dir, name_or_code=name_or_code)}
 
 
 def download_extract(region, dest_dir, progress=None, is_cancelled=None):
-    """Downloads the region's shapefile zip (reusing a copy under a week old). Returns its path.
+    """Downloads the region's shapefile zip (reusing a copy under a month old). Returns its path.
 
     Streams to a .part file and renames at the end, so a cancelled or failed download never
     leaves something that looks like a finished zip for the reuse check to pick up."""
     os.makedirs(dest_dir, exist_ok=True)
     path = os.path.join(dest_dir, "{}-latest-free.shp.zip".format(region["id"]))
+    if not (os.path.exists(path) and zipfile.is_zipfile(path)):
+        for alt in [
+            os.path.join(os.path.expanduser("~"), "cartogen_ai", "data", "osm"),
+            os.path.join(QgsApplication.qgisSettingsDirPath() if QGIS_AVAILABLE else "", "cartogen_ai", "data", "osm"),
+        ]:
+            candidate = os.path.join(alt, "{}-latest-free.shp.zip".format(region["id"])) if alt else ""
+            if candidate and os.path.exists(candidate) and zipfile.is_zipfile(candidate):
+                import shutil
+                try:
+                    shutil.copy2(candidate, path)
+                except Exception:
+                    path = candidate
+                break
     if _fresh(path, EXTRACT_MAX_AGE_S) and zipfile.is_zipfile(path):
         return path
     part = path + ".part"
@@ -250,6 +280,19 @@ def extract_members(zip_path, out_dir, members=MEMBERS):
     """Unzips only the shapefiles needed (all their sidecar files), not the whole extract."""
     os.makedirs(out_dir, exist_ok=True)
     found = {}
+    existing = True
+    for m in members:
+        shp_file = os.path.join(out_dir, m + ".shp")
+        if not (os.path.exists(shp_file) and os.path.getsize(shp_file) > 0):
+            existing = False
+            break
+    if existing:
+        for m in members:
+            shp_file = os.path.join(out_dir, m + ".shp")
+            if os.path.exists(shp_file):
+                found[m] = shp_file
+        return found
+
     with zipfile.ZipFile(zip_path) as z:
         for name in z.namelist():
             stem, _ = os.path.splitext(os.path.basename(name))

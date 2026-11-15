@@ -1414,28 +1414,26 @@ class ChatTabWidget(QWidget):
             return False
         if not themes:
             return False
-        # Prefer the coordinate the request itself named (live-reported, 2026-09-28: using
-        # the canvas's current view centre instead named the wrong region -- a neighboring
-        # country, or a meaningless "(0.000, 0.000)" -- whenever the canvas hadn't been
-        # panned to the request's actual area yet). Falls back to the canvas centre for a
-        # request that names no coordinate at all (e.g. "buffer 5km around active GDACS
-        # alerts"). No center at all -- nothing to resolve a region for -- falls straight
-        # through to online with no interruption, same as before.
+        # Prefer the coordinate or named country/area the request itself named.
+        # Live-reported: using the canvas's current view centre instead named the wrong region
+        # or "(0.000, 0.000)" on an empty canvas.
+        named_loc = (local_data_sources.extract_named_location(text) or
+                     local_data_sources.extract_country_from_layers(local_data_loader.project_layer_facts()))
         center = local_data_loader.query_point_wgs84(text) or self._canvas_center()
-        if center is None:
+        if center is None and not named_loc:
             return False
 
         self._dock.receiveMessageSignal.emit("user", text)
         self._local_data_pending = {"text": text, "analysis": analysis, "themes": themes,
-                                    "stage": "probing", "region": None, "center": center}
+                                    "stage": "probing", "region": None, "center": center, "named_loc": named_loc}
         self._set_local_data_busy(True)
         self.input_edit.clear()
         from ..services.task_runner import run_background_call
-        lon, lat = center
+        lon, lat = center if center is not None else (None, None)
         cache_dir = local_data_loader.data_dir()
         self._active_task = run_background_call(
             "Cartogen AI: check connection and find OSM extract",
-            lambda _cancelled: local_data_loader.resolve_region_with_connectivity(lon, lat, cache_dir),
+            lambda _cancelled: local_data_loader.resolve_region_with_connectivity(lon, lat, cache_dir, name_or_code=named_loc),
             self._on_connectivity_and_region_resolved)
         return True
 

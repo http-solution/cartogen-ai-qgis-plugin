@@ -92,8 +92,9 @@ def _validate_bbox(bbox):
         return f"bbox longitude out of range: {bbox}"
     if not (-90 <= min_lat <= 90 and -90 <= max_lat <= 90):
         return f"bbox latitude out of range: {bbox}"
-    if min_lon >= max_lon or min_lat >= max_lat:
-        return "bbox must have min_lon < max_lon and min_lat < max_lat -- [min_lon, min_lat, max_lon, max_lat]."
+    if min_lat >= max_lat:
+        return "bbox must have min_lat < max_lat -- [min_lon, min_lat, max_lon, max_lat]."
+    # Note: min_lon > max_lon is explicitly permitted to support bounding boxes crossing the 180° antimeridian
     return None
 
 
@@ -101,7 +102,14 @@ def _point_in_bbox(lon, lat, bbox):
     if bbox is None:
         return True
     min_lon, min_lat, max_lon, max_lat = bbox
-    return min_lon <= lon <= max_lon and min_lat <= lat <= max_lat
+    lat_ok = min_lat <= lat <= max_lat
+    if not lat_ok:
+        return False
+    if min_lon <= max_lon:
+        return min_lon <= lon <= max_lon
+    else:
+        # Crosses antimeridian: point is either >= min_lon or <= max_lon
+        return lon >= min_lon or lon <= max_lon
 
 
 def _clip_to_field_width(layer, fname, value):

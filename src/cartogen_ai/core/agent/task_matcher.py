@@ -158,10 +158,11 @@ def match(query, limit=MAX_CANDIDATES, personas=None):
 # docs/IMPLEMENTATION_TRACKER.md as a real, unresolved scoring-design tension,
 # not silently "fixed" by this narrower, targeted re-rank).
 _ACCESS_TIME_LANGUAGE = re.compile(
-    r"\b(within|beyond|under|over)\b.{0,20}\b(hour|hr|minute|min)s?\b|"
-    r"\b(hour|hr|minute|min)'?s?\s+(travel|driv(?:e|ing)|walk(?:ing)?|reach)|"
+    r"\b(within|beyond|under|over|outside|past)\b.{0,25}\b(hour|hr|minute|min)s?\b|"
+    r"\b(hour|hr|minute|min)'?s?\s+(travel|driv(?:e|ing)|walk(?:ing)?|reach|access)|"
     r"\bservice[\s-]?areas?\b.{0,40}\b(hour|hr|minute|min)s?\b|\b(hour|hr|minute|min)s?\b.{0,30}\bservice[\s-]?areas?\b|"
-    r"\btravel[\s-]?time\b|\bdrive[\s-]?time\b|\breachable\b|\bunreachable\b|\bisochrone\b"
+    r"\btravel[\s-]?time\b|\bdrive[\s-]?time\b|\breachable\b|\bunreachable\b|\bisochrone\b|"
+    r"\baccess[\s-]?gaps?\b|\boutside\b.{0,20}\baccess\b"
 )
 
 
@@ -355,16 +356,17 @@ def classify(query, personas=None):
     best, top = ms[0]
     if _ACCESS_TIME_LANGUAGE.search((query or "").lower()) and \
             "calculate_service_area" not in best.get("tools", []):
-        for e, s in ms:
-            if "calculate_service_area" in e.get("tools", []):
+        for e, s in match(query, limit=25):
+            if "calculate_service_area" in e.get("tools", []) and s >= CONFIDENT_SCORE:
                 best, top = e, s
+                ms = [(e, s)] + [(m_e, m_s) for m_e, m_s in ms if m_e.get("id") != e.get("id")]
                 break
     if _is_weak_match(query, best, top):
         return {"matches": ms, "best": best, "score": top,
                 "ambiguous": True, "reason": "below confidence floor"}
     if len(ms) > 1:
         second, s2 = ms[1]
-        if (top - s2) < AMBIGUITY_MARGIN and second["cat"] != best["cat"]:
+        if 0 <= (top - s2) < AMBIGUITY_MARGIN and second["cat"] != best["cat"]:
             # A tie is only trusted when the winner's keywords cover a fair share of the request's own content words. rc15 and rc17
             # hand tests: a 22-word severity request matched "Spatial analysis" and an 18-word buffer-clip-export plan matched a
             # water and sanitation task, each on two generic words ("calculate", "population"; "distance", "points"), and the
@@ -413,8 +415,8 @@ def output_override(query):
 
 # Evidence in the query itself that a slot is already answered.
 _SLOT_EVIDENCE = {
-    "aoi":            r"\bin ([A-Z][\w\-']+)|\bfor ([A-Z][\w\-']+)|current (extent|canvas|view)|"
-                      r"\bthis layer\b|\bloaded\b|\bselected\b",
+    "aoi":            r"(?i)\b(?:in|for|across|of)\s+(?!(?:reporting|analysis|mapping|planning|monitoring|export|delivery|each|every|all|some|any|which|what|where|our|my|your|the|a|an|this|that|these|those|admin|qgis|current)\b)([a-zA-Z\w\-']+)|"
+                      r"current (extent|canvas|view)|\bthis layer\b|\bloaded\b|\bselected\b",
     "admin_level":    r"admin\s*[0-3]|district|province|governorate|country level|admin level",
     "time_range":     r"\b(19|20)\d{2}\b|last \w+ (day|week|month|year)|since |between .* and |"
                       r"q[1-4]\b|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec",
@@ -435,8 +437,8 @@ _SLOT_EVIDENCE = {
     # "2 hours" and "30 minutes" all counted as no threshold. The 5 km default was then added
     # next to the user's own one-hour limit. Live-reported 2026-09-24: "Health facilities beyond
     # one hour's travel" became "Given: threshold = 5 km" and a plan step saying "(1 hour / 5 km)".
-    "threshold":      r"\b(?:\d+(?:\.\d+)?\s*|(?:an?|one|two|three|four|five|six|seven|eight|nine|ten|"
-                      r"fifteen|twenty|thirty|forty|forty-five|fifty|sixty|ninety|half an?)\s+)"
+    "threshold":      r"\b(?:\d+(?:\.\d+)?[\s\-]*|(?:an?|one|two|three|four|five|six|seven|eight|nine|ten|"
+                      r"fifteen|twenty|thirty|forty|forty-five|fifty|sixty|ninety|half\s+an?)[\s\-]+)"
                       r"(?:km|kms|kilomet(?:er|re)s?|m|met(?:er|re)s?|mins?|minutes?|hours?|hrs?)\b",
     "sector":         r"\bwash\b|nutrition|food security|protection|education|shelter|livelihood|health",
     # Engineering hydrology (task 36.01): none of these has a default, because a guessed DEM, IDF curve or runoff coefficient
@@ -497,7 +499,7 @@ def missing_slots(entry, query, context=None, layer_names=None):
     return out
 
 
-def clarify_question(entry, missing):
+def clarify_question(entry, missing, layer_names=None):
     """One consolidated question covering every missing slot.
 
     Policy is 'ask once, then default': this is asked a single time. If the
@@ -508,7 +510,7 @@ def clarify_question(entry, missing):
     lines = ["To do this well I need a bit more: **{}**".format(entry["text"]), ""]
     lines.extend(f"- {reg.SLOT_QUESTIONS.get(s, s)}" for s in missing)
     lines.append("")
-    stated = defaults(missing, entry)
+    stated = defaults(missing, layer_names=layer_names, entry=entry)
     if stated:
         lines.append("If you'd rather I just proceed, I'll use: "
                      + "; ".join(f"{k} = {v}" for k, v in stated.items()) + ".")
@@ -532,7 +534,7 @@ def _chain_uses(entry, slot):
     return any(f in str(t).lower() for t in (entry.get("tools") or []) for f in fragments)
 
 
-def defaults(missing, entry=None):
+def defaults(missing, layer_names=None, entry=None):
     """{slot: value} for the missing slots that have a safe default.
 
     Slots whose default is None are deliberately excluded -- guessing a hazard
@@ -541,15 +543,25 @@ def defaults(missing, entry=None):
     """
     out = {}
     for s in missing:
+        if s == "aoi" and (layer_names is not None and len(layer_names) == 0):
+            continue
         val, kind = reg.SLOT_DEFAULTS.get(s, (None, "ask"))
         if val is not None and kind != "ask" and _chain_uses(entry, s):
             out[s] = val
     return out
 
 
-def unresolvable(missing):
+def unresolvable(missing, layer_names=None):
     """Missing slots that have no safe default and genuinely need an answer."""
-    return [s for s in missing if reg.SLOT_DEFAULTS.get(s, (None, "ask"))[0] is None]
+    unres = []
+    for s in missing:
+        val, kind = reg.SLOT_DEFAULTS.get(s, (None, "ask"))
+        if val is None:
+            unres.append(s)
+        elif s == "aoi" and (layer_names is not None and len(layer_names) == 0):
+            # On an empty canvas with zero layers loaded, "current canvas extent" cannot be defaulted.
+            unres.append(s)
+    return unres
 
 
 # ------------------------------------------------------- prompt + output ---

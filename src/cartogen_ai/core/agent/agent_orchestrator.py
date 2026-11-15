@@ -1080,6 +1080,16 @@ class CartogenAi:
             parsed_arguments = {}
         operation_type = tool_operations.get_tool_operation_type(name)
 
+        # Mandatory Humanitarian Analysis Contract Gate:
+        # Blocks execution if critical humanitarian parameters are missing, forcing clarification.
+        try:
+            from ..validators.humanitarian_contract import check_contract_for_tool
+            contract_check = check_contract_for_tool(name, parsed_arguments)
+            if contract_check is not None:
+                return contract_check
+        except Exception:
+            pass
+
         # #138 (audit F02): the before-state (project layer ids + undo snapshot) and the after-state used to be read here, on
         # the calling context, which for a turn is the AgentQgsTask worker thread -- only the tool body itself was marshalled
         # to the main thread. QgsProject / layer access from the worker is not safe. Now the whole command (before-state,
@@ -1519,7 +1529,7 @@ class CartogenAi:
                 res = self._run_current_turn_on_main_thread(add_osm_layer_main_thread_phase, fetch_result)
             finally:
                 local_path = fetch_result.get("local_path")
-                if local_path:
+                if local_path and not fetch_result.get("keep_local_file"):
                     import os
                     with contextlib.suppress(OSError):
                         os.remove(local_path)
@@ -1950,8 +1960,19 @@ class CartogenAi:
         # Only the last two turns count: a tool from twenty messages ago is not "what we were in the middle of".
         carry_over = recent_names if self._turn_counter - recent_turn <= 2 else ()
         from ..services.prompt_refiner import get_persona_selection
+
+        # Multi-turn dialogue: a short reply ("YEM", "yes", "60 min", "hospitals") has too few
+        # words for keyword routing, so the previous user prompt is prepended to the router query.
+        router_query = user_query
+        history = self._read_history_snapshot()
+        if len(user_query.split()) < 10 and history:
+            prev_user_msgs = [m.get("content", "") for m in history
+                              if m.get("role") == "user" and isinstance(m.get("content"), str)]
+            if prev_user_msgs:
+                router_query = f"{prev_user_msgs[-1]} {user_query}"
+
         active_tools = router.filter_relevant_tools(
-            user_query, top_k=configured_top_k(), carry_over_tools=carry_over, personas=get_persona_selection())
+            router_query, top_k=configured_top_k(), carry_over_tools=carry_over, personas=get_persona_selection())
         active_tool_names = {
             t.get("function", {}).get("name", "") for t in active_tools if isinstance(t, dict)
         }

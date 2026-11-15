@@ -22,10 +22,9 @@ import json
 from ...infrastructure.settings_keys import PROJECT_PROPERTY_SENSITIVITY
 
 SENSITIVITY_PROPERTY_KEY = PROJECT_PROPERTY_SENSITIVITY
-SENSITIVITY_LEVELS = ["PUBLIC", "INTERNAL", "RESTRICTED", "SENSITIVE"]
+SENSITIVITY_LEVELS = ["PUBLIC", "INTERNAL", "RESTRICTED", "SENSITIVE", "HIGHLY_SENSITIVE"]
 
-# Only these two levels trigger an export-time advisory warning -- PUBLIC/
-# INTERNAL are the common case and shouldn't add friction to routine exports.
+# Only these levels trigger an export-time advisory warning
 _LEVELS_REQUIRING_EXPORT_WARNING = {"RESTRICTED", "SENSITIVE"}
 
 
@@ -67,10 +66,31 @@ def set_layer_sensitivity(layer, level, reason=None) -> bool:
         return False
 
 
+def check_export_allowed(layer) -> tuple:
+    """
+    Evaluates whether raw layer export is permitted under humanitarian data protection policy:
+    - PUBLIC: Allowed normally.
+    - INTERNAL: Allowed with warning.
+    - RESTRICTED: Allowed with advisory warning.
+    - HIGHLY_SENSITIVE: Raw export BLOCKED (only sanitized/obfuscated derivatives permitted).
+    Returns (allowed: bool, reason_or_message: str).
+    """
+    record = get_layer_sensitivity(layer)
+    level = record.get("level")
+    if level == "HIGHLY_SENSITIVE":
+        reason = record.get("reason")
+        suffix = f" ({reason})" if reason else ""
+        return False, (
+            f"Export BLOCKED under Do No Harm protection policy: Layer is tagged 'HIGHLY_SENSITIVE'{suffix}. "
+            "Raw unmasked export of highly sensitive data (e.g. GBV / named protection cases) is prohibited. "
+            "Please create and export an obfuscated or aggregated derivative layer instead."
+        )
+    return True, ""
+
+
 def export_warning_for(layer) -> str:
     """Returns an advisory warning string if the layer is tagged RESTRICTED
-    or SENSITIVE, else "" (falsy, safe to use directly in an `if`). Never
-    blocks the export this is called from -- see module docstring."""
+    or SENSITIVE, else "" (falsy, safe to use directly in an `if`)."""
     record = get_layer_sensitivity(layer)
     level = record.get("level")
     if level not in _LEVELS_REQUIRING_EXPORT_WARNING:
