@@ -30,6 +30,11 @@ class TestEvaluate(unittest.TestCase):
         self.assertFalse(core.evaluate({"layer": "x", "field": "f", "op": "all_approx", "value": 1}, results)[0])
         self.assertFalse(core.evaluate({"layer": "x", "field": "f", "op": "all_approx", "value": 1}, results, lambda n, f: None)[0])
 
+    def test_a_layer_that_must_be_absent(self):
+        absent = {"layer": "mapping_tasks", "field": "name", "op": "absent"}
+        self.assertTrue(core.evaluate(absent, [], lambda n, f: None)[0])
+        self.assertFalse(core.evaluate(absent, [], lambda n, f: ["x"])[0])
+
     def test_layer_checks(self):
         values = lambda n, f: [1000.0, 1000.0, 1000.0]  # noqa: E731
         self.assertTrue(core.evaluate({"layer": "l", "field": "f", "op": "all_approx", "value": 1000.0}, [], values)[0])
@@ -64,7 +69,7 @@ class TestEvidenceFolder(unittest.TestCase):
 class TestRowsFile(unittest.TestCase):
     def test_every_row_has_steps_and_checks_that_name_real_steps(self):
         rows = json.loads((ROOT / "docs" / "AGENT_RUN_ROWS.json").read_text(encoding="utf-8"))["rows"]
-        self.assertGreaterEqual(len(rows), 10)
+        self.assertGreaterEqual(len(rows), 15)
         ids = [r["id"] for r in rows]
         self.assertEqual(len(ids), len(set(ids)))
         import make_full_smoke_fixtures as fx

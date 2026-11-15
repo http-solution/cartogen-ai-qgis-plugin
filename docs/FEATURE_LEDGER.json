@@ -3410,7 +3410,7 @@
   },
   {
     "id": "computer-use-smoke",
-    "feature": "tools/build_computer_use.py builds a package for a computer-use agent on QGIS 4.2.3: one short card per smoke row (tools/smoke_cards.py), an in-QGIS dock (tools/smoke_dock.py) whose Pass/Partial/Fail/Skip buttons take the evidence themselves and refuse a result for a row that was never started, a headless runner that checks the numbers of ten rows with no agent (docs/AGENT_RUN_ROWS.json), and tools/analyze_smoke_run.py, which marks an agent's PASS UNSUPPORTED unless program-made evidence exists",
+    "feature": "tools/build_computer_use.py builds a package for a computer-use agent on QGIS 4.2.3: one short card per smoke row (tools/smoke_cards.py), an in-QGIS dock (tools/smoke_dock.py) whose Pass/Partial/Fail/Skip buttons take the evidence themselves and refuse a result for a row that was never started, a headless runner that checks the numbers of fifteen rows with no agent (docs/AGENT_RUN_ROWS.json), and tools/analyze_smoke_run.py, which marks an agent's PASS UNSUPPORTED unless program-made evidence exists",
     "issues": [],
     "since": "1.18.6",
     "sources": [

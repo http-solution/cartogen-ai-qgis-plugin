@@ -44,6 +44,8 @@ def evaluate(check, results, layer_values=None):
             if layer_values is None:
                 return False, "layer check but no way to read layers"
             values = layer_values(check["layer"], check["field"])
+            if op == "absent":                                  # the layer must NOT exist (a refusal made nothing); `field` only has to be a name that would be on it
+                return values is None, f"layer '{check['layer']}' " + ("is absent" if values is None else "exists")
             if values is None:
                 return False, f"layer '{check['layer']}' or field '{check['field']}' not found"
             tol = check.get("tol", 1e-6)
