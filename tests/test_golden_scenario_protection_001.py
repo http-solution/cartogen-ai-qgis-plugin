@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Golden Scenario GS-PROTECTION-001: Protection & Sensitive Data Privacy Safeguards (Do No Harm).
 
@@ -15,7 +14,12 @@ Validates:
 
 import unittest
 import tempfile
-import random
+
+try:
+    import qgis.core  # noqa: F401
+except ImportError:
+    raise unittest.SkipTest("requires real QGIS") from None  # the plain test job has no QGIS: skip the module instead of failing the whole run at import
+
 from qgis.core import (
     QgsProject,
     QgsVectorLayer,

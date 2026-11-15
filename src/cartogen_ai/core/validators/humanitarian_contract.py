@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Humanitarian Analysis Contract for Cartogen AI.
 
@@ -12,43 +11,43 @@ User Request -> Intent Parser -> HumanitarianAnalysisContract -> Validator -> GI
 """
 
 import dataclasses
-from typing import Dict, List, Optional, Any, Set
+from typing import Any
 
 
 @dataclasses.dataclass
 class GeographicScope:
-    country_iso3: Optional[str] = None
-    admin_level: Optional[int] = None
-    layer_name: Optional[str] = None
-    pcode_field: Optional[str] = None
-    admin_name_field: Optional[str] = None
-    aoi_bounds: Optional[List[float]] = None  # [min_lon, min_lat, max_lon, max_lat]
+    country_iso3: str | None = None
+    admin_level: int | None = None
+    layer_name: str | None = None
+    pcode_field: str | None = None
+    admin_name_field: str | None = None
+    aoi_bounds: list[float] | None = None  # [min_lon, min_lat, max_lon, max_lat]
 
 
 @dataclasses.dataclass
 class PopulationContext:
     population_group: str = "total"  # e.g., 'total', 'idps', 'refugees', 'returnees', 'host'
-    population_source: Optional[str] = None  # e.g., 'worldpop', 'census', 'unhcr'
-    raster_layer: Optional[str] = None
-    vector_field: Optional[str] = None
+    population_source: str | None = None  # e.g., 'worldpop', 'census', 'unhcr'
+    raster_layer: str | None = None
+    vector_field: str | None = None
 
 
 @dataclasses.dataclass
 class HumanitarianContext:
-    cluster_sector: Optional[str] = None  # e.g., 'wash', 'health', 'food_security', 'multi_sector'
-    indicator_names: List[str] = dataclasses.field(default_factory=list)
-    analysis_period: Optional[str] = None  # e.g., '2026-Q1', 'HNO 2026'
-    unit_of_measurement: Optional[str] = None  # e.g., 'people', 'households', 'percent'
+    cluster_sector: str | None = None  # e.g., 'wash', 'health', 'food_security', 'multi_sector'
+    indicator_names: list[str] = dataclasses.field(default_factory=list)
+    analysis_period: str | None = None  # e.g., '2026-Q1', 'HNO 2026'
+    unit_of_measurement: str | None = None  # e.g., 'people', 'households', 'percent'
 
 
 @dataclasses.dataclass
 class MethodologicalRules:
     method: str  # e.g., 'jiaf_mosaic', 'service_area_hull', 'weighted_composite', 'presence_gap'
-    thresholds: Dict[str, Any] = dataclasses.field(default_factory=dict)
-    weights: Dict[str, float] = dataclasses.field(default_factory=dict)
+    thresholds: dict[str, Any] = dataclasses.field(default_factory=dict)
+    weights: dict[str, float] = dataclasses.field(default_factory=dict)
     aggregation_rule: str = "none"  # e.g., 'sum', 'max', 'weighted_mean', 'mosaic'
     tie_breaker_rule: str = "lowest_fid_centroid"
-    suppress_min_n: Optional[int] = None
+    suppress_min_n: int | None = None
 
 
 @dataclasses.dataclass
@@ -67,24 +66,22 @@ class HumanitarianAnalysisContract:
     geography: GeographicScope
     humanitarian_context: HumanitarianContext
     methodology: MethodologicalRules
-    population: Optional[PopulationContext] = None
+    population: PopulationContext | None = None
     expected_outputs: ExpectedDeliverables = dataclasses.field(default_factory=ExpectedDeliverables)
-    
-    # Critical parameters that MUST be confirmed by user or authoritative specification
-    unresolved_parameters: List[str] = dataclasses.field(default_factory=list)
-    clarification_prompt: Optional[str] = None
 
-    def validate(self) -> Dict[str, Any]:
+    # Critical parameters that MUST be confirmed by user or authoritative specification
+    unresolved_parameters: list[str] = dataclasses.field(default_factory=list)
+    clarification_prompt: str | None = None
+
+    def validate(self) -> dict[str, Any]:
         """
         Validates contract completeness before allowing GIS execution.
         Returns a dict with 'valid': bool, 'errors': list, 'needs_clarification': bool.
         """
         errors = []
-        needs_clarification = False
 
         # 1. Check for unresolved parameters
         if self.unresolved_parameters:
-            needs_clarification = True
             return {
                 "valid": False,
                 "needs_clarification": True,
@@ -107,10 +104,9 @@ class HumanitarianAnalysisContract:
                 errors.append("Objective 'calculate_severity_index' requires at least one explicit indicator field.")
                 self.unresolved_parameters.append("indicator_names")
 
-        elif self.objective == "presence_gap":
-            if not self.geography.pcode_field:
-                # Warning: name joins are discouraged for presence-gap analysis
-                errors.append("Presence gap analysis strongly requires a P-code join field to prevent transliteration dropped gaps.")
+        elif self.objective == "presence_gap" and not self.geography.pcode_field:
+            # Warning: name joins are discouraged for presence-gap analysis
+            errors.append("Presence gap analysis strongly requires a P-code join field to prevent transliteration dropped gaps.")
 
         if errors or self.unresolved_parameters:
             return {
@@ -123,7 +119,7 @@ class HumanitarianAnalysisContract:
         return {"valid": True, "needs_clarification": False, "errors": []}
 
 
-def check_contract_for_tool(tool_name: str, arguments: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+def check_contract_for_tool(tool_name: str, arguments: dict[str, Any]) -> dict[str, Any] | None:
     """
     Mandatory Execution Gate for Humanitarian Analytical Tools.
     Blocks tool execution if essential humanitarian parameters are missing or ambiguous,
@@ -168,7 +164,7 @@ def parse_humanitarian_intent(request_text: str) -> HumanitarianAnalysisContract
     Extracts sector, geography, administrative level, population measure, travel thresholds, and expected deliverables.
     """
     text_lower = request_text.lower()
-    
+
     # 1. Sector Identification
     sector = "multi_sector"
     if "health" in text_lower or "hospital" in text_lower or "clinic" in text_lower:
@@ -194,7 +190,7 @@ def parse_humanitarian_intent(request_text: str) -> HumanitarianAnalysisContract
 
     # 3. Objective & Threshold Extraction
     objective = "general_analysis"
-    thresholds = {}
+    thresholds: dict[str, Any] = {}
     unresolved = []
 
     if "access" in text_lower or "outside" in text_lower or "reach" in text_lower:
@@ -233,7 +229,7 @@ def parse_humanitarian_intent(request_text: str) -> HumanitarianAnalysisContract
         export_deliverable=True
     )
 
-    contract = HumanitarianAnalysisContract(
+    return HumanitarianAnalysisContract(
         objective=objective,
         geography=GeographicScope(
             admin_level=admin_level,
@@ -249,7 +245,6 @@ def parse_humanitarian_intent(request_text: str) -> HumanitarianAnalysisContract
         expected_outputs=deliverables,
         unresolved_parameters=unresolved
     )
-    return contract
 
 
 def generate_analysis_id(contract: HumanitarianAnalysisContract) -> str:

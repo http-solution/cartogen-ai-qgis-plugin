@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Golden Scenario GS-EXPORT-001: Canonical GeoPackage Export & Shapefile Truncation / Collision Detection.
 
@@ -16,6 +15,12 @@ Validates:
 import os
 import unittest
 import tempfile
+
+
+try:
+    import qgis.core  # noqa: F401
+except ImportError:
+    raise unittest.SkipTest("requires real QGIS") from None  # the plain test job has no QGIS: skip the module instead of failing the whole run at import
 
 from qgis.core import (
     QgsProject,

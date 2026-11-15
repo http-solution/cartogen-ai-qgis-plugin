@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Golden Scenario GS-PIN-002: Null, Zero, and Missing Population / Severity Handling.
 
@@ -16,15 +15,12 @@ Validates:
 """
 
 import unittest
-from qgis.core import (
-    QgsProject,
-    QgsVectorLayer,
-    QgsFeature,
-    QgsGeometry,
-    QgsRectangle,
-    QgsField,
-)
-from qgis.PyQt.QtCore import QVariant
+
+try:
+    import qgis.core  # noqa: F401
+except ImportError:
+    raise unittest.SkipTest("requires real QGIS") from None  # the plain test job has no QGIS: skip the module instead of failing the whole run at import
+
 
 from cartogen_ai.core.agent.tools.analysis_tools import _compute_severity_index
 
@@ -78,7 +74,7 @@ class TestGoldenScenarioPin002(unittest.TestCase):
             if pop is None:
                 units_missing_pop.append(unit_name)
                 continue
-            
+
             # High severity class threshold (class >= 4)
             is_high_sev = r["severity_class"] >= 4
             unit_pin = pop if is_high_sev else 0.0

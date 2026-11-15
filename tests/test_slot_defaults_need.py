@@ -26,5 +26,20 @@ class TestDefaultsOnlyWhereUsed(unittest.TestCase):
         self.assertIn("threshold", tm.defaults(["threshold"]))
 
 
+class TestAreaOnAnEmptyProject(unittest.TestCase):
+    """rc22: on a project with no layers the area cannot default to 'the current canvas extent', so it must be asked; with a layer loaded it still defaults, and with no layer list at all (no context) the old behaviour holds."""
+
+    def test_an_empty_project_cannot_default_its_area(self):
+        entry = {"tools": ["calculate_service_area"]}
+        self.assertEqual(tm.unresolvable(["aoi"], layer_names=[]), ["aoi"])
+        self.assertEqual(tm.defaults(["aoi"], entry, layer_names=[]), {})
+
+    def test_a_loaded_layer_or_no_context_keeps_the_default(self):
+        entry = {"tools": ["calculate_service_area"]}
+        self.assertEqual(tm.unresolvable(["aoi"], layer_names=["roads"]), [])
+        self.assertEqual(tm.unresolvable(["aoi"]), [])
+        self.assertIn("aoi", tm.defaults(["aoi"], entry, layer_names=["roads"]))
+
+
 if __name__ == "__main__":
     unittest.main()

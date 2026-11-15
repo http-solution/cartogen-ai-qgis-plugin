@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Golden Scenario GS-OUTPUT-001: End-to-End Cross-Channel Invariant & Semantic Verification.
 
@@ -31,6 +30,12 @@ import os
 import unittest
 import tempfile
 
+
+try:
+    import qgis.core  # noqa: F401
+except ImportError:
+    raise unittest.SkipTest("requires real QGIS") from None  # the plain test job has no QGIS: skip the module instead of failing the whole run at import
+
 from qgis.core import (
     QgsProject,
     QgsVectorLayer,
@@ -38,8 +43,6 @@ from qgis.core import (
     QgsGeometry,
     QgsRectangle,
     QgsField,
-    QgsGraduatedSymbolRenderer,
-    QgsClassificationQuantile,
 )
 from qgis.PyQt.QtCore import QVariant
 

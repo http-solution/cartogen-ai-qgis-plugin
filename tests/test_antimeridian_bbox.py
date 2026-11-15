@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Tests for antimeridian bounding-box support in hazard monitoring tools.
 """
@@ -19,7 +18,7 @@ class TestAntimeridianBbox(unittest.TestCase):
         bbox = [170.0, -25.0, -170.0, -10.0]
         # Should now be valid (not rejected with min_lon >= max_lon error)
         self.assertIsNone(_validate_bbox(bbox))
-        
+
         # Point in eastern hemisphere portion (e.g. 175°E, -15°S) -> should be inside
         self.assertTrue(_point_in_bbox(175.0, -15.0, bbox))
         # Point in western hemisphere portion (e.g. -175°W, -15°S) -> should be inside

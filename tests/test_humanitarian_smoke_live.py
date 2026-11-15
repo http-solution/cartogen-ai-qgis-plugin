@@ -1,17 +1,20 @@
-# -*- coding: utf-8 -*-
 """
 Humanitarian QA/QC Live Smoke Test Suite:
 Executes the 10 Critical Humanitarian Live Test Workflows against live QGIS and Qt components.
 """
 
 import os
-import sys
 import tempfile
 import unittest
-import json
 
 # Ensure Qt offscreen platform for headless execution
 os.environ["QT_QPA_PLATFORM"] = "offscreen"
+
+
+try:
+    import qgis.core  # noqa: F401
+except ImportError:
+    raise unittest.SkipTest("requires real QGIS") from None  # the plain test job has no QGIS: skip the module instead of failing the whole run at import
 
 from qgis.core import (
     QgsApplication,
@@ -22,38 +25,27 @@ from qgis.core import (
     QgsPointXY,
     QgsRectangle,
     QgsField,
-    QgsGraduatedSymbolRenderer,
-    QgsClassificationQuantile,
     QgsPrintLayout,
     QgsLayoutItemMap,
     QgsLayoutItemLegend,
     QgsLayoutItemScaleBar,
-    QgsLayoutItemPicture,
 )
 from qgis.PyQt.QtCore import QVariant
 
 from cartogen_ai.core.validators.humanitarian_contract import (
-    HumanitarianAnalysisContract,
     parse_humanitarian_intent,
     generate_analysis_id,
     check_contract_for_tool,
 )
 from cartogen_ai.core.validators.reconciliation_auditor import (
     OutputReconciliationAuditor,
-    AnalysisIntegritySignature,
-    CartographicSignature,
-    DashboardSignature,
-    LayoutSignature,
-    ExportSignature,
 )
 from cartogen_ai.core.agent.tools.analysis_tools import (
-    calculate_severity_index,
     _compute_severity_index,
 )
 from cartogen_ai.core.agent.tools.export_tools import export_layer, _check_shapefile_field_names
 from cartogen_ai.core.agent.tools.vector_tools import obfuscate_sensitive_points
 from cartogen_ai.core.models.sensitivity import set_layer_sensitivity, check_export_allowed
-from cartogen_ai.infrastructure.settings_keys import PROJECT_PROPERTY_ANALYSIS_ID
 
 
 class TestHumanitarianLiveSmokeSuite(unittest.TestCase):
@@ -165,7 +157,7 @@ class TestHumanitarianLiveSmokeSuite(unittest.TestCase):
             {"adm2_pcode": "YE1302", "org": "WFP"},
             {"adm2_pcode": "UNKNOWN", "org": "NGO_X"},
         ]
-        presence_by_unit, skipped = rt._aggregate_3w_presence(presence_rows, "adm2_pcode", "org")
+        presence_by_unit, _skipped = rt._aggregate_3w_presence(presence_rows, "adm2_pcode", "org")
         # _aggregate_3w_presence normalizes unit keys to stripped lowercase for robust joining
         self.assertEqual(len(presence_by_unit["ye1301"]["orgs"]), 2)
         self.assertEqual(len(presence_by_unit["ye1302"]["orgs"]), 1)
@@ -187,7 +179,7 @@ class TestHumanitarianLiveSmokeSuite(unittest.TestCase):
         from cartogen_ai.core.agent.tools import jiaf_rules as jr, jiaf_engine as je
         settings = je.merge_settings()
         sector_pins = {"food_security": 90000, "health": 20000}
-        flags, ranks = jr.pin_flags(sector_pins, 100000, settings, None)
+        flags, _ranks = jr.pin_flags(sector_pins, 100000, settings, None)
         # Flag 2 triggers because (90000 - 20000)/90000 = 77.8% > 30%
         self.assertTrue(flags[2]["fired"])
 
@@ -268,7 +260,7 @@ class TestHumanitarianLiveSmokeSuite(unittest.TestCase):
             output_layer_name="obfuscated_cases",
         )
         self.assertTrue(obf_res.get("success"))
-        obf_vl = self.project.mapLayersByName("obfuscated_cases")[0]
+        self.project.mapLayersByName("obfuscated_cases")[0]  # raises if the layer was not produced
 
         # 3. Canonical Export of safe derivative to GeoPackage (.gpkg)
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmpdir:
@@ -278,7 +270,7 @@ class TestHumanitarianLiveSmokeSuite(unittest.TestCase):
             self.assertEqual(res_exp["feature_count"], 1)
 
             # 4. Assert Shapefile Preflight warns about DBF truncation and collisions
-            warning_msg, field_map = _check_shapefile_field_names(vl)
+            warning_msg, _field_map = _check_shapefile_field_names(vl)
             self.assertIsNotNone(warning_msg)
             self.assertIn("10 characters", warning_msg)
             self.assertIn("collision", warning_msg.lower())
