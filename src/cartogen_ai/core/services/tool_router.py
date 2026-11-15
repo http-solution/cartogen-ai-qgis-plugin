@@ -87,9 +87,9 @@ _TOOL_ALIASES = {
     ],
     "ingest_osm_features": [
         "hospital", "hospitals", "clinic", "clinics", "health facilit",
-        "health facilities", "doctors", "pharmacy", "osm data",
+        "health facilities", "health services", "health service", "doctors", "pharmacy", "osm data",
         "download facilities", "fetch facilities", "osm features",
-        "infrastructure", "schools", "road network", "highways",
+        "infrastructure", "schools", "road network", "highways", "roads", "road",
         "osm", "amenities", "amenity",
     ],
     # Hydrology (see tools/engineering_tools.py). "steam length" is the typo in the request that motivated these tools. No bare

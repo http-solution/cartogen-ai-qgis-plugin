@@ -64,7 +64,10 @@ _PREAMBLE = (
         "import Qt classes via QGIS's own shim, never directly from a binding: `from qgis.PyQt.QtCore import ...`, "
         '`from qgis.PyQt.QtGui import ...`, `from qgis.PyQt.QtWidgets import ...`. Never `from PyQt5...` -- QGIS 4.x no '
         'longer ships PyQt5 at all, so that import fails outright. Use Qt6-style scoped enums (e.g. '
-        '`Qt.AlignmentFlag.AlignLeft`, not `Qt.AlignLeft`). When writing PyQGIS via `execute_pyqgis_script`, '
+        '`Qt.AlignmentFlag.AlignLeft`, not `Qt.AlignLeft`). In QGIS 4.x, `QgsZonalStatistics` is in `qgis.analysis` '
+        '(not `qgis.core`), or prefer using QGIS Processing algorithms like `processing.run("native:zonalstatisticsfb", ...)`. '
+        'In `execute_pyqgis_script`, filesystem classes like `QDir`, `QFile`, and `os` are blocked by the sandbox; use '
+        'standard QGIS layers, memory layers, or dedicated tools (`add_layer_from_path`, `ingest_osm_features`). When writing PyQGIS via `execute_pyqgis_script`, '
         'avoid deprecated enum syntax (e.g. old-style `QgsPalLayerSettings` placement enums); prefer modern flags or omit '
         'optional settings to let QGIS use its defaults. Use `layer.startEditing()` / `layer.commitChanges()` around '
         'attribute edits, and cast external data values to the correct type before assigning them to feature attributes.\n'
@@ -100,9 +103,13 @@ _ALL_RULES = {
     6: (
         '6. Use `execute_pyqgis_script` for custom spatial scripts, ensuring a `def run():` function is defined. '
         '`execute_pyqgis_script` runs inside a strict offline security sandbox where `urllib`, `requests`, `os`, `sys`, '
-        'and Qt network modules are blocked. NEVER attempt network downloads inside `execute_pyqgis_script`. When a user '
-        'needs spatial features (hospitals, health facilities, schools, roads, amenities) in an empty project or around '
-        'coordinates, call `ingest_osm_features` directly to ingest real vector data into the map canvas.\n'
+        'and Qt network modules are blocked. NEVER attempt network downloads inside `execute_pyqgis_script`. When a project '
+        'has no loaded layers or the user specifies a country/region (e.g. Yemen / YEM), DO NOT claim that downloads are '
+        'restricted or ask the user to manually load data! Instead, immediately call the automated data ingestion tools: '
+        'call `fetch_hdx_admin_boundaries(country_iso3, admin_level)` or `fetch_geoboundaries` for administrative boundaries; '
+        'call `ingest_osm_features(key="amenity", value="hospital|clinic|doctors", bbox=...)` for health facilities; '
+        'call `fetch_worldpop_population(country_iso3, year)` for population grids; and call `search_hdx_datasets` for official '
+        'humanitarian packages. Execute these ingestion tools directly to bring the required layers onto the map canvas.\n'
     ),
     7: (
         "7. Use `search_web` for real-time external information and `geocode_and_enrich` for a SINGLE location's "

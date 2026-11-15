@@ -319,3 +319,78 @@ def find_region(index, lon, lat):
             best = (area, {"id": props.get("id"), "name": props.get("name"), "shp_url": url,
                            "iso2": (props.get("iso3166-1:alpha2") or [None])[0]})
     return best[1] if best else None
+
+
+def find_region_by_name(index, name_or_code):
+    """Find a Geofabrik region by country name or ISO-2 code from the index.
+    Returns {"id", "name", "shp_url", "iso2"} or None."""
+    if not name_or_code:
+        return None
+    target = str(name_or_code).strip().lower()
+    best = None
+    for f in (index or {}).get("features", []):
+        props = f.get("properties") or {}
+        url = (props.get("urls") or {}).get("shp")
+        if not url:
+            continue
+        p_id = (props.get("id") or "").lower()
+        p_name = (props.get("name") or "").lower()
+        p_iso2 = [x.lower() for x in (props.get("iso3166-1:alpha2") or [])]
+        
+        # Exact match on id, name, or iso2
+        if target == p_id or target == p_name or target in p_iso2:
+            geom = f.get("geometry")
+            area = _bbox_area(geom) if geom else float("inf")
+            if best is None or area < best[0]:
+                best = (area, {"id": props.get("id"), "name": props.get("name"), "shp_url": url,
+                               "iso2": (props.get("iso3166-1:alpha2") or [None])[0]})
+    return best[1] if best else None
+
+
+_NAMED_COUNTRY_PAT = re.compile(
+    r"\b(?:in|for|across|of)\s+([a-zA-Z\w\-']+)", re.I
+)
+
+
+_STOP_LOCATION_WORDS = frozenset({
+    "the", "a", "an", "this", "that", "these", "those", "admin", "qgis", "current",
+    "reporting", "analysis", "mapping", "planning", "monitoring", "export", "delivery",
+    "each", "every", "all", "some", "any", "which", "what", "where", "our", "my", "your",
+})
+
+
+def extract_named_location(text):
+    """Extracts a country/area name after 'in/for/across/of' from text, or None."""
+    if not text:
+        return None
+    # Check for direct 3-letter or 2-letter country code first (e.g. YEM, YE)
+    for token in re.findall(r"\b[A-Za-z]{2,3}\b", text):
+        if token.upper() in {"YEM", "YE", "JOR", "JO", "SYR", "SY", "UKR", "UA", "SOM", "SO", "SDN", "SD"}:
+            iso_map = {"YEM": "yemen", "YE": "yemen", "JOR": "jordan", "JO": "jordan",
+                       "SYR": "syria", "SY": "syria", "UKR": "ukraine", "UA": "ukraine",
+                       "SOM": "somalia", "SO": "somalia", "SDN": "sudan", "SD": "sudan"}
+            return iso_map.get(token.upper(), token.lower())
+    matches = _NAMED_COUNTRY_PAT.findall(text)
+    # Check matches in reverse order so trailing "in yemen" takes precedence over leading "for reporting"
+    for candidate_raw in reversed(matches):
+        candidate = candidate_raw.lower().rstrip(".,;!?")
+        if candidate and candidate not in _STOP_LOCATION_WORDS and len(candidate) > 2:
+            return candidate
+    return None
+
+
+def extract_country_from_layers(layers):
+    """Inspects layer names in the open project for ISO3 country codes or country names."""
+    iso_map = {"YEM": "yemen", "JOR": "jordan", "SYR": "syria", "UKR": "ukraine",
+               "SOM": "somalia", "SDN": "sudan", "AFG": "afghanistan", "IRQ": "iraq",
+               "LBN": "lebanon", "PSE": "palestine", "ETH": "ethiopia", "SSD": "south-sudan"}
+    for lyr in layers or []:
+        name = lyr.get("name") if isinstance(lyr, dict) else str(lyr)
+        m = re.search(r"\b([A-Za-z]{3})_", name or "")
+        if m and m.group(1).upper() in iso_map:
+            return iso_map[m.group(1).upper()]
+        for iso, country in iso_map.items():
+            if re.search(r"\b" + country + r"\b", name or "", re.I):
+                return country
+    return None
+

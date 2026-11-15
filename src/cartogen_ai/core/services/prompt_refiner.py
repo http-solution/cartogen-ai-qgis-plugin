@@ -323,9 +323,10 @@ def analyze_request(query, context=None, attachments=None):
             slot_ctx.update({k: v for k, v in context.items()
                              if k in reg_module.SLOT_QUESTIONS and v})
         layer_names = ([entry_.get("name") for entry_ in context.get("layers") or [] if isinstance(entry_, dict)]
-                       if isinstance(context, dict) and "layers" in context else None)
+                       if (isinstance(context, dict) and "layers" in context)
+                       else ([] if isinstance(context, dict) else None))
         missing = tmatch.missing_slots(entry, query, slot_ctx, layer_names)
-        filled = tmatch.defaults(missing)
+        filled = tmatch.defaults(missing, layer_names=layer_names)
         plan = tmatch.attachment_plan(entry, attachments)
         directive = tmatch.task_directive(entry, filled, query)
         user_message = tmatch.compose_user_message(query, filled, plan)
@@ -334,10 +335,10 @@ def analyze_request(query, context=None, attachments=None):
             "score":      verdict["score"],
             "ambiguous":  verdict["ambiguous"],
             "missing":    missing,
-            "unresolved": tmatch.unresolvable(missing),
-            "blocking":   bool(tmatch.unresolvable(missing)),
+            "unresolved": tmatch.unresolvable(missing, layer_names),
+            "blocking":   bool(tmatch.unresolvable(missing, layer_names)),
             "defaults":   filled,
-            "question":   tmatch.clarify_question(entry, missing),
+            "question":   tmatch.clarify_question(entry, missing, layer_names=layer_names),
             "directive":  directive,
             "contract":   tmatch.output_contract(entry, query),
             "attachments":     plan,

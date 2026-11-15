@@ -141,7 +141,10 @@ def main():
             except Exception as e:
                 response = {"error": f"Isolation worker crashed running the job: {e}", "traceback": traceback.format_exc()}
 
-            sys.stdout.write(json.dumps(response) + "\n")
+            try:
+                sys.stdout.write(json.dumps(response, default=str) + "\n")
+            except Exception as e:
+                sys.stdout.write(json.dumps({"error": f"Failed to serialize response: {e}"}, default=str) + "\n")
             sys.stdout.flush()
     finally:
         qgs.exitQgis()
