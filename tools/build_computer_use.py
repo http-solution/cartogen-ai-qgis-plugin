@@ -18,40 +18,54 @@ sys.path.insert(0, str(HERE))
 import build_full_smoke as full  # noqa: E402
 import smoke_cards  # noqa: E402
 
-TOOLS = ("smoke_cards.py", "smoke_dock.py", "smoke_dock_start.py", "smoke_core.py", "run_smoke_headless.py", "analyze_smoke_run.py", "collect_evidence.py",
+SIX_TOOLS = ("mcp_probe.py", "check_workflow_file.py", "summarize_usage_log.py", "verify_inputs.py")         # the rows say `python 6_tools/...`; PY.bat runs them with QGIS's own Python
+TOOLS = ("record_result.py", "supervisor.ps1", "smoke_cards.py", "smoke_dock.py", "smoke_dock_start.py", "smoke_core.py", "run_smoke_headless.py", "analyze_smoke_run.py", "collect_evidence.py",
          "make_full_smoke_fixtures.py", "verify_inputs.py")
 
-PROMPT = """You are testing the Cartogen AI plugin in QGIS 4.2.3 on a Windows 11 PC. You work only by looking at the screen and using the mouse and keyboard. Follow ONLY this page.
+PROMPT = r"""You are the tester. Your job is to finish the whole Cartogen AI smoke test on this Windows 11 PC, by yourself, from the screen, the mouse and the keyboard. You may open
+File Explorer and Command Prompt, start and restart QGIS, and recover from failures. Do not stop to ask unless the STOP list below applies. Work until every row has a result.
 
-WHAT YOU SEE
-- QGIS is open, maximised. On the right is a dock called "Smoke test". It shows ONE row (a card): START FROM, DO, EXPECT, PASS ONLY IF. Use nothing else to find out what to do.
-- The Cartogen AI chat is the other dock. Chat prompts go in it exactly as written on the card, one at a time. Wait for each reply to finish before sending the next.
+WHERE THINGS ARE
+- The package folder is the one this file is in (the dock shows its full path under every card). It holds RUN_EVERYTHING.bat, START_QGIS.bat, PY.bat, RECORD.bat, ANALYZE.bat, results\ .
+- QGIS 4.2.3 normally runs with a dock called "Smoke test" on the right. It shows ONE row (a card) and always moves to the first row that has no result yet.
 
-THE LOOP (repeat for each row)
-1. Click "Start this row".
-2. Do exactly the steps under DO, in QGIS. Nothing more.
-3. Write ONE line in the dock's note box: what you actually saw (a number, a layer name, an error text).
-4. Click Pass, Partial, Fail or Skip. Pass only if every PASS ONLY IF condition is true on the screen. Not sure = Partial. A step you could not do = Fail or Skip, and say which step.
-5. Wait about 5 seconds. The dock saves the evidence and moves to the next row. Read the status line at the bottom of the dock: it must say the row and its status. Then go on.
+START
+1. If QGIS with the "Smoke test" dock is not open: open File Explorer, go to the package folder and double-click RUN_EVERYTHING.bat. It runs the program-checked rows, opens QGIS, and
+   reopens it after a crash. Leave its black window open. (START_QGIS.bat alone opens just QGIS.)
+2. Wait for the dock. Then start the loop.
 
-WINDOWS 11 RULES
-- Never restart QGIS yourself, never close it, never start a second copy. If the QGIS window is not in front, click its button on the taskbar once.
-- QGIS can look frozen ("Not Responding", a grey window) for up to 6 minutes while a tool runs. That is normal. Wait. Take a screenshot every minute. Do not click anything meanwhile. After 8 minutes with no change, click Fail with the note "no reply" and go on.
-- If QGIS disappears or a crash window (qgiscrashhandler) appears: click "Close" or "Don't send" on the crash window, then STOP and say "QGIS crashed on row <id>". Do not start it again; the person running the test does that. The row is recorded automatically as interrupted.
-- Do not type any command into the QGIS Python console, a terminal or PowerShell. Do not open File Explorer, a browser, Notepad or any other program. Do not paste anything: the clipboard may hold old text. Type prompts yourself, then read the chat box before you press Enter.
-- Do not write, rename or save files by hand. The dock saves everything. If a button in the dock does not seem to work, wait 10 seconds and look at the status line before pressing it again; never press it twice.
-- Never enter, read out or look for an API key or password. If a card needs one and the model is not connected, click Skip with the note "no key".
+THE LOOP (repeat until every row has a result)
+1. Click "Start this row". Do exactly the steps under DO, in QGIS (or in Command Prompt when the card says to run a command: open Command Prompt in the package folder and type the command
+   as written; PY.bat is the Python to use). Chat prompts go in the Cartogen AI chat exactly as written, one at a time. Wait for each reply to finish before the next.
+2. Write ONE line in the dock's note box: what you actually saw (a number, a layer name, an error text).
+3. Click Pass, Partial, Fail or Skip. Pass only if every PASS ONLY IF condition is true on the screen. Not sure = Partial. A step you could not do = Fail, and say which step.
+4. Wait 10 seconds and read the dock's status line: it must name the row and its status. The dock then shows the next row. Never press a result button twice.
 
-HOW MUCH
-- Do at most 6 rows, then stop and reply with: the rows you finished, each with its status and your note. Do not start a 7th row.
+WHEN SOMETHING GOES WRONG (fix it yourself)
+- QGIS looks frozen ("Not Responding"): tools can block it for up to 6 minutes. Wait, screenshot every minute, click nothing. After 8 minutes with no change: click Fail with the note "no reply"; if QGIS still does not answer after 3 more minutes, open Task Manager (Ctrl+Shift+Esc), select QGIS, End task. RUN_EVERYTHING reopens it.
+- QGIS closes or a crash window appears (qgiscrashhandler): click "Close" / "Don't send". The row that was open is recorded as FAIL "interrupted" automatically. If RUN_EVERYTHING's window is still open, QGIS comes back within seconds; otherwise double-click START_QGIS.bat. Then carry on with the next row.
+- The dock is missing or a button keeps crashing QGIS (the same row 3 times): do not write notes by hand. In Command Prompt in the package folder run  RECORD.bat <row id> <PASS|PARTIAL|FAIL|SKIP> "one line"  . It records the result and takes the screenshot. Then go on.
+- The QGIS window is hidden: click its button on the taskbar once.
+- A row cannot be done as written (a file or program the card names is not there): Skip with the exact reason.
+
+LIMITS (these are the only STOP cases)
+- Never enter, read out, search for or change an API key or password. If a card needs the model and it is not connected, Skip with the note "no key".
+- Only touch the package folder, QGIS and its Command Prompt. Do not install software, change Windows settings, delete files, or open other programs or websites.
+- The QGIS Python console is used for exactly one thing: the single line on card A1. Never type a command there that a card does not give you.
+- Do not paste anything (the clipboard may hold old text): type each prompt yourself, and read the chat box before you press Enter.
 - Never claim a result you did not see. A wrong Pass is worse than a Skip.
+
+WHEN THE DOCK SAYS EVERY ROW HAS A RESULT
+Run ANALYZE.bat (or wait for RUN_EVERYTHING to finish), open results\REPORT.md, and reply with its totals and the rows marked UNSUPPORTED or FAIL, each with your note. Then stop.
+
+IF YOUR SESSION RUNS OUT OF ROOM: nothing is lost. A new session picks up at the first row with no result. Say in your last message which row you were on.
 """
 
 README = """Cartogen AI {v} - computer-use smoke package ({n} rows)
 
 WHO DOES WHAT
   A program (no model) checks the numbers and refusals of {m} rows:           RUN_HEADLESS.bat      -> results\\RESULTS.csv + evidence\\H*
-  Haiku 5 with computer use does the {k} rows that need a screen:           START_QGIS.bat + HAIKU_PROMPT.md
+  Haiku 5 (Claude desktop app, computer use) does the {k} rows that need a screen, and starts, restarts and recovers QGIS itself:   RUN_EVERYTHING.bat + HAIKU_PROMPT.md
   {h} rows are 'human rows' (a second program or a fluent reader is needed); the dock marks them Skip.
   A program then reads everything:                                        ANALYZE.bat           -> results\\REPORT.md
 
@@ -60,13 +74,15 @@ BEFORE THE RUN (once, by you, because it needs secrets and choices an agent shou
   2. Open START_QGIS.bat once. In the Cartogen Connections window enter the key of the model the rows should use (for example Gemini or Claude) and press Test until it says OK. An agent is never given the key.
   3. Rows with 'needs: a real model' are only as good as that choice: write the model name in results\\ENVIRONMENT_NOTE.txt.
   4. Windows 11: Settings > System > Display: scale 100 percent, one monitor; Settings > System > Power: screen and sleep "Never" while the test runs.
-  5. Claude desktop app with Haiku and computer use: allow it to use the screen; give it HAIKU_PROMPT.md as the first message. Do not let it open other programs.
-  6. If QGIS crashes, press Close on the crash window and run START_QGIS.bat again. The open row is recorded as FAIL 'interrupted' automatically.
+  5. Claude desktop app with Haiku and computer use: allow it to use the screen, File Explorer and Command Prompt. It must not need your API key: you connected the model in step 2.
+  6. After a crash the supervisor (RUN_EVERYTHING) reopens QGIS by itself, up to 8 times; the open row is recorded as FAIL 'interrupted' automatically.
 
 THE RUN
   1. RUN_HEADLESS.bat dry   (one row, under a minute)   then   RUN_HEADLESS.bat   (all {m} rows). Open results\\SUMMARY.md.
-  2. START_QGIS.bat. Give Haiku HAIKU_PROMPT.md. Rows are done in order; the dock saves the evidence for each click. Work in batches of 8 rows if the agent tires.
-  3. ANALYZE.bat. Open results\\REPORT.md. Send back the whole results folder.
+  2. Open the Claude desktop app, choose Haiku, switch computer use on, and send HAIKU_PROMPT.md as the first message. Haiku opens RUN_EVERYTHING.bat itself (or you double-click it first).
+     RUN_EVERYTHING runs the program-checked rows, opens QGIS with the dock, and reopens QGIS after a crash. Rows are done in order; the dock saves the evidence for each click.
+  3. Haiku runs ANALYZE.bat at the end. Open results\\REPORT.md. Send back the whole results folder.
+  If a Haiku session ends early, start a new one with the same message: it carries on at the first row with no result.
 
 HOW A RESULT IS TRUSTED
   An agent's PASS counts only when the program-made evidence exists (window screenshot, layer table, and for model rows the plugin's own tool-call record). Otherwise the report says UNSUPPORTED.
@@ -104,6 +120,34 @@ set ROWS=
 if /i "%1"=="dry" set ROWS=--rows H1-rates-crude
 call "%QGIS%\\bin\\python-qgis.bat" "%PKG%tools\\run_smoke_headless.py" --out "%PKG%results" --plugin-src "%PKG%plugin" --rows-file "%PKG%docs\\AGENT_RUN_ROWS.json" %ROWS%
 echo Exit code %errorlevel%. Now open results\\SUMMARY.md.
+"""
+
+PYBAT = """@echo off
+rem Runs QGIS's own Python with the given arguments:  PY.bat 6_tools\\mcp_probe.py ...
+set QGIS=C:\\Program Files\\QGIS 4.2.3
+if not exist "%QGIS%\\bin\\python-qgis.bat" for /d %%D in ("C:\\Program Files\\QGIS*") do if exist "%%D\\bin\\python-qgis.bat" set QGIS=%%D
+if not exist "%QGIS%\\bin\\python-qgis.bat" (echo Cannot find python-qgis.bat. Edit the QGIS line of this file. & exit /b 2)
+call "%QGIS%\\bin\\python-qgis.bat" %*
+"""
+
+RECORD = """@echo off
+rem RECORD.bat <row id> <PASS|PARTIAL|FAIL|SKIP> "one line"   : records a result when the dock cannot be used
+call "%~dp0PY.bat" "%~dp0tools\\record_result.py" %*
+"""
+
+EVERYTHING = """@echo off
+rem Runs the whole test: the program-checked rows, then QGIS with the card dock, reopened after a crash, then the report. Keep this window open.
+setlocal
+set PKG=%~dp0
+set PKG=%PKG:~0,-1%
+set PLUGINS=%APPDATA%\\QGIS\\QGIS4\\profiles\\default\\python\\plugins
+if not exist "%PLUGINS%\\cartogen_ai_plugin" (
+  mkdir "%PLUGINS%" 2>nul
+  powershell -NoProfile -Command "Expand-Archive -Force -Path (Get-ChildItem '%PKG%\\1_plugin\\cartogen_ai_v*.zip' | Select-Object -First 1).FullName -DestinationPath '%PLUGINS%'"
+)
+powershell -NoProfile -ExecutionPolicy Bypass -File "%PKG%\\tools\\supervisor.ps1" -Pkg "%PKG%"
+echo.
+echo Finished. Open results\\REPORT.md.
 """
 
 ANALYZE = """@echo off
@@ -147,10 +191,13 @@ def build(plugin_zip, out_dir):
             z.writestr(f"{top}/HAIKU_PROMPT.md", PROMPT + "\n")
             z.writestr(f"{top}/cards.json", json.dumps(cards, indent=1, ensure_ascii=False))
             z.writestr(f"{top}/CARDS.md", "\n\n---\n\n".join(smoke_cards.card_text(c) for c in cards) + "\n")
-            for name, text in (("START_QGIS.bat", START), ("RUN_HEADLESS.bat", HEADLESS), ("ANALYZE.bat", ANALYZE)):
+            for name, text in (("START_QGIS.bat", START), ("RUN_HEADLESS.bat", HEADLESS), ("ANALYZE.bat", ANALYZE), ("PY.bat", PYBAT), ("RECORD.bat", RECORD), ("RUN_EVERYTHING.bat", EVERYTHING)):
                 z.writestr(f"{top}/{name}", text.replace("\n", "\r\n"))
             for t in TOOLS:
                 z.write(HERE / t, f"{top}/tools/{t}")
+            for t in SIX_TOOLS:
+                z.write(HERE / t, f"{top}/6_tools/{t}")
+            z.write(HERE / "layout_check_script.py", f"{top}/2_layout_check/layout_check_script.py")
             z.write(REPO / "docs" / "AGENT_RUN_ROWS.json", f"{top}/docs/AGENT_RUN_ROWS.json")
             for p in sorted((REPO / "src" / "cartogen_ai").rglob("*")):
                 if p.is_file() and "__pycache__" not in p.parts and p.suffix != ".pyc":

@@ -55,14 +55,44 @@ class TestWindowsPieces(unittest.TestCase):
         self.assertIn("it''s.png", argv[-1])                                                # a quote in the path is escaped, not executed
         self.assertIsNone(sc.screen_capture_command("x.png", platform="linux"))
 
+    def test_script_rows_are_now_the_agents_and_their_commands_run_through_py_bat(self):
+        by_id = {c["id"]: c for c in _cards()}
+        for rid in ("A1-layout-script", "W6-mcp-probe", "W7-mcp-dialog", "W8-export", "W9-import-good", "W10-import-bad"):
+            self.assertTrue(by_id[rid]["can_run"], rid)
+        self.assertIn("PY.bat 6_tools/mcp_probe.py", by_id["W6-mcp-probe"]["do"])
+        self.assertNotRegex(by_id["W6-mcp-probe"]["do"], r"\bpython 6_tools")
+        self.assertIn("layout_check_script.py", by_id["A1-layout-script"]["do"])
+        self.assertIn("<PACKAGE>", by_id["A1-layout-script"]["do"])
+
     def test_human_rows_and_slow_rows(self):
         by_id = {c["id"]: c for c in _cards()}
-        for rid in ("A1-layout-script", "V1-update", "F3-check-evidence", "W6-mcp-probe", "W7-mcp-dialog", "W8-export", "W9-import-good", "W10-import-bad"):
+        for rid in ("V1-update", "F3-check-evidence", "A3-cli-bridge"):
             self.assertFalse(by_id[rid]["can_run"], rid)
         slow = [c["id"] for c in by_id.values() if c["slow"] and c["can_run"]]
         self.assertIn("B4-long-request", slow)
         self.assertIn("SLOW ROW", sc.card_text(by_id["B4-long-request"]))
         self.assertNotIn("SLOW ROW", sc.card_text(by_id["A2-settings-connections"]))
+
+
+class TestRecordResult(unittest.TestCase):
+    def test_a_result_can_be_recorded_from_the_command_line_and_a_bad_row_is_refused(self):
+        import subprocess
+        import shutil
+        with tempfile.TemporaryDirectory() as tmp:
+            pkg = Path(tmp) / "pkg"
+            (pkg / "tools").mkdir(parents=True)
+            for f in ("record_result.py", "smoke_cards.py"):
+                shutil.copy(ROOT / "tools" / f, pkg / "tools" / f)
+            (pkg / "cards.json").write_text(json.dumps([{"id": "X1"}]))
+            def run(*a):
+                return subprocess.run([sys.executable, "-I", str(pkg / "tools" / "record_result.py"), *a], capture_output=True, text=True, check=False)
+            self.assertEqual(run("X9", "PASS", "n").returncode, 2)
+            self.assertEqual(run("X1", "MAYBE", "n").returncode, 2)
+            ok = run("X1", "fail", "it crashed")
+            self.assertEqual(ok.returncode, 0, ok.stderr)
+            r = sc.load_results(str(pkg / "results"))["X1"]
+            self.assertEqual((r["status"], r["note"]), ("FAIL", "it crashed"))
+            self.assertIn("without the dock", r["evidence_error"])
 
 
 class TestSession(unittest.TestCase):
@@ -197,15 +227,26 @@ class TestTheBuiltPackage(unittest.TestCase):
         self.assertTrue(any(n.startswith("plugin/cartogen_ai/core/") for n in names))
         self.assertTrue(any(n.startswith("3_test_files/smoke_districts_cases") for n in names))
 
-    def test_cards_json_matches_the_rows_and_the_prompt_forbids_console_commands(self):
+    def test_cards_json_matches_the_rows_and_the_prompt_gives_full_authority_with_limits(self):
         cards = json.loads(self.zip.read(f"{self.top}/cards.json"))
         self.assertEqual(len(cards), self.n)
         self.assertGreater(self.k, 50)
         prompt = self.zip.read(f"{self.top}/HAIKU_PROMPT.md").decode()
-        self.assertIn("Do not type any command into the QGIS Python console", prompt)
+        self.assertIn("exactly one thing: the single line on card A1", prompt)
         self.assertIn("Never claim a result you did not see", prompt)
-        for need in ("Windows 11", "Never restart QGIS yourself", "up to 6 minutes", "qgiscrashhandler", "at most 6 rows", "Do not paste anything"):
+        for need in ("Windows 11", "RUN_EVERYTHING.bat", "RECORD.bat", "up to 6 minutes", "qgiscrashhandler", "Task Manager", "Do not paste anything", "first row with no result", "Never enter, read out"):
             self.assertIn(need, prompt)
+        self.assertNotIn("at most 6 rows", prompt)
+        self.assertNotIn("Never restart QGIS yourself", prompt)
+
+    def test_the_launch_and_recovery_scripts_are_shipped_and_do_what_the_prompt_says(self):
+        names = self.names()
+        for need in ("RUN_EVERYTHING.bat", "PY.bat", "RECORD.bat", "tools/supervisor.ps1", "tools/record_result.py", "6_tools/mcp_probe.py", "6_tools/check_workflow_file.py", "2_layout_check/layout_check_script.py"):
+            self.assertIn(need, names)
+        sup = self.zip.read(f"{self.top}/tools/supervisor.ps1").decode()
+        for need in ("qgiscrashhandler", "$i -le 8", "run_smoke_headless.py", "analyze_smoke_run.py", "CARTOGEN_SMOKE_DIR", "RESULTS_GUI.csv"):
+            self.assertIn(need, sup)
+        self.assertIn("supervisor.ps1", self.zip.read(f"{self.top}/RUN_EVERYTHING.bat").decode())
 
     def test_every_file_a_card_needs_is_shipped(self):
         names = {Path(n).name for n in self.names() if n.startswith("3_test_files/")}

@@ -14,23 +14,34 @@ STATUSES = ("PASS", "PARTIAL", "FAIL", "SKIP")
 CONSOLE = re.compile(r"snap\(|shot\(|begin\(|collect_evidence|Python console|exec\(open|EVIDENCE_HOWTO|\bsnap\b", re.I)
 HUMAN_ONLY = re.compile(r"fluent|GeoDa|MCP client|Antigravity|Claude Code, Codex|second tool", re.I)
 HUMAN_IDS = {
-    "A1-layout-script": "it runs a script and then reads the exported pages, which a computer-use agent cannot open reliably",
     "V1-update": "it needs an older plugin version to update from, which this package does not contain",
-    "F3-check-evidence": "it runs a Python script in a terminal",
-    "W6-mcp-probe": "it runs a Python script in a terminal against the MCP server",
-    "W7-mcp-dialog": "it runs a Python script in a terminal against the MCP server",
-    "W8-export": "it checks the saved workflow file with a Python script in a terminal",
-    "W9-import-good": "it checks a workflow file with a Python script in a terminal",
-    "W10-import-bad": "it checks a workflow file with a Python script in a terminal",
+    "F3-check-evidence": "it checks the results file of the hand package, not this package (ANALYZE.bat makes this package's report)",
 }
 SLOW = re.compile(r"overpass|osm|download|geofabrik|worldpop|stac|sentinel|isochrone|service area|large|mirror", re.I)
 RESULT_FIELDS = ["row", "status", "note", "started", "finished", "seconds", "evidence_error"]
 
 
+_PY = re.compile(r"\bpython3? (?=(?:6_tools|2_layout_check|tools)[\\/])")
+
+
+def fill_paths(text):
+    """The terminal commands in the rows say `python 6_tools/x.py`: in this package they run through PY.bat (QGIS's own Python, always present), and <bundle> is the package folder. Pure."""
+    return _PY.sub("PY.bat ", str(text or "")).replace("<bundle>", "<PACKAGE>")
+
+
 def clean(text):
     """Drops every sentence that tells the reader to type a console command or run snap(): the dock does that. Pure."""
     parts = re.split(r"(?<=[.;])\s+(?=[A-Z(0-9'\"])", str(text or ""))
-    return " ".join(p for p in parts if not CONSOLE.search(p)).strip()
+    return fill_paths(" ".join(p for p in parts if not CONSOLE.search(p)).strip())
+
+
+DO_OVERRIDES = {
+    "A1-layout-script": ("In QGIS: Plugins > Python Console. Type this ONE line (it is the only console command you type in this whole test) and press Enter: "
+                         "exec(open(r\"<PACKAGE>\\2_layout_check\\layout_check_script.py\", encoding=\"utf-8\").read())   "
+                         "It runs by itself; wait for the table (if nothing prints after 2 minutes, type run() once and say so in the note). Then open the folder named on its last line in File Explorer and "
+                         "look at EVERY exported .pdf and .png (about a dozen pages): footer complete and inside the page, legend entries not cut, logo left of the title, sign-off readable, "
+                         "disclaimer not overlapping."),
+}
 
 
 def make_cards(rows, machine_rows=None):
@@ -45,7 +56,7 @@ def make_cards(rows, machine_rows=None):
             "model_needed": bool(re.search(r"model|key", needs, re.I)), "internet_needed": bool(re.search(r"internet|network", needs, re.I)),
             "can_run": not human, "why_not": HUMAN_IDS.get(row["id"], "needs a second program or a fluent reader a computer-use agent does not have") if human else "",
             "slow": bool(SLOW.search(" ".join([needs, str(row.get("do", ""))]))),
-            "starts_from": clean(row.get("starts_from", "")), "do": clean(row.get("do", "")), "expect": clean(row.get("expect", "")),
+            "starts_from": clean(row.get("starts_from", "")), "do": DO_OVERRIDES.get(row["id"]) or clean(row.get("do", "")), "expect": clean(row.get("expect", "")),
             "pass_if": clean(row.get("pass_if", "")), "also_capture": clean(row.get("evidence", "")), "files": list(row.get("files", [])),
             "machine_checked_by": machine_rows.get(row["id"], []),
         })
