@@ -16,7 +16,8 @@ from qgis.PyQt.QtWidgets import QComboBox, QDockWidget, QHBoxLayout, QLabel, QLi
 
 EXPECTED_QGIS = "4.2.3"
 RULES = ("One row at a time. Read the card. Do the steps in QGIS exactly as written. Do NOT type a console command, do NOT paste anything, do NOT write files. "
-         "When done, write one line in the note box saying what you saw, then click Pass, Partial, Fail or Skip. If a step cannot be done, click Skip (or Fail) with the reason.")
+         "When done, write one line in the note box saying what you saw, then click Pass, Partial, Fail or Skip. If a step cannot be done, click Skip (or Fail) with the reason. "
+         "QGIS may look frozen for minutes while a tool runs: wait, do not click, do not restart it.")
 
 
 class SmokeDock(QDockWidget):
@@ -96,6 +97,20 @@ class SmokeDock(QDockWidget):
             self.status.setText(f"screenshot failed: {type(e).__name__}: {e}")
 
 
+def _capture(path):
+    """Starts the out-of-process screen capture and returns at once (never waits, never raises): a screenshot must not be able to take QGIS down with it."""
+    import subprocess
+    argv = cards_mod.screen_capture_command(path)
+    if argv is None:
+        return False
+    flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+    try:
+        subprocess.Popen(argv, creationflags=flags, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, stdin=subprocess.DEVNULL)  # noqa: S603
+    except OSError:
+        return False
+    return True
+
+
 def show(package_dir):
     """Wires the real evidence collector and docks the card window into the running QGIS. Returns the dock."""
     from qgis.core import Qgis, QgsSettings
@@ -113,7 +128,15 @@ def show(package_dir):
     version = Qgis.version()
     with open(os.path.join(results, "ENVIRONMENT.json"), "w", encoding="utf-8") as fh:
         json.dump({"qgis": version, "expected": EXPECTED_QGIS, "plugin": ce._plugin_version(), "python": sys.version}, fh, indent=1, default=str)
-    session = cards_mod.Session(results, cards, ce.snap)
-    dock = SmokeDock(session, cards, extra_shot=ce.shot, qgis_version=version, parent=iface.mainWindow())
+    interrupted = cards_mod.recover_interrupted(results)
+
+    def snapshot(row, note):
+        _capture(os.path.join(results, "screens", f"{row}.png"))       # first and from outside QGIS: it is the picture of what the agent just saw
+        ce.snap(row, note, screenshots=False)                          # the rest reads only data (layers, properties, project, log, the plugin's own evidence)
+
+    session = cards_mod.Session(results, cards, snapshot)
+    dock = SmokeDock(session, cards, extra_shot=lambda name: _capture(os.path.join(results, "screens", f"{name}.png")) or ce.shot(name), qgis_version=version, parent=iface.mainWindow())
+    if interrupted:
+        dock.status.setText(f"Row {interrupted} was open when QGIS last closed; it was recorded as FAIL 'interrupted'. Carry on with the next row.")
     iface.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, dock)
     return dock

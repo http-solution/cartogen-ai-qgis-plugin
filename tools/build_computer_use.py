@@ -21,16 +21,31 @@ import smoke_cards  # noqa: E402
 TOOLS = ("smoke_cards.py", "smoke_dock.py", "smoke_dock_start.py", "smoke_core.py", "run_smoke_headless.py", "analyze_smoke_run.py", "collect_evidence.py",
          "make_full_smoke_fixtures.py", "verify_inputs.py")
 
-PROMPT = """You are testing the Cartogen AI plugin in QGIS 4.2.3 by looking at the screen. Follow ONLY this.
+PROMPT = """You are testing the Cartogen AI plugin in QGIS 4.2.3 on a Windows 11 PC. You work only by looking at the screen and using the mouse and keyboard. Follow ONLY this page.
 
-1. QGIS is open with a dock on the right called "Smoke test". It shows ONE row (a card). Do not use anything else to find out what to do.
-2. Click "Start this row". Do exactly the steps under DO, in QGIS, nothing more. Chat prompts go in the Cartogen chat exactly as written on the card.
-3. Do not type any command into the QGIS Python console. Do not paste, save or rename files unless the card says so. The dock saves the evidence for you.
-4. When the steps are done, type ONE line in the dock's note box saying what you actually saw (a number, a layer name, an error). Then click Pass, Partial, Fail or Skip.
-   - Pass only if every PASS ONLY IF condition is true on the screen. Not sure = Partial. Could not do a step = Fail or Skip, and say which step.
-5. The dock moves to the next row. Repeat from step 2. Stop when the last row is done, or after 8 rows if you were told to work in batches.
-6. If a reply from the plugin looks stuck for more than 3 minutes, click Fail with the note 'no reply' and go on.
-Never claim a result you did not see. A wrong Pass is worse than a Skip."""
+WHAT YOU SEE
+- QGIS is open, maximised. On the right is a dock called "Smoke test". It shows ONE row (a card): START FROM, DO, EXPECT, PASS ONLY IF. Use nothing else to find out what to do.
+- The Cartogen AI chat is the other dock. Chat prompts go in it exactly as written on the card, one at a time. Wait for each reply to finish before sending the next.
+
+THE LOOP (repeat for each row)
+1. Click "Start this row".
+2. Do exactly the steps under DO, in QGIS. Nothing more.
+3. Write ONE line in the dock's note box: what you actually saw (a number, a layer name, an error text).
+4. Click Pass, Partial, Fail or Skip. Pass only if every PASS ONLY IF condition is true on the screen. Not sure = Partial. A step you could not do = Fail or Skip, and say which step.
+5. Wait about 5 seconds. The dock saves the evidence and moves to the next row. Read the status line at the bottom of the dock: it must say the row and its status. Then go on.
+
+WINDOWS 11 RULES
+- Never restart QGIS yourself, never close it, never start a second copy. If the QGIS window is not in front, click its button on the taskbar once.
+- QGIS can look frozen ("Not Responding", a grey window) for up to 6 minutes while a tool runs. That is normal. Wait. Take a screenshot every minute. Do not click anything meanwhile. After 8 minutes with no change, click Fail with the note "no reply" and go on.
+- If QGIS disappears or a crash window (qgiscrashhandler) appears: click "Close" or "Don't send" on the crash window, then STOP and say "QGIS crashed on row <id>". Do not start it again; the person running the test does that. The row is recorded automatically as interrupted.
+- Do not type any command into the QGIS Python console, a terminal or PowerShell. Do not open File Explorer, a browser, Notepad or any other program. Do not paste anything: the clipboard may hold old text. Type prompts yourself, then read the chat box before you press Enter.
+- Do not write, rename or save files by hand. The dock saves everything. If a button in the dock does not seem to work, wait 10 seconds and look at the status line before pressing it again; never press it twice.
+- Never enter, read out or look for an API key or password. If a card needs one and the model is not connected, click Skip with the note "no key".
+
+HOW MUCH
+- Do at most 6 rows, then stop and reply with: the rows you finished, each with its status and your note. Do not start a 7th row.
+- Never claim a result you did not see. A wrong Pass is worse than a Skip.
+"""
 
 README = """Cartogen AI {v} - computer-use smoke package ({n} rows)
 
@@ -44,7 +59,9 @@ BEFORE THE RUN (once, by you, because it needs secrets and choices an agent shou
   1. QGIS 4.2.3 installed (the dock shows a red warning if the version differs).
   2. Open START_QGIS.bat once. In the Cartogen Connections window enter the key of the model the rows should use (for example Gemini or Claude) and press Test until it says OK. An agent is never given the key.
   3. Rows with 'needs: a real model' are only as good as that choice: write the model name in results\\ENVIRONMENT_NOTE.txt.
-  4. Keep the machine awake, one monitor, 100 percent display scaling, QGIS window maximised.
+  4. Windows 11: Settings > System > Display: scale 100 percent, one monitor; Settings > System > Power: screen and sleep "Never" while the test runs.
+  5. Claude desktop app with Haiku and computer use: allow it to use the screen; give it HAIKU_PROMPT.md as the first message. Do not let it open other programs.
+  6. If QGIS crashes, press Close on the crash window and run START_QGIS.bat again. The open row is recorded as FAIL 'interrupted' automatically.
 
 THE RUN
   1. RUN_HEADLESS.bat dry   (one row, under a minute)   then   RUN_HEADLESS.bat   (all {m} rows). Open results\\SUMMARY.md.
@@ -55,8 +72,9 @@ HOW A RESULT IS TRUSTED
   An agent's PASS counts only when the program-made evidence exists (window screenshot, layer table, and for model rows the plugin's own tool-call record). Otherwise the report says UNSUPPORTED.
 
 STATUS (said plainly)
-  The card and result logic, the analysis and the headless rows are tested offline and in the QGIS CI job. The dock, START_QGIS.bat and the plugin auto-start have NOT been run on a real desktop
-  QGIS 4.2.3 yet; nothing here has been run with Haiku 5. The first run is the dry run: RUN_HEADLESS.bat dry, then the first card.
+  The headless rows ran on a real Windows QGIS 4.2.3 (all 15 PASS). The dock and the plugin auto-start ran in a first Haiku session on Windows 11: it worked for several rows, but QGIS crashed when
+  a result button was pressed. This version records the result BEFORE taking evidence, takes the screenshot from outside QGIS (PowerShell) and no longer saves the canvas from inside QGIS;
+  whether that removes the crash is NOT yet confirmed. Rows A1 and V1 are human rows. Try one row yourself with the Pass button before handing the set to Haiku.
 """
 
 START = """@echo off
@@ -74,7 +92,7 @@ if not exist "%PLUGINS%\\cartogen_ai_plugin" (
   powershell -NoProfile -Command "Expand-Archive -Force -Path (Get-ChildItem '%PKG%\\1_plugin\\cartogen_ai_v*.zip' | Select-Object -First 1).FullName -DestinationPath '%PLUGINS%'"
 )
 copy /y "%PKG%\\3_test_files\\smoke_start.qgz" "%PKG%\\results\\smoke_start_work.qgz" >nul 2>nul
-start "" "%QGIS%\\bin\\qgis-bin.exe" --code "%PKG%\\tools\\smoke_dock_start.py" "%PKG%\\3_test_files\\smoke_start.qgz"
+start "" /max "%QGIS%\\bin\\qgis-bin.exe" --code "%PKG%\\tools\\smoke_dock_start.py" "%PKG%\\3_test_files\\smoke_start.qgz"
 """
 
 HEADLESS = """@echo off

@@ -47,6 +47,24 @@ class TestCards(unittest.TestCase):
         self.assertIn("H7-cluster-scan", sc.card_text(by_id["C23-cluster-scan"]))
 
 
+class TestWindowsPieces(unittest.TestCase):
+    def test_the_screen_capture_runs_outside_qgis_and_only_on_windows(self):
+        argv = sc.screen_capture_command(r"C:\Pkg\results\screens\it's.png", platform="win32")
+        self.assertEqual(argv[0], "powershell")
+        self.assertIn("CopyFromScreen", argv[-1])
+        self.assertIn("it''s.png", argv[-1])                                                # a quote in the path is escaped, not executed
+        self.assertIsNone(sc.screen_capture_command("x.png", platform="linux"))
+
+    def test_human_rows_and_slow_rows(self):
+        by_id = {c["id"]: c for c in _cards()}
+        for rid in ("A1-layout-script", "V1-update", "F3-check-evidence", "W6-mcp-probe", "W7-mcp-dialog", "W8-export", "W9-import-good", "W10-import-bad"):
+            self.assertFalse(by_id[rid]["can_run"], rid)
+        slow = [c["id"] for c in by_id.values() if c["slow"] and c["can_run"]]
+        self.assertIn("B4-long-request", slow)
+        self.assertIn("SLOW ROW", sc.card_text(by_id["B4-long-request"]))
+        self.assertNotIn("SLOW ROW", sc.card_text(by_id["A2-settings-connections"]))
+
+
 class TestSession(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -67,6 +85,38 @@ class TestSession(unittest.TestCase):
         r = sc.load_results(self.tmp.name)["X1"]
         self.assertEqual((r["status"], r["seconds"], r["evidence_error"]), ("PASS", "42.0", ""))
         self.assertEqual(self.s.current, None)
+
+    def test_the_result_line_exists_before_the_evidence_step_runs_so_a_crash_cannot_lose_it(self):
+        seen = {}
+
+        def snapshot(row, note):
+            seen.update(sc.load_results(self.tmp.name).get(row, {}))
+            seen["marker_cleared"] = not (Path(self.tmp.name) / "CURRENT_ROW.txt").exists()
+        self.s.snapshot = snapshot
+        self.s.start("X1")
+        self.assertTrue((Path(self.tmp.name) / "CURRENT_ROW.txt").exists())
+        self.s.finish("FAIL", "boom")
+        self.assertEqual((seen["status"], seen["evidence_error"], seen["marker_cleared"]), ("FAIL", "pending", True))
+        self.assertEqual(sc.load_results(self.tmp.name)["X1"]["evidence_error"], "")          # rewritten with the outcome once the evidence step returned
+
+    def test_a_crash_inside_the_evidence_step_leaves_a_pending_line(self):
+        def snapshot(row, note):
+            raise SystemExit("simulated crash")                                              # not an Exception: nothing below it runs
+        self.s.snapshot = snapshot
+        self.s.start("X1")
+        with self.assertRaises(SystemExit):
+            self.s.finish("PARTIAL", "n")
+        self.assertEqual(sc.load_results(self.tmp.name)["X1"]["evidence_error"], "pending")
+
+    def test_an_open_row_found_at_the_next_start_is_recorded_as_interrupted(self):
+        self.s.start("X2")
+        self.assertEqual(sc.recover_interrupted(self.tmp.name, clock=lambda: 5.0), "X2")
+        r = sc.load_results(self.tmp.name)["X2"]
+        self.assertEqual((r["status"], r["evidence_error"]), ("FAIL", "interrupted"))
+        self.assertIsNone(sc.recover_interrupted(self.tmp.name))                             # the marker is gone: recovered once
+        self.s.start("X1")
+        self.s.finish("PASS")
+        self.assertIsNone(sc.recover_interrupted(self.tmp.name))                             # a finished row leaves nothing to recover
 
     def test_bad_status_and_unknown_row_are_refused_and_an_evidence_failure_is_recorded(self):
         self.assertFalse(self.s.start("nope")[0])
@@ -99,6 +149,13 @@ class TestAnalysis(unittest.TestCase):
         self.assertEqual(an.judge(_cardfor(), {**claim, "status": "FAIL", "note": "x"}, self.ev_ok)[0], "CLAIMED")
         self.assertEqual(an.judge(_cardfor(), None, self.ev_ok)[0], "NO RESULT")
         self.assertEqual(an.judge(_cardfor(can_run=False, why_not="needs GeoDa"), None, self.ev_ok)[0], "HUMAN ROW")
+
+    def test_the_screen_capture_from_outside_qgis_counts_as_the_window_picture(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            self.assertFalse(an.evidence_for(tmp, "X1")["window"])
+            (Path(tmp) / "screens").mkdir()
+            (Path(tmp) / "screens" / "X1.png").write_bytes(b"png")
+            self.assertTrue(an.evidence_for(tmp, "X1")["window"])
 
     def test_report_and_exit_code(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -147,6 +204,8 @@ class TestTheBuiltPackage(unittest.TestCase):
         prompt = self.zip.read(f"{self.top}/HAIKU_PROMPT.md").decode()
         self.assertIn("Do not type any command into the QGIS Python console", prompt)
         self.assertIn("Never claim a result you did not see", prompt)
+        for need in ("Windows 11", "Never restart QGIS yourself", "up to 6 minutes", "qgiscrashhandler", "at most 6 rows", "Do not paste anything"):
+            self.assertIn(need, prompt)
 
     def test_every_file_a_card_needs_is_shipped(self):
         names = {Path(n).name for n in self.names() if n.startswith("3_test_files/")}

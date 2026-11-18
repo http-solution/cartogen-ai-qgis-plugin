@@ -42,6 +42,9 @@ def evidence_for(results, row_id):
                 found["plugin_evidence"] = True
             elif path.name == "tools_called.txt":
                 found["tools"] += [t.strip() for t in path.read_text(encoding="utf-8", errors="replace").splitlines() if t.strip()]
+    shots = Path(results) / "screens"
+    if shots.is_dir() and any(f.stat().st_size > 0 for f in shots.glob(f"{row_id}*.png")):
+        found["window"] = True                    # the dock's screen capture is made from outside QGIS and lands here
     return found
 
 

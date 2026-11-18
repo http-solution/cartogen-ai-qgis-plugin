@@ -224,7 +224,7 @@ def shot(name):
     return path
 
 
-def snap(row, note=""):
+def snap(row, note="", screenshots=True):
     from qgis.core import Qgis, QgsProject
     from qgis.utils import iface
     if not _STATE["out"]:
@@ -244,14 +244,18 @@ def snap(row, note=""):
         shutil.copyfile(os.path.join(out, "log_cartogenai.txt"), os.path.join(_STATE["out"], "logs", f"{row}.log"))
     except Exception:
         _err(f"{row}: log: {traceback.format_exc(limit=2)}")
-    try:
-        from qgis.PyQt.QtWidgets import QApplication
-        QApplication.processEvents()
-        iface.mainWindow().grab().save(os.path.join(out, "window.png"))
-        shutil.copyfile(os.path.join(out, "window.png"), os.path.join(_STATE["out"], "screens", f"{row}.png"))
-        iface.mapCanvas().saveAsImage(os.path.join(out, "canvas.png"))
-    except Exception:
-        _err(f"{row}: screenshot: {traceback.format_exc(limit=2)}")
+    if screenshots:
+        try:
+            from qgis.PyQt.QtWidgets import QApplication
+            QApplication.processEvents()
+            iface.mainWindow().grab().save(os.path.join(out, "window.png"))
+            shutil.copyfile(os.path.join(out, "window.png"), os.path.join(_STATE["out"], "screens", f"{row}.png"))
+            iface.mapCanvas().saveAsImage(os.path.join(out, "canvas.png"))
+        except Exception:
+            _err(f"{row}: screenshot: {traceback.format_exc(limit=2)}")
+    # screenshots=False: the computer-use dock takes the picture from OUTSIDE QGIS (a PowerShell screen capture) because pressing a result button crashed QGIS 4.2.3 on
+    # Windows 11 in the 2026-11-17 run (qgiscrashhandler.exe) while this in-process grab()/saveAsImage() was the heaviest thing the button did; the A2 evidence from that run has a
+    # canvas.pgw world file but no canvas.png. That cause is a suspect, not a proven one.
     try:
         layers = _layers()
         with open(os.path.join(out, "layers.json"), "w", encoding="utf-8") as fh:
@@ -295,7 +299,7 @@ def snap(row, note=""):
     if note:
         with open(os.path.join(out, "note.txt"), "w", encoding="utf-8") as fh:
             fh.write(note + "\n")
-    expected = ["window.png", "layers.txt", "layer_properties.json", "log_cartogenai.txt", "project.json"]
+    expected = (["window.png"] if screenshots else []) + ["layers.txt", "layer_properties.json", "log_cartogenai.txt", "project.json"]
     missing = [name for name in expected if not os.path.isfile(os.path.join(out, name))]
     print(f"collect_evidence: {row} saved to {out}")
     print("collect_evidence: still yours to add by hand: see CHECKLIST.txt in the row's folder (output files go to results\\outputs\\<row>, screenshots to results\\screens)."
