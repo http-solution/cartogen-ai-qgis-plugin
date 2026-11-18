@@ -5,6 +5,7 @@ import sys
 package = os.environ.get("CARTOGEN_SMOKE_DIR", "")
 if package:
     sys.path.insert(0, os.path.join(package, "tools"))
+    os.environ["CARTOGEN_LAYOUT_CHECK_DIR"] = os.path.join(package, "results", "outputs", "A1-layout-script")        # row A1 exports its pages here, inside the package folder
     from qgis.PyQt.QtCore import QTimer
 
     def _go():

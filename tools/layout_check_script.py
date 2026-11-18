@@ -5,7 +5,7 @@ In the QGIS Python console (the plugin must be installed and enabled):
 
     exec(open(r"C:\\path\\to\\layout_check_script.py", encoding="utf-8").read())
 
-It writes, into a new folder in your system temp folder named cartogen_layout_check_<date-time> (or the folder given to run()); the last line it prints names it:
+It writes, into a new folder in your system temp folder named cartogen_layout_check_<date-time> (or the folder given to run(), or the folder named by the environment variable CARTOGEN_LAYOUT_CHECK_DIR: the computer-use package sets it so the pages land inside the package folder); the last line it prints names it:
   layout_check.json   one entry per check: id, what was expected, what was measured, pass/fail
   layout_check.txt    the same as a table, plus the plugin version and the fonts QGIS found
   *.pdf, *.png        every layout it built, exported, to look at
@@ -53,7 +53,7 @@ def run(output_dir=None, quiet=False):  # noqa: C901 -- one flat list of indepen
     from qgis.PyQt.QtGui import QColor, QImage
 
     started = time.time()
-    out = output_dir or os.path.join(tempfile.gettempdir(), "cartogen_layout_check_" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S"))
+    out = output_dir or os.environ.get("CARTOGEN_LAYOUT_CHECK_DIR") or os.path.join(tempfile.gettempdir(), "cartogen_layout_check_" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S"))
     os.makedirs(out, exist_ok=True)
     profiles = os.path.join(out, "cartogen_profiles")
     os.makedirs(profiles, exist_ok=True)

@@ -23,10 +23,10 @@ TOOLS = ("record_result.py", "supervisor.ps1", "smoke_cards.py", "smoke_dock.py"
          "make_full_smoke_fixtures.py", "verify_inputs.py")
 
 PROMPT = r"""You are the tester. Your job is to finish the whole Cartogen AI smoke test on this Windows 11 PC, by yourself, from the screen, the mouse and the keyboard. You may open
-File Explorer and Command Prompt, start and restart QGIS, and recover from failures. Do not stop to ask unless the STOP list below applies. Work until every row has a result.
+File Explorer, start and restart QGIS, and recover from failures. You never need to type in Command Prompt or PowerShell (the Claude app only lets you click there): everything is started by double-clicking the .bat files. Do not stop to ask unless the STOP list below applies. Work until every row has a result.
 
 WHERE THINGS ARE
-- The package folder is the one this file is in (the dock shows its full path under every card). It holds RUN_EVERYTHING.bat, START_QGIS.bat, PY.bat, RECORD.bat, ANALYZE.bat, results\ .
+- The package folder is the one this file is in (the dock shows its full path under every card). It holds RUN_EVERYTHING.bat, START_QGIS.bat, ANALYZE.bat and the results folder.
 - QGIS 4.2.3 normally runs with a dock called "Smoke test" on the right. It shows ONE row (a card) and always moves to the first row that has no result yet.
 
 START
@@ -35,8 +35,8 @@ START
 2. Wait for the dock. Then start the loop.
 
 THE LOOP (repeat until every row has a result)
-1. Click "Start this row". Do exactly the steps under DO, in QGIS (or in Command Prompt when the card says to run a command: open Command Prompt in the package folder and type the command
-   as written; PY.bat is the Python to use). Chat prompts go in the Cartogen AI chat exactly as written, one at a time. Wait for each reply to finish before the next.
+1. Click "Start this row". Do exactly the steps under DO, in QGIS. Chat prompts go in the Cartogen AI chat exactly as written, one at a time. Wait for each reply to finish before the next.
+   If your own chat window covers the dock, move it away or minimise it first.
 2. Write ONE line in the dock's note box: what you actually saw (a number, a layer name, an error text).
 3. Click Pass, Partial, Fail or Skip. Pass only if every PASS ONLY IF condition is true on the screen. Not sure = Partial. A step you could not do = Fail, and say which step.
 4. Wait 10 seconds and read the dock's status line: it must name the row and its status. The dock then shows the next row. Never press a result button twice.
@@ -44,19 +44,19 @@ THE LOOP (repeat until every row has a result)
 WHEN SOMETHING GOES WRONG (fix it yourself)
 - QGIS looks frozen ("Not Responding"): tools can block it for up to 6 minutes. Wait, screenshot every minute, click nothing. After 8 minutes with no change: click Fail with the note "no reply"; if QGIS still does not answer after 3 more minutes, open Task Manager (Ctrl+Shift+Esc), select QGIS, End task. RUN_EVERYTHING reopens it.
 - QGIS closes or a crash window appears (qgiscrashhandler): click "Close" / "Don't send". The row that was open is recorded as FAIL "interrupted" automatically. If RUN_EVERYTHING's window is still open, QGIS comes back within seconds; otherwise double-click START_QGIS.bat. Then carry on with the next row.
-- The dock is missing or a button keeps crashing QGIS (the same row 3 times): do not write notes by hand. In Command Prompt in the package folder run  RECORD.bat <row id> <PASS|PARTIAL|FAIL|SKIP> "one line"  . It records the result and takes the screenshot. Then go on.
+- The dock is missing, or a button crashes QGIS: the result line is written BEFORE the evidence is taken, so the verdict is not lost. Reopen QGIS by double-clicking START_QGIS.bat (or let RUN_EVERYTHING reopen it); the dock returns at the first row with no result. If the same row crashes QGIS 3 times, click Skip on it (or Fail with the note "crashes QGIS") and go on.
 - The QGIS window is hidden: click its button on the taskbar once.
 - A row cannot be done as written (a file or program the card names is not there): Skip with the exact reason.
 
 LIMITS (these are the only STOP cases)
 - Never enter, read out, search for or change an API key or password. If a card needs the model and it is not connected, Skip with the note "no key".
-- Only touch the package folder, QGIS and its Command Prompt. Do not install software, change Windows settings, delete files, or open other programs or websites.
-- The QGIS Python console is used for exactly one thing: the single line on card A1. Never type a command there that a card does not give you.
+- Only touch the package folder and QGIS. You may open files that are INSIDE the package folder (for example the pages exported by row A1) with the Windows image and PDF viewers, and close them again. Do not install software, change Windows settings, delete files, or open other programs or websites.
+- The QGIS Python console is used for exactly one thing: the single line on card A1. Never type a command there that a card does not give you. Do not try to type in Command Prompt or PowerShell.
 - Do not paste anything (the clipboard may hold old text): type each prompt yourself, and read the chat box before you press Enter.
 - Never claim a result you did not see. A wrong Pass is worse than a Skip.
 
 WHEN THE DOCK SAYS EVERY ROW HAS A RESULT
-Run ANALYZE.bat (or wait for RUN_EVERYTHING to finish), open results\REPORT.md, and reply with its totals and the rows marked UNSUPPORTED or FAIL, each with your note. Then stop.
+Double-click ANALYZE.bat (or wait for RUN_EVERYTHING to finish), open results\REPORT.md, and reply with its totals and the rows marked UNSUPPORTED or FAIL, each with your note. Then stop.
 
 IF YOUR SESSION RUNS OUT OF ROOM: nothing is lost. A new session picks up at the first row with no result. Say in your last message which row you were on.
 """
