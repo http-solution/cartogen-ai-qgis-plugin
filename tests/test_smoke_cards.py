@@ -64,14 +64,44 @@ class TestWindowsPieces(unittest.TestCase):
         self.assertIn("layout_check_script.py", by_id["A1-layout-script"]["do"])
         self.assertIn("<PACKAGE>", by_id["A1-layout-script"]["do"])
 
+    def test_no_runnable_card_lost_its_setup_text_and_none_points_at_a_missing_document(self):
+        for c in _cards():
+            if c["can_run"]:
+                self.assertTrue(c["starts_from"], c["id"])
+                body = " ".join([c["starts_from"], c["do"], c["expect"], c["pass_if"]])
+                self.assertNotRegex(body, r"EVIDENCE_HOWTO|3_SHEET|CHECKLIST|README_FIRST", c["id"])
+
+    def test_the_general_rules_the_cards_rely_on_are_added_where_needed(self):
+        by_id = {c["id"]: c for c in _cards()}
+        text = sc.card_text(by_id["B1-routing-plain"])
+        self.assertIn("FRESH CHAT", text)
+        self.assertIn("COPY:", text)
+        self.assertIn(r"<PACKAGE>\results\outputs\B1-routing-plain", text)
+        self.assertIn("SAVE FIRST", sc.card_text(by_id["D5-task-grid"]))
+        self.assertIn("BROWSERS", sc.card_text(by_id["W5-hdx-ranked"]))
+        self.assertNotIn("BROWSERS", sc.card_text(by_id["A2-settings-connections"]))
+        self.assertIn("Preview pane", by_id["A1-layout-script"]["do"])
+        self.assertIn("Alt+P", by_id["A1-layout-script"]["do"])
+
     def test_human_rows_and_slow_rows(self):
         by_id = {c["id"]: c for c in _cards()}
-        for rid in ("V1-update", "F3-check-evidence", "A3-cli-bridge", "W6-mcp-probe", "W7-mcp-dialog", "W8-export", "W10-import-bad"):
+        for rid in ("V1-update", "F3-check-evidence", "A3-cli-bridge", "W6-mcp-probe", "W7-mcp-dialog", "W8-export", "W10-import-bad", "C18-persona-upgrade"):
             self.assertFalse(by_id[rid]["can_run"], rid)
         slow = [c["id"] for c in by_id.values() if c["slow"] and c["can_run"]]
         self.assertIn("B4-long-request", slow)
         self.assertIn("SLOW ROW", sc.card_text(by_id["B4-long-request"]))
         self.assertNotIn("SLOW ROW", sc.card_text(by_id["A2-settings-connections"]))
+
+
+class TestHumanRows(unittest.TestCase):
+    def test_human_rows_are_recorded_as_skip_once(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            cards = [{"id": "H1", "can_run": False, "why_not": "needs GeoDa"}, {"id": "R1", "can_run": True, "why_not": ""}]
+            self.assertEqual(sc.record_human_rows(tmp, cards), ["H1"])
+            self.assertEqual(sc.record_human_rows(tmp, cards), [])                     # already recorded: not repeated
+            rec = sc.load_results(tmp)
+            self.assertEqual((rec["H1"]["status"], rec["H1"]["note"]), ("SKIP", "human row: needs GeoDa"))
+            self.assertNotIn("R1", rec)
 
 
 class TestRecordResult(unittest.TestCase):
@@ -257,8 +287,8 @@ class TestTheBuiltPackage(unittest.TestCase):
         prompt = self.zip.read(f"{self.top}/HAIKU_PROMPT.md").decode()
         self.assertIn("exactly one thing: the single line on card A1", prompt)
         self.assertIn("Never claim a result you did not see", prompt)
-        for need in ("Windows 11", "RUN_EVERYTHING.bat", "up to 6 minutes", "qgiscrashhandler", "Task Manager", "first row with no result", "Never enter, read out",
-                     "never need to type in Command Prompt", "INSIDE the package folder"):
+        for need in ("Windows 11", "RUN_EVERYTHING.bat", "up to 6 minutes", "qgiscrashhandler", "Task Manager", "PERMISSION PROMPTS", "first row with no result", "Never enter, read out",
+                     "never need to type in Command Prompt", "Preview pane", "look-only"):
             self.assertIn(need, prompt)
         self.assertNotIn("Do not paste anything", prompt)                                      # the type tool may use the clipboard inside; only Ctrl+V by hand is banned
         self.assertIn("Do not paste with Ctrl+V yourself", prompt)
@@ -276,6 +306,10 @@ class TestTheBuiltPackage(unittest.TestCase):
         for need in ("qgiscrashhandler", "$i -le 8", "run_smoke_headless.py", "analyze_smoke_run.py", "CARTOGEN_SMOKE_DIR", "RESULTS_GUI.csv"):
             self.assertIn(need, sup)
         self.assertIn("supervisor.ps1", self.zip.read(f"{self.top}/RUN_EVERYTHING.bat").decode())
+        analyze = self.zip.read(f"{self.top}/ANALYZE.bat").decode()
+        self.assertIn("PY.bat", analyze)                                                       # no dependency on a separate Python install
+        self.assertNotRegex(analyze, r"(?m)^python ")
+        self.assertNotIn("smoke_start_work", self.zip.read(f"{self.top}/START_QGIS.bat").decode())
 
     def test_every_file_a_card_needs_is_shipped(self):
         names = {Path(n).name for n in self.names() if n.startswith("3_test_files/")}

@@ -15,6 +15,7 @@ CONSOLE = re.compile(r"snap\(|shot\(|begin\(|collect_evidence|Python console|exe
 HUMAN_ONLY = re.compile(r"fluent|GeoDa|MCP client|Antigravity|Claude Code, Codex|second tool", re.I)
 HUMAN_IDS = {
     "V1-update": "it needs an older plugin version to update from, which this package does not contain",
+    "C18-persona-upgrade": "it needs an older plugin build to install the new one over, which this package does not contain",
     "F3-check-evidence": "it checks the results file of the hand package, not this package (ANALYZE.bat makes this package's report)",
     "W6-mcp-probe": "it needs commands typed in a terminal, which the Claude app's computer use does not allow (click only)",
     "W7-mcp-dialog": "it needs commands typed in a terminal, which the Claude app's computer use does not allow (click only)",
@@ -25,26 +26,33 @@ SLOW = re.compile(r"overpass|osm|download|geofabrik|worldpop|stac|sentinel|isoch
 RESULT_FIELDS = ["row", "status", "note", "started", "finished", "seconds", "evidence_error"]
 
 
+_DOC_REF = re.compile(r"\s*\((?:see )?(?:EVIDENCE_HOWTO|3_SHEET|CHECKLIST)[^)]*\)", re.I)
+_EVIDENCE_SETTING = re.compile(r"'Save an evidence folder for each request' ticked( in Settings)?", re.I)
 _PY = re.compile(r"\bpython3? (?=(?:6_tools|2_layout_check|tools)[\\/])")
 
 
 def fill_paths(text):
     """The terminal commands in the rows say `python 6_tools/x.py`: in this package they run through PY.bat (QGIS's own Python, always present), and <bundle> is the package folder. Pure."""
-    return _PY.sub("PY.bat ", str(text or "")).replace("<bundle>", "<PACKAGE>")
+    text = _DOC_REF.sub("", str(text or ""))
+    text = _EVIDENCE_SETTING.sub("evidence saving already switched on for you", text)
+    text = text.replace("results\\outputs\\", "<PACKAGE>\\results\\outputs\\").replace("3_test_files\\", "<PACKAGE>\\3_test_files\\")
+    text = text.replace("<PACKAGE>\\<PACKAGE>\\", "<PACKAGE>\\")
+    return _PY.sub("PY.bat ", text).replace("<bundle>", "<PACKAGE>")
 
 
 def clean(text):
     """Drops every sentence that tells the reader to type a console command or run snap(): the dock does that. Pure."""
-    parts = re.split(r"(?<=[.;])\s+(?=[A-Z(0-9'\"])", str(text or ""))
+    parts = re.split(r"(?<=[.;])\s+(?=[A-Z(0-9'\"])", _DOC_REF.sub("", str(text or "")))       # a pointer to a document that is not in this package is removed BEFORE sentences are judged, so the sentence it sat in survives
     return fill_paths(" ".join(p for p in parts if not CONSOLE.search(p)).strip())
 
 
 DO_OVERRIDES = {
     "A1-layout-script": ("In QGIS: Plugins > Python Console. Type this ONE line (it is the only console command you type in this whole test) and press Enter: "
                          "exec(open(r\"<PACKAGE>\\2_layout_check\\layout_check_script.py\", encoding=\"utf-8\").read())   "
-                         "It runs by itself; wait for the table (if nothing prints after 2 minutes, type run() once and say so in the note). The pages are exported into the package folder, in results\\outputs\\A1-layout-script. "
-                         "Open that folder in File Explorer and double-click EVERY .png in turn (each .pdf is the same page as a .png: open at most ONE .pdf, and only if a .png is missing; PDFs open in the web browser, which takes over the screen: close its tab with Ctrl+W at once and click QGIS on the taskbar). "
-                         "Look at each page: footer complete and inside the page, legend entries not cut, logo left of the title, sign-off readable, disclaimer not overlapping. Close each viewer afterwards."),
+                         "It runs by itself; wait for the table (if nothing prints after 2 minutes, type run() once and say so in the note). The pages are exported into the package folder, in "
+                         "<PACKAGE>\\results\\outputs\\A1-layout-script. Open that folder in File Explorer, press Alt+P to switch on the Preview pane, and click each .png in turn: its picture shows in the preview "
+                         "pane, so no other program is needed. Do not open the .pdf files (they open in a browser, which you cannot use). Look at each page: footer complete and inside the page, "
+                         "legend entries not cut, logo left of the title, sign-off readable, disclaimer not overlapping. If a picture cannot be seen, say so and give Partial."),
 }
 
 
@@ -67,6 +75,27 @@ def make_cards(rows, machine_rows=None):
     return cards
 
 
+_BROWSER = re.compile(r"\bbrowser\b|chrome|firefox|\bedge\b|web page|HDX page", re.I)
+
+
+def helps(card):
+    """The general rules a card relies on (the hand sheet held them; the cards had lost them). Pure."""
+    body = " ".join(str(card.get(k, "")) for k in ("starts_from", "do", "expect", "pass_if"))
+    out = []
+    if re.search(r"fresh chat|new chat", body, re.I):
+        out.append("FRESH CHAT: this plugin version has no 'New chat' button. The chat follows the project: start the row from File > New (or open the row's project file) and the chat starts empty. "
+                   "If the old conversation is still on screen, say so in the note and carry on.")
+    if re.search(r"save the project", body, re.I):
+        out.append(f"SAVE FIRST: File > Save As into <PACKAGE>\\results\\outputs\\{card['id']}\\ BEFORE the first request; the plugin writes its evidence next to a saved project (an unsaved project leaves none).")
+    if re.search(r"a copy of", str(card.get("starts_from", "")), re.I):
+        out.append(f"COPY: you do not need to copy files. Open the project, then File > Save As into <PACKAGE>\\results\\outputs\\{card['id']}\\ before you change anything, so the original in 3_test_files is never altered.")
+    if _BROWSER.search(body):
+        out.append("BROWSERS: the Claude app lets you only LOOK at a web browser, not click or type in it. Skip any step that needs one, say so in the note, and give the row Partial at best.")
+    if re.search(r"\bNotepad\b|\bExcel\b|\bLibreOffice\b", body):
+        out.append("OTHER PROGRAMS: a step that needs a program other than QGIS and File Explorer: skip that step, say so in the note, and give the row Partial at best.")
+    return out
+
+
 def card_text(card):
     """The text the dock shows. Pure."""
     lines = [f"ROW {card['id']}  -  {card['title']}", ""]
@@ -75,6 +104,8 @@ def card_text(card):
     for label, key in (("START FROM", "starts_from"), ("DO", "do"), ("EXPECT", "expect"), ("PASS ONLY IF", "pass_if"), ("EXTRA EVIDENCE (the dock already saved the window and layers; do this only if easy)", "also_capture")):
         if card.get(key):
             lines += [f"{label}: {card[key]}", ""]
+    for line in helps(card):
+        lines += [line, ""]
     if card.get("slow"):
         lines.append("SLOW ROW: a tool here can run for up to 6 minutes and QGIS then looks frozen ('Not Responding'). That is normal: wait, do NOT click, do NOT restart QGIS. "
                      "If nothing has changed after 8 minutes, click Fail with the note 'no reply'.")
@@ -175,6 +206,18 @@ def recover_interrupted(out_dir, clock=time.time):
                             "started": now, "finished": now, "seconds": 0,
                             "evidence_error": "interrupted" if attempts < MAX_INTERRUPTIONS else "interrupted-final"})
     return row_id
+
+
+def record_human_rows(out_dir, cards, clock=time.time):
+    """Records every row that is not for the agent as SKIP (with the reason) unless it already has a result, so the dock only ever shows work to do. Returns the ids recorded. Pure apart from files."""
+    have = load_results(out_dir)
+    now = round(clock(), 1)
+    recorded = []
+    for card in cards:
+        if not card["can_run"] and card["id"] not in have:
+            append_result(out_dir, {"row": card["id"], "status": "SKIP", "note": f"human row: {card['why_not']}", "started": now, "finished": now, "seconds": 0, "evidence_error": ""})
+            recorded.append(card["id"])
+    return recorded
 
 
 def screen_capture_command(path, platform=sys.platform):

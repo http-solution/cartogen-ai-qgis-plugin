@@ -183,11 +183,7 @@ def show(package_dir):
     with open(os.path.join(results, "ENVIRONMENT.json"), "w", encoding="utf-8") as fh:
         json.dump({"qgis": version, "expected": EXPECTED_QGIS, "plugin": ce._plugin_version(), "python": sys.version, "package": _build_text(package_dir) or "no BUILD.txt"}, fh, indent=1, default=str)
     interrupted = cards_mod.recover_interrupted(results)
-    recorded = cards_mod.load_results(results)
-    for card in cards:                                    # human rows need nothing from the agent: record them at once so the dock only ever shows work to do
-        if not card["can_run"] and card["id"] not in recorded:
-            now = round(__import__("time").time(), 1)
-            cards_mod.append_result(results, {"row": card["id"], "status": "SKIP", "note": f"human row: {card['why_not']}", "started": now, "finished": now, "seconds": 0, "evidence_error": ""})
+    cards_mod.record_human_rows(results, cards)           # human rows need nothing from the agent: record them at once so the dock only ever shows work to do
 
     def snapshot(row, note):
         _capture(os.path.join(results, "screens", f"{row}.png"))       # first and from outside QGIS: it is the picture of what the agent just saw

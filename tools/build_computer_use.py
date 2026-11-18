@@ -45,12 +45,14 @@ WHEN SOMETHING GOES WRONG (fix it yourself)
 - QGIS looks frozen ("Not Responding"): tools can block it for up to 6 minutes. Wait, screenshot every minute, click nothing. After 8 minutes with no change: click Fail with the note "no reply"; if QGIS still does not answer after 3 more minutes, open Task Manager (Ctrl+Shift+Esc), select QGIS, End task. RUN_EVERYTHING reopens it.
 - QGIS closes or a crash window appears (qgiscrashhandler): click "Close" / "Don't send". The row that was open is recorded as FAIL "interrupted" automatically. If RUN_EVERYTHING's window is still open, QGIS comes back within seconds; otherwise double-click START_QGIS.bat. Then carry on with the next row.
 - The dock is missing, or a button crashes QGIS: the result line is written BEFORE the evidence is taken, so the verdict is not lost. Reopen QGIS by double-clicking START_QGIS.bat (or let RUN_EVERYTHING reopen it); the dock returns at the first row with no result. If the same row crashes QGIS 3 times, click Skip on it (or Fail with the note "crashes QGIS") and go on.
-- The QGIS window is hidden, or a browser, PDF or image viewer has come to the front and blocks your clicks: close that viewer (Ctrl+W for a browser tab) or click the QGIS button on the taskbar once, then carry on.
+- The QGIS window is hidden, or a browser or viewer has come to the front and blocks your clicks: click the QGIS button on the taskbar once, then carry on. (You cannot close a browser yourself; just bring QGIS forward.)
 - A row cannot be done as written (a file or program the card names is not there): Skip with the exact reason.
+
+PERMISSION PROMPTS: the Claude app asks the owner to allow each app once per session. If a prompt for QGIS, File Explorer or Task Manager is waiting, wait for it; do not try to work around it. A Windows "Open File - Security Warning" for a .bat file: click Run.
 
 LIMITS (these are the only STOP cases)
 - Never enter, read out, search for or change an API key or password. If a card needs the model and it is not connected, Skip with the note "no key".
-- Only touch the package folder and QGIS. You may open files that are INSIDE the package folder (for example the pages exported by row A1) with the Windows image and PDF viewers, and close them again. Do not install software, change Windows settings, delete files, or open other programs or websites.
+- Only touch the package folder, QGIS and File Explorer (and Task Manager when the prompt says so). Look at images with File Explorer's Preview pane (Alt+P), not another program. Web browsers are look-only for you (the Claude app does not let you click or type in them): never rely on one, skip a step that needs one and say so. Do not install software, change Windows settings, delete files, or open websites.
 - The QGIS Python console is used for exactly one thing: the single line on card A1. Never type a command there that a card does not give you. Do not try to type in Command Prompt or PowerShell.
 - Do not paste with Ctrl+V yourself (the clipboard may hold old text). Typing with your type tool is fine even if it uses the clipboard inside: just read the chat box before you press Enter and retype if the text is not what the card says.
 - Never claim a result you did not see. A wrong Pass is worse than a Skip.
@@ -75,7 +77,10 @@ BEFORE THE RUN (once, by you, because it needs secrets and choices an agent shou
   3. Rows with 'needs: a real model' are only as good as that choice: write the model name in results\\ENVIRONMENT_NOTE.txt.
   4. Windows 11: Settings > System > Display: scale 100 percent, one monitor; Settings > System > Power: screen and sleep "Never" while the test runs.
   5. Claude desktop app with Haiku and computer use: allow it to use the screen, File Explorer and Command Prompt. It must not need your API key: you connected the model in step 2.
-  6. After a crash the supervisor (RUN_EVERYTHING) reopens QGIS by itself, up to 8 times; the open row is recorded as FAIL 'interrupted' automatically.
+  6. After a crash the supervisor (RUN_EVERYTHING) reopens QGIS by itself, up to 8 times; the open row is recorded as FAIL 'interrupted' automatically and is offered again (twice at most).
+  7. UNZIP INTO A NEW, EMPTY FOLDER (never over an older copy). The dock header must show "package <commit> built <date>"; "no BUILD.txt (an old copy?)" means old files.
+  8. STAY FOR THE FIRST 5 MINUTES. The Claude app asks your permission once per app per session ("Allow for this session"): allow QGIS, File Explorer and Task Manager when asked. Browsers are look-only and terminals
+     click-only for the agent (fixed by the app), so rows that need them are skipped or marked Partial. Windows may ask "Open File - Security Warning" for the first .bat: choose Run.
 
 THE RUN
   1. RUN_HEADLESS.bat dry   (one row, under a minute)   then   RUN_HEADLESS.bat   (all {m} rows). Open results\\SUMMARY.md.
@@ -107,7 +112,6 @@ if not exist "%PLUGINS%\\cartogen_ai_plugin" (
   mkdir "%PLUGINS%" 2>nul
   powershell -NoProfile -Command "Expand-Archive -Force -Path (Get-ChildItem '%PKG%\\1_plugin\\cartogen_ai_v*.zip' | Select-Object -First 1).FullName -DestinationPath '%PLUGINS%'"
 )
-copy /y "%PKG%\\3_test_files\\smoke_start.qgz" "%PKG%\\results\\smoke_start_work.qgz" >nul 2>nul
 start "" /max "%QGIS%\\bin\\qgis-bin.exe" --code "%PKG%\\tools\\smoke_dock_start.py" "%PKG%\\3_test_files\\smoke_start.qgz"
 """
 
@@ -151,8 +155,10 @@ echo Finished. Open results\\REPORT.md.
 """
 
 ANALYZE = """@echo off
-set PKG=%~dp0
-python "%PKG%tools\\analyze_smoke_run.py" "%PKG%results" "%PKG%cards.json"
+rem Writes results\\REPORT.md. Uses QGIS's own Python (PY.bat), so no separate Python install is needed.
+call "%~dp0PY.bat" "%~dp0tools\\analyze_smoke_run.py" "%~dp0results" "%~dp0cards.json"
+echo.
+echo Done. Open results\\REPORT.md.
 """
 
 
