@@ -43,8 +43,8 @@ DO_OVERRIDES = {
     "A1-layout-script": ("In QGIS: Plugins > Python Console. Type this ONE line (it is the only console command you type in this whole test) and press Enter: "
                          "exec(open(r\"<PACKAGE>\\2_layout_check\\layout_check_script.py\", encoding=\"utf-8\").read())   "
                          "It runs by itself; wait for the table (if nothing prints after 2 minutes, type run() once and say so in the note). The pages are exported into the package folder, in results\\outputs\\A1-layout-script. "
-                         "Open that folder in File Explorer and double-click EVERY .png and .pdf in turn (the Windows image and PDF viewers are fine for this) and look at it: footer complete and inside the page, "
-                         "legend entries not cut, logo left of the title, sign-off readable, disclaimer not overlapping. Close each viewer afterwards."),
+                         "Open that folder in File Explorer and double-click EVERY .png in turn (each .pdf is the same page as a .png: open at most ONE .pdf, and only if a .png is missing; PDFs open in the web browser, which takes over the screen: close its tab with Ctrl+W at once and click QGIS on the taskbar). "
+                         "Look at each page: footer complete and inside the page, legend entries not cut, logo left of the title, sign-off readable, disclaimer not overlapping. Close each viewer afterwards."),
 }
 
 
