@@ -16,6 +16,10 @@ HUMAN_ONLY = re.compile(r"fluent|GeoDa|MCP client|Antigravity|Claude Code, Codex
 HUMAN_IDS = {
     "V1-update": "it needs an older plugin version to update from, which this package does not contain",
     "F3-check-evidence": "it checks the results file of the hand package, not this package (ANALYZE.bat makes this package's report)",
+    "W6-mcp-probe": "it needs commands typed in a terminal, which the Claude app's computer use does not allow (click only)",
+    "W7-mcp-dialog": "it needs commands typed in a terminal, which the Claude app's computer use does not allow (click only)",
+    "W8-export": "it needs a command typed in a terminal, which the Claude app's computer use does not allow (click only)",
+    "W10-import-bad": "it needs a command typed in a terminal, which the Claude app's computer use does not allow (click only)",
 }
 SLOW = re.compile(r"overpass|osm|download|geofabrik|worldpop|stac|sentinel|isochrone|service area|large|mirror", re.I)
 RESULT_FIELDS = ["row", "status", "note", "started", "finished", "seconds", "evidence_error"]
@@ -38,9 +42,9 @@ def clean(text):
 DO_OVERRIDES = {
     "A1-layout-script": ("In QGIS: Plugins > Python Console. Type this ONE line (it is the only console command you type in this whole test) and press Enter: "
                          "exec(open(r\"<PACKAGE>\\2_layout_check\\layout_check_script.py\", encoding=\"utf-8\").read())   "
-                         "It runs by itself; wait for the table (if nothing prints after 2 minutes, type run() once and say so in the note). Then open the folder named on its last line in File Explorer and "
-                         "look at EVERY exported .pdf and .png (about a dozen pages): footer complete and inside the page, legend entries not cut, logo left of the title, sign-off readable, "
-                         "disclaimer not overlapping."),
+                         "It runs by itself; wait for the table (if nothing prints after 2 minutes, type run() once and say so in the note). The pages are exported into the package folder, in results\\outputs\\A1-layout-script. "
+                         "Open that folder in File Explorer and double-click EVERY .png and .pdf in turn (the Windows image and PDF viewers are fine for this) and look at it: footer complete and inside the page, "
+                         "legend entries not cut, logo left of the title, sign-off readable, disclaimer not overlapping. Close each viewer afterwards."),
 }
 
 

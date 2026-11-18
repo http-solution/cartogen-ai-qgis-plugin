@@ -57,16 +57,16 @@ class TestWindowsPieces(unittest.TestCase):
 
     def test_script_rows_are_now_the_agents_and_their_commands_run_through_py_bat(self):
         by_id = {c["id"]: c for c in _cards()}
-        for rid in ("A1-layout-script", "W6-mcp-probe", "W7-mcp-dialog", "W8-export", "W9-import-good", "W10-import-bad"):
+        for rid in ("A1-layout-script", "W9-import-good"):
             self.assertTrue(by_id[rid]["can_run"], rid)
-        self.assertIn("PY.bat 6_tools/mcp_probe.py", by_id["W6-mcp-probe"]["do"])
-        self.assertNotRegex(by_id["W6-mcp-probe"]["do"], r"\bpython 6_tools")
+        self.assertIn("results\\outputs\\A1-layout-script", by_id["A1-layout-script"]["do"])
+        self.assertNotRegex(by_id["A1-layout-script"]["do"], r"Temp")
         self.assertIn("layout_check_script.py", by_id["A1-layout-script"]["do"])
         self.assertIn("<PACKAGE>", by_id["A1-layout-script"]["do"])
 
     def test_human_rows_and_slow_rows(self):
         by_id = {c["id"]: c for c in _cards()}
-        for rid in ("V1-update", "F3-check-evidence", "A3-cli-bridge"):
+        for rid in ("V1-update", "F3-check-evidence", "A3-cli-bridge", "W6-mcp-probe", "W7-mcp-dialog", "W8-export", "W10-import-bad"):
             self.assertFalse(by_id[rid]["can_run"], rid)
         slow = [c["id"] for c in by_id.values() if c["slow"] and c["can_run"]]
         self.assertIn("B4-long-request", slow)
@@ -234,8 +234,10 @@ class TestTheBuiltPackage(unittest.TestCase):
         prompt = self.zip.read(f"{self.top}/HAIKU_PROMPT.md").decode()
         self.assertIn("exactly one thing: the single line on card A1", prompt)
         self.assertIn("Never claim a result you did not see", prompt)
-        for need in ("Windows 11", "RUN_EVERYTHING.bat", "RECORD.bat", "up to 6 minutes", "qgiscrashhandler", "Task Manager", "Do not paste anything", "first row with no result", "Never enter, read out"):
+        for need in ("Windows 11", "RUN_EVERYTHING.bat", "up to 6 minutes", "qgiscrashhandler", "Task Manager", "Do not paste anything", "first row with no result", "Never enter, read out",
+                     "never need to type in Command Prompt", "INSIDE the package folder"):
             self.assertIn(need, prompt)
+        self.assertNotIn("RECORD.bat", prompt)               # Haiku cannot type in a terminal, so the prompt must not rely on it
         self.assertNotIn("at most 6 rows", prompt)
         self.assertNotIn("Never restart QGIS yourself", prompt)
 
