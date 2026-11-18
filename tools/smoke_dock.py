@@ -16,13 +16,14 @@ from qgis.PyQt.QtWidgets import QComboBox, QDockWidget, QHBoxLayout, QLabel, QLi
 
 EXPECTED_QGIS = "4.2.3"
 RULES = ("One row at a time. Read the card. Do the steps in QGIS exactly as written. Do NOT type a console command, do NOT paste anything, do NOT write files. "
-         "When done, write one line in the note box saying what you saw, then click Pass, Partial, Fail or Skip. If a step cannot be done, click Skip (or Fail) with the reason.")
+         "When done, write one line in the note box saying what you saw, then click Pass, Partial, Fail or Skip. If a step cannot be done, click Skip (or Fail) with the reason. "
+         "QGIS may look frozen for minutes while a tool runs: wait, do not click, do not restart it.")
 
 
 class SmokeDock(QDockWidget):
-    def __init__(self, session, cards, extra_shot=None, qgis_version="", parent=None):
+    def __init__(self, session, cards, extra_shot=None, qgis_version="", parent=None, package_dir=""):
         super().__init__("Smoke test", parent)
-        self.session, self.cards, self.extra_shot = session, cards, extra_shot
+        self.session, self.cards, self.extra_shot, self.package_dir = session, cards, extra_shot, package_dir
         body = QWidget()
         lay = QVBoxLayout(body)
         self.version = QLabel(f"QGIS {qgis_version}" + ("" if qgis_version.startswith(EXPECTED_QGIS) else f"  -  WARNING: this run expects {EXPECTED_QGIS}"))
@@ -58,13 +59,27 @@ class SmokeDock(QDockWidget):
         self.combo.currentIndexChanged.connect(self._show_card)
         self.start_button.clicked.connect(self._start)
         self.shot_button.clicked.connect(self._extra)
+        self._goto_unfinished(0)
         self._show_card()
 
     def _card(self):
         return self.cards[self.combo.currentIndex()]
 
     def _show_card(self, _=None):
-        self.view.setPlainText(cards_mod.card_text(self._card()))
+        text = cards_mod.card_text(self._card())
+        if self.package_dir:
+            text = text.replace("<PACKAGE>", self.package_dir)
+            text += f"\n\n(Package folder: {self.package_dir})"
+        self.view.setPlainText(text)
+
+    def _goto_unfinished(self, start):
+        """Moves to the first row at or after `start` that has no result yet (so a restarted QGIS, or a new Haiku session, carries on where the last one stopped); stays put if all are done."""
+        done = cards_mod.load_results(self.session.out_dir)
+        for i in range(start, len(self.cards)):
+            if self.cards[i]["id"] not in done:
+                self.combo.setCurrentIndex(i)
+                return
+        self.status.setText("Every row has a result. Run ANALYZE.bat (or let RUN_EVERYTHING finish) and read results\\REPORT.md.")
 
     def _start(self):
         ok, msg = self.session.start(self._card()["id"])
@@ -81,8 +96,7 @@ class SmokeDock(QDockWidget):
         self.status.setText(msg)
         if ok:
             self.note.clear()
-            if self.combo.currentIndex() + 1 < self.combo.count():
-                self.combo.setCurrentIndex(self.combo.currentIndex() + 1)
+            self._goto_unfinished(self.combo.currentIndex() + 1)
 
     def _extra(self):
         name = self.shot_name.text().strip()
@@ -94,6 +108,20 @@ class SmokeDock(QDockWidget):
             self.status.setText(f"saved screenshot {self.session.current}-{name}")
         except Exception as e:
             self.status.setText(f"screenshot failed: {type(e).__name__}: {e}")
+
+
+def _capture(path):
+    """Starts the out-of-process screen capture and returns at once (never waits, never raises): a screenshot must not be able to take QGIS down with it."""
+    import subprocess
+    argv = cards_mod.screen_capture_command(path)
+    if argv is None:
+        return False
+    flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+    try:
+        subprocess.Popen(argv, creationflags=flags, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, stdin=subprocess.DEVNULL)  # noqa: S603
+    except OSError:
+        return False
+    return True
 
 
 def show(package_dir):
@@ -113,7 +141,20 @@ def show(package_dir):
     version = Qgis.version()
     with open(os.path.join(results, "ENVIRONMENT.json"), "w", encoding="utf-8") as fh:
         json.dump({"qgis": version, "expected": EXPECTED_QGIS, "plugin": ce._plugin_version(), "python": sys.version}, fh, indent=1, default=str)
-    session = cards_mod.Session(results, cards, ce.snap)
-    dock = SmokeDock(session, cards, extra_shot=ce.shot, qgis_version=version, parent=iface.mainWindow())
+    interrupted = cards_mod.recover_interrupted(results)
+    recorded = cards_mod.load_results(results)
+    for card in cards:                                    # human rows need nothing from the agent: record them at once so the dock only ever shows work to do
+        if not card["can_run"] and card["id"] not in recorded:
+            now = round(__import__("time").time(), 1)
+            cards_mod.append_result(results, {"row": card["id"], "status": "SKIP", "note": f"human row: {card['why_not']}", "started": now, "finished": now, "seconds": 0, "evidence_error": ""})
+
+    def snapshot(row, note):
+        _capture(os.path.join(results, "screens", f"{row}.png"))       # first and from outside QGIS: it is the picture of what the agent just saw
+        ce.snap(row, note, screenshots=False)                          # the rest reads only data (layers, properties, project, log, the plugin's own evidence)
+
+    session = cards_mod.Session(results, cards, snapshot)
+    dock = SmokeDock(session, cards, extra_shot=lambda name: _capture(os.path.join(results, "screens", f"{name}.png")) or ce.shot(name), qgis_version=version, parent=iface.mainWindow(), package_dir=package_dir)
+    if interrupted:
+        dock.status.setText(f"Row {interrupted} was open when QGIS last closed; it was recorded as FAIL 'interrupted'. Carry on with the next row.")
     iface.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, dock)
     return dock
