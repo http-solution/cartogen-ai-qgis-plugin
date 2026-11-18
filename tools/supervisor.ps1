@@ -16,7 +16,7 @@ function Unfinished {
     $cards = Get-Content (Join-Path $Pkg "cards.json") -Raw | ConvertFrom-Json
     $csv = Join-Path $results "RESULTS_GUI.csv"
     $done = @{}
-    if (Test-Path $csv) { Import-Csv $csv | ForEach-Object { $done[$_.row] = $true } }
+    if (Test-Path $csv) { Import-Csv $csv | ForEach-Object { if ($_.evidence_error -eq "interrupted") { $done.Remove($_.row) } else { $done[$_.row] = $true } } }     # a row cut short by a crash is offered again (twice at most)
     return @($cards | Where-Object { $_.can_run -and -not $done.ContainsKey($_.id) })
 }
 

@@ -148,6 +148,29 @@ class TestSession(unittest.TestCase):
         self.s.finish("PASS")
         self.assertIsNone(sc.recover_interrupted(self.tmp.name))                             # a finished row leaves nothing to recover
 
+    def test_an_interrupted_row_is_offered_again_twice_then_stays_failed(self):
+        for attempt, final in ((1, False), (2, True)):
+            self.s.start("X2")
+            self.assertEqual(sc.recover_interrupted(self.tmp.name), "X2")
+            rec = sc.load_results(self.tmp.name)["X2"]
+            self.assertIn(f"attempt {attempt}", rec["note"])
+            self.assertEqual(rec["evidence_error"], "interrupted-final" if final else "interrupted")
+            self.assertEqual("X2" in sc.finished_rows(self.tmp.name), final)
+            self.s.current = self.s.started = None                                           # QGIS restarted: a new session knows of no open row
+        self.s.start("X1")
+        self.s.finish("PASS")
+        self.assertIn("X1", sc.finished_rows(self.tmp.name))
+
+    def test_a_real_result_after_an_interruption_finishes_the_row(self):
+        self.s.start("X2")
+        sc.recover_interrupted(self.tmp.name)
+        self.s.current = self.s.started = None
+        self.assertNotIn("X2", sc.finished_rows(self.tmp.name))
+        self.s.start("X2")
+        self.s.finish("PARTIAL", "done properly")
+        self.assertIn("X2", sc.finished_rows(self.tmp.name))
+        self.assertEqual(sc.load_results(self.tmp.name)["X2"]["status"], "PARTIAL")
+
     def test_bad_status_and_unknown_row_are_refused_and_an_evidence_failure_is_recorded(self):
         self.assertFalse(self.s.start("nope")[0])
         self.s.start("X1")
@@ -234,15 +257,19 @@ class TestTheBuiltPackage(unittest.TestCase):
         prompt = self.zip.read(f"{self.top}/HAIKU_PROMPT.md").decode()
         self.assertIn("exactly one thing: the single line on card A1", prompt)
         self.assertIn("Never claim a result you did not see", prompt)
-        for need in ("Windows 11", "RUN_EVERYTHING.bat", "up to 6 minutes", "qgiscrashhandler", "Task Manager", "Do not paste anything", "first row with no result", "Never enter, read out",
+        for need in ("Windows 11", "RUN_EVERYTHING.bat", "up to 6 minutes", "qgiscrashhandler", "Task Manager", "first row with no result", "Never enter, read out",
                      "never need to type in Command Prompt", "INSIDE the package folder"):
             self.assertIn(need, prompt)
+        self.assertNotIn("Do not paste anything", prompt)                                      # the type tool may use the clipboard inside; only Ctrl+V by hand is banned
+        self.assertIn("Do not paste with Ctrl+V yourself", prompt)
         self.assertNotIn("RECORD.bat", prompt)               # Haiku cannot type in a terminal, so the prompt must not rely on it
         self.assertNotIn("at most 6 rows", prompt)
         self.assertNotIn("Never restart QGIS yourself", prompt)
 
     def test_the_launch_and_recovery_scripts_are_shipped_and_do_what_the_prompt_says(self):
         names = self.names()
+        self.assertIn("BUILD.txt", names)
+        self.assertRegex(self.zip.read(f"{self.top}/BUILD.txt").decode(), r"built \d{4}-\d\d-\d\d")
         for need in ("RUN_EVERYTHING.bat", "PY.bat", "RECORD.bat", "tools/supervisor.ps1", "tools/record_result.py", "6_tools/mcp_probe.py", "6_tools/check_workflow_file.py", "2_layout_check/layout_check_script.py"):
             self.assertIn(need, names)
         sup = self.zip.read(f"{self.top}/tools/supervisor.ps1").decode()

@@ -26,7 +26,8 @@ class SmokeDock(QDockWidget):
         self.session, self.cards, self.extra_shot, self.package_dir = session, cards, extra_shot, package_dir
         body = QWidget()
         lay = QVBoxLayout(body)
-        self.version = QLabel(f"QGIS {qgis_version}" + ("" if qgis_version.startswith(EXPECTED_QGIS) else f"  -  WARNING: this run expects {EXPECTED_QGIS}"))
+        build = _build_text(package_dir)
+        self.version = QLabel(f"QGIS {qgis_version}" + ("" if qgis_version.startswith(EXPECTED_QGIS) else f"  -  WARNING: this run expects {EXPECTED_QGIS}") + (f"  |  package {build}" if build else "  |  package: no BUILD.txt (an old copy?)"))
         self.rules = QLabel(RULES)
         self.rules.setWordWrap(True)
         self.combo = QComboBox()
@@ -78,7 +79,7 @@ class SmokeDock(QDockWidget):
 
     def _goto_unfinished(self, start):
         """Moves to the first row at or after `start` that has no result yet (so a restarted QGIS, or a new Haiku session, carries on where the last one stopped); stays put if all are done."""
-        done = cards_mod.load_results(self.session.out_dir)
+        done = cards_mod.finished_rows(self.session.out_dir)
         for i in range(start, len(self.cards)):
             if self.cards[i]["id"] not in done:
                 self.combo.setCurrentIndex(i)
@@ -141,6 +142,15 @@ class SmokeDock(QDockWidget):
             self.status.setText(f"screenshot failed: {type(e).__name__}: {e}")
 
 
+def _build_text(package_dir):
+    """The package's BUILD.txt (commit and build time), or '' when it is missing. Never raises."""
+    try:
+        with open(os.path.join(package_dir, "BUILD.txt"), encoding="utf-8") as fh:
+            return fh.read().strip()
+    except OSError:
+        return ""
+
+
 def _capture(path):
     """Starts the out-of-process screen capture and returns at once (never waits, never raises): a screenshot must not be able to take QGIS down with it."""
     import subprocess
@@ -171,7 +181,7 @@ def show(package_dir):
         cards = json.load(fh)
     version = Qgis.version()
     with open(os.path.join(results, "ENVIRONMENT.json"), "w", encoding="utf-8") as fh:
-        json.dump({"qgis": version, "expected": EXPECTED_QGIS, "plugin": ce._plugin_version(), "python": sys.version}, fh, indent=1, default=str)
+        json.dump({"qgis": version, "expected": EXPECTED_QGIS, "plugin": ce._plugin_version(), "python": sys.version, "package": _build_text(package_dir) or "no BUILD.txt"}, fh, indent=1, default=str)
     interrupted = cards_mod.recover_interrupted(results)
     recorded = cards_mod.load_results(results)
     for card in cards:                                    # human rows need nothing from the agent: record them at once so the dock only ever shows work to do

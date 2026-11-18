@@ -148,6 +148,15 @@ class Session:
             os.remove(os.path.join(self.out_dir, "CURRENT_ROW.txt"))
 
 
+MAX_INTERRUPTIONS = 2
+
+
+def finished_rows(out_dir):
+    """Rows that have a result and need nothing more. A row recorded as 'interrupted' (QGIS closed while it was open) is NOT finished until it has been interrupted MAX_INTERRUPTIONS times, so a row
+    that was only cut short is offered again, and one that really crashes QGIS cannot loop forever. Pure apart from reads."""
+    return {row for row, rec in load_results(out_dir).items() if rec.get("evidence_error") != "interrupted"}
+
+
 def recover_interrupted(out_dir, clock=time.time):
     """If QGIS closed or crashed while a row was open, CURRENT_ROW.txt is still there at the next start: record that row as FAIL 'interrupted' so it is never silently lost, remove the
     marker, and return the row id (or None). Pure apart from files."""
@@ -157,11 +166,14 @@ def recover_interrupted(out_dir, clock=time.time):
     with open(marker, encoding="utf-8") as fh:
         row_id = fh.read().strip()
     os.remove(marker)
-    if not row_id or load_results(out_dir).get(row_id):
+    previous = load_results(out_dir).get(row_id)
+    if not row_id or (previous and previous.get("evidence_error") != "interrupted"):
         return None
+    attempts = 1 + (int(re.search(r"attempt (\d+)", previous.get("note", "")).group(1)) if previous and re.search(r"attempt (\d+)", previous.get("note", "")) else 0)
     now = round(clock(), 1)
-    append_result(out_dir, {"row": row_id, "status": "FAIL", "note": "QGIS closed or crashed while this row was open (recorded automatically at the next start)",
-                            "started": now, "finished": now, "seconds": 0, "evidence_error": "interrupted"})
+    append_result(out_dir, {"row": row_id, "status": "FAIL", "note": f"QGIS closed or crashed while this row was open (attempt {attempts}; recorded automatically at the next start)",
+                            "started": now, "finished": now, "seconds": 0,
+                            "evidence_error": "interrupted" if attempts < MAX_INTERRUPTIONS else "interrupted-final"})
     return row_id
 
 

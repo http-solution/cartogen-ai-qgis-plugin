@@ -52,7 +52,7 @@ LIMITS (these are the only STOP cases)
 - Never enter, read out, search for or change an API key or password. If a card needs the model and it is not connected, Skip with the note "no key".
 - Only touch the package folder and QGIS. You may open files that are INSIDE the package folder (for example the pages exported by row A1) with the Windows image and PDF viewers, and close them again. Do not install software, change Windows settings, delete files, or open other programs or websites.
 - The QGIS Python console is used for exactly one thing: the single line on card A1. Never type a command there that a card does not give you. Do not try to type in Command Prompt or PowerShell.
-- Do not paste anything (the clipboard may hold old text): type each prompt yourself, and read the chat box before you press Enter.
+- Do not paste with Ctrl+V yourself (the clipboard may hold old text). Typing with your type tool is fine even if it uses the clipboard inside: just read the chat box before you press Enter and retype if the text is not what the card says.
 - Never claim a result you did not see. A wrong Pass is worse than a Skip.
 
 WHEN THE DOCK SAYS EVERY ROW HAS A RESULT
@@ -156,6 +156,17 @@ python "%PKG%tools\\analyze_smoke_run.py" "%PKG%results" "%PKG%cards.json"
 """
 
 
+def build_stamp():
+    """Which commit the package was built from, so the dock (and the owner) can tell a new package from an old one unzipped over the same folder name. Pure apart from a git call."""
+    import datetime
+    import subprocess
+    try:
+        sha = subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=REPO, capture_output=True, text=True, timeout=20, check=False).stdout.strip() or "unknown"  # noqa: S607
+    except (OSError, subprocess.SubprocessError):
+        sha = "unknown"
+    return f"{sha} built {datetime.datetime.now().strftime('%Y-%m-%d %H:%M')}"
+
+
 def machine_map():
     doc = json.loads((REPO / "docs" / "AGENT_RUN_ROWS.json").read_text(encoding="utf-8"))
     out = {}
@@ -189,6 +200,7 @@ def build(plugin_zip, out_dir):
             readme = README.format(v=v, n=len(cards), m=len(machine_rows), k=len(runnable), h=len(cards) - len(runnable))
             z.writestr(f"{top}/README.txt", readme.replace("\n", "\r\n"))
             z.writestr(f"{top}/HAIKU_PROMPT.md", PROMPT + "\n")
+            z.writestr(f"{top}/BUILD.txt", build_stamp() + "\n")
             z.writestr(f"{top}/cards.json", json.dumps(cards, indent=1, ensure_ascii=False))
             z.writestr(f"{top}/CARDS.md", "\n\n---\n\n".join(smoke_cards.card_text(c) for c in cards) + "\n")
             for name, text in (("START_QGIS.bat", START), ("RUN_HEADLESS.bat", HEADLESS), ("ANALYZE.bat", ANALYZE), ("PY.bat", PYBAT), ("RECORD.bat", RECORD), ("RUN_EVERYTHING.bat", EVERYTHING)):
