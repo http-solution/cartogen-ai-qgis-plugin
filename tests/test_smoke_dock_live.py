@@ -57,6 +57,25 @@ class TestSmokeDock(unittest.TestCase):
         self.assertEqual(self.dock.combo.currentText(), "X2")
         self.assertIn("NOT FOR THIS AGENT", self.dock.view.toPlainText())
 
+    def test_an_error_in_the_handler_never_escapes_and_the_verdict_is_kept(self):
+        self.dock.start_button.click()
+        self.dock._goto_unfinished = lambda start: (_ for _ in ()).throw(TypeError("<lambda>() missing 1 required positional argument: 'n'"))      # the error the owner saw
+        self.dock.note.setText("kept")
+        self.dock.buttons["PARTIAL"].click()                                # must not raise
+        r = self.sc.load_results(self.tmp.name)["X1"]
+        self.assertEqual((r["status"], r["note"]), ("PARTIAL", "kept"))
+        self.assertIn("recorded", self.dock.status.text())
+        self.assertIn("TypeError", (Path(self.tmp.name) / "dock_errors.txt").read_text(encoding="utf-8"))
+        self.assertIsNone(self.session.current)
+
+    def test_all_four_result_buttons_record_their_own_status(self):
+        for status in ("PASS", "PARTIAL", "FAIL"):
+            self.dock.combo.setCurrentIndex(0)
+            self.session.current = None
+            self.session.start("X1")
+            self.dock.buttons[status].click()
+            self.assertEqual(self.sc.load_results(self.tmp.name)["X1"]["status"], status)
+
     def test_skip_works_without_start_and_a_wrong_version_is_flagged(self):
         self.dock.combo.setCurrentIndex(1)
         self.dock.note.setText("human row")

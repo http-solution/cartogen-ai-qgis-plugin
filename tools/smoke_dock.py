@@ -40,9 +40,13 @@ class SmokeDock(QDockWidget):
         self.start_button = QPushButton("Start this row")
         buttons = QHBoxLayout()
         self.buttons = {}
+        # One plain method per button instead of `lambda _=False, n=name: ...`: on the owner's QGIS 4.2.3 (Windows 11) pressing Partial raised
+        # "<lambda>() missing 1 required positional argument: 'n'" and recorded nothing (2026-11-18). That was NOT reproduced here (the lambda works with PyQt6 6.12), so this is a
+        # removal of the suspect, not a proven fix; the handler below also records any error instead of losing the verdict.
+        slots = {"PASS": self._on_pass, "PARTIAL": self._on_partial, "FAIL": self._on_fail, "SKIP": self._on_skip}
         for name in cards_mod.STATUSES:
             b = QPushButton(name.title())
-            b.clicked.connect(lambda _=False, n=name: self._finish(n))
+            b.clicked.connect(slots[name])
             self.buttons[name] = b
             buttons.addWidget(b)
         self.shot_name = QLineEdit()
@@ -81,24 +85,51 @@ class SmokeDock(QDockWidget):
                 return
         self.status.setText("Every row has a result. Run ANALYZE.bat (or let RUN_EVERYTHING finish) and read results\\REPORT.md.")
 
-    def _start(self):
+    def _start(self, checked=False):
         ok, msg = self.session.start(self._card()["id"])
         self.status.setText(msg)
         return ok
 
-    def _finish(self, status):
-        if not self.session.current and status != "SKIP":
-            self.status.setText("press 'Start this row' first")
-            return
-        if not self.session.current:
-            self.session.start(self._card()["id"])
-        ok, msg = self.session.finish(status, self.note.text().strip())
-        self.status.setText(msg)
-        if ok:
-            self.note.clear()
-            self._goto_unfinished(self.combo.currentIndex() + 1)
+    def _on_pass(self, checked=False):
+        self._finish("PASS")
 
-    def _extra(self):
+    def _on_partial(self, checked=False):
+        self._finish("PARTIAL")
+
+    def _on_fail(self, checked=False):
+        self._finish("FAIL")
+
+    def _on_skip(self, checked=False):
+        self._finish("SKIP")
+
+    def _finish(self, status):
+        """Never lets an error escape to Qt: any failure is written to results/dock_errors.txt and shown in the status line, and if no result line exists for the row yet one is written, so the
+        verdict is not lost and the next click starts clean."""
+        row_id = self.session.current or self._card()["id"]
+        try:
+            if not self.session.current and status != "SKIP":
+                self.status.setText("press 'Start this row' first")
+                return
+            if not self.session.current:
+                self.session.start(self._card()["id"])
+            ok, msg = self.session.finish(status, self.note.text().strip())
+            self.status.setText(msg)
+            if ok:
+                self.note.clear()
+                self._goto_unfinished(self.combo.currentIndex() + 1)
+        except Exception as e:
+            import time
+            import traceback
+            with open(os.path.join(self.session.out_dir, "dock_errors.txt"), "a", encoding="utf-8") as fh:
+                fh.write(f"{time.strftime('%Y-%m-%dT%H:%M:%S')} row {row_id} status {status}\n{traceback.format_exc()}\n")
+            if row_id not in cards_mod.load_results(self.session.out_dir):
+                now = round(time.time(), 1)
+                cards_mod.append_result(self.session.out_dir, {"row": row_id, "status": status, "note": self.note.text().strip(), "started": now, "finished": now, "seconds": 0,
+                                                              "evidence_error": f"dock error: {type(e).__name__}: {e}"})
+                self.session.current = self.session.started = None
+            self.status.setText(f"{row_id}: {status} recorded, but the dock hit an error ({type(e).__name__}: {e}). Details in results/dock_errors.txt. Carry on with the next row.")
+
+    def _extra(self, checked=False):
         name = self.shot_name.text().strip()
         if not name or not self.session.current:
             self.status.setText("start a row and type a name first")

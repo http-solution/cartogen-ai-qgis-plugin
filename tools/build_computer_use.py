@@ -45,7 +45,7 @@ WHEN SOMETHING GOES WRONG (fix it yourself)
 - QGIS looks frozen ("Not Responding"): tools can block it for up to 6 minutes. Wait, screenshot every minute, click nothing. After 8 minutes with no change: click Fail with the note "no reply"; if QGIS still does not answer after 3 more minutes, open Task Manager (Ctrl+Shift+Esc), select QGIS, End task. RUN_EVERYTHING reopens it.
 - QGIS closes or a crash window appears (qgiscrashhandler): click "Close" / "Don't send". The row that was open is recorded as FAIL "interrupted" automatically. If RUN_EVERYTHING's window is still open, QGIS comes back within seconds; otherwise double-click START_QGIS.bat. Then carry on with the next row.
 - The dock is missing, or a button crashes QGIS: the result line is written BEFORE the evidence is taken, so the verdict is not lost. Reopen QGIS by double-clicking START_QGIS.bat (or let RUN_EVERYTHING reopen it); the dock returns at the first row with no result. If the same row crashes QGIS 3 times, click Skip on it (or Fail with the note "crashes QGIS") and go on.
-- The QGIS window is hidden: click its button on the taskbar once.
+- The QGIS window is hidden, or a browser, PDF or image viewer has come to the front and blocks your clicks: close that viewer (Ctrl+W for a browser tab) or click the QGIS button on the taskbar once, then carry on.
 - A row cannot be done as written (a file or program the card names is not there): Skip with the exact reason.
 
 LIMITS (these are the only STOP cases)
