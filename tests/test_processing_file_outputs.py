@@ -97,5 +97,19 @@ class TestSensitiveLayersStayGated(unittest.TestCase):
             self.assertEqual(decision["action"], "block", alg_id)
 
 
+class TestFolderOutputs(unittest.TestCase):
+    """2026-11-20 live run, row C15: native:pointstopath failed on Windows with "Failed to create the text output directory" because its optional FOLDER output OUTPUT_TEXT_DIR was given the
+    "memory:" sink meant for layers (QDir cannot make a folder called "memory:" there; on Linux it silently makes one in the working directory)."""
+
+    def test_an_unnamed_folder_output_is_left_unset_and_the_layer_output_still_gets_its_sink(self):
+        resolved = tools._resolve_params({"INPUT": "pts"}, destination_keys={"OUTPUT"}, raster_keys=set(), folder_keys={"OUTPUT_TEXT_DIR"})
+        self.assertEqual(resolved["OUTPUT"], "memory:")
+        self.assertNotIn("OUTPUT_TEXT_DIR", resolved)
+
+    def test_a_folder_the_caller_names_is_dropped(self):
+        resolved = tools._resolve_params({"INPUT": "pts", "OUTPUT_TEXT_DIR": "C:/anywhere"}, destination_keys={"OUTPUT"}, raster_keys=set(), folder_keys={"OUTPUT_TEXT_DIR"})
+        self.assertNotIn("OUTPUT_TEXT_DIR", resolved)
+
+
 if __name__ == "__main__":
     unittest.main()

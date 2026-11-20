@@ -206,6 +206,16 @@ def _logarithmic_breaks(values, num_classes):
     return [10 ** (log_lo + step * i) for i in range(1, num_classes)]
 
 
+def effective_class_count(values, num_classes, manual=False):
+    """(classes to use, note). A layer with fewer distinct values than requested classes made QGIS build empty and inverted ranges: the 2026-11-20 live run (row E5) showed the legend
+    labels "0 - 1000", "1000 - 0", "0 - 1500" for a population field with two usable values and 5 classes. For automatic classification the count is capped at the number of distinct
+    values (apply_graduated_symbol_style already does the same). Manual breaks, and fields with fewer than two distinct values, are left as they were. Pure."""
+    distinct = len({round(v, 12) for v in values})
+    if manual or distinct < 2 or distinct >= num_classes:
+        return num_classes, None
+    return distinct, f"Only {distinct} distinct values in the field, so {distinct} classes were used instead of {num_classes} (more would give empty or inverted ranges)."
+
+
 def _classify_values(values, mode="auto", num_classes=5):
     """Pure-Python classification-method + color-ramp selection based on a
     field's value distribution (skewness/cardinality) -- no QGIS import, so
@@ -643,6 +653,7 @@ def apply_graduated_style(layer_name, field, mode="auto", opacity=None, cluster=
         # below whenever breaks is None, regardless of which ramp branch
         # runs -- a cluster-color match still needs a real classification
         # method/label, only the RAMP choice differs by branch.
+        num_classes, classes_note = effective_class_count(values, num_classes, manual=breaks is not None)
         classification = _classify_values(values, mode, num_classes)
         # 'logarithmic' has no native QGIS Mode -- _classify_values computed explicit
         # breaks for it instead (or an 'error' if the data can't be log-transformed).
@@ -756,10 +767,8 @@ def apply_graduated_style(layer_name, field, mode="auto", opacity=None, cluster=
             "opacity_percent": resolved_opacity,
         }
         result.update(no_data_info)
-        if breaks is not None:
-            result["breaks"] = sorted(breaks)
-        if cluster_warning:
-            result["cluster_warning"] = cluster_warning
+        extras = {"classes_note": classes_note, "breaks": None if breaks is None else sorted(breaks), "cluster_warning": cluster_warning}
+        result.update({key: value for key, value in extras.items() if value})
         return result
     except Exception as e:
         return {"error": f"apply_graduated_style failed: {e}"}
