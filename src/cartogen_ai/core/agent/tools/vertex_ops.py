@@ -60,6 +60,17 @@ def check_request(action, index=None, x=None, y=None, near_x=None, near_y=None, 
     return None
 
 
+def delete_refusal(is_polygon, vertex_count):
+    """The reason a vertex may NOT be deleted, or None. QgsLineString.deleteVertex on a 2-vertex line returns True and EMPTIES the geometry, so QGIS's own `done` flag cannot be
+    trusted here (2026-11-20 live run, row C2: "delete vertex 1" of a 2-vertex road was reported as completed and left the feature with 0 vertices). A line needs 2 vertices;
+    a polygon ring is closed, so the smallest valid ring (a triangle) has 4. Pure."""
+    if is_polygon and vertex_count <= 4:
+        return f"deleting a vertex would leave this polygon with fewer than 3 corners (it has {vertex_count} vertices counting the closing one). Nothing was changed."
+    if not is_polygon and vertex_count <= 2:
+        return f"a line needs at least 2 vertices and this one has {vertex_count}: deleting one would empty the geometry. Nothing was changed."
+    return None
+
+
 def nearest_vertex(vertices, px, py, tolerance=None):
     """(index, distance) of the vertex nearest to (px, py), or None when `vertices` is empty or the nearest is farther than `tolerance`. `vertices` is a list of (x, y);
     on a tie the lowest index wins (a closed ring's first and last vertex are the same corner, so the first is returned). Pure."""
