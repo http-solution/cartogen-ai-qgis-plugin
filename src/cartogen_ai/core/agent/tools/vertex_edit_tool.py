@@ -77,6 +77,9 @@ def edit_vertices(layer_name, feature_id, action, index=None, near_x=None, near_
             chosen = found[0]
         if chosen is None or chosen >= count:
             return {"error": f"Vertex {chosen} does not exist: feature {fid} has {count} vertices (numbered 0 to {count - 1})."}
+        refusal = vo.delete_refusal(is_polygon, count) if act == "delete" else None       # QGIS empties a 2-vertex line and still says it worked
+        if refusal:
+            return {"error": f"Refused: {refusal}"}
     near = (float(near_x), float(near_y)) if near_x is not None else None
     sentence = vo.describe(act, chosen, None if x is None else float(x), None if y is None else float(y), near)
     if not confirmed:

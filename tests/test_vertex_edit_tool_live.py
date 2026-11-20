@@ -44,6 +44,20 @@ class TestEditVerticesLive(unittest.TestCase):
         self.assertEqual((out["vertices_before"], out["vertices_after"]), (5, 4))
         self.assertAlmostEqual(out["area_after"], 50.0)
 
+    def test_a_two_vertex_line_refuses_the_delete_and_keeps_its_geometry(self):
+        """2026-11-20 row C2: QGIS empties a 2-point line on deleteVertex and says it worked; the tool must refuse before and after confirmation."""
+        line = QgsVectorLayer("LineString?crs=EPSG:32636&field=name:string", "road", "memory")
+        feature = QgsFeature(line.fields())
+        feature.setGeometry(QgsGeometry.fromWkt("LINESTRING(0 0,10 0)"))
+        line.dataProvider().addFeatures([feature])
+        QgsProject.instance().addMapLayer(line)
+        from cartogen_ai.core.agent.tools.vertex_edit_tool import edit_vertices
+        fid = next(line.getFeatures()).id()
+        for confirmed in (False, True):
+            out = edit_vertices("road", fid, "delete", index=1, confirmed=confirmed)
+            self.assertIn("at least 2 vertices", out.get("error", ""), out)
+        self.assertEqual(line.getFeature(fid).geometry().constGet().numPoints(), 2)
+
     def test_add_vertex_keeps_the_shape(self):
         out = self._call(action="add", x=5.0, y=-1.0, confirmed=True)
         self.assertTrue(out.get("success"), out)
