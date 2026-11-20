@@ -163,4 +163,5 @@ def apply_land_cover_look(layer_name, scheme, field=None):
         return {"error": f"apply_land_cover_look failed: {type(e).__name__}"}
     if "error" in outcome:
         return outcome
+    layer.setCustomProperty("cartogen_look", scheme)          # a change report reads this to know whether its colour sentence is true of the map (2026-11-20 row C20)
     return {"success": True, "layer_name": layer_name, "scheme": scheme, "legend_names_included": scheme != "protected_area_hatch", **outcome}

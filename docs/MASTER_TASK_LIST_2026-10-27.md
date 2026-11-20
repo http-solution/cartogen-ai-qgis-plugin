@@ -193,7 +193,7 @@ Source: the results of the first long computer-use run (seven result parts, 2026
 | LR-2 | C17 STAC download: check at a normal chat-panel size that the preview card shows a Confirm control; if not, make the confirm control always visible (and make a typed 'confirm' work or say it does not). | The plugin returned a correct confirmation request, but the tester found no control and typing 'confirm' did nothing, so the download could not be finished by a user either. | Both | - | S | P1 | Waiting on you | live run 2026-11-20 |
 | LR-3 | Epidemic bulletin (C25, C26): the PDF is never written, the top-3 figures (20, 18) did not match the data (maximum 15), the layout carried a 'Surveillance District' name from the model's general knowledge, and the rates were not printed. Reproduce in a saved project, then make every figure and name in the bulletin come from the tool result. | A public-health bulletin with numbers that are not in the data is the worst failure this feature can have. | Claude | - | M | P1 | Not started | live run 2026-11-20 |
 | LR-4 | Watershed (C19): the reply says delineate_watershed failed (window over 400,000 cells) while the layers were produced, and assess_watershed_hydrology_request rejects decimal degrees; make the reply and the layers agree, accept decimal degrees, and no evidence folder was written for C19 (find out why). | Reply and map contradicting each other is what the refusal backstop is meant to prevent. | Claude | - | M | P1 | Not started | live run 2026-11-20 |
-| LR-5 | Change and field report text (C20): HOW TO READ names orange, grey and purple that are not on the map, the change report has no NOTE section, the field report note lacks the yield wording, and ties in a top-3 (five districts at 15, three at 25) are not said to be ties. | The text must describe what is on the page. | Claude | - | S | P2 | Not started | live run 2026-11-20 |
+| LR-5 | Change and field report text (C20): HOW TO READ names orange, grey and purple that are not on the map, the change report has no NOTE section, the field report note lacks the yield wording, and ties in a top-3 (five districts at 15, three at 25) are not said to be ties. | The text must describe what is on the page. | Claude | - | S | P2 | In progress | live run 2026-11-20 |
 | LR-6 | Layout items (E3, C20): a new elevation profile lands at 10 mm, 10 mm on top of the map frame; edit_layout_item answers 'Nothing to change' when only an id is given; an unrequested picture inset appeared at the top left. Place new items clear of existing ones and say what to supply. | Hand-placed overlap makes the first layout a user sees look broken. | Claude | - | S | P2 | Not started | live run 2026-11-20 |
 | LR-7 | Unrequested layers and side effects: C9 added a 'test_check' layer during an inverted-zones request, C16 left about ten intermediate layers after a bar chart (22 tool calls), C12 left a copy flood_prep.model3 in the Processing models folder. Stop report algorithms from adding their tables to the project unless asked; clean up temporary helper layers. | The map and the project should contain what was asked for. | Claude | - | M | P2 | Not started | live run 2026-11-20 |
 | LR-8 | Ellipsoid (C11): hand check in this order: set the project CRS, set the ellipsoid, reopen Project Properties. If it still shows None / Planimetric, store the ellipsoid under the acronym the dialog lists (EPSG:7030 for WGS 84). QGIS source read so far: the dialog selects from the project CRS's ellipsoid and disables the box when there is no valid CRS. | The tool reads WGS84 back but the dialog disagrees; cause not established and the rest of the QGIS source could not be read. | Both | - | XS | P2 | Waiting on you | live run 2026-11-20 |
@@ -221,10 +221,10 @@ Source: the results of the first long computer-use run (seven result parts, 2026
 
 | Status | Rows |
 |---|---|
-| In progress | 55 |
+| In progress | 56 |
 | Closed | 34 |
 | Waiting on you | 17 |
-| Not started | 16 |
+| Not started | 15 |
 | Blocked | 14 |
 | Closed (record) | 1 |
 | Decision needed | 1 |
@@ -501,8 +501,9 @@ Newest last. One line per status change; written by `tools/master_list.py set`.
 - 2026-11-15: HT-6 In progress -> In progress. 2026-11-15: collect_evidence.py failed in the owner's agent-run on 2026-11-13/14 (an agent was asked to drive it by hand); PLAN-073 adds tools/run_smoke_headless.py, which writes evidence itself; first real-QGIS dry run pending
 - 2026-11-15: HT-6 In progress -> In progress. 2026-11-15: PLAN-073 headless runner merged; PLAN-074 adds a computer-use package (cards, in-QGIS dock that saves evidence on click, report); first desktop dry run pending
 - 2026-11-20: LR-1 Waiting on you -> Waiting on you. 2026-11-20: the live-run follow-ups LR-1 to LR-27 added as stream J (fixes, test package, optimisation); nothing else changed
-- 2026-11-20: LR-12 Not started -> Closed. 2026-11-20: F2 card now says it needs internet (the Apply step downloads WorldPop); the router wording part stays open under LR-24
-- 2026-11-20: LR-18 Not started -> Closed. 2026-11-20: C14 step 4 now says exactly what to send; V2 says a run that finishes before Stop is Skip, not Fail; B5 already said exactly 19 more
-- 2026-11-20: LR-22 Not started -> Closed. 2026-11-20: local_ci.sh zip step now looks for cartogen_ai_plugin/ and passes
-- 2026-11-20: LR-23 Not started -> Closed. 2026-11-20: audit of all registered descriptions found no inviting wording left; tests/test_tool_descriptions_no_side_effects.py pins it
-- 2026-11-20: LR-26 Not started -> Closed. 2026-11-20: local_ci.sh now regenerates TOOLS_REFERENCE.md and fails when it differs
+- 2026-11-20: LR-5 Not started -> In progress. 2026-11-20: colour sentence in the change report is now conditional (PR in review); NOTE box, yield wording and ties not changed
+- 2026-11-20: LR-12 Closed -> Closed. 2026-11-20: F2 card now says it needs internet (the Apply step downloads WorldPop); the router wording part stays open under LR-24
+- 2026-11-20: LR-18 Closed -> Closed. 2026-11-20: C14 step 4 now says exactly what to send; V2 says a run that finishes before Stop is Skip, not Fail; B5 already said exactly 19 more
+- 2026-11-20: LR-22 Closed -> Closed. 2026-11-20: local_ci.sh zip step now looks for cartogen_ai_plugin/ and passes
+- 2026-11-20: LR-23 Closed -> Closed. 2026-11-20: audit of all registered descriptions found no inviting wording left; tests/test_tool_descriptions_no_side_effects.py pins it
+- 2026-11-20: LR-26 Closed -> Closed. 2026-11-20: local_ci.sh now regenerates TOOLS_REFERENCE.md and fails when it differs
