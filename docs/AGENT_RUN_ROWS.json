@@ -1179,6 +1179,263 @@
      "value": 0
     }
    ]
+  },
+  {
+   "id": "H16-vertex-delete-refused",
+   "title": "Deleting a vertex of a two-vertex line is refused before and after confirmation, never reported as done (2026-11-20 row C2 left the road with no geometry)",
+   "covers_row": "C2-vertex-editing",
+   "steps": [
+    {
+     "do": "load",
+     "file": "smoke_route.geojson",
+     "name": "route"
+    },
+    {
+     "do": "tool",
+     "name": "edit_vertices",
+     "args": {
+      "layer_name": "route",
+      "feature_id": 0,
+      "action": "delete",
+      "index": 1
+     }
+    },
+    {
+     "do": "tool",
+     "name": "edit_vertices",
+     "args": {
+      "layer_name": "route",
+      "feature_id": 0,
+      "action": "delete",
+      "index": 1,
+      "confirmed": true
+     }
+    }
+   ],
+   "checks": [
+    {
+     "what": "the preview step refuses and says a line needs 2 vertices",
+     "step": 2,
+     "path": "error",
+     "op": "contains",
+     "value": "at least 2 vertices"
+    },
+    {
+     "what": "the confirmed call refuses too",
+     "step": 3,
+     "path": "error",
+     "op": "contains",
+     "value": "at least 2 vertices"
+    }
+   ]
+  },
+  {
+   "id": "H17-batch-twice",
+   "title": "Two batches over the same layers each fill their own group with both of their results (2026-11-20 row C13 moved the first batch's layers into the second group)",
+   "covers_row": "C13-processing-batch",
+   "steps": [
+    {
+     "do": "load",
+     "file": "smoke_clinics.geojson",
+     "name": "clinics"
+    },
+    {
+     "do": "load",
+     "file": "smoke_clients.geojson",
+     "name": "clients"
+    },
+    {
+     "do": "tool",
+     "name": "run_processing_batch",
+     "args": {
+      "algorithm_id": "native:buffer",
+      "layers": [
+       "clinics",
+       "clients"
+      ],
+      "parameters": {
+       "DISTANCE": 0.001
+      },
+      "group_name": "one"
+     }
+    },
+    {
+     "do": "tool",
+     "name": "run_processing_batch",
+     "args": {
+      "algorithm_id": "native:buffer",
+      "layers": [
+       "clinics",
+       "clients"
+      ],
+      "parameters": {
+       "DISTANCE": 0.002
+      },
+      "group_name": "two"
+     }
+    }
+   ],
+   "checks": [
+    {
+     "what": "the first batch succeeds",
+     "step": 3,
+     "path": "success",
+     "op": "true"
+    },
+    {
+     "what": "the first group holds its two layers",
+     "step": 3,
+     "path": "layers_in_group",
+     "op": "eq",
+     "value": 2
+    },
+    {
+     "what": "the second batch succeeds",
+     "step": 4,
+     "path": "success",
+     "op": "true"
+    },
+    {
+     "what": "the second group holds its own two layers",
+     "step": 4,
+     "path": "layers_in_group",
+     "op": "eq",
+     "value": 2
+    }
+   ]
+  },
+  {
+   "id": "H18-points-to-path",
+   "title": "Points to path runs and makes one line (2026-11-20 row C15 failed on Windows with 'Failed to create the text output directory')",
+   "covers_row": "C15-points-to-path-and-relief",
+   "steps": [
+    {
+     "do": "load",
+     "file": "smoke_clinics.geojson",
+     "name": "clinics"
+    },
+    {
+     "do": "tool",
+     "name": "run_allowlisted_processing_algorithm",
+     "args": {
+      "alg_id": "native:pointstopath",
+      "params": {
+       "INPUT": "clinics",
+       "ORDER_EXPRESSION": "\"name\"",
+       "CLOSE_PATH": false
+      },
+      "new_layer_name": "clinics_path"
+     }
+    }
+   ],
+   "checks": [
+    {
+     "what": "the algorithm reports success",
+     "step": 2,
+     "path": "success",
+     "op": "true"
+    },
+    {
+     "what": "one line was made",
+     "layer": "clinics_path",
+     "field": "begin",
+     "op": "count_eq",
+     "value": 1
+    }
+   ]
+  },
+  {
+   "id": "H19-classes-capped",
+   "title": "Graduated classes are capped at the field's distinct values: 25 areas with two values get 2 classes and a note, not 5 with inverted ranges (2026-11-20 row E5)",
+   "covers_row": "E5-raster-styling",
+   "steps": [
+    {
+     "do": "load",
+     "file": "smoke_one_high5.geojson",
+     "name": "high5"
+    },
+    {
+     "do": "tool",
+     "name": "apply_graduated_style",
+     "args": {
+      "layer_name": "high5",
+      "field": "v"
+     }
+    }
+   ],
+   "checks": [
+    {
+     "what": "the style is applied",
+     "step": 2,
+     "path": "success",
+     "op": "true"
+    },
+    {
+     "what": "two classes, not five",
+     "step": 2,
+     "path": "classes",
+     "op": "eq",
+     "value": 2
+    },
+    {
+     "what": "the reply says why",
+     "step": 2,
+     "path": "classes_note",
+     "op": "present"
+    }
+   ]
+  },
+  {
+   "id": "H20-text-field-fill",
+   "title": "A text field made by add_field can be filled with text by field_calculator (2026-11-20 row V9 refused it twice)",
+   "covers_row": "V9-undo-field",
+   "steps": [
+    {
+     "do": "load",
+     "file": "smoke_clinics.geojson",
+     "name": "clinics"
+    },
+    {
+     "do": "tool",
+     "name": "add_field",
+     "args": {
+      "layer_name": "clinics",
+      "field_name": "notes",
+      "field_type": "string"
+     }
+    },
+    {
+     "do": "tool",
+     "name": "field_calculator",
+     "args": {
+      "layer_name": "clinics",
+      "new_field": "notes",
+      "expression": "'checked'",
+      "confirmed": true
+     }
+    }
+   ],
+   "checks": [
+    {
+     "what": "the field is added",
+     "step": 2,
+     "path": "success",
+     "op": "true"
+    },
+    {
+     "what": "the fill succeeds",
+     "step": 3,
+     "path": "success",
+     "op": "true"
+    },
+    {
+     "what": "every area has the text",
+     "layer": "clinics",
+     "field": "notes",
+     "op": "any_empty_count_eq",
+     "value": 0
+    }
+   ]
   }
  ]
 }
