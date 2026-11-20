@@ -8,6 +8,7 @@ import tempfile
 import unittest
 import zipfile
 from pathlib import Path
+from typing import ClassVar
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
@@ -246,6 +247,7 @@ class TestAnalysis(unittest.TestCase):
             folder.mkdir(parents=True)
             (folder / "window.png").write_bytes(b"png")
             (folder / "layers.json").write_text("[]")
+            sc.start_log(tmp, "dock shown (visible=True)")                  # a run in which the dock reported: the strict rules apply
             sc.append_result(tmp, {"row": "X1", "status": "PASS", "note": "ok", "seconds": 5})
             sc.append_result(tmp, {"row": "X2", "status": "PASS", "note": "ok", "seconds": 9})        # no evidence for X2
             (Path(tmp) / "RESULTS.csv").write_text("row,covers_row,status,evidence_folder\nH1,C24,PASS,e\n")
@@ -317,6 +319,15 @@ class TestTheBuiltPackage(unittest.TestCase):
             for f in c["files"]:
                 self.assertIn(Path(f).name, names, c["id"])
 
+    def test_the_dock_start_is_logged_and_a_failure_is_never_silent(self):
+        sup = self.zip.read(f"{self.top}/tools/supervisor.ps1").decode()
+        for need in ("dock_start.log", "dock shown", "WARNING: QGIS has run 90 s"):
+            self.assertIn(need, sup)
+        start = self.zip.read(f"{self.top}/tools/smoke_dock_start.py").decode()
+        for need in ("start_error(", "building the dock", "start_log("):
+            self.assertIn(need, start)
+        self.assertIn("dock shown", self.zip.read(f"{self.top}/tools/smoke_dock.py").decode())
+
     def test_csv_of_results_header_is_stable(self):
         self.assertEqual(sc.RESULT_FIELDS[:3], ["row", "status", "note"])
         with tempfile.TemporaryDirectory() as tmp:
@@ -326,3 +337,80 @@ class TestTheBuiltPackage(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestWorkOnACopy(unittest.TestCase):
+    def test_rows_that_write_into_their_data_file_say_to_use_a_copy(self):
+        for rid in ("C7-field-rules", "D2-damage-and-risk"):
+            self.assertTrue(any("WORK ON A COPY" in h and rid in h for h in sc.helps({"id": rid, "starts_from": "", "do": "", "expect": "", "pass_if": ""})), rid)
+        self.assertFalse(any("WORK ON A COPY" in h for h in sc.helps({"id": "A2-settings-connections", "starts_from": "", "do": "", "expect": "", "pass_if": ""})))
+
+
+class TestDockStartLog(unittest.TestCase):
+    """The 2026-11-20 run left no trace of whether the dock appeared; these pin the files that now say so."""
+
+    def test_log_lines_and_a_failure_with_its_traceback(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            sc.start_log(tmp, "dock shown (visible=True)")
+            try:
+                raise TypeError("boom")
+            except TypeError as e:
+                sc.start_error(tmp, "building the dock", e)
+            log = (Path(tmp) / "dock_start.log").read_text(encoding="utf-8")
+            self.assertIn("dock shown", log)
+            self.assertIn("START-UP FAILED in building the dock: TypeError: boom", log)
+            self.assertIn("Traceback", (Path(tmp) / "dock_errors.txt").read_text(encoding="utf-8"))
+
+    def test_logging_never_raises_when_the_folder_cannot_be_written(self):
+        with tempfile.NamedTemporaryFile() as f:
+            sc.start_log(f.name, "x")                     # a file where a folder is expected
+
+    def test_the_report_warns_when_the_dock_never_reported_and_is_quiet_when_it_did(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            text, _, _ = an.build_report(tmp, [])
+            self.assertIn("never reported that it was shown", text)
+            sc.start_log(tmp, "dock shown (visible=True)")
+            text, _, _ = an.build_report(tmp, [])
+            self.assertIn("reported that it was shown", text)
+            self.assertNotIn("never reported", text)
+
+
+class TestReportWithoutTheDock(unittest.TestCase):
+    """The owner dropped the dock on 2026-11-20: a PASS is then supported by the agent's notes plus the plugin's own tool record, and only from a folder that belongs to that row."""
+    CARD: ClassVar[dict] = {"id": "D5-task-grid", "can_run": True, "why_not": "", "model_needed": True}
+
+    def _row(self, tmp, where, notes=True):
+        base = Path(tmp) / where / "cartogen_evidence" / "20261120-000000_t1"
+        base.mkdir(parents=True)
+        (base / "steps.jsonl").write_text(json.dumps({"n": 1, "tool": "generate_mapping_task_grid"}) + "\n", encoding="utf-8")
+        if notes:
+            (Path(tmp) / "evidence" / "D5-task-grid").mkdir(parents=True)
+            (Path(tmp) / "evidence" / "D5-task-grid" / "observations.txt").write_text("saw it", encoding="utf-8")
+
+    def _judge(self, tmp, dock_shown=False):
+        ev = an.evidence_for(tmp, "D5-task-grid")
+        return an.judge(self.CARD, {"status": "PASS"}, ev, dock_shown=dock_shown), ev
+
+    def test_a_row_folder_with_notes_and_a_plugin_record_is_supported(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            self._row(tmp, "outputs/D5-task-grid")
+            (trust, why), ev = self._judge(tmp)
+            self.assertEqual(trust, "SUPPORTED", why)
+            self.assertEqual(ev["tools"], ["generate_mapping_task_grid"])
+
+    def test_a_record_found_only_in_a_work_copy_is_not_attributed(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            self._row(tmp, "work/D5_copy")
+            (trust, why), _ = self._judge(tmp)
+            self.assertEqual(trust, "UNSUPPORTED")
+            self.assertIn("cannot be attributed", why)
+
+    def test_no_notes_means_unsupported(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            self._row(tmp, "outputs/D5-task-grid", notes=False)
+            self.assertEqual(self._judge(tmp)[0][0], "UNSUPPORTED")
+
+    def test_when_the_dock_did_report_the_old_strict_rules_still_apply(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            self._row(tmp, "outputs/D5-task-grid")
+            self.assertEqual(self._judge(tmp, dock_shown=True)[0][0], "UNSUPPORTED")       # no window.png / layers.json

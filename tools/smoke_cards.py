@@ -78,6 +78,9 @@ def make_cards(rows, machine_rows=None):
 _BROWSER = re.compile(r"\bbrowser\b|chrome|firefox|\bedge\b|web page|HDX page", re.I)
 
 
+WRITES_SOURCE_FILE = {"C7-field-rules", "D2-damage-and-risk"}        # rows whose tools wrote into 3_test_files\\smoke_data.gpkg in the 2026-11-20 run
+
+
 def helps(card):
     """The general rules a card relies on (the hand sheet held them; the cards had lost them). Pure."""
     body = " ".join(str(card.get(k, "")) for k in ("starts_from", "do", "expect", "pass_if"))
@@ -89,6 +92,10 @@ def helps(card):
         out.append(f"SAVE FIRST: File > Save As into <PACKAGE>\\results\\outputs\\{card['id']}\\ BEFORE the first request; the plugin writes its evidence next to a saved project (an unsaved project leaves none).")
     if re.search(r"a copy of", str(card.get("starts_from", "")), re.I):
         out.append(f"COPY: you do not need to copy files. Open the project, then File > Save As into <PACKAGE>\\results\\outputs\\{card['id']}\\ before you change anything, so the original in 3_test_files is never altered.")
+    if card.get("id") in WRITES_SOURCE_FILE:
+        out.append("WORK ON A COPY: this row's tools change the data file they load (a new field, a changed value). In File Explorer copy the whole 3_test_files folder to "
+                   f"<PACKAGE>\\results\\work\\{card['id']}_copy (click the folder, Ctrl+C, Ctrl+V, rename the copy) and load every file from THAT copy, never from 3_test_files. "
+                   "The 2026-11-20 run changed smoke_data.gpkg in 3_test_files during C7 and D2 and had to restore it.")
     if _BROWSER.search(body):
         out.append("BROWSERS: the Claude app lets you only LOOK at a web browser, not click or type in it. Skip any step that needs one, say so in the note, and give the row Partial at best.")
     if re.search(r"\bNotepad\b|\bExcel\b|\bLibreOffice\b", body):
@@ -218,6 +225,29 @@ def record_human_rows(out_dir, cards, clock=time.time):
             append_result(out_dir, {"row": card["id"], "status": "SKIP", "note": f"human row: {card['why_not']}", "started": now, "finished": now, "seconds": 0, "evidence_error": ""})
             recorded.append(card["id"])
     return recorded
+
+
+def start_log(out_dir, text, clock=time.time):
+    """Appends one line to results/dock_start.log. The 2026-11-20 Haiku run (package 7cef7bc4, QGIS 4.2.3) left no trace of whether the dock ever appeared: an error while the start-up
+    timer built it went only to the QGIS Python console, which nobody could read, and no dock_errors.txt existed because the button handler never ran. Never raises. Pure apart from files."""
+    try:
+        os.makedirs(out_dir, exist_ok=True)
+        with open(os.path.join(out_dir, "dock_start.log"), "a", encoding="utf-8") as fh:
+            fh.write(f"{time.strftime('%Y-%m-%dT%H:%M:%S', time.localtime(clock()))} {text}\n")
+    except OSError:
+        pass
+
+
+def start_error(out_dir, where, exc, clock=time.time):
+    """Writes a start-up failure to dock_start.log AND dock_errors.txt with the full traceback, so the report can say the dock did not open and why. Never raises."""
+    import traceback
+    trace = "".join(traceback.format_exception(type(exc), exc, exc.__traceback__))
+    start_log(out_dir, f"START-UP FAILED in {where}: {type(exc).__name__}: {exc}", clock)
+    try:
+        with open(os.path.join(out_dir, "dock_errors.txt"), "a", encoding="utf-8") as fh:
+            fh.write(f"--- start-up failure in {where} ---\n{trace}\n")
+    except OSError:
+        pass
 
 
 def screen_capture_command(path, platform=sys.platform):
