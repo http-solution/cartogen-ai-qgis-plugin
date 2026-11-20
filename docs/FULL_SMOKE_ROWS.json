@@ -149,8 +149,8 @@
  },
  "not_hand_testable": {
   "agent-run-smoke": "test tooling, not a plugin feature: it has its own dry run (RUN.bat dry in its README) and a QGIS CI test; running it inside the hand package would test the tester",
-"computer-use-smoke": "test tooling, not a plugin feature: it has its own dry run (RUN_HEADLESS.bat dry, then the first card) and a QGIS CI test of the dock; running it inside the hand package would test the tester",
-"persona-pack": "data files and a checker with no screen of their own yet; the picker and readiness panel (R1-3) get hand rows R1-H1 to R1-H3",
+  "computer-use-smoke": "test tooling, not a plugin feature: it has its own dry run (RUN_HEADLESS.bat dry, then the first card) and a QGIS CI test of the dock; running it inside the hand package would test the tester",
+  "persona-pack": "data files and a checker with no screen of their own yet; the picker and readiness panel (R1-3) get hand rows R1-H1 to R1-H3",
   "pyqgis-call-arity-ratchet": "an offline check of the source code against a saved list of QGIS 4.2 argument counts; there is nothing to run in QGIS, and a test plants wrong calls to prove it fails",
   "processing-review-decisions": "a decision record (28 algorithms reviewed and declined with reasons); there is nothing to run, a test compares the table with the coverage matrix in CI",
   "tool-prompt-replay": "offline only by design: replays every prompt of the tool sheet against the router in CI",
@@ -1473,6 +1473,23 @@
    "files": [],
    "pass_if": "it runs without a traceback.",
    "cost": "free"
+  },
+  {
+   "id": "F4-new-chat",
+   "issue": "S",
+   "session": "F",
+   "title": "The New chat button empties the conversation and the model's memory, and is refused while a request runs",
+   "covers": [
+    "new-chat-button"
+   ],
+   "needs": "person and a real model",
+   "starts_from": "a copy of 3_test_files\\smoke_start.qgz opened from the folder 3_test_files (all its data files sit beside it); a fresh chat (see EVIDENCE_HOWTO.txt, 'Fresh chat'), 'Save an evidence folder for each request' ticked in Settings",
+   "do": "Send: how many layers are in this project? Wait for the answer. Click the New chat button in the message row (next to the layer-context button). Then send: what did I just ask you? While a request is running, click New chat once more.",
+   "expect": "After the click the chat shows only the welcome message. The model does not remember the earlier question. While a request runs, New chat says it cannot start a new chat now and the running request continues.",
+   "evidence": "Screenshot after the click -> results\\screens\\F4-newchat.png.",
+   "files": [],
+   "pass_if": "the log is empty apart from the welcome, the model has no memory of the first question, and the click during a running request is refused.",
+   "cost": "one request"
   }
  ],
  "v2_overrides": {

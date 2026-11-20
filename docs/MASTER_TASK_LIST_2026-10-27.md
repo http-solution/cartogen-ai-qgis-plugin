@@ -198,7 +198,7 @@ Source: the results of the first long computer-use run (seven result parts, 2026
 | LR-7 | Unrequested layers and side effects: C9 added a 'test_check' layer during an inverted-zones request, C16 left about ten intermediate layers after a bar chart (22 tool calls), C12 left a copy flood_prep.model3 in the Processing models folder. Stop report algorithms from adding their tables to the project unless asked; clean up temporary helper layers. | The map and the project should contain what was asked for. | Claude | - | M | P2 | Not started | live run 2026-11-20 |
 | LR-8 | Ellipsoid (C11): hand check in this order: set the project CRS, set the ellipsoid, reopen Project Properties. If it still shows None / Planimetric, store the ellipsoid under the acronym the dialog lists (EPSG:7030 for WGS 84). QGIS source read so far: the dialog selects from the project CRS's ellipsoid and disables the box when there is no valid CRS. | The tool reads WGS84 back but the dialog disagrees; cause not established and the rest of the QGIS source could not be read. | Both | - | XS | P2 | Waiting on you | live run 2026-11-20 |
 | LR-9 | Identify at a point (C6): rerun steps 3 and 4 in a SAVED project to get a trace: a 500 m radius at a lon/lat point (the card expects a refusal or an explained reprojection) and a hidden layer (must not be listed). The tool reads visible layers by design, so the reply may have named the layer explicitly. | No plugin trace exists for these two failures, so no cause can be read. | Both | - | XS | P2 | Waiting on you | live run 2026-11-20 |
-| LR-10 | Add a 'New chat' control (or clear the chat when a new project opens): testers on B4, B5, C13, F2 had to start a new project to get an empty chat, and the F2 chat still showed the previous project's conversation. | Four rows needed a fresh chat; the card says the plugin has no button. | Claude | - | M | P1 | Not started | live run 2026-11-20 |
+| LR-10 | Add a 'New chat' control (or clear the chat when a new project opens): testers on B4, B5, C13, F2 had to start a new project to get an empty chat, and the F2 chat still showed the previous project's conversation. | Four rows needed a fresh chat; the card says the plugin has no button. | Claude | - | M | P1 | In progress | live run 2026-11-20 |
 | LR-11 | Check the D2 card steps against the tool: the second buffer run did not rename the first result '(superseded)' as the card expects (two layers share a name), and the trigger result names stations, not the rows that pass. | Either the card or the tool is wrong; decide which, then fix it. | Claude | - | S | P3 | Not started | live run 2026-11-20 |
 | LR-12 | Fix F2-fetch-card metadata: it says internet_needed false but the tool downloads WorldPop data; and the router offers fetch_worldpop_population for styling and fetch_osm_features for map-export wording. | A card that hides a download breaks the no-website rule it is meant to respect. | Claude | - | S | P2 | Closed | live run 2026-11-20 |
 | LR-13 | Find out why the card dock recorded nothing: run START_QGIS.bat from a fresh package folder and send results\dock_start.log and dock_errors.txt (the logging is merged in PR 647). | Seventeen hours of testing produced no dock result; the cause is still unknown. | You | - | XS | P0 | Waiting on you | live run 2026-11-20 |
@@ -221,11 +221,11 @@ Source: the results of the first long computer-use run (seven result parts, 2026
 
 | Status | Rows |
 |---|---|
-| In progress | 56 |
+| In progress | 57 |
 | Closed | 34 |
 | Waiting on you | 17 |
-| Not started | 15 |
 | Blocked | 14 |
+| Not started | 14 |
 | Closed (record) | 1 |
 | Decision needed | 1 |
 | **Total** | **138** |
@@ -507,3 +507,4 @@ Newest last. One line per status change; written by `tools/master_list.py set`.
 - 2026-11-20: LR-22 Closed -> Closed. 2026-11-20: local_ci.sh zip step now looks for cartogen_ai_plugin/ and passes
 - 2026-11-20: LR-23 Closed -> Closed. 2026-11-20: audit of all registered descriptions found no inviting wording left; tests/test_tool_descriptions_no_side_effects.py pins it
 - 2026-11-20: LR-26 Closed -> Closed. 2026-11-20: local_ci.sh now regenerates TOOLS_REFERENCE.md and fails when it differs
+- 2026-11-20: LR-10 In progress -> In progress. 2026-11-20: New chat button written (PR in review); CI live tests are its first run

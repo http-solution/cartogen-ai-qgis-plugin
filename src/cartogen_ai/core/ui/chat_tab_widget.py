@@ -459,6 +459,15 @@ class ChatTabWidget(QWidget):
         self.layer_context_btn.setToolTip("Choose which layers' schema Cartogen can see for this question")
         self.layer_context_btn.clicked.connect(self._open_layer_context_picker)
 
+        # 2026-11-20 live run: four rows (B4, B5, C13, F2) needed a NEW PROJECT just to get an empty chat, because the chat follows the project and had no reset of its own.
+        self.new_chat_btn = QPushButton()
+        self.new_chat_btn.setIcon(themed_icon("newchat", _icon_fg))
+        self.new_chat_btn.setIconSize(QSize(16, 16))
+        self.new_chat_btn.setObjectName("iconButton")
+        self.new_chat_btn.setFixedSize(30, 30)
+        self.new_chat_btn.setToolTip("New chat: start an empty conversation. The saved conversation of this project is replaced when you send your next message.")
+        self.new_chat_btn.clicked.connect(self.start_new_chat)
+
         self.attach_btn = QPushButton()
         self.attach_btn.setIcon(themed_icon("attach", _icon_fg))
         self.attach_btn.setIconSize(QSize(16, 16))
@@ -492,6 +501,7 @@ class ChatTabWidget(QWidget):
         self.stop_btn.setEnabled(False)
         self.stop_btn.clicked.connect(self._stop_current_task)
 
+        input_layout.addWidget(self.new_chat_btn)
         input_layout.addWidget(self.layer_context_btn)
         input_layout.addWidget(self.attach_btn)
         input_layout.addWidget(self.input_edit)
@@ -504,7 +514,7 @@ class ChatTabWidget(QWidget):
         # _add_message, which used to silently drop the welcome/restored-history message every
         # time. The dock now calls _populate_initial_chat() itself, once its signals are wired.
 
-    def _populate_initial_chat(self):
+    def _populate_initial_chat(self, restore=True):
         """Shows the welcome message, or restores this project's saved conversation
         (agent/chat_persistence.py) if one exists. Called on first load, and again
         by refresh_chat_for_project_change() whenever the active QGIS project changes.
@@ -520,7 +530,7 @@ class ChatTabWidget(QWidget):
         if self._agent_provider:
             try:
                 agent = self._agent_provider()
-                if agent is not None:
+                if agent is not None and restore:
                     from ..agent.chat_persistence import load_chat_history_with_timestamps
                     history = load_chat_history_with_timestamps()
                     for entry in history:
@@ -576,6 +586,11 @@ class ChatTabWidget(QWidget):
         project switches, so the visible chat log needs to be reloaded to match the
         newly-active project's saved history instead of showing the previous project's
         conversation."""
+        self._reset_chat_state()
+        self._populate_initial_chat()
+
+    def _reset_chat_state(self):
+        """Clears the visible chat and every pending-question flag that belonged to it. Shared by a project change and by New chat."""
         self.chat_browser.clear()
         # A pending requirement question's chat bubble is about to be wiped by the clear()
         # above -- without resetting this too, a message typed after switching projects would
@@ -587,7 +602,18 @@ class ChatTabWidget(QWidget):
         self._local_data_pending = None
         # #147: tool steps collected for a turn of the previous project must not be summarised into the next turn's reply.
         self._current_turn_steps = []
-        self._populate_initial_chat()
+
+    def start_new_chat(self):
+        """New chat: an empty conversation in the same project. The model's history and the visible log are cleared and the welcome message is shown, without restoring the saved
+        conversation (which the next turn replaces). Refused while a request is running, because that request's reply would land in the new conversation."""
+        if self.stop_btn.isEnabled():
+            self._dock.receiveMessageSignal.emit("ai", "A request is still running. Press Stop first, then start a new chat.")
+            return
+        agent = self._agent_provider() if self._agent_provider else None
+        if agent is not None:
+            agent.clear_history()
+        self._reset_chat_state()
+        self._populate_initial_chat(restore=False)
 
     def _add_message(self, role, text, _raw_html=None):
         # _raw_html: pre-built HTML body to use verbatim instead of running `text` through

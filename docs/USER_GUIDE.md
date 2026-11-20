@@ -109,6 +109,8 @@ with it: **turn this off for projects that discuss sensitive material.** Turning
 doesn't remove what was already saved; use **Clear Saved Chat** in the Memory window to
 delete it (copies of the project file you already shared keep their own copy).
 
+**New chat.** The speech-bubble button at the left of the message box starts an empty conversation in the same project: the visible log and what the model remembers are cleared, and the welcome message comes back. The saved conversation is replaced when you send your next message. It is refused while a request is still running; press Stop first.
+
 ### Hosted Cartogen AI account
 
 If you want to use the hosted **Cartogen AI** API rather than bring your own

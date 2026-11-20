@@ -68,6 +68,13 @@ _ICON_TEMPLATES = {
         '<path d="M3 13.5 L12 18.5 L21 13.5" stroke-linecap="round"/>'
         '</g>'
     ),
+    # A speech bubble with a plus: the composer's New chat button (chat_tab_widget.py's start_new_chat).
+    "newchat": (
+        '<g fill="none" stroke="{color}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">'
+        '<path d="M5 5 H19 V15 H11 L7 19 V15 H5 Z"/>'
+        '<line x1="12" y1="7.5" x2="12" y2="12.5"/><line x1="9.5" y1="10" x2="14.5" y2="10"/>'
+        '</g>'
+    ),
     # §1.4 decision 3 (2026-09-28): the dock header's Sensitivity button
     # (dock_widget.py's open_layer_sensitivity) -- a plain outline shield, same
     # stroke-only weight as this row's other header icons (notes/settings).
