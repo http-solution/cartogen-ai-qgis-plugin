@@ -79,5 +79,17 @@ class TestDescribe(unittest.TestCase):
         self.assertEqual(vo.describe("add", x=5, y=0.2), "Add a vertex on the segment nearest (5, 0.2)")
 
 
+class TestDeleteRefusal(unittest.TestCase):
+    """2026-11-20 live run, row C2: deleting a vertex of a 2-vertex road was reported as completed and left the feature EMPTY (QgsLineString.deleteVertex empties a 2-point line and returns True)."""
+
+    def test_a_two_vertex_line_cannot_lose_a_vertex(self):
+        self.assertIn("at least 2 vertices", vo.delete_refusal(False, 2))
+        self.assertIsNone(vo.delete_refusal(False, 3))
+
+    def test_a_triangle_cannot_lose_a_corner_but_a_square_can(self):
+        self.assertIn("fewer than 3 corners", vo.delete_refusal(True, 4))
+        self.assertIsNone(vo.delete_refusal(True, 5))
+
+
 if __name__ == "__main__":
     unittest.main()

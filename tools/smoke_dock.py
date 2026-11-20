@@ -175,6 +175,7 @@ def show(package_dir):
         sys.path.insert(0, tools)
     import collect_evidence as ce
     results = os.path.join(package_dir, "results")
+    cards_mod.start_log(results, "show(): building the dock")
     ce.setup(results)
     QgsSettings().setValue("cartogen_ai/evidence_enabled", True)       # the plugin writes its own per-request evidence folder: arguments, results and tools actually called
     with open(os.path.join(package_dir, "cards.json"), encoding="utf-8") as fh:
@@ -194,4 +195,7 @@ def show(package_dir):
     if interrupted:
         dock.status.setText(f"Row {interrupted} was open when QGIS last closed; it was recorded as FAIL 'interrupted'. Carry on with the next row.")
     iface.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, dock)
+    dock.show()
+    dock.raise_()
+    cards_mod.start_log(results, f"dock shown (visible={dock.isVisible()}, rows={len(cards)}, package={_build_text(package_dir) or 'no BUILD.txt'}, qgis={version})")
     return dock

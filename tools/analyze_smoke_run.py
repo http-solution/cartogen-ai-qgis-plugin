@@ -4,6 +4,7 @@
 
 Per row it reports: the agent's claim (RESULTS_GUI.csv), the program's own verdict (RESULTS.csv of the headless runner), which evidence files exist, the tools the plugin really called
 (plugin_evidence), the seconds spent, and a trust level:
+  SUPPORTED     (only when the dock never reported) claimed PASS with the agent's notes and, for a model row, tool calls the plugin itself recorded
   VERIFIED      claimed PASS and window.png + layers.json exist (and, for a row that needs a model, at least one plugin tool call was recorded)
   UNSUPPORTED   claimed PASS but that evidence is missing, or the evidence step reported an error: do not believe it
   CLAIMED       PARTIAL / FAIL / SKIP with a note (nothing to verify, but read the note)
@@ -42,13 +43,34 @@ def evidence_for(results, row_id):
                 found["plugin_evidence"] = True
             elif path.name == "tools_called.txt":
                 found["tools"] += [t.strip() for t in path.read_text(encoding="utf-8", errors="replace").splitlines() if t.strip()]
+    # Without the dock (the owner dropped it on 2026-11-20) the agent's notes sit in evidence/<row>/observations.txt or outputs/<row>/result.txt, and the PLUGIN's own record of the tools it called
+    # (cartogen_evidence/<stamp>/steps.jsonl) sits next to the saved project, in outputs/<row>*/ or work/<row>*/. Both are read here; the tool names come from the program-written steps.jsonl.
+    found["notes"] = False
+    for sub in ("evidence", "outputs", "work"):
+        base_dir = Path(results) / sub
+        patterns = [f"{row_id}*"] + ([f"{row_id.split('-')[0]}_*"] if sub == "work" else [])       # work copies are named E5_copy, W11_copy, ...
+        for folder in (p for pat in patterns for p in base_dir.glob(pat) if p.is_dir()) if base_dir.is_dir() else ():
+            for path in folder.rglob("*"):
+                if path.name in ("observations.txt", "result.txt") and path.stat().st_size > 0:
+                    found["notes"] = True
+                elif path.name == "steps.jsonl" and sub == "work":
+                    found["unattributed"] = True       # a work copy of 3_test_files also holds the evidence of earlier rows (E5_copy held a dissolve_layer call E5 never makes): cannot be counted for THIS row
+                elif path.name == "steps.jsonl":
+                    found["plugin_evidence"] = True
+                    for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
+                        try:
+                            tool = json.loads(line).get("tool")
+                        except ValueError:
+                            continue
+                        if tool:
+                            found["tools"].append(tool)
     shots = Path(results) / "screens"
     if shots.is_dir() and any(f.stat().st_size > 0 for f in shots.glob(f"{row_id}*.png")):
         found["window"] = True                    # the dock's screen capture is made from outside QGIS and lands here
     return found
 
 
-def judge(card, claim, ev):
+def judge(card, claim, ev, dock_shown=True):
     """(trust, reason). Pure."""
     if not card["can_run"]:
         return "HUMAN ROW", card["why_not"]
@@ -57,6 +79,14 @@ def judge(card, claim, ev):
     status = claim["status"]
     if status != "PASS":
         return "CLAIMED", f"{status}: {claim.get('note', '')}"
+    if not dock_shown:
+        # No dock: the agent's notes plus the plugin's own tool record are the support. A row that needs a model must show at least one tool call.
+        missing = []
+        if not ev.get("notes"):
+            missing.append("no observations.txt / result.txt")
+        if card["model_needed"] and not ev["plugin_evidence"]:
+            missing.append("the row needs a model but the plugin recorded no tool call for it" + (" (the only steps.jsonl is in a work copy that also holds older rows, so it cannot be attributed)" if ev.get("unattributed") else " (no steps.jsonl beside a saved project)"))
+        return ("UNSUPPORTED", "; ".join(missing)) if missing else ("SUPPORTED", f"agent notes + {len(ev['tools'])} plugin tool call(s) recorded by the plugin, no window picture (dock not used)")
     problems = []
     if claim.get("evidence_error"):
         problems.append(f"evidence step failed: {claim['evidence_error']}")
@@ -72,10 +102,14 @@ def judge(card, claim, ev):
 def build_report(results, cards, agent_rows=()):
     gui, machine = load_results_pair(results)
     lines = ["# Computer-use smoke run: report\n"]
+    start_log = Path(results) / "dock_start.log"
+    shown = start_log.is_file() and "dock shown" in start_log.read_text(encoding="utf-8", errors="replace")
+    lines += ["## Card dock start-up\n", ("The dock reported that it was shown (results/dock_start.log)." if shown else
+              "WARNING: the dock never reported that it was shown (no results/dock_start.log line 'dock shown'). Every result below was then written without it: read dock_start.log and dock_errors.txt first."), ""]
     table, counts = [], {}
     for card in cards:
         ev = evidence_for(results, card["id"])
-        trust, why = judge(card, gui.get(card["id"]), ev)
+        trust, why = judge(card, gui.get(card["id"]), ev, dock_shown=shown)
         counts[trust] = counts.get(trust, 0) + 1
         claim = gui.get(card["id"], {})
         table.append(f"| {card['id']} | {claim.get('status', '')} | {trust} | {claim.get('seconds', '')} | {', '.join(sorted(set(ev['tools']))[:6])} | {why} |")

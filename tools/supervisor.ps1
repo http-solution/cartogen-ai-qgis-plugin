@@ -31,8 +31,15 @@ for ($i = 1; $i -le 8; $i++) {
     $left = Unfinished
     if ($left.Count -eq 0) { Log "every runnable row has a result"; break }
     Log "starting QGIS, attempt $i, rows left: $($left.Count)"
+    $startLog = Join-Path $results "dock_start.log"
+    $mark = 0
+    if (Test-Path $startLog) { $mark = @(Get-Content $startLog).Count }
     $p = Start-Process -FilePath (Join-Path $qgis "bin\qgis-bin.exe") -ArgumentList @("--code", "`"$Pkg\tools\smoke_dock_start.py`"", "`"$Pkg\3_test_files\smoke_start.qgz`"") -PassThru -WindowStyle Maximized
-    $p.WaitForExit()
+    if (-not $p.WaitForExit(90000)) {
+        $fresh = @(Get-Content $startLog -ErrorAction SilentlyContinue | Select-Object -Skip $mark)
+        if (@($fresh | Where-Object { $_ -like "*dock shown*" }).Count -eq 0) { Log "WARNING: QGIS has run 90 s but the card dock did not report that it was shown; read results\dock_start.log and results\dock_errors.txt" } else { Log "the card dock reported that it was shown" }
+        $p.WaitForExit()
+    }
     Log "QGIS exited, code $($p.ExitCode)"
     Get-Process -Name "qgiscrashhandler" -ErrorAction SilentlyContinue | Stop-Process -Force      # the crash window would otherwise sit there and block the next start
     Start-Sleep -Seconds 5

@@ -7,7 +7,7 @@ import unittest
 
 try:
     from osgeo import gdal
-    from qgis.core import QgsFeature, QgsGeometry, QgsPointXY, QgsProject, QgsRasterLayer, QgsVectorLayer
+    from qgis.core import QgsFeature, QgsGeometry, QgsLayerTree, QgsPointXY, QgsProject, QgsRasterLayer, QgsVectorLayer
     LIVE = True
 except ImportError:
     LIVE = False
@@ -61,6 +61,18 @@ class TestRunProcessingBatchLive(unittest.TestCase):
         for layer, expected in zip(inputs, (1, 2, 3), strict=True):
             self.assertEqual(QgsProject.instance().mapLayersByName(f"{layer.name()}_buffer")[0].featureCount(), expected)
             self.assertEqual(layer.featureCount(), expected)                                    # the inputs are unchanged
+
+    def test_a_second_batch_with_the_same_output_names_fills_its_own_group(self):
+        """2026-11-20 row C13: outputs of every batch share the names <layer>_buffer; the by-name move put the FIRST batch's layers in the second group."""
+        self._points("p1", 1)
+        self._points("p2", 2)
+        first = self._run(algorithm_id="native:buffer", layers=["p1", "p2"], parameters={"DISTANCE": 10}, group_name="one")
+        second = self._run(algorithm_id="native:buffer", layers=["p1", "p2"], parameters={"DISTANCE": 20}, group_name="two")
+        self.assertEqual((first["layers_in_group"], second["layers_in_group"]), (2, 2))
+        root = QgsProject.instance().layerTreeRoot()
+        ids = {g: {n.layerId() for n in root.findGroup(g).findLayers()} for g in ("one", "two")}
+        self.assertEqual(len(ids["one"] | ids["two"]), 4)                      # four different layers, none shared
+        self.assertEqual({c.name() for c in root.children() if QgsLayerTree.isLayer(c)}, {"p1", "p2"})      # nothing left loose at the top
 
     def test_a_layer_that_cannot_be_processed_fails_alone_and_the_others_succeed(self):
         self._points("p1", 1)
