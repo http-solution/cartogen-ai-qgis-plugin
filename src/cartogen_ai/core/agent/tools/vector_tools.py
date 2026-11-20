@@ -2008,7 +2008,7 @@ def join_by_attribute(target_layer, join_layer, target_field=None, join_field=No
 
 
 def _add_calculated_field(layer, field_name, expression_text=None, value_fn=None):
-    """Writes a numeric field on `layer`, from a QGIS expression or from `value_fn(feature)`.
+    """Writes a field on `layer` (a new one is numeric; an existing text field is filled as text), from a QGIS expression or from `value_fn(feature)`.
 
     GitHub #143 / #144 (audit F07, F08): the first version started and committed its own edit session even on a layer the user
     was already editing (committing their unrelated edits, or rolling them back on an error), added the field straight to the
@@ -2020,7 +2020,7 @@ def _add_calculated_field(layer, field_name, expression_text=None, value_fn=None
         return {"error": "QGIS not available"}
     if layer is None:
         return {"error": "Layer is None"}
-    from ._edit_session import EditError, add_numeric_field, edit_command, set_value
+    from ._edit_session import EditError, add_numeric_field, add_text_field, edit_command, is_text_field, set_value
     try:
         expression = None
         context = None
@@ -2037,7 +2037,8 @@ def _add_calculated_field(layer, field_name, expression_text=None, value_fn=None
 
         written = 0
         with edit_command(layer, "Cartogen AI: write field " + field_name) as owned:
-            field_idx = add_numeric_field(layer, field_name)
+            # A NEW field is numeric (as before); an EXISTING text field is filled as text instead of being refused as "non-numeric".
+            field_idx = add_text_field(layer, field_name) if is_text_field(layer, field_name) else add_numeric_field(layer, field_name)
             for feature in _ck.features(layer, "Vector: reading features"):
                 if value_fn is not None:
                     value = value_fn(feature)
