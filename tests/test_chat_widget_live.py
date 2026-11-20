@@ -119,6 +119,7 @@ class _FakeAgent:
         self.client = _FakeClient(script)
         self.conversation_history = []
         self.executed_tools = []
+        self.history_cleared = 0
         # Real AgentTaskManager (not a mock) -- the confirmation-gate tests below need
         # real PREVIEW_READY/add_task behavior, not a MagicMock that would silently
         # accept any attribute access without exercising the real logic under test.
@@ -133,6 +134,9 @@ class _FakeAgent:
         # Records every _real_execute_tool call this fake agent receives, so a test can
         # assert the confirmation gate called (or did NOT call) it without a real tool.
         self.real_execute_tool_calls = []
+
+    def clear_history(self):
+        self.conversation_history = []
 
     def run(self, user_text, map_context=None, should_stop=None, tool_step_callback=None):
         self.conversation_history.append({"role": "user", "content": user_text})
@@ -215,6 +219,32 @@ class TestChatWidgetLive(unittest.TestCase):
         QTest.mouseClick(ct.send_btn, Qt.MouseButton.LeftButton)
 
     # --------------------------------------------------------- Scenario 1 --
+
+    def test_new_chat_empties_the_log_and_the_model_history_and_shows_the_welcome(self):
+        """2026-11-20 live run: four rows needed a new project just to get an empty chat."""
+        agent = _FakeAgent(script=[])
+        dock = self._make_dock(agent)
+        ct = dock.chat_tab_widget
+        ct._add_message("user", "an earlier question about floods")
+        agent.conversation_history.append({"role": "user", "content": "an earlier question about floods"})
+        self.assertIn("earlier question", self._chat_text(ct))
+        QTest.mouseClick(ct.new_chat_btn, Qt.MouseButton.LeftButton)
+        self.assertNotIn("earlier question", self._chat_text(ct))
+        self.assertEqual(agent.conversation_history, [])
+        self.assertIn("spatial analysis assistant", self._chat_text(ct))
+        self.assertFalse(ct._awaiting_requirement_reply)
+
+    def test_new_chat_is_refused_while_a_request_is_running(self):
+        agent = _FakeAgent(script=[])
+        dock = self._make_dock(agent)
+        ct = dock.chat_tab_widget
+        ct._add_message("user", "a question still being answered")
+        agent.conversation_history.append({"role": "user", "content": "a question still being answered"})
+        ct.stop_btn.setEnabled(True)                      # what a running request does
+        QTest.mouseClick(ct.new_chat_btn, Qt.MouseButton.LeftButton)
+        self.assertIn("Press Stop first", self._chat_text(ct))
+        self.assertIn("a question still being answered", self._chat_text(ct))
+        self.assertEqual(len(agent.conversation_history), 1)
 
     def test_requirement_question_asked_in_chat_not_a_boxed_panel(self):
         """2026-09-13: replaced a separate QGroupBox("One more detail needed")
