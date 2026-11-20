@@ -371,3 +371,44 @@ class TestDockStartLog(unittest.TestCase):
             text, _, _ = an.build_report(tmp, [])
             self.assertIn("reported that it was shown", text)
             self.assertNotIn("never reported", text)
+
+
+class TestReportWithoutTheDock(unittest.TestCase):
+    """The owner dropped the dock on 2026-11-20: a PASS is then supported by the agent's notes plus the plugin's own tool record, and only from a folder that belongs to that row."""
+    CARD = {"id": "D5-task-grid", "can_run": True, "why_not": "", "model_needed": True}
+
+    def _row(self, tmp, where, notes=True):
+        base = Path(tmp) / where / "cartogen_evidence" / "20261120-000000_t1"
+        base.mkdir(parents=True)
+        (base / "steps.jsonl").write_text(json.dumps({"n": 1, "tool": "generate_mapping_task_grid"}) + "\n", encoding="utf-8")
+        if notes:
+            (Path(tmp) / "evidence" / "D5-task-grid").mkdir(parents=True)
+            (Path(tmp) / "evidence" / "D5-task-grid" / "observations.txt").write_text("saw it", encoding="utf-8")
+
+    def _judge(self, tmp, dock_shown=False):
+        ev = an.evidence_for(tmp, "D5-task-grid")
+        return an.judge(self.CARD, {"status": "PASS"}, ev, dock_shown=dock_shown), ev
+
+    def test_a_row_folder_with_notes_and_a_plugin_record_is_supported(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            self._row(tmp, "outputs/D5-task-grid")
+            (trust, why), ev = self._judge(tmp)
+            self.assertEqual(trust, "SUPPORTED", why)
+            self.assertEqual(ev["tools"], ["generate_mapping_task_grid"])
+
+    def test_a_record_found_only_in_a_work_copy_is_not_attributed(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            self._row(tmp, "work/D5_copy")
+            (trust, why), _ = self._judge(tmp)
+            self.assertEqual(trust, "UNSUPPORTED")
+            self.assertIn("cannot be attributed", why)
+
+    def test_no_notes_means_unsupported(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            self._row(tmp, "outputs/D5-task-grid", notes=False)
+            self.assertEqual(self._judge(tmp)[0][0], "UNSUPPORTED")
+
+    def test_when_the_dock_did_report_the_old_strict_rules_still_apply(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            self._row(tmp, "outputs/D5-task-grid")
+            self.assertEqual(self._judge(tmp, dock_shown=True)[0][0], "UNSUPPORTED")       # no window.png / layers.json
