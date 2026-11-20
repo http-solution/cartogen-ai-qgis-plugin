@@ -206,5 +206,133 @@
   "status": "Probable cause fixed (CI only), confirm on the next package run",
   "pr": "587",
   "next": "int(level) fault fixed, and the collector now reads the plugin's own in-memory log lines because the QGIS signal delivered nothing in CI (DEF-9, PLAN-070, PR 587); log files must be non-empty on the next package run"
+ },
+ {
+  "id": "P20",
+  "defect": "Deleting a vertex of a two-vertex line was reported as done and left the feature with no geometry",
+  "found_by": "Live run 2026-11-20 (Haiku computer use, QGIS 4.2.3), row C2; plugin trace read by me",
+  "status": "Fixed (CI, real QGIS 4.2.2), live recheck due",
+  "pr": "648",
+  "next": "edit_vertices now refuses a delete that would empty a line or collapse a polygon"
+ },
+ {
+  "id": "P21",
+  "defect": "field_calculator could not fill the text field that add_field makes (non-numeric refusal)",
+  "found_by": "Live run 2026-11-20 (Haiku computer use, QGIS 4.2.3), row V9, reproduced twice",
+  "status": "Fixed (CI, real QGIS 4.2.2), live recheck due",
+  "pr": "649",
+  "next": "An existing text field is filled as text; a new field stays numeric"
+ },
+ {
+  "id": "P22",
+  "defect": "run_processing_batch put the first batch's layers into the second group (outputs share names)",
+  "found_by": "Live run 2026-11-20 (Haiku computer use, QGIS 4.2.3), row C13; trace read by me",
+  "status": "Fixed (CI, real QGIS 4.2.2), live recheck due",
+  "pr": "650",
+  "next": "Layers are moved by id and the group count is read from the layer tree"
+ },
+ {
+  "id": "P23",
+  "defect": "native:pointstopath failed on Windows with 'Failed to create the text output directory'",
+  "found_by": "Live run 2026-11-20 (Haiku computer use, QGIS 4.2.3), row C15",
+  "status": "Fixed (CI), live recheck due",
+  "pr": "650",
+  "next": "Optional folder outputs are left unset instead of given the memory sink"
+ },
+ {
+  "id": "P24",
+  "defect": "Graduated legend labels such as '1000 - 0' when a field has fewer distinct values than classes",
+  "found_by": "Live run 2026-11-20 (Haiku computer use, QGIS 4.2.3), row E5",
+  "status": "Fixed (CI), live recheck due",
+  "pr": "650",
+  "next": "Classes are capped at the number of distinct values, with a note"
+ },
+ {
+  "id": "P25",
+  "defect": "'An error that isn't reflected above' was appended to replies that had correctly refused",
+  "found_by": "Live run 2026-11-20 (Haiku computer use, QGIS 4.2.3), rows C25, C26, E1, E5",
+  "status": "Fixed (CI), live recheck due",
+  "pr": "650",
+  "next": "Refused, cannot, blocked, not ready and pending now count as acknowledging a failure"
+ },
+ {
+  "id": "P26",
+  "defect": "A second pyramid build failed on Windows (the .ovr file is open in QGIS)",
+  "found_by": "Live run 2026-11-20 (Haiku computer use, QGIS 4.2.3), row C10",
+  "status": "Fixed (CI), live recheck due",
+  "pr": "651",
+  "next": "A locked file no longer stops the build; the reply says how the levels were rebuilt"
+ },
+ {
+  "id": "P27",
+  "defect": "The save_project description told the model to save at the end of a task; a 'run' request wrote a project file",
+  "found_by": "Live run 2026-11-20 (Haiku computer use, QGIS 4.2.3), row C12",
+  "status": "Fixed (CI), live recheck due",
+  "pr": "651",
+  "next": "The description now says to save only when the user asks"
+ },
+ {
+  "id": "P28",
+  "defect": "The smoke-test card dock recorded no result in a 17-hour run",
+  "found_by": "Live run 2026-11-20 (Haiku computer use, QGIS 4.2.3), RESULTS_GUI.csv",
+  "status": "Logging added; cause not known",
+  "pr": "647",
+  "next": "Send results\\dock_start.log and dock_errors.txt from START_QGIS.bat (LR-13)"
+ },
+ {
+  "id": "P29",
+  "defect": "A rename ran after a cloud-send gate without a confirm click (reported, not confirmed)",
+  "found_by": "Live run 2026-11-20 (Haiku computer use, QGIS 4.2.3), row E1",
+  "status": "Not confirmed",
+  "pr": "",
+  "next": "Both recorded rename calls waited for confirmation; reproduce in a saved project (LR-1)"
+ },
+ {
+  "id": "P30",
+  "defect": "STAC download preview: the confirm control was not found and typing 'confirm' did nothing",
+  "found_by": "Live run 2026-11-20 (Haiku computer use, QGIS 4.2.3), row C17",
+  "status": "Open",
+  "pr": "",
+  "next": "Check at a normal panel size; make the control always visible (LR-2)"
+ },
+ {
+  "id": "P31",
+  "defect": "Epidemic bulletin: PDF never written, top-3 figures not in the data, a district name from general knowledge",
+  "found_by": "Live run 2026-11-20 (Haiku computer use, QGIS 4.2.3), rows C25, C26",
+  "status": "Open",
+  "pr": "",
+  "next": "Reproduce in a saved project; take every figure and name from the tool result (LR-3)"
+ },
+ {
+  "id": "P32",
+  "defect": "Watershed reply says the tool failed while the layers were produced",
+  "found_by": "Live run 2026-11-20 (Haiku computer use, QGIS 4.2.3), row C19",
+  "status": "Open",
+  "pr": "",
+  "next": "Make reply and layers agree (LR-4)"
+ },
+ {
+  "id": "P33",
+  "defect": "No New chat control: four rows needed a new project to get an empty chat",
+  "found_by": "Live run 2026-11-20 (Haiku computer use, QGIS 4.2.3), rows B4, B5, C13, F2",
+  "status": "Open",
+  "pr": "",
+  "next": "Add a New chat control (LR-10)"
+ },
+ {
+  "id": "P34",
+  "defect": "Project Properties shows the ellipsoid as None after set_project_measurement",
+  "found_by": "Live run 2026-11-20 (Haiku computer use, QGIS 4.2.3), row C11",
+  "status": "Not confirmed",
+  "pr": "",
+  "next": "Hand check: set the project CRS first, then the ellipsoid (LR-8)"
+ },
+ {
+  "id": "P35",
+  "defect": "A new elevation profile lands on top of the map frame; an unrequested picture inset appeared",
+  "found_by": "Live run 2026-11-20 (Haiku computer use, QGIS 4.2.3), rows E3, C20",
+  "status": "Open",
+  "pr": "",
+  "next": "Place new layout items clear of existing ones (LR-6)"
  }
 ]
