@@ -134,5 +134,18 @@ class TestPlanClasses(unittest.TestCase):
         self.assertEqual(schema["function"]["parameters"]["required"], ["layer_name", "scheme"])
 
 
+class TestChangeReportGuide(unittest.TestCase):
+    """2026-11-20 live run, row C20: the change report named colours that were not on the map."""
+
+    def test_the_colour_sentence_needs_a_visible_layer_with_the_change_look(self):
+        self.assertEqual(ls.change_report_guide(["change_classes"]), ls.CHANGE_REPORT_GUIDE)
+        self.assertEqual(ls.change_report_guide(["esa_worldcover", "change_classes", ""]), ls.CHANGE_REPORT_GUIDE)
+
+    def test_without_it_the_page_says_the_colours_are_not_applied(self):
+        for looks in ([], [""], [None], ["esa_worldcover"]):
+            self.assertEqual(ls.change_report_guide(looks), ls.CHANGE_REPORT_GUIDE_UNCOLOURED)
+        self.assertNotIn("Orange marks loss", ls.CHANGE_REPORT_GUIDE_UNCOLOURED)
+
+
 if __name__ == "__main__":
     unittest.main()
