@@ -72,12 +72,13 @@ def _algorithm_definition(alg_id):
             return None
         params = list(algorithm.parameterDefinitions())
         names = {p.name() for p in params}
-        destinations = {p.name() for p in params if p.isDestination()}
+        folder_destinations = {p.name() for p in params if p.isDestination() and str(p.type()) == "folderDestination"}
+        destinations = {p.name() for p in params if p.isDestination()} - folder_destinations         # an optional folder output (pointstopath's OUTPUT_TEXT_DIR) must not get the "memory:" sink
         raster_destinations = {p.name() for p in params if p.isDestination() and "raster" in str(p.type()).lower()}
         layer_lists = {p.name() for p in params if str(p.type()) == "multilayer"}
         # a report (HTML) destination is a FILE, not a sink: "memory:" is not valid for it (PLAN-005 wave E1)
         file_destinations = {p.name() for p in params if p.isDestination() and str(p.type()) == "fileDestination"}
-        return names, destinations, raster_destinations, list(algorithm.outputDefinitions()), layer_lists, _expected_layer_kinds(params), file_destinations
+        return names, destinations, raster_destinations, list(algorithm.outputDefinitions()), layer_lists, _expected_layer_kinds(params), file_destinations, folder_destinations
     except Exception:
         return None
 
@@ -123,7 +124,7 @@ def scalar_results(output, skip_keys=()):
 
 
 def _resolve_params(params, raster_output=False, destination_keys=None, raster_keys=None, layer_list_keys=None, temp_file_vectors=False,
-                    file_keys=None):
+                    file_keys=None, folder_keys=None):
     """Any string value that matches a layer currently loaded in the
     project is resolved to that QgsMapLayer object -- the same shape every
     existing processing.run() call in this codebase already uses
@@ -145,6 +146,8 @@ def _resolve_params(params, raster_output=False, destination_keys=None, raster_k
     resolved = {}
     has_output_key = False
     for key, value in params.items():
+        if folder_keys and key in folder_keys:
+            continue            # a FOLDER output is never set: a caller's path is dropped and "memory:" is not a folder (pointstopath's OUTPUT_TEXT_DIR failed on Windows, 2026-11-20 row C15)
         key_lower = key.lower()
         if destination_keys is not None:
             is_destination = key in destination_keys
@@ -633,7 +636,7 @@ def run_allowlisted_processing_algorithm(alg_id, params, new_layer_name=None):
     is_grass = alg_id in GRASS_ALGORITHM_IDS
     file_vectors = is_grass or alg_id in FILE_VECTOR_ALGORITHM_IDS     # these return the path of a vector file they wrote
     definition = _algorithm_definition(alg_id)
-    destination_keys = raster_keys = layer_list_keys = file_keys = None
+    destination_keys = raster_keys = layer_list_keys = file_keys = folder_keys = None
     if definition is not None:
         wrong = unknown_parameters(params.keys(), definition[0])
         if wrong:
@@ -642,12 +645,13 @@ def run_allowlisted_processing_algorithm(alg_id, params, new_layer_name=None):
         destination_keys, raster_keys = definition[1], definition[2]
         layer_list_keys = definition[4] if len(definition) > 4 else None
         file_keys = definition[6] if len(definition) > 6 else None
+        folder_keys = definition[7] if len(definition) > 7 else None
 
     params, parameter_note = _with_sun_point(alg_id, params)
     try:
         resolved_params = _resolve_params(params, raster_output=alg_id in RASTER_OUTPUT_ALGORITHM_IDS,
                                           destination_keys=destination_keys, raster_keys=raster_keys,
-                                          layer_list_keys=layer_list_keys, temp_file_vectors=file_vectors, file_keys=file_keys)
+                                          layer_list_keys=layer_list_keys, temp_file_vectors=file_vectors, file_keys=file_keys, folder_keys=folder_keys)
         _check_raster_lists(alg_id, resolved_params, layer_list_keys, definition[5] if definition is not None and len(definition) > 5 else None)
         output = _run_allowlisted(alg_id, resolved_params)
     except _bg.AnalysisCancelledError as e:

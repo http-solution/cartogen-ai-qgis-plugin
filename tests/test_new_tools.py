@@ -1712,6 +1712,13 @@ class TestNewTools(unittest.TestCase):
         result = agent._reconcile_final_text_with_tool_log("I was unable to create the layer due to an error.", log)
         self.assertEqual(result, "I was unable to create the layer due to an error.")
 
+    def test_reconcile_accepts_a_refusal_or_a_pending_confirmation_as_acknowledged(self):
+        """2026-11-20 live run: correct refusals got "an error that isn't reflected above" appended because 'refused' was not among the acknowledging words."""
+        agent = CartogenAi()
+        log = [("export_layout", True, "Not ready to publish")]
+        for text in ("The export was refused until you give a reason.", "I cannot publish this map yet.", "Waiting for your confirmation (pending).", "That is blocked by the data protection setting."):
+            self.assertEqual(agent._reconcile_final_text_with_tool_log(text, log), text, text)
+
     def test_reconcile_no_op_with_empty_tool_log(self):
         agent = CartogenAi()
         result = agent._reconcile_final_text_with_tool_log("Here's the answer.", [])

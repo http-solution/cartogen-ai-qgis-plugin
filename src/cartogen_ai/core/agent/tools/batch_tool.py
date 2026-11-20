@@ -8,7 +8,7 @@ The group name must be new (an existing group is never added to). Results are te
 execution in CI."""
 from . import batch_ops as bo
 from ._processing_allowlist import MUTATES_INPUT_ALGORITHM_IDS
-from .map_view_tools import _move_into, check_group_name
+from .map_view_tools import check_group_name
 from .processing_allowlist_tools import _not_approved_error, run_allowlisted_processing_algorithm
 from .registry import register_tool
 
@@ -38,6 +38,17 @@ def _prepare(algorithm_id, names, group_name):
     return group, None
 
 
+def _move_ids_into(root, group, layer_ids):
+    """Moves the layers with these ids into `group`, whatever their names. 2026-11-20 live run, row C13: three batches in one project produced layers with the same names
+    (smoke_roads_buffer, ...) and the old by-name move took the layers of the FIRST batch each time, so groups held the wrong layers while the reply said 3 of 3."""
+    for layer_id in layer_ids:
+        node = root.findLayer(layer_id)
+        if node is None:
+            continue
+        group.addChildNode(node.clone())
+        node.parent().removeChildNode(node)
+
+
 @register_tool(
     "run_processing_batch",
     "Run ONE approved Processing algorithm over several layers (1 to 20), one run per layer, with the same settings for each, and put the results together in a new layer group. For example "
@@ -65,12 +76,14 @@ def run_processing_batch(algorithm_id, layers, parameters=None, input_parameter=
     if problem:
         return {"error": problem, "nothing_was_run": True}
     short = bo.short_name(algorithm_id)
-    rows, made = [], []
+    rows, made, made_ids = [], [], []
     for name in names:
+        ids_before = set(QgsProject.instance().mapLayers())
         result = run_allowlisted_processing_algorithm(algorithm_id, {**(parameters or {}), input_parameter: name}, new_layer_name=f"{name}_{short}")
         ok = bool(result.get("success")) and bool(result.get("layer_name"))
         stopped = bool(result.get("cancelled"))
         rows.append((name, ok, result.get("layer_name") if ok else str(result.get("error") or "the run produced no layer"), stopped))
+        made_ids.extend(i for i in QgsProject.instance().mapLayers() if i not in ids_before)      # by id: every batch names its outputs <layer>_<algorithm>, so a name finds the OLDEST layer called that
         if ok:
             made.append((name, [result["layer_name"], *[e["layer_name"] for e in result.get("additional_outputs", []) if isinstance(e, dict) and e.get("layer_name")]]))
         if stopped:
@@ -83,10 +96,10 @@ def run_processing_batch(algorithm_id, layers, parameters=None, input_parameter=
     if made:
         root = QgsProject.instance().layerTreeRoot()
         target = root.addGroup(group)
-        moved = _move_into(root, target, [layer for _input, produced in made for layer in produced])
+        _move_ids_into(root, target, made_ids)
         out["group"] = group
         out["results"] = [{"input": name, "layers": produced} for name, produced in made]
-        out["layers_in_group"] = len(moved)
+        out["layers_in_group"] = len(target.findLayers())               # counted from the layer tree itself, not from how many moves were attempted
     else:
         out["error"] = "No run produced a layer, so no group was made. " + (out["failed"][0]["error"] if out["failed"] else "")
     out["note"] = "The result layers are temporary: they are not saved with the project until you export them. Your own layers were not changed."

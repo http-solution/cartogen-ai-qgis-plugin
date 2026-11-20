@@ -128,6 +128,9 @@ EMPTY_RESPONSE_FALLBACK = "The model returned an empty response for this turn."
 FAILURE_ACK_KEYWORDS = (
     "error", "fail", "unable", "couldn't", "could not", "issue", "problem",
     "wasn't able", "was not able", "did not", "didn't",
+    # a reply that says a request was refused, blocked or is waiting on a confirmation HAS acknowledged it; without these the backstop appended "an error that isn't reflected above"
+    # to correct refusals (2026-11-20 live run, rows C25, C26, E1, E5)
+    "refus", "cannot", "can't", "blocked", "not ready", "declin", "rejected", "pending",
 )
 # A plan+search+geocode+create_plan/update_task bookkeeping sequence for a
 # realistic multi-step request can plausibly run 12-15 tool calls even with

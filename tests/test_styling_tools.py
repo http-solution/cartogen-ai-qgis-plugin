@@ -3,7 +3,7 @@ import tempfile
 import unittest
 from unittest.mock import patch, MagicMock
 from cartogen_ai.core.agent.tools.styling_tools import (
-    _classify_values, apply_graduated_style, apply_graduated_symbol_style,
+    _classify_values, apply_graduated_style, apply_graduated_symbol_style, effective_class_count,
     apply_categorized_style, _geometry_sort_key, _apply_opacity,
     _default_opacity_for_geometry, set_layer_transparency, auto_arrange_layer_order,
     set_layer_order, change_layer_color, hotspot_analysis, _match_cluster_color,
@@ -1191,3 +1191,19 @@ class TestValidateManualBreaks(unittest.TestCase):
         from cartogen_ai.core.agent.tools.styling_tools import _validate_manual_breaks
         for bad in ("8", None, float("nan"), float("inf"), True):
             self.assertIsNotNone(_validate_manual_breaks([bad], 5, 15)[1], repr(bad))
+
+class TestEffectiveClassCount(unittest.TestCase):
+    """2026-11-20 live run, row E5: 5 classes on a field with two usable values gave legend labels "0 - 1000", "1000 - 0", "0 - 1500"."""
+
+    def test_classes_are_capped_at_the_distinct_values_with_a_note(self):
+        n, note = effective_class_count([1000.0, 1500.0], 5)
+        self.assertEqual(n, 2)
+        self.assertIn("2 classes were used instead of 5", note)
+
+    def test_enough_values_keep_the_request(self):
+        self.assertEqual(effective_class_count([1, 2, 3, 4, 5, 6], 5), (5, None))
+
+    def test_manual_breaks_and_degenerate_fields_are_left_alone(self):
+        self.assertEqual(effective_class_count([1, 2, 3], 5, manual=True), (5, None))
+        self.assertEqual(effective_class_count([7, 7, 7], 5), (5, None))
+        self.assertEqual(effective_class_count([], 5), (5, None))
