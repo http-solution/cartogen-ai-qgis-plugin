@@ -538,6 +538,8 @@ def _prepare_template(template, body_text, zoom_to_layer, key_figures, sources):
                 f"{', '.join(unverified)}. Take figures from the data with key_figures_from, or from a tool result that is also written to a layer field; "
                 "never type a figure from memory.")
         guide = layout_style.access_reading_guide(visible) if template == "sitrep" else layout_style.REPORT_KINDS[template][2]
+        if template == "change_report":
+            guide = layout_style.change_report_guide([e["layer"].customProperty("cartogen_look") for e in layout_style.visible_layer_entries() if e["visible"]])
         sitrep_args = (body_text, key_figures, sources, guide, unverified, template)
         body_text = "sitrep"
     if template == "access_map":

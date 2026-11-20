@@ -64,9 +64,20 @@ class TestReportLayouts(unittest.TestCase):
         body = self._body(result)
         self.assertEqual(result["template"], "change_report")
         self.assertTrue(body.startswith("CHANGE\nCropland lost"), body)
-        for expected in ("CHANGE FIGURES", "South: 30", "North: 12", "HOW TO READ THIS MAP\n" + ls.CHANGE_REPORT_GUIDE, "NOTE\n" + ls.CHANGE_REPORT_NOTE):
-            self.assertIn(expected, body)
+        for expected in ("CHANGE FIGURES", "South: 30", "North: 12", "HOW TO READ THIS MAP\n" + ls.CHANGE_REPORT_GUIDE_UNCOLOURED, "NOTE\n" + ls.CHANGE_REPORT_NOTE):
+            self.assertIn(expected, body)             # the change look was not applied to any visible layer, so the page must not name colours
+        self.assertNotIn("Orange marks loss", body)
         self.assertNotIn("HANDLING", body)
+
+    def test_the_change_colour_sentence_appears_only_when_the_change_look_is_on_a_visible_layer(self):
+        """2026-11-20 live run, row C20: the page named orange, grey and purple over a plain grey map."""
+        from qgis.core import QgsProject
+        from cartogen_ai.core.agent.tools import layout_style as ls
+        from cartogen_ai.core.agent.tools.layout_tools import create_print_layout
+        QgsProject.instance().mapLayersByName("fields")[0].setCustomProperty("cartogen_look", "change_classes")      # what apply_land_cover_look sets
+        result = create_print_layout("Change coloured", template="change_report", body_text="Cropland lost to built-up",
+                                     key_figures_from={"layer_name": "fields", "label_field": "name", "value_field": "lost_ha", "top_n": 2}, sources=["ESA WorldCover 2020 and 2021"])
+        self.assertIn("HOW TO READ THIS MAP\n" + ls.CHANGE_REPORT_GUIDE, self._body(result))
 
     def test_an_epi_bulletin_has_its_headings_the_figures_from_the_layer_and_the_method_and_limits_box(self):
         from cartogen_ai.core.agent.tools import layout_style as ls
