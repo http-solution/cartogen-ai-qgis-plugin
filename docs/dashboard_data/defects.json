@@ -315,9 +315,9 @@
   "id": "P33",
   "defect": "No New chat control: four rows needed a new project to get an empty chat",
   "found_by": "Live run 2026-11-20 (Haiku computer use, QGIS 4.2.3), rows B4, B5, C13, F2",
-  "status": "Open",
-  "pr": "",
-  "next": "Add a New chat control (LR-10)"
+  "status": "Fixed (CI), live recheck due",
+  "pr": "656",
+  "next": "New chat button in the message row; QGIS CI proves it, hand row F4-new-chat"
  },
  {
   "id": "P34",
@@ -334,5 +334,13 @@
   "status": "Open",
   "pr": "",
   "next": "Place new layout items clear of existing ones (LR-6)"
+ },
+ {
+  "id": "P36",
+  "defect": "A change report's how-to-read line named orange, grey and purple although the map was plain grey",
+  "found_by": "Live run 2026-11-20 (Haiku computer use, QGIS 4.2.3), row C20",
+  "status": "Fixed (CI), live recheck due",
+  "pr": "657",
+  "next": "The colour sentence appears only when a visible layer has the change look; NOTE box, yield wording and ties not changed (no trace)"
  }
 ]
