@@ -3445,7 +3445,7 @@
       "tests/test_icons.py"
     ],
     "hand_verified": "not verified: QGIS CI only; four rows of the 2026-11-20 live run needed a new project to get an empty chat (master list LR-10); the button has never been seen on a desktop QGIS",
-    "hand_row": "none yet: add to the next hand package"
+    "hand_row": "F4-new-chat"
   }
 ]
 }
