@@ -8,6 +8,7 @@ import tempfile
 import unittest
 import zipfile
 from pathlib import Path
+from typing import ClassVar
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
@@ -246,6 +247,7 @@ class TestAnalysis(unittest.TestCase):
             folder.mkdir(parents=True)
             (folder / "window.png").write_bytes(b"png")
             (folder / "layers.json").write_text("[]")
+            sc.start_log(tmp, "dock shown (visible=True)")                  # a run in which the dock reported: the strict rules apply
             sc.append_result(tmp, {"row": "X1", "status": "PASS", "note": "ok", "seconds": 5})
             sc.append_result(tmp, {"row": "X2", "status": "PASS", "note": "ok", "seconds": 9})        # no evidence for X2
             (Path(tmp) / "RESULTS.csv").write_text("row,covers_row,status,evidence_folder\nH1,C24,PASS,e\n")
@@ -375,7 +377,7 @@ class TestDockStartLog(unittest.TestCase):
 
 class TestReportWithoutTheDock(unittest.TestCase):
     """The owner dropped the dock on 2026-11-20: a PASS is then supported by the agent's notes plus the plugin's own tool record, and only from a folder that belongs to that row."""
-    CARD = {"id": "D5-task-grid", "can_run": True, "why_not": "", "model_needed": True}
+    CARD: ClassVar[dict] = {"id": "D5-task-grid", "can_run": True, "why_not": "", "model_needed": True}
 
     def _row(self, tmp, where, notes=True):
         base = Path(tmp) / where / "cartogen_evidence" / "20261120-000000_t1"
