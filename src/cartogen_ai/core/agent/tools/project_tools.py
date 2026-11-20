@@ -53,10 +53,11 @@ def _temporary_layer_names(project):
 
 @register_tool(
     "save_project",
-    "Save the current QGIS project (all layers, styles, and layout) to a .qgz/.qgs file. Use "
-    "this as a checkpoint before a risky multi-step operation, or at the end of a task so the "
-    "user's work is persisted. Temporary (memory) layers are NOT saved with their data -- the result "
-    "lists them and they must be exported to a file separately.",
+    "Save the current QGIS project (all layers, styles, and layout) to a .qgz/.qgs file. Call this ONLY when "
+    "the user asks to save the project. Never save as a side effect of another request, and never pick a file "
+    "name or folder for a project that has never been saved: ask where to save it. (2026-11-20 live run: a "
+    "'run the model' request wrote a project file the user never asked for.) Temporary (memory) layers are NOT "
+    "saved with their data -- the result lists them and they must be exported to a file separately.",
     {
         "type": "object",
         "properties": {

@@ -25,6 +25,38 @@ def _measure(geometry, is_polygon):
     return ("area", geometry.area()) if is_polygon else ("length", geometry.length())
 
 
+def _choose_vertex(act, vertices, chosen, near, feature):
+    """(vertex index, None) or (None, error dict) for a move or delete: the index given, or the vertex nearest `near` = (near_x, near_y, tolerance); refused when it does not exist or
+    deleting it would empty a line or collapse a polygon. `feature` = (feature id, is_polygon). Pure given plain values."""
+    near_x, near_y, tolerance = near
+    fid, is_polygon = feature
+    count = len(vertices)
+    if near_x is not None:
+        found = vo.nearest_vertex(vertices, float(near_x), float(near_y), None if tolerance is None else float(tolerance))
+        if found is None:
+            return None, {"error": "No vertex of this feature is within the tolerance of that position." if tolerance is not None else "This feature has no vertices."}
+        chosen = found[0]
+    if chosen is None or chosen >= count:
+        return None, {"error": f"Vertex {chosen} does not exist: feature {fid} has {count} vertices (numbered 0 to {count - 1})."}
+    refusal = vo.delete_refusal(is_polygon, count) if act == "delete" else None       # QGIS empties a 2-vertex line and still says it worked
+    if refusal:
+        return None, {"error": f"Refused: {refusal}"}
+    return chosen, None
+
+
+def _apply_vertex_edit(geometry, act, chosen, x, y):
+    """Runs the edit on `geometry` (a QgsGeometry copy) and returns (QGIS's done flag, the closest point for an add or None). Raises EditError when an add has no segment. Needs QGIS."""
+    from ._edit_session import EditError
+    if act == "delete":
+        return geometry.deleteVertex(chosen), None
+    if act == "move":
+        return geometry.moveVertex(float(x), float(y), chosen), None
+    _dist, closest, after, _side = geometry.closestSegmentWithContext(QgsPointXY(float(x), float(y)))
+    if after <= 0:
+        raise EditError("this feature has no segment to add a vertex on.")
+    return geometry.insertVertex(closest.x(), closest.y(), after), closest
+
+
 @register_tool(
     "edit_vertices",
     "Add, move or delete one vertex of one feature of a line or polygon layer: action 'delete' removes a vertex, 'move' moves it to x, y, 'add' puts a new vertex on the segment nearest "
@@ -70,16 +102,9 @@ def edit_vertices(layer_name, feature_id, action, index=None, near_x=None, near_
     count = len(vertices)
     chosen = None if index is None else int(float(index))
     if act in ("move", "delete"):
-        if near_x is not None:
-            found = vo.nearest_vertex(vertices, float(near_x), float(near_y), None if tolerance is None else float(tolerance))
-            if found is None:
-                return {"error": "No vertex of this feature is within the tolerance of that position." if tolerance is not None else "This feature has no vertices."}
-            chosen = found[0]
-        if chosen is None or chosen >= count:
-            return {"error": f"Vertex {chosen} does not exist: feature {fid} has {count} vertices (numbered 0 to {count - 1})."}
-        refusal = vo.delete_refusal(is_polygon, count) if act == "delete" else None       # QGIS empties a 2-vertex line and still says it worked
-        if refusal:
-            return {"error": f"Refused: {refusal}"}
+        chosen, refused = _choose_vertex(act, vertices, chosen, (near_x, near_y, tolerance), (fid, is_polygon))
+        if refused:
+            return refused
     near = (float(near_x), float(near_y)) if near_x is not None else None
     sentence = vo.describe(act, chosen, None if x is None else float(x), None if y is None else float(y), near)
     if not confirmed:
@@ -97,15 +122,7 @@ def edit_vertices(layer_name, feature_id, action, index=None, near_x=None, near_
     valid_before = geometry.isGeosValid()
     try:
         with edit_command(layer, f"Cartogen AI: {act} vertex") as owned:
-            if act == "delete":
-                done = geometry.deleteVertex(chosen)
-            elif act == "move":
-                done = geometry.moveVertex(float(x), float(y), chosen)
-            else:
-                _dist, closest, after, _side = geometry.closestSegmentWithContext(QgsPointXY(float(x), float(y)))
-                if after <= 0:
-                    raise EditError("this feature has no segment to add a vertex on.")
-                done = geometry.insertVertex(closest.x(), closest.y(), after)
+            done, closest = _apply_vertex_edit(geometry, act, chosen, x, y)
             if not done:
                 raise EditError(f"QGIS refused to {act} that vertex (a polygon ring cannot go below 3 corners, a line below 2 vertices).")
             if valid_before and not geometry.isGeosValid():
