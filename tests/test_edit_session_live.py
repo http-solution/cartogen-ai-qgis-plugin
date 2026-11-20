@@ -46,6 +46,20 @@ class TestOwnedCheckedFieldWrites(unittest.TestCase):
         self.assertFalse(layer.isEditable())
         self.assertEqual(sorted(f["doubled"] for f in layer.getFeatures()), [2.0, 2.0])
 
+    def test_an_existing_text_field_can_be_filled_with_text(self):
+        """2026-11-20 row V9: field_calculator refused 'checked' into a String field made by add_field ('non-numeric type; refusing to overwrite it'), twice."""
+        layer = _layer("Point", ["POINT(0 0)", "POINT(1 1)"], "pts")
+        res = self._calc(layer, "name", "'checked'")                # `name` is a String field of the test layer
+        self.assertTrue(res.get("success"), res)
+        self.assertEqual([f["name"] for f in layer.getFeatures()], ["checked", "checked"])
+
+    def test_an_existing_numeric_field_is_still_filled_as_a_number_and_a_new_field_stays_numeric(self):
+        layer = _layer("Point", ["POINT(0 0)"], "pts")
+        self.assertTrue(self._calc(layer, "keep", "5").get("success"))
+        self.assertEqual([f["keep"] for f in layer.getFeatures()], [5])
+        self.assertTrue(self._calc(layer, "fresh", "2.5").get("success"))
+        self.assertTrue(layer.fields().at(layer.fields().indexOf("fresh")).isNumeric())
+
     def test_a_malformed_or_unknown_function_expression_changes_nothing(self):
         layer = _layer("Point", ["POINT(0 0)"], "pts")
         for expression in ("1 +", "missing_fn(1)"):

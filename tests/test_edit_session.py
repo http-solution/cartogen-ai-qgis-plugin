@@ -77,6 +77,7 @@ class TestAddCalculatedField(unittest.TestCase):
         from cartogen_ai.core.agent.tools import vector_tools as vt
         with patch.object(vt, "QGIS_AVAILABLE", True), \
              patch.object(vt, "QgsExpression", create=True) as expr_cls, \
+             patch("cartogen_ai.core.agent.tools._edit_session.is_text_field", return_value=False), \
              patch("cartogen_ai.core.agent.tools._edit_session.add_numeric_field", return_value=4):
             expr = expr_cls.return_value
             expr.hasParserError.return_value = kw.pop("parser_error", False)

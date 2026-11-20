@@ -100,6 +100,14 @@ def add_numeric_field(layer, field_name):
     return idx
 
 
+def is_text_field(layer, field_name):
+    """True when `field_name` already exists on `layer` as a String field. Same test add_text_field applies. Used by field_calculator so an EXISTING text field can be filled
+    (2026-11-20 live run, row V9: add_field made a String field and field_calculator then refused to write 'checked' into it, reproduced twice)."""
+    from qgis.PyQt.QtCore import QVariant
+    idx = layer.fields().indexOf(field_name)
+    return idx >= 0 and layer.fields().at(idx).type() == QVariant.String
+
+
 def add_text_field(layer, field_name):
     """Index of `field_name` on `layer`, adding it as a String field THROUGH THE EDIT BUFFER if it does not exist. Call inside
     edit_command. Raises EditError if the field exists but is not a text field, or cannot be added."""
