@@ -93,6 +93,15 @@ FIELD_REPORT_NOTE = ("Index values describe what the satellite saw on the dates 
 CHANGE_REPORT_NOTE = ("Change classes come from two dates of imagery or two land-cover maps. This is a screening of where change may have happened, not a survey: map accuracy and cloud affect it, so check the places that matter on the ground.")
 FIELD_REPORT_GUIDE = "Colours show the index classes in the legend, by the value ranges and units given there. Zones, where shown, are labelled with their mean index value."
 CHANGE_REPORT_GUIDE = "Orange marks loss, grey marks stable and purple marks gain between the two dates; the legend names every class."
+# 2026-11-20 live run, row C20: the page said orange, grey and purple while the map showed the plain grey WorldCover raster, because the change colours had not been applied. The sentence about colours is only
+# printed when a visible layer carries the change look (layer property cartogen_look = change_classes, set by apply_land_cover_look).
+CHANGE_REPORT_GUIDE_UNCOLOURED = "The legend names every class on the map. The change colours (orange loss, grey stable, purple gain) have not been applied to this map."
+
+
+def change_report_guide(visible_looks):
+    """The reading guide of a change report: the colour sentence when one of the visible layers has the change look, else a sentence that says the colours are not applied. Pure.
+    `visible_looks` is the cartogen_look value of each visible layer ('' for none)."""
+    return CHANGE_REPORT_GUIDE if "change_classes" in {str(v or "") for v in visible_looks} else CHANGE_REPORT_GUIDE_UNCOLOURED
 # R2-5: the epidemic bulletin. Same panel; the standing note is the METHOD box, so a rate on a bulletin never goes out without its limits. Words, not numbers: the figures are the caller's, copied from tool results.
 # Kept short on purpose: the live job (2026-11-11, PR 632) showed the first, longer wording left no room in the label box, so the budget dropped the reading guide. Both texts now fit with a summary, a few figures and sources.
 EPI_BULLETIN_NOTE = ("Rates are crude (not age or sex adjusted) and describe areas, not individuals. Areas with fewer than 5 cases are not shown. A cluster is not a finding about cause. "
