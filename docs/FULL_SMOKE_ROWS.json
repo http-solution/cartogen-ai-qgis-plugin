@@ -787,7 +787,7 @@
    ],
    "needs": "person and a real model",
    "starts_from": "A new empty project; a fresh chat, 'Save an evidence folder for each request' ticked; load smoke_roads from smoke_network.gpkg",
-   "do": "Send in order: (1) smooth the selected roads in place (select 3 roads by hand first)  (2) undo it  (3) smooth every road in place and then save the layer edits  (4) smooth smoke_roads in place, selected only, after clearing the selection.",
+   "do": "Send in order: (1) smooth the selected roads in place (select 3 roads by hand first)  (2) undo it  (3) smooth every road in place and then save the layer edits  (4) clear the selection, then send exactly: smooth smoke_roads in place, selected only.",
    "expect": "(1) a preview naming 3 features; after Apply only those 3 roads change shape and the layer is in edit mode with the change unsaved; your 3 selected roads are still selected. (2) the roads return to their old shape in one step. (3) all roads change; saving writes them to the file. (4) refused: nothing is selected.",
    "evidence": "snap('C14'). Screenshot of the map before and after step 1 -> results\\screens\\C14-smooth.png.",
    "files": [
@@ -1447,7 +1447,7 @@
    "covers": [
     "gates-on-fetch-and-confirm-paths"
    ],
-   "needs": "person and a real model",
+   "needs": "person, a real model and internet (the Apply step downloads WorldPop data)",
    "starts_from": "a copy of 3_test_files\\smoke_start.qgz opened from the folder 3_test_files (all its data files sit beside it); a fresh chat (see EVIDENCE_HOWTO.txt, 'Fresh chat'), 'Save an evidence folder for each request' ticked in Settings",
    "do": "Send: mark smoke_zones as RESTRICTED because test (approve). Then: fetch the WorldPop population for YEM using smoke_zones as the extent layer (extent_layer smoke_zones). Do not let it look up the extent of smoke_zones first: if the first card is for get_layer_extent, Cancel it and send: use smoke_zones directly as extent_layer, do not read its extent. Read the card; do NOT press Apply the first time. Then press Cancel. Repeat and press Apply.",
    "expect": "The card says the fetch would send protected data and ends with a sentence that QGIS may pause until the download finishes. Cancel makes nothing and sends nothing; Apply downloads (QGIS may pause) and the layer then carries result checks.",

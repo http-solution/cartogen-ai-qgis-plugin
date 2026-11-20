@@ -16,7 +16,7 @@
       "issue": "#223",
       "title": "Stop a long processing request; memory comes back",
       "starts_from": "A new project with smoke_boundary and smoke_points loaded from 3_test_files/smoke_data.gpkg",
-      "do": "Note QGIS's memory in the operating system's task manager. Send: Create 300000 random points inside smoke_boundary and add to each the distance to the nearest point of smoke_points. Press Stop in the panel after a few seconds. Watch the memory for a minute. Then send: how many layers are in the project?",
+      "do": "Note QGIS's memory in the operating system's task manager. Send: Create 300000 random points inside smoke_boundary and add to each the distance to the nearest point of smoke_points. Press Stop in the panel after a few seconds. If the request has already finished before you can press Stop (300000 points took 2.3 s on 2026-11-20), record Skip with the note 'finished before Stop': that is not a Fail. Watch the memory for a minute. Then send: how many layers are in the project?",
       "expect": "The panel says it stopped; no output layer is added; memory does not stay high; the next request works.",
       "evidence": "The memory figure before, at the peak and a minute after Stop (write the three numbers in the notes)",
       "needs": "person and the operating system's task manager"

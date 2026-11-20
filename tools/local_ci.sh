@@ -34,12 +34,16 @@ python tools/live_results.py
 python tools/live_results.py --gate; gate=$?
 if [ "$gate" -ne 0 ] && [ "${RELEASE:-}" = "1" ]; then echo "FAILED: features seen working live changed since the run (or the baseline is missing); rerun their rows"; status=1; fi
 
+step "tools reference is in step with the registry (a changed tool description failed CI three times in one PR on 2026-11-20)"
+cp docs/TOOLS_REFERENCE.md /tmp/TOOLS_REFERENCE.before.md
+python docs/generate_tools_reference.py >/dev/null && cmp -s docs/TOOLS_REFERENCE.md /tmp/TOOLS_REFERENCE.before.md || { echo "FAILED: docs/TOOLS_REFERENCE.md was out of date (it has been regenerated: commit it)"; status=1; }
+
 step "release zip"
 python plugin_upload.py >/dev/null 2>&1 && test -f cartogen_ai.zip && python -c "
 import zipfile, os
 z = zipfile.ZipFile('cartogen_ai.zip'); names = z.namelist()
-assert any('cartogen-ai/metadata.txt' in n for n in names)
-assert any('cartogen-ai/src/cartogen_ai/core/agent/agent_orchestrator.py' in n for n in names)
+assert any(n.endswith('cartogen_ai_plugin/metadata.txt') for n in names)
+assert any(n.endswith('cartogen_ai_plugin/src/cartogen_ai/core/agent/agent_orchestrator.py') for n in names)
 print('zip ok:', len(names), 'files', round(os.path.getsize('cartogen_ai.zip')/1048576, 2), 'MB')" || { echo "FAILED: zip"; status=1; }
 
 if [ "${1:-}" = "--offline" ]; then echo; echo "(live job skipped: --offline)"; exit $status; fi
