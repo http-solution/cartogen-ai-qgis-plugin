@@ -317,6 +317,15 @@ class TestTheBuiltPackage(unittest.TestCase):
             for f in c["files"]:
                 self.assertIn(Path(f).name, names, c["id"])
 
+    def test_the_dock_start_is_logged_and_a_failure_is_never_silent(self):
+        sup = self.zip.read(f"{self.top}/tools/supervisor.ps1").decode()
+        for need in ("dock_start.log", "dock shown", "WARNING: QGIS has run 90 s"):
+            self.assertIn(need, sup)
+        start = self.zip.read(f"{self.top}/tools/smoke_dock_start.py").decode()
+        for need in ("start_error(", "building the dock", "start_log("):
+            self.assertIn(need, start)
+        self.assertIn("dock shown", self.zip.read(f"{self.top}/tools/smoke_dock.py").decode())
+
     def test_csv_of_results_header_is_stable(self):
         self.assertEqual(sc.RESULT_FIELDS[:3], ["row", "status", "note"])
         with tempfile.TemporaryDirectory() as tmp:
@@ -326,3 +335,39 @@ class TestTheBuiltPackage(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestWorkOnACopy(unittest.TestCase):
+    def test_rows_that_write_into_their_data_file_say_to_use_a_copy(self):
+        for rid in ("C7-field-rules", "D2-damage-and-risk"):
+            self.assertTrue(any("WORK ON A COPY" in h and rid in h for h in sc.helps({"id": rid, "starts_from": "", "do": "", "expect": "", "pass_if": ""})), rid)
+        self.assertFalse(any("WORK ON A COPY" in h for h in sc.helps({"id": "A2-settings-connections", "starts_from": "", "do": "", "expect": "", "pass_if": ""})))
+
+
+class TestDockStartLog(unittest.TestCase):
+    """The 2026-11-20 run left no trace of whether the dock appeared; these pin the files that now say so."""
+
+    def test_log_lines_and_a_failure_with_its_traceback(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            sc.start_log(tmp, "dock shown (visible=True)")
+            try:
+                raise TypeError("boom")
+            except TypeError as e:
+                sc.start_error(tmp, "building the dock", e)
+            log = (Path(tmp) / "dock_start.log").read_text(encoding="utf-8")
+            self.assertIn("dock shown", log)
+            self.assertIn("START-UP FAILED in building the dock: TypeError: boom", log)
+            self.assertIn("Traceback", (Path(tmp) / "dock_errors.txt").read_text(encoding="utf-8"))
+
+    def test_logging_never_raises_when_the_folder_cannot_be_written(self):
+        with tempfile.NamedTemporaryFile() as f:
+            sc.start_log(f.name, "x")                     # a file where a folder is expected
+
+    def test_the_report_warns_when_the_dock_never_reported_and_is_quiet_when_it_did(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            text, _, _ = an.build_report(tmp, [])
+            self.assertIn("never reported that it was shown", text)
+            sc.start_log(tmp, "dock shown (visible=True)")
+            text, _, _ = an.build_report(tmp, [])
+            self.assertIn("reported that it was shown", text)
+            self.assertNotIn("never reported", text)

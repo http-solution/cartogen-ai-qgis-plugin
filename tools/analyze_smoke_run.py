@@ -72,6 +72,10 @@ def judge(card, claim, ev):
 def build_report(results, cards, agent_rows=()):
     gui, machine = load_results_pair(results)
     lines = ["# Computer-use smoke run: report\n"]
+    start_log = Path(results) / "dock_start.log"
+    shown = start_log.is_file() and "dock shown" in start_log.read_text(encoding="utf-8", errors="replace")
+    lines += ["## Card dock start-up\n", ("The dock reported that it was shown (results/dock_start.log)." if shown else
+              "WARNING: the dock never reported that it was shown (no results/dock_start.log line 'dock shown'). Every result below was then written without it: read dock_start.log and dock_errors.txt first."), ""]
     table, counts = [], {}
     for card in cards:
         ev = evidence_for(results, card["id"])
