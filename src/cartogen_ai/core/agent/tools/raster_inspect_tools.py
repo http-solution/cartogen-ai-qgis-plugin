@@ -138,6 +138,19 @@ def _overview_count(path):
     return None if dataset is None else dataset.GetRasterBand(1).GetOverviewCount()
 
 
+def _remove_sidecar(sidecar):
+    """Deletes an existing .ovr file. Returns True when it could NOT be deleted and the caller must rebuild inside it instead. 2026-11-20 live run, row C10 (Windows): a second build
+    failed with "[WinError 32] ... being used by another process" because QGIS keeps the .ovr of an open raster open, and os.remove was unguarded. GDAL regenerates levels it finds
+    in an existing .ovr, so a build over it still replaces them."""
+    if not os.path.exists(sidecar):
+        return False
+    try:
+        os.remove(sidecar)
+    except OSError:
+        return True
+    return False
+
+
 @register_tool(
     "build_pyramids",
     "Build pyramids (overviews) for a raster layer so a big raster draws fast when zoomed out: smaller copies are written to a sidecar .ovr file NEXT TO the raster, which itself is never "
@@ -173,8 +186,7 @@ def build_pyramids(layer_name, levels=None, method="average", confirmed=False):
         return preview("build_pyramids", arguments, f"Replace the existing pyramids file {os.path.basename(sidecar)} ({existing} level(s)) with levels {wanted} ({str(method).strip().lower()}). The raster is not changed.",
                        f"gdal.Open('{os.path.basename(path)}').BuildOverviews('{GDAL_METHODS[str(method).strip().lower()]}', {wanted})   # writes {os.path.basename(sidecar)}")
     from osgeo import gdal
-    if os.path.exists(sidecar):
-        os.remove(sidecar)
+    replaced_in_place = _remove_sidecar(sidecar)
     dataset = gdal.Open(path, gdal.GA_ReadOnly)
     if dataset is None:
         return {"error": "GDAL could not open the raster file."}
@@ -184,5 +196,10 @@ def build_pyramids(layer_name, levels=None, method="average", confirmed=False):
         return {"error": f"GDAL could not build the pyramids (code {code}); the folder may be read-only."}
     layer.dataProvider().reloadData()
     layer.triggerRepaint()
-    return {"success": True, "layer_name": layer_name, "built": True, "levels": wanted, "method": str(method or "average").strip().lower(), "overview_levels_now": _overview_count(path),
-            "sidecar_file": sidecar, "note": "The raster file itself was not changed; the pyramids are in the .ovr file beside it (keep the two together when copying)."}
+    now = _overview_count(path)
+    result = {"success": True, "layer_name": layer_name, "built": True, "levels": wanted, "method": str(method or "average").strip().lower(), "overview_levels_now": now,
+              "sidecar_file": sidecar, "note": "The raster file itself was not changed; the pyramids are in the .ovr file beside it (keep the two together when copying)."}
+    if replaced_in_place:
+        result["note"] += (" The old .ovr file could not be deleted because QGIS has the raster open, so the levels were rebuilt inside it" +
+                           (f"; it still holds {now} level(s), not {len(wanted)}, so remove the layer from the project and build again to get exactly the levels asked for." if now != len(wanted) else "."))
+    return result

@@ -36,5 +36,34 @@ class TestRegistration(unittest.TestCase):
         self.assertEqual(TOOL_REGISTRY["build_pyramids"]("a"), {"error": "QGIS not available"})
 
 
+class TestRemoveSidecar(unittest.TestCase):
+    """2026-11-20 live run, row C10 (Windows): a second pyramid build died on os.remove with WinError 32 because QGIS keeps the .ovr of an open raster open."""
+
+    def test_a_missing_file_needs_nothing_and_a_deletable_one_is_deleted(self):
+        import os
+        import tempfile
+
+        from cartogen_ai.core.agent.tools import raster_inspect_tools as rit
+        with tempfile.TemporaryDirectory() as tmp:
+            sidecar = os.path.join(tmp, "dem.tif.ovr")
+            self.assertFalse(rit._remove_sidecar(sidecar))
+            open(sidecar, "w").close()
+            self.assertFalse(rit._remove_sidecar(sidecar))
+            self.assertFalse(os.path.exists(sidecar))
+
+    def test_a_locked_file_reports_that_the_build_must_go_over_it(self):
+        import os
+        import tempfile
+        from unittest.mock import patch
+
+        from cartogen_ai.core.agent.tools import raster_inspect_tools as rit
+        with tempfile.TemporaryDirectory() as tmp:
+            sidecar = os.path.join(tmp, "dem.tif.ovr")
+            open(sidecar, "w").close()
+            with patch.object(rit.os, "remove", side_effect=PermissionError(32, "being used by another process")):
+                self.assertTrue(rit._remove_sidecar(sidecar))
+            self.assertTrue(os.path.exists(sidecar))
+
+
 if __name__ == "__main__":
     unittest.main()

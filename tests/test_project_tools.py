@@ -233,5 +233,13 @@ class TestCreateProjectFolderStructure(unittest.TestCase):
         self.assertTrue(os.path.isdir(os.path.join(nested_base, "data", "00_raw")))
 
 
+class TestSaveProjectIsOnlyOnRequest(unittest.TestCase):
+    def test_the_tool_description_forbids_saving_as_a_side_effect(self):
+        from cartogen_ai.core.agent.tools.registry import TOOLS_SCHEMA
+        text = next(t["function"]["description"] for t in TOOLS_SCHEMA if t["function"]["name"] == "save_project")
+        self.assertIn("ONLY when the user asks", text)
+        self.assertIn("never pick a file name", text)
+
+
 if __name__ == "__main__":
     unittest.main()
