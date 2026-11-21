@@ -284,7 +284,7 @@ class TestTheBuiltPackage(unittest.TestCase):
     def test_the_package_has_everything_it_promises(self):
         names = self.names()
         for need in ("README.txt", "HAIKU_PROMPT.md", "cards.json", "CARDS.md", "START_QGIS.bat", "RUN_HEADLESS.bat", "ANALYZE.bat", "docs/AGENT_RUN_ROWS.json", "3_test_files/SHA256SUMS.txt",
-                     "tools/smoke_dock.py", "tools/smoke_dock_start.py", "tools/smoke_cards.py", "tools/smoke_core.py", "tools/analyze_smoke_run.py", "tools/collect_evidence.py"):
+                     "FIRST_MESSAGE.txt", "tools/smoke_dock.py", "tools/smoke_dock_start.py", "tools/smoke_cards.py", "tools/smoke_core.py", "tools/analyze_smoke_run.py", "tools/collect_evidence.py"):
             self.assertIn(need, names)
         self.assertTrue(any(n.startswith("1_plugin/") for n in names))
         self.assertTrue(any(n.startswith("plugin/cartogen_ai/core/") for n in names))
@@ -305,6 +305,23 @@ class TestTheBuiltPackage(unittest.TestCase):
         self.assertNotIn("RECORD.bat", prompt)               # Haiku cannot type in a terminal, so the prompt must not rely on it
         self.assertNotIn("at most 6 rows", prompt)
         self.assertNotIn("Never restart QGIS yourself", prompt)
+
+    def test_one_prompt_works_with_or_without_the_dock(self):
+        """LR-14: in the 2026-11-20 run the dock recorded nothing and the agent had no instructions for that case, so 17 hours produced typed result lines only."""
+        prompt = self.zip.read(f"{self.top}/HAIKU_PROMPT.md").decode()
+        self.assertIn("IF THE DOCK DOES NOT APPEAR", prompt)
+        for need in ("results\\outputs\\<ROW>\\", "results\\RESULTS_GUI.csv", "observations.txt", "WORK ON A COPY", "row,status,note,started,finished,seconds,evidence_error",
+                     "never edit another line", "typed"):
+            self.assertIn(need.lower(), prompt.lower(), need)
+        first = self.zip.read(f"{self.top}/FIRST_MESSAGE.txt").decode()
+        stamp = self.zip.read(f"{self.top}/BUILD.txt").decode().strip()
+        self.assertIn(stamp, first)                                                       # the message names the very build it ships in
+        self.assertIn("I AM THE OWNER OF THIS PC", first)
+        self.assertIn("PACKAGE FOLDER:", first)
+        self.assertIn("IF THE DOCK DOES NOT APPEAR", first)
+        self.assertIn(prompt.strip().splitlines()[0], first)                              # the same instructions, not a second copy that can drift
+        self.assertNotIn("{stamp}", first)
+        self.assertNotIn("{prompt}", first)
 
     def test_the_launch_and_recovery_scripts_are_shipped_and_do_what_the_prompt_says(self):
         names = self.names()
