@@ -21,6 +21,7 @@ CANCEL = {"is_cancelled", "should_stop", "check_cancel", "raise_if_cancelled"}
 NET = {"urlopen", "urlopen_with_retry", "urlopen_with_retry_", "_qgis_urlopen"}
 RASTER = {"ReadAsArray", "bandStatistics", "readAsArray"}
 CAPS = {"max_", "MAX_", "limit", "cap", "budget", "LIMIT", "CAP"}
+HELPER_DEPTH = 3
 
 
 def _name(node):
@@ -68,24 +69,41 @@ def _scan(fn, helpers):
                 spatial_index = True
         elif isinstance(n, ast.Name) and any(c in n.id for c in CAPS):
             caps += 1
-    called_helpers = [h for h in set(calls) if h in helpers and helpers[h] is not fn]
-    # one level of same-module helpers, so a tool that delegates its loop is not scored as empty
-    for h in called_helpers:
-        for n in ast.walk(helpers[h]):
-            if isinstance(n, ast.Call):
-                nm = _name(n.func)
-                calls.append(nm)
-                if nm == "run" and isinstance(n.func, ast.Attribute) and _name(n.func.value) == "processing":
-                    pr_calls += 1
-                if nm == "getFeatures":
-                    get_features += 1
-                if nm == "QgsSpatialIndex":
-                    spatial_index = True
+    # Same-module helpers, followed HELPER_DEPTH levels down, so a tool that delegates its loop (or, after a complexity split, delegates to a helper
+    # that delegates again) is not scored as empty. LR-21 moved travel_time_matrix's per-origin loop into a helper whose algorithm call goes through
+    # _run_network_algorithm: the background runner is two levels below the tool, and a one-level scan reported it unguarded.
+    seen = {fn.name}
+    frontier = [h for h in set(calls) if h in helpers and helpers[h] is not fn]
+    called_helpers = []
+    near_calls = None          # the calls of the tool and its first-level helpers: what the network check has always looked at
+    for _level in range(HELPER_DEPTH):
+        next_frontier = []
+        for h in frontier:
+            if h in seen:
+                continue
+            seen.add(h)
+            called_helpers.append(h)
+            for n in ast.walk(helpers[h]):
+                if isinstance(n, ast.Call):
+                    nm = _name(n.func)
+                    calls.append(nm)
+                    if nm == "run" and isinstance(n.func, ast.Attribute) and _name(n.func.value) == "processing":
+                        pr_calls += 1
+                    if nm == "getFeatures":
+                        get_features += 1
+                    if nm == "QgsSpatialIndex":
+                        spatial_index = True
+                    if nm in helpers and nm not in seen:
+                        next_frontier.append(nm)
+        if near_calls is None:
+            near_calls = set(calls)
+        frontier = next_frontier
+    near_calls = near_calls if near_calls is not None else set(calls)
     depth = max([_loop_depth_over_data(fn)] + [_loop_depth_over_data(helpers[h]) for h in called_helpers])
     cs = set(calls)
     return {
         "loops": depth, "get_features": get_features, "processing_run": pr_calls, "sleep": sleeps,
-        "raster_reads": len(cs & RASTER), "network": bool(cs & NET), "spatial_index": spatial_index,
+        "raster_reads": len(cs & RASTER), "network": bool(near_calls & NET), "spatial_index": spatial_index,
         "background": bool(cs & BACKGROUND), "cancel": bool(cs & CANCEL), "caps": caps > 0,
     }
 
