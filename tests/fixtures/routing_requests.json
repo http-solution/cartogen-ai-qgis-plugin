@@ -1240,5 +1240,93 @@
       "calculate_severity_index"
     ],
     "source": "ML-1 more tools, Arabic and French 2026-11-01"
+  },
+  {
+    "prompt": "Public health: Is this cluster of cases real or just chance?",
+    "tools": [
+      "detect_spatial_clusters"
+    ],
+    "source": "2026-11-20 live run, card C26 (LR-24)"
+  },
+  {
+    "prompt": "Public health: Are cases more concentrated in some districts than a random pattern would give?",
+    "tools": [
+      "calculate_spatial_autocorrelation"
+    ],
+    "source": "2026-11-20 live run, card C26 (LR-24)"
+  },
+  {
+    "prompt": "Public health: Find the statistically significant hot spots of cases by district",
+    "tools": [
+      "analyze_hotspots_gi_star"
+    ],
+    "source": "2026-11-20 live run, card C26 (LR-24)"
+  },
+  {
+    "prompt": "Public health: What is the rate per 100,000 and the relative risk in each district?",
+    "tools": [
+      "calculate_health_rates"
+    ],
+    "source": "2026-11-20 live run, card C26 (LR-24)"
+  },
+  {
+    "prompt": "Public health: Colour the district rates and hatch the ones with fewer than 5 cases",
+    "tools": [
+      "apply_public_health_look"
+    ],
+    "source": "2026-11-20 live run, card C26 (LR-24)"
+  },
+  {
+    "prompt": "Public health: Make an epidemic bulletin PDF for last week's cases",
+    "tools": [
+      "create_print_layout"
+    ],
+    "source": "2026-11-20 live run, card C26 (LR-24)"
+  },
+  {
+    "prompt": "Public safety: Is the clustering of incidents statistically significant?",
+    "tools": [
+      [
+        "detect_spatial_clusters",
+        "calculate_spatial_autocorrelation",
+        "analyze_hotspots_gi_star"
+      ]
+    ],
+    "source": "2026-11-20 live run, card C26 (LR-24)"
+  },
+  {
+    "prompt": "Public safety: Run a hotspot test on the burglary counts by neighbourhood",
+    "tools": [
+      "analyze_hotspots_gi_star"
+    ],
+    "source": "2026-11-20 live run, card C26 (LR-24)"
+  },
+  {
+    "prompt": "Humanitarian: We have an outbreak in the camps, is there a cluster of cases?",
+    "tools": [
+      "detect_spatial_clusters"
+    ],
+    "source": "2026-11-20 live run, card C26 (LR-24)"
+  },
+  {
+    "prompt": "Urban planning: Are vacant buildings clustered across neighbourhoods?",
+    "tools": [
+      "calculate_spatial_autocorrelation"
+    ],
+    "source": "2026-11-20 live run, card C26 (LR-24)"
+  },
+  {
+    "prompt": "Environment: Where are the significantly high pollution readings?",
+    "tools": [
+      "analyze_hotspots_gi_star"
+    ],
+    "source": "2026-11-20 live run, card C26 (LR-24)"
+  },
+  {
+    "prompt": "Real estate: Are high prices clustered in particular areas?",
+    "tools": [
+      "calculate_spatial_autocorrelation"
+    ],
+    "source": "2026-11-20 live run, card C26 (LR-24)"
   }
 ]
