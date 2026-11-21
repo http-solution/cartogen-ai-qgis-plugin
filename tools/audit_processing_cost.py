@@ -20,6 +20,7 @@ BACKGROUND = {"run_algorithm", "run_callable", "_run_in_background"}
 CANCEL = {"is_cancelled", "should_stop", "check_cancel", "raise_if_cancelled"}
 NET = {"urlopen", "urlopen_with_retry", "urlopen_with_retry_", "_qgis_urlopen"}
 RASTER = {"ReadAsArray", "bandStatistics", "readAsArray"}
+HELPER_DEPTH = 3   # how many levels of same-module helpers a tool is followed through
 CAPS = {"max_", "MAX_", "limit", "cap", "budget", "LIMIT", "CAP"}
 
 
@@ -49,6 +50,22 @@ def _loop_depth_over_data(node, depth=0):
     return best
 
 
+def _reachable_helpers(fn, helpers):
+    """Same-module helpers `fn` calls by name, followed up to HELPER_DEPTH levels (a tool that delegates to a helper that delegates again is not scored as empty)."""
+    seen, frontier = [], [fn]
+    for _ in range(HELPER_DEPTH):
+        nxt = []
+        for f in frontier:
+            for n in ast.walk(f):
+                if isinstance(n, ast.Call):
+                    h = _name(n.func)
+                    if h in helpers and helpers[h] is not fn and h not in seen:
+                        seen.append(h)
+                        nxt.append(helpers[h])
+        frontier = nxt
+    return seen
+
+
 def _scan(fn, helpers):
     calls = []
     sleeps = pr_calls = get_features = 0
@@ -68,8 +85,7 @@ def _scan(fn, helpers):
                 spatial_index = True
         elif isinstance(n, ast.Name) and any(c in n.id for c in CAPS):
             caps += 1
-    called_helpers = [h for h in set(calls) if h in helpers and helpers[h] is not fn]
-    # one level of same-module helpers, so a tool that delegates its loop is not scored as empty
+    called_helpers = _reachable_helpers(fn, helpers)
     for h in called_helpers:
         for n in ast.walk(helpers[h]):
             if isinstance(n, ast.Call):

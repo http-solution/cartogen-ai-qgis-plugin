@@ -2345,7 +2345,7 @@ Fetch open (or closed/all) natural events from NASA EONET -- wildfires, severe s
 | `status` | string | no | 'open' (default), 'closed', or 'all'. |
 | `layer_name` | string | no | Name for the layer. Defaults to 'NASA EONET Events'. Re-fetching with the same name replaces its features rather than duplicating them. |
 
-### `generate_situation_dashboard`
+### `generate_situation_dashboard` _(two-phase)_
 
 Fetch live hazard data (NASA active fires, NASA EONET natural events, GDACS disaster alerts) for a bounding box and export it all as one interactive HTML situation dashboard in a single call -- the fastest way to answer 'what hazards are happening in this area right now'. Internally calls fetch_nasa_active_fires/fetch_nasa_eonet_events/fetch_gdacs_disaster_alerts (each skipped gracefully, not fatally, if its source errors -- e.g. no FIRMS API key configured) then generate_html_dashboard. IMPORTANT: bbox is [min_lon, min_lat, max_lon, max_lat], same convention as the 3 fetch tools it calls.
 

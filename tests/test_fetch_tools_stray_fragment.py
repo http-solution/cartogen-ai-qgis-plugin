@@ -69,8 +69,20 @@ class TestNoFetchToolNeedsAPlan(unittest.TestCase):
     """PLAN-055 gap C: the plan gate only covers DELETE and PUBLISH tools, so it never applied to a fetch tool. Pinned so a reclassification is noticed."""
     def test_no_fetch_tool_is_delete_or_publish(self):
         from cartogen_ai.core.models.plan_gate import PlanValidationGate
-        for name in sorted(agent_mod.TWO_PHASE_TOOLS):
+        # generate_situation_dashboard writes an HTML file, so it is PUBLISH and gated; _execute_two_phase_tool applies the plan gate for it
+        # (test_the_dashboard_still_meets_the_plan_gate), so it is the one deliberate exception.
+        for name in sorted(agent_mod.TWO_PHASE_TOOLS - {"generate_situation_dashboard"}):
             self.assertFalse(PlanValidationGate.requires_plan(name), name)
+
+    def test_the_dashboard_still_meets_the_plan_gate(self):
+        from cartogen_ai.core.models.plan_gate import PlanValidationGate
+        self.assertTrue(PlanValidationGate.requires_plan("generate_situation_dashboard"))
+        agent = make_agent(False)
+        agent._plan_gate = PlanValidationGate()
+        agent._is_plan_gate_enabled = lambda: True
+        agent._run_two_phase_tool = MagicMock(side_effect=AssertionError("ran without a plan"))
+        result = agent._execute_two_phase_tool("generate_situation_dashboard", {"bbox": [0, 0, 1, 1]})
+        self.assertIn("PLAN_REQUIRED", str(result))
 
 
 if __name__ == "__main__":

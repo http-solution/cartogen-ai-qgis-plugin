@@ -104,7 +104,7 @@ TWO_PHASE_TOOLS = frozenset({
     "add_layer_from_path", "fetch_geoboundaries", "fetch_hdx_admin_boundaries", "fetch_building_footprints",
     "fetch_worldpop_population", "gemini_grounded_search", "openai_grounded_search",
     "fetch_nasa_active_fires", "fetch_nasa_eonet_events", "fetch_gdacs_disaster_alerts",
-    "fetch_usgs_earthquakes", "fetch_ucdp_conflict_events", "find_incident_reports",
+    "fetch_usgs_earthquakes", "fetch_ucdp_conflict_events", "find_incident_reports", "generate_situation_dashboard",
     "ingest_osm_features", "extract_features_from_imagery", "load_stac_assets",
 })
 
@@ -1292,6 +1292,12 @@ class CartogenAi:
         blocked_fragment = self._stray_fragment_block(name, False)
         if blocked_fragment is not None:
             return blocked_fragment
+        # generate_situation_dashboard is a PUBLISH tool (it writes an HTML file), so moving it onto this path must not drop the plan gate
+        # that _real_execute_tool applies before every DELETE/PUBLISH call; the other tools here are not gated, and the check is a pure lookup.
+        if PlanValidationGate.requires_plan(name):
+            gate_response = self._plan_gate.check(name, self._is_plan_gate_enabled())
+            if gate_response is not None:
+                return gate_response
         verdict = self._run_on_main_thread(lambda _a: self._egress_precheck(name, args, filtered_args, False), None)
         if not (isinstance(verdict, tuple) and len(verdict) == 3):
             log_event("swallowed_exception", tag="Agent", tool="egress_precheck", error=True)
@@ -1431,6 +1437,23 @@ class CartogenAi:
             res = self._run_current_turn_on_main_thread(
                 lambda a: add_nasa_eonet_events_layer_main_thread_phase(a["fetch_result"], a["layer_name"]),
                 {"fetch_result": fetch_result, "layer_name": filtered_args.get("layer_name", "NASA EONET Events")},
+            )
+            self._log_tool_success(name, filtered_args, res)
+            return res
+
+        if name == "generate_situation_dashboard":
+            # The three source fetches run here on the worker thread; only the layer steps and the HTML write go to the main thread
+            # (the dashboard used to run whole on the GUI thread: three sequential HTTP fetches).
+            from .tools.hazard_monitoring_tools import (
+                generate_situation_dashboard_network_phase, build_situation_dashboard_main_thread_phase,
+            )
+            fetched = generate_situation_dashboard_network_phase(
+                filtered_args.get("bbox"), filtered_args.get("include_fires", True),
+                filtered_args.get("include_eonet", True), filtered_args.get("include_disasters", True),
+            )
+            res = self._run_current_turn_on_main_thread(
+                lambda a: build_situation_dashboard_main_thread_phase(a["fetched"], a["output_path"], a["title"]),
+                {"fetched": fetched, "output_path": filtered_args.get("output_path"), "title": filtered_args.get("title")},
             )
             self._log_tool_success(name, filtered_args, res)
             return res

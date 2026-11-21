@@ -760,55 +760,69 @@ def fetch_gdacs_disaster_alerts(bbox=None, min_alert_level="Orange", country=Non
 )
 def generate_situation_dashboard(bbox, output_path=None, title=None,
                                   include_fires=True, include_eonet=True, include_disasters=True):
-    output_path = resolve_output_path(output_path)   # rc22 smoke N3/N8/N9: anchor relative paths to the project (see _paths.py)
+    fetched = generate_situation_dashboard_network_phase(bbox, include_fires, include_eonet, include_disasters)
+    return build_situation_dashboard_main_thread_phase(fetched, output_path, title)
+
+
+# Per source: (key in the fetched dict, label for source_warnings, count key in the layer reply, layer-config popup fields, popup labels).
+_DASHBOARD_SOURCES = (
+    ("fires", "Active fires", "detection_count",
+     ["confidence", "brightness", "frp", "acq_date", "acq_time"], ["Confidence", "Brightness", "Fire Radiative Power", "Date", "Time"]),
+    ("eonet", "EONET events", "event_count", ["title", "category", "date"], ["Event", "Category", "Date"]),
+    ("disasters", "GDACS alerts", "alert_count",
+     ["name", "alert_level", "description", "country"], ["Event", "Alert Level", "Description", "Country"]),
+)
+
+
+def generate_situation_dashboard_network_phase(bbox, include_fires=True, include_eonet=True, include_disasters=True):
+    """Network phase: the three source fetches, run one after another with no QGIS access, so the dispatcher can run it on the worker thread.
+
+    generate_situation_dashboard used to call the three fetch tools whole, which put three sequential HTTP fetches on QGIS's GUI thread
+    (found by reading the code, LR-21 follow-up, 2026-11-21). Returns {"fetched": {source: network-phase result}} or {"error": ...}."""
     bbox_error = _validate_bbox(bbox)
     if bbox_error:
         return {"error": bbox_error}
     if bbox is None:
         return {"error": "bbox is required -- [min_lon, min_lat, max_lon, max_lat]."}
+    fetched = {}
+    if include_fires:
+        fetched["fires"] = fetch_nasa_active_fires_network_phase(bbox)
+    if include_eonet:
+        fetched["eonet"] = fetch_nasa_eonet_events_network_phase(bbox)
+    if include_disasters:
+        fetched["disasters"] = fetch_gdacs_disaster_alerts_network_phase(bbox)
+    return {"fetched": fetched}
 
+
+def _dashboard_layer_for(key, fetch_result):
+    """Main-thread step for one source: adds its layer. Returns (error text or None, layer config or None)."""
+    _key, label, count_key, fields, labels = next(src for src in _DASHBOARD_SOURCES if src[0] == key)
+    add_layer = {"fires": add_nasa_active_fires_layer_main_thread_phase, "eonet": add_nasa_eonet_events_layer_main_thread_phase,
+                 "disasters": add_gdacs_disaster_alerts_layer_main_thread_phase}[key]
+    layer = add_layer(fetch_result)
+    if "error" in layer:
+        return f"{label}: {layer['error']}", None
+    # .get("layer_name"): without QGIS the layer step returns a count-only stub with no layer_name (this repo's non-QGIS tests), and this must degrade, not KeyError.
+    if layer.get("layer_name") and layer.get(count_key, 0) > 0:
+        return None, {"layer_name": layer["layer_name"], "popup_fields": list(fields), "popup_labels": dict(zip(fields, labels, strict=True))}
+    return None, None
+
+
+def build_situation_dashboard_main_thread_phase(fetched, output_path=None, title=None):
+    """Main-thread phase: adds the layers from the already-fetched data and writes the HTML. Result shape is the one the single-call tool always had."""
+    if "error" in fetched:
+        return fetched
+    output_path = resolve_output_path(output_path)   # rc22 smoke N3/N8/N9: anchor relative paths to the project (see _paths.py)
     from .export_tools import generate_html_dashboard
 
     layers_config = []
     source_errors = []
-
-    # .get("layer_name") rather than ["layer_name"] throughout below -- when QGIS isn't
-    # available (this module's own import-time fallback, exercised by this repo's non-QGIS
-    # test suite), add_*_layer_main_thread_phase returns a count-only stub with no layer_name
-    # key at all rather than raising, and this composite tool must degrade the same way, not
-    # KeyError on a field that was never promised outside a real QGIS session.
-    if include_fires:
-        fires = fetch_nasa_active_fires(bbox)
-        if "error" in fires:
-            source_errors.append(f"Active fires: {fires['error']}")
-        elif fires.get("layer_name") and fires.get("detection_count", 0) > 0:
-            layers_config.append({
-                "layer_name": fires["layer_name"],
-                "popup_fields": ["confidence", "brightness", "frp", "acq_date", "acq_time"],
-                "popup_labels": dict(zip(["confidence", "brightness", "frp", "acq_date", "acq_time"], ["Confidence", "Brightness", "Fire Radiative Power", "Date", "Time"], strict=True)),
-            })
-
-    if include_eonet:
-        eonet = fetch_nasa_eonet_events(bbox)
-        if "error" in eonet:
-            source_errors.append(f"EONET events: {eonet['error']}")
-        elif eonet.get("layer_name") and eonet.get("event_count", 0) > 0:
-            layers_config.append({
-                "layer_name": eonet["layer_name"],
-                "popup_fields": ["title", "category", "date"],
-                "popup_labels": dict(zip(["title", "category", "date"], ["Event", "Category", "Date"], strict=True)),
-            })
-
-    if include_disasters:
-        disasters = fetch_gdacs_disaster_alerts(bbox)
-        if "error" in disasters:
-            source_errors.append(f"GDACS alerts: {disasters['error']}")
-        elif disasters.get("layer_name") and disasters.get("alert_count", 0) > 0:
-            layers_config.append({
-                "layer_name": disasters["layer_name"],
-                "popup_fields": ["name", "alert_level", "description", "country"],
-                "popup_labels": dict(zip(["name", "alert_level", "description", "country"], ["Event", "Alert Level", "Description", "Country"], strict=True)),
-            })
+    for key, fetch_result in fetched["fetched"].items():
+        error, config = _dashboard_layer_for(key, fetch_result)
+        if error:
+            source_errors.append(error)
+        elif config:
+            layers_config.append(config)
 
     if not layers_config:
         return {
