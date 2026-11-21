@@ -1307,6 +1307,56 @@ def _collect_stops(layer, additional_stops_layers):
     return geoms, feats, merged, None
 
 
+def _route_option_error(strategy, road_network_layer, default_speed):
+    """The problem with the strategy or default speed in a plain sentence, else None. Split out of optimize_delivery_route (LR-21, no behaviour change)."""
+    if strategy not in ("shortest", "fastest"):
+        return "strategy must be 'shortest' or 'fastest'."
+    if strategy == "fastest" and road_network_layer is None:
+        return "strategy='fastest' needs road_network_layer: a travel time cannot be computed from straight-line distance."
+    if not isinstance(default_speed, (int, float)) or isinstance(default_speed, bool) or default_speed <= 0:
+        return "default_speed must be a positive number of km/h."
+    return None
+
+
+def _stop_distance_matrix(layer, geoms, network, two_stop_route, extra_params, fastest, default_speed):
+    """(distance matrix between the stops, the straight-line measurer or None). With a network the matrix is by road; with two stops it is skipped
+    (rc11 smoke test C1: a two-stop route took 14 minutes because the network matrix ran two shortest-path searches, A->B and B->A, before the route
+    itself ran a third, about 3 minutes each on 140k roads. With two stops there is nothing to order, so the distance is read from the route
+    afterwards). Split out of optimize_delivery_route (LR-21, no behaviour change)."""
+    if two_stop_route:
+        return None, None
+    if network is not None:
+        return _build_network_distance_matrix(network, geoms, extra_params, source_crs=layer.crs(),
+                                              fastest=fastest, default_speed=default_speed), None
+    distance_area = _make_distance_area(layer)
+    n = len(geoms)
+    return [[_measure_distance(distance_area, geoms[i], geoms[j]) for j in range(n)] for i in range(n)], distance_area
+
+
+def _add_road_route(result, stops_layer, network, geoms, tour, source_crs, extra_params, fastest, default_speed, speed_field, total_distance):
+    """Builds the road-snapped route layer and adds it (or the fallback warning) to `result`. Split out of optimize_delivery_route (LR-21, no
+    behaviour change)."""
+    route_layer_name = _build_road_snapped_route(stops_layer, network, geoms, tour, source_crs=source_crs,
+                                                  extra_params=extra_params, fastest=fastest, default_speed=default_speed)
+    if route_layer_name is None:
+        result["warning"] = (
+            "Could not build a road-snapped route (stops may be too far from the network) -- "
+            "falling back to stop order only. Do not render a line through these stops as a "
+            "delivery route."
+        )
+        return
+    result["route_layer"] = route_layer_name
+    result["road_snapped"] = True
+    routed = _route_cost_sum(route_layer_name)
+    result.update(route_strategy_summary(fastest, routed, default_speed, speed_field))
+    if not fastest and total_distance is None and routed is not None:
+        result["total_distance"] = round(routed, 2)
+    if fastest:   # the cost is hours, so give the length separately, from the geometry
+        length_m = _route_length_m(route_layer_name)
+        if length_m is not None:
+            result["route_length_m"] = round(length_m, 1)
+
+
 @register_tool(
     "optimize_delivery_route",
     "Find a good visiting order for a set of delivery/distribution stops -- e.g. 'what order "
@@ -1345,12 +1395,9 @@ def optimize_delivery_route(stops_layer, start_stop_name=None, road_network_laye
                              strategy="shortest", default_speed=50, additional_stops_layers=None):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
-    if strategy not in ("shortest", "fastest"):
-        return {"error": "strategy must be 'shortest' or 'fastest'."}
-    if strategy == "fastest" and road_network_layer is None:
-        return {"error": "strategy='fastest' needs road_network_layer: a travel time cannot be computed from straight-line distance."}
-    if not isinstance(default_speed, (int, float)) or isinstance(default_speed, bool) or default_speed <= 0:
-        return {"error": "default_speed must be a positive number of km/h."}
+    option_error = _route_option_error(strategy, road_network_layer, default_speed)
+    if option_error:
+        return {"error": option_error}
     fastest = strategy == "fastest"
     layer = _find_layer_by_name(stops_layer)
     if layer is None:
@@ -1378,20 +1425,7 @@ def optimize_delivery_route(stops_layer, start_stop_name=None, road_network_laye
         n = len(geoms)
         network_aware = network is not None
         two_stop_route = network_aware and n == 2
-        if two_stop_route:
-            # rc11 smoke test C1: a two-stop route took 14 minutes because the network distance matrix ran two shortest-path
-            # searches (A->B and B->A) before the route itself ran a third, ~3 minutes each on 140k roads. With two stops
-            # there is nothing to order, so the matrix is skipped; the distance is read from the route afterwards.
-            distance_matrix = None
-        elif network_aware:
-            distance_matrix = _build_network_distance_matrix(network, geoms, extra_params, source_crs=layer.crs(),
-                                                             fastest=fastest, default_speed=default_speed)
-        else:
-            distance_area = _make_distance_area(layer)
-            distance_matrix = [
-                [_measure_distance(distance_area, geoms[i], geoms[j]) for j in range(n)]
-                for i in range(n)
-            ]
+        distance_matrix, distance_area = _stop_distance_matrix(layer, geoms, network, two_stop_route, extra_params, fastest, default_speed)
 
         if two_stop_route:
             tour, total_distance = [start_index, 1 - start_index], None
@@ -1427,26 +1461,7 @@ def optimize_delivery_route(stops_layer, start_stop_name=None, road_network_laye
             result["warning"] = warning
             return result
 
-        route_layer_name = _build_road_snapped_route(stops_layer, network, geoms, tour, source_crs=layer.crs(),
-                                                      extra_params=extra_params, fastest=fastest,
-                                                      default_speed=default_speed)
-        if route_layer_name is None:
-            result["warning"] = (
-                "Could not build a road-snapped route (stops may be too far from the network) -- "
-                "falling back to stop order only. Do not render a line through these stops as a "
-                "delivery route."
-            )
-        else:
-            result["route_layer"] = route_layer_name
-            result["road_snapped"] = True
-            routed = _route_cost_sum(route_layer_name)
-            result.update(route_strategy_summary(fastest, routed, default_speed, speed_field))
-            if not fastest and total_distance is None and routed is not None:
-                result["total_distance"] = round(routed, 2)
-            if fastest:   # the cost is hours, so give the length separately, from the geometry
-                length_m = _route_length_m(route_layer_name)
-                if length_m is not None:
-                    result["route_length_m"] = round(length_m, 1)
+        _add_road_route(result, stops_layer, network, geoms, tour, layer.crs(), extra_params, fastest, default_speed, speed_field, total_distance)
 
         return result
     except _bg.AnalysisCancelledError:
