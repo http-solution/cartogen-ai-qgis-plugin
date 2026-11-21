@@ -70,6 +70,10 @@ class TestHealthRatesTool(unittest.TestCase):
         self.assertTrue(rows[0]["value_shown"] is None or str(rows[0]["value_shown"]) == "NULL")      # a QGIS NULL compares equal to its string form
         self.assertEqual(rows[0]["value"], 400.0)
         self.assertFalse(rows[1]["small_number"])
+        # LR-3: the reply can quote real figures, and the suppression count is in the result (row C26 request 4 printed neither)
+        self.assertEqual(len(result["top_areas"]), 2)
+        self.assertNotIn(rows[0]["src_id"], [a["src_id"] for a in result["top_areas"]])
+        self.assertIn("1 of 3", result["suppressed_note"])
 
     def test_a_population_floor_flags_small_populations(self):
         _areas("a", [50, 60], [800, 6000])

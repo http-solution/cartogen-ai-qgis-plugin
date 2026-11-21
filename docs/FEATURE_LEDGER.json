@@ -1459,7 +1459,10 @@
     ],
     "guards": [
       "tests/test_layout_figures_guard.py::TestFigureGrounding::test_the_b8_figures_are_flagged_and_the_layer_figures_are_not",
-      "tests/test_layout_figures_guard.py::TestSitrepLayoutMarksUnverifiedFigures::test_typed_figures_that_are_not_in_the_layer_are_marked_and_reported"
+      "tests/test_layout_figures_guard.py::TestSitrepLayoutMarksUnverifiedFigures::test_typed_figures_that_are_not_in_the_layer_are_marked_and_reported",
+      "tests/test_layout_figures_guard.py::TestIdentifierColumnsAndTheBulletin::test_a_pool_without_the_id_column_no_longer_grounds_the_typed_figures",
+      "tests/test_layout_figures_guard.py::TestIdentifierColumnsAndTheBulletin::test_identifier_fields_are_recognised_and_measures_are_not",
+      "tests/test_layout_report_kinds_live.py::TestReportLayouts::test_an_identifier_column_does_not_ground_a_typed_figure"
     ],
     "hand_verified": "not verified: CI only (owner hand run 1.18.4 row B8 found the defect; the fix has not been re-run)",
     "hand_row": "B8"
@@ -3308,7 +3311,8 @@
       "tests/test_health_rates.py::TestEmpiricalBayes::test_a_hand_computed_case_with_real_spread",
       "tests/test_health_rates.py::TestSmallNumbers::test_cases_below_five_are_flagged_and_five_is_not",
       "tests/test_health_rates_tool_live.py::TestHealthRatesTool::test_equal_rates_give_1000_per_100000_and_relative_risk_one",
-      "tests/test_health_rates_tool_live.py::TestHealthRatesTool::test_an_area_with_four_cases_is_flagged_and_its_value_is_not_shown"
+      "tests/test_health_rates_tool_live.py::TestHealthRatesTool::test_an_area_with_four_cases_is_flagged_and_its_value_is_not_shown",
+      "tests/test_health_rates.py::TestTopAreas::test_the_highest_shown_values_come_first_and_flagged_areas_are_left_out"
     ],
     "hand_verified": "not verified: CI only (offline known answers and a live run on real QGIS layers, written without a local QGIS); never compared with R or GeoDa on a real layer, and never run by a person",
     "hand_row": "C24-health-rates"
@@ -3335,7 +3339,8 @@
       "tests/test_layout_report_kinds.py::TestReportKinds::test_an_epi_bulletin_has_its_own_headings_and_a_method_and_limits_box",
       "tests/test_public_health_look_live.py::TestPublicHealthLook::test_rate_look_has_five_blue_rules_a_hatch_rule_and_the_legend_sentence",
       "tests/test_public_health_look_live.py::TestPublicHealthLook::test_cluster_look_is_a_black_line_under_a_white_line_with_no_fill_and_no_red",
-      "tests/test_layout_report_kinds_live.py::TestReportLayouts::test_an_epi_bulletin_has_its_headings_the_figures_from_the_layer_and_the_method_and_limits_box"
+      "tests/test_layout_report_kinds_live.py::TestReportLayouts::test_an_epi_bulletin_has_its_headings_the_figures_from_the_layer_and_the_method_and_limits_box",
+      "tests/test_layout_report_kinds_live.py::TestReportLayouts::test_an_epi_bulletin_leaves_out_a_typed_figure_that_is_not_in_the_data"
     ],
     "hand_verified": "not verified: CI only (offline rules and live renderer read-backs on real QGIS layers, written without a local QGIS); nobody has looked at the colours on a real map or at an exported bulletin page",
     "hand_row": "C25-public-health-look"

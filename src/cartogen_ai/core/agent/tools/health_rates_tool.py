@@ -19,6 +19,21 @@ NOTE = ("These are crude figures for areas, not adjusted for age or sex, and the
         "the threshold (or the population is below min_population), so a map built on it does not show them. Smoothed rates pull small areas toward the overall rate and are for mapping, not for reporting an area's true rate.")
 
 
+TOP_AREAS = 5
+
+
+def top_areas(ids, cases, pops, areas, n=TOP_AREAS):
+    """The `n` areas with the highest shown value, as plain dicts a reply can quote: [{'src_id', 'cases', 'population', 'rate', 'rel_risk'}], largest
+    first. Areas the small-number rule flagged are left out, as they are in `value_shown`. Pure.
+
+    Why: row C26 request 4 of the 2026-11-20 live run answered "rates and relative risk per district" without one number, because the tool
+    result held only the overall rate; the model could only say the figures were in the attribute table."""
+    rows = [(a["value"], fid, c, p, a) for fid, c, p, a in zip(ids, cases, pops, areas, strict=True) if not a["flag"] and a["value"] is not None]
+    rows.sort(key=lambda r: r[0], reverse=True)
+    return [{"src_id": int(fid), "cases": c, "population": p, "rate": None if a["rate"] is None else round(a["rate"], 2),
+             "rel_risk": None if a["rel_risk"] is None else round(a["rel_risk"], 2)} for _value, fid, c, p, a in rows[:n]]
+
+
 def _find_layer(name):
     layers = QgsProject.instance().mapLayersByName(name)
     return layers[0] if layers else None
@@ -117,6 +132,9 @@ def calculate_health_rates(layer_name, case_field, population_field, method="cru
     out = {"success": True, "layer_name": layer_name, "output_layer": written.name(), "method": method, "areas": len(ids), "per": per, "overall_rate": round(result["overall_rate"], 3), "total_cases": sum(cases),
            "total_population": sum(pops), "flagged_small_numbers": result["flagged"], "shown": shown,
            "summary": f"Overall rate {result['overall_rate']:.1f} per {per:g}; {result['flagged']} of {len(ids)} area(s) flagged for small numbers and left out of value_shown.", "notes": [NOTE]}
+    out["top_areas"] = top_areas(ids, cases, pops, result["areas"])
+    out["suppressed_note"] = (f"{result['flagged']} of {len(ids)} area(s) were suppressed for small numbers and are not in top_areas or value_shown; "
+                              "say that number when you report the rates.")
     if method == "eb":
         out["smoothing"] = "Global empirical Bayes (Marshall 1991)." + (" The areas differ no more than chance explains, so every smoothed rate equals the overall rate." if result["between_variance"] <= 0 else "")
     return out

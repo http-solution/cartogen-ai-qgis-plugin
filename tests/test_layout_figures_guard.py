@@ -17,6 +17,30 @@ except ImportError:
     QGIS_LIVE_AVAILABLE = False
 
 
+class TestIdentifierColumnsAndTheBulletin(unittest.TestCase):
+    """LR-3, row C25 of the 2026-11-20 live run: a top-3 of 20 and 18 cases against a maximum of 15 passed the check because an id column of a
+    100-district layer holds every whole number from 1 to 100."""
+
+    def test_identifier_fields_are_recognised_and_measures_are_not(self):
+        for name in ("fid", "FID", "id", "ogc_fid", "gid", "objectid", "src_id", "district_id", "id_district", "cat"):
+            self.assertTrue(ls.is_identifier_field(name), name)
+        for name in ("cases", "population", "rate", "idle_days", "paid", "side", "rel_risk", "value"):
+            self.assertFalse(ls.is_identifier_field(name), name)
+
+    def test_a_pool_without_the_id_column_no_longer_grounds_the_typed_figures(self):
+        cases = [3, 15, 9, 7]
+        with_ids = ls.build_number_pool([cases, list(range(1, 101))])
+        without_ids = ls.build_number_pool([cases])
+        typed = [{"label": "District 45", "value": "20"}, {"label": "District 34", "value": "18"}, {"label": "Worst", "value": "15"}]
+        self.assertEqual(ls.unverified_figure_labels(typed, with_ids), [])
+        self.assertEqual(ls.unverified_figure_labels(typed, without_ids), ["District 45", "District 34"])
+
+    def test_dropping_leaves_the_grounded_figures_in_order(self):
+        figures = [{"label": "A", "value": "1"}, {"label": "B", "value": "2"}, {"label": "C", "value": "3"}, "odd"]
+        self.assertEqual(ls.drop_figures(figures, ["B"]), [{"label": "A", "value": "1"}, {"label": "C", "value": "3"}, "odd"])
+        self.assertEqual(ls.drop_figures(None, ["B"]), [])
+
+
 class TestFigureGrounding(unittest.TestCase):
     POOL = ls.build_number_pool([[94000, 76000, 52000], [4000, 9000, 15000]])
 
