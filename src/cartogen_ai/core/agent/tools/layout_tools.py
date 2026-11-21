@@ -567,6 +567,35 @@ def _prepare_template(template, body_text, zoom_to_layer, key_figures, sources):
     return template, body_text, zoom_to_layer, sitrep_args, sitrep_warning
 
 
+def _layout_map_extent(target_layer, canvas):
+    """(the extent the layout's main map shows, None), or (None, the error reply) when the target layer cannot be transformed. With a target layer the
+    canvas is zoomed to its padded extent; otherwise the extent is picked from the canvas, the project and the visible layers. Split out of
+    create_print_layout (LR-21, no behaviour change)."""
+    map_extent = None
+    if target_layer is not None and canvas:
+        map_extent = _extent_to_canvas_crs(canvas, target_layer.extent(), target_layer.crs())
+        if map_extent is None:
+            return None, {"error": f"Could not transform '{target_layer.name()}' from {target_layer.crs().authid()} into the map CRS, so the layout was not created."}
+        # best-effort: keep the layer's own extent rather than fail the layout
+        with contextlib.suppress(Exception):
+            _b = (map_extent.xMinimum(), map_extent.yMinimum(), map_extent.xMaximum(), map_extent.yMaximum())
+            _padded = padded_extent_bounds(*_b, canvas.mapSettings().destinationCrs().isGeographic())
+            # A null extent (an empty layer) is all zeros: padding it would centre the map on (0, 0), so it keeps the old
+            # fallback instead. A single point is not null, only zero-size, and is the case padded here.
+            if _padded != _b and not map_extent.isNull():
+                map_extent = QgsRectangle(*_padded)
+        canvas.setExtent(map_extent)
+        canvas.refresh()
+    if map_extent is None and canvas:
+        with contextlib.suppress(Exception):    # a layout must still be made if the extent cannot be judged
+            c = canvas.extent()
+            picked = pick_layout_extent((c.xMinimum(), c.yMinimum(), c.xMaximum(), c.yMaximum()), _full_project_bounds(canvas),
+                                        _visible_vector_bounds(canvas))
+            if picked:
+                map_extent = QgsRectangle(*picked)
+    return map_extent, None
+
+
 def export_status(output_path):
     """What create_print_layout says about the file, so a request for "a PDF" cannot end with a layout in the project and a reply that sounds
     like a file exists. 2026-11-20 live run (rows C25, C26, Haiku): the PDF was never written; the model left output_path out, the tool built the
@@ -722,28 +751,9 @@ def create_print_layout(title: str, page_orientation: str | None = None, output_
 
         # Main Map Item
         canvas = iface.mapCanvas() if iface else None
-        map_extent = None
-        if target_layer is not None and canvas:
-            map_extent = _extent_to_canvas_crs(canvas, target_layer.extent(), target_layer.crs())
-            if map_extent is None:
-                return {"error": f"Could not transform '{target_layer.name()}' from {target_layer.crs().authid()} into the map CRS, so the layout was not created."}
-            # best-effort: keep the layer's own extent rather than fail the layout
-            with contextlib.suppress(Exception):
-                _b = (map_extent.xMinimum(), map_extent.yMinimum(), map_extent.xMaximum(), map_extent.yMaximum())
-                _padded = padded_extent_bounds(*_b, canvas.mapSettings().destinationCrs().isGeographic())
-                # A null extent (an empty layer) is all zeros: padding it would centre the map on (0, 0), so it keeps the old
-                # fallback instead. A single point is not null, only zero-size, and is the case padded here.
-                if _padded != _b and not map_extent.isNull():
-                    map_extent = QgsRectangle(*_padded)
-            canvas.setExtent(map_extent)
-            canvas.refresh()
-        if map_extent is None and canvas:
-            with contextlib.suppress(Exception):    # a layout must still be made if the extent cannot be judged
-                c = canvas.extent()
-                picked = pick_layout_extent((c.xMinimum(), c.yMinimum(), c.xMaximum(), c.yMaximum()), _full_project_bounds(canvas),
-                                            _visible_vector_bounds(canvas))
-                if picked:
-                    map_extent = QgsRectangle(*picked)
+        map_extent, extent_error = _layout_map_extent(target_layer, canvas)
+        if extent_error:
+            return extent_error
         map_item = QgsLayoutItemMap(layout)
         # A freshly constructed QgsLayoutItemMap has a zero-size rect, and
         # setExtent() on a zero-size item produces a degenerate scale --
