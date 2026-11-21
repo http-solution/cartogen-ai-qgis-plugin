@@ -21,10 +21,32 @@ class TestParseOutlet(unittest.TestCase):
         self.assertEqual(wt.parse_outlet(None, 32.03, 35.81)[0], (35.81, 32.03))
         self.assertEqual(wt.parse_outlet("32.03 35.81")[0], (35.81, 32.03))
 
+    def test_decimal_degrees_with_hemisphere_letters(self):
+        self.assertEqual(wt.parse_outlet("31.0297 N 35.8058 E"), ((35.8058, 31.0297), None))
+
     def test_bad_locations(self):
         for args in (("somewhere near Amman",), (None, None, None), (None, 95, 10), (None, 10, 200), (None, "x", 1)):
             self.assertIsNone(wt.parse_outlet(*args)[0], args)
             self.assertTrue(wt.parse_outlet(*args)[1], args)
+
+
+class TestLargestRadius(unittest.TestCase):
+    def test_the_named_radius_builds_a_window_inside_the_limit(self):
+        """The refusal now says which radius_km fits; building the window the way delineate_watershed does must stay within MAX_CELLS."""
+        for cell in (10.0, 12.3, 30.0, 90.0):
+            radius = wt.largest_radius_km(cell, cell)
+            half = max(5, round(radius * 1000.0 / cell))
+            self.assertLessEqual((2 * half + 1) ** 2, wt.MAX_CELLS, cell)
+            # and it is not needlessly small: 0.2 km more would already be over
+            half_more = round((radius + 0.2) * 1000.0 / cell)
+            self.assertGreater((2 * half_more + 1) ** 2, wt.MAX_CELLS - 4 * (2 * half_more + 1), cell)
+
+    def test_the_run_that_failed_gets_an_answer(self):
+        # row C19: 1,100,143 cells for radius 8 km means about 15.4 m cells; the fitting radius is then about 4.8 km
+        self.assertAlmostEqual(wt.largest_radius_km(15.4, 15.4), 4.8, delta=0.2)
+
+    def test_a_tiny_cell_or_a_huge_one_never_returns_zero(self):
+        self.assertGreaterEqual(wt.largest_radius_km(0.01, 0.01), 0.1)
 
 
 class TestDesignInputsAndWarnings(unittest.TestCase):

@@ -3447,6 +3447,21 @@
     ],
     "hand_verified": "not verified: QGIS CI only; four rows of the 2026-11-20 live run needed a new project to get an empty chat (master list LR-10); the button has never been seen on a desktop QGIS",
     "hand_row": "F4-new-chat"
+  },
+  {
+    "id": "watershed-location-and-window-guidance",
+    "feature": "The watershed tools read a location as DMS, as decimal degrees with N/S/E/W letters, or as a 'latitude, longitude' pair (one reader for assess_watershed_hydrology_request, parse_dms_location and delineate_watershed); when the DEM window is over the cell limit, delineate_watershed refuses and names the largest radius_km that fits that DEM instead of only saying 'smaller'",
+    "issues": [],
+    "since": "1.18.6",
+    "sources": ["src/cartogen_ai/core/agent/tools/engineering_tools.py", "src/cartogen_ai/core/agent/tools/watershed_tools.py"],
+    "guards": [
+      "tests/test_engineering_tools.py::TestEngineeringHydrologyTools::test_decimal_degrees_are_read_with_or_without_hemisphere_letters",
+      "tests/test_engineering_tools.py::TestEngineeringHydrologyTools::test_the_location_reader_still_refuses_what_it_cannot_place",
+      "tests/test_watershed_tools.py::TestLargestRadius::test_the_named_radius_builds_a_window_inside_the_limit",
+      "tests/test_watershed_tools.py::TestParseOutlet::test_decimal_degrees_with_hemisphere_letters"
+    ],
+    "hand_verified": "not verified: offline tests only; found in row C19 of the 2026-11-20 live run (decimal location refused by the hydrology assessment, window of 1,100,143 cells refused with no radius to use); never seen in a real chat since",
+    "hand_row": "C19-persona-request"
   }
 ]
 }

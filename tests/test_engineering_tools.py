@@ -9,6 +9,7 @@ from cartogen_ai.core.agent.tools.engineering_tools import (
     calculate_rational_watershed_peak_flow,
     parse_dms_location,
     parse_dms_location_text,
+    parse_location_text,
 )
 from cartogen_ai.core.services.tool_router import ToolRouter
 
@@ -30,6 +31,23 @@ class TestEngineeringHydrologyTools(unittest.TestCase):
         result = parse_dms_location("32° 1'47.39\"N, 35°48'21.00\"E")
         self.assertTrue(result["success"])
         self.assertEqual(result["coordinate_order"], "longitude, latitude")
+
+    def test_decimal_degrees_are_read_with_or_without_hemisphere_letters(self):
+        """Row C19, live run 2026-11-20: '31.0297 N 35.8058 E' was refused as 'not DMS' by the hydrology assessment."""
+        for text in ("31.0297 N 35.8058 E", "31.0297°N, 35.8058°E", "35.8058 E, 31.0297 N", "31.0297, 35.8058", "31.0297 35.8058"):
+            lon, lat = parse_location_text(text)
+            self.assertAlmostEqual(lat, 31.0297, places=6, msg=text)
+            self.assertAlmostEqual(lon, 35.8058, places=6, msg=text)
+        self.assertEqual(parse_location_text("12.5 S 40.25 W"), (-40.25, -12.5))
+        result = assess_watershed_hydrology_request("31.0297 N 35.8058 E", 20)
+        self.assertNotIn("error", result)
+        self.assertEqual(result["outlet"]["latitude"], 31.0297)
+        self.assertTrue(parse_dms_location("31.0297 N 35.8058 E")["success"])
+
+    def test_the_location_reader_still_refuses_what_it_cannot_place(self):
+        for text in ("somewhere near Amman", "31.0297 N", "95 N 35 E", "10 N 200 E", "31.0 N 32.0 S", ""):
+            with self.assertRaises(ValueError, msg=text):
+                parse_location_text(text)
 
     def test_dms_parser_rejects_invalid_or_incomplete_coordinates(self):
         self.assertIn("error", parse_dms_location("32°61'0\"N, 35°48'0\"E"))

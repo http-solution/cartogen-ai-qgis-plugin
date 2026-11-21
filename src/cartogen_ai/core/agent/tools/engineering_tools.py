@@ -87,6 +87,46 @@ def parse_dms_location_text(location):
     return longitude, latitude
 
 
+_DECIMAL_WITH_HEMISPHERE = re.compile(r"(?P<value>\d{1,3}(?:\.\d+)?)\s*[°º]?\s*(?P<hemisphere>[NSEW])\b", re.IGNORECASE)
+_DECIMAL_PAIR = re.compile(r"^\s*(?P<lat>-?\d{1,3}(?:\.\d+)?)\s*[,; ]\s*(?P<lon>-?\d{1,3}(?:\.\d+)?)\s*$")
+
+
+def parse_location_text(location):
+    """(longitude, latitude) in decimal WGS84 degrees from DMS ("32°1'47.39"N, 35°48'21"E"), decimal with hemispheres ("31.0297 N 35.8058 E")
+    or a bare "latitude, longitude" decimal pair. Pure; raises ValueError.
+
+    Why: the live run of 2026-11-20 (row C19) sent "31.0297 N 35.8058 E" and assess_watershed_hydrology_request refused it as "not DMS",
+    although delineate_watershed (which already took a decimal pair) accepted the same place. One reader now serves both."""
+    text = str(location or "")
+    try:
+        return parse_dms_location_text(text)
+    except ValueError:
+        pass
+    hemispheres = list(_DECIMAL_WITH_HEMISPHERE.finditer(text))
+    if len(hemispheres) == 2:
+        lat = lon = None
+        for match in hemispheres:
+            value, hemi = float(match.group("value")), match.group("hemisphere").upper()
+            if hemi in {"N", "S"}:
+                lat = -value if hemi == "S" else value
+            else:
+                lon = -value if hemi == "W" else value
+        if lat is not None and lon is not None:
+            if abs(lat) > 90 or abs(lon) > 180:
+                raise ValueError("Latitude must be within 90 degrees and longitude within 180 degrees.")
+            return lon, lat
+    pair = _DECIMAL_PAIR.match(text)
+    if pair:
+        lat, lon = float(pair.group("lat")), float(pair.group("lon"))
+        if abs(lat) > 90 or abs(lon) > 180:
+            raise ValueError("Latitude must be within 90 degrees and longitude within 180 degrees.")
+        return lon, lat
+    raise ValueError(
+        "location must contain one latitude and one longitude: degrees-minutes-seconds with N/S/E/W "
+        "(32° 1'47.39\"N, 35°48'21.00\"E), decimal degrees with N/S/E/W (31.0297 N 35.8058 E), or 'latitude, longitude' in decimal degrees."
+    )
+
+
 def kirpich_tc_minutes(length_m, slope_m_per_m):
     """Kirpich channel-flow time of concentration in minutes: 0.0195 * L^0.77 * S^-0.385 (L in metres, S in m/m). Pure."""
     return 0.0195 * (length_m ** 0.77) * (slope_m_per_m ** -0.385)
@@ -123,7 +163,7 @@ def rational_peak_flow_m3_s(coefficient, intensity_mm_h, area_km2):
 )
 def parse_dms_location(location):
     try:
-        longitude, latitude = parse_dms_location_text(location)
+        longitude, latitude = parse_location_text(location)
     except ValueError as exc:
         return {"error": str(exc)}
     return {
@@ -178,7 +218,7 @@ def assess_watershed_hydrology_request(
     runoff_coefficient=None,
 ):
     try:
-        longitude, latitude = parse_dms_location_text(location)
+        longitude, latitude = parse_location_text(location)
         period = _finite_number(return_period_years, "return_period_years")
         if period <= 0:
             raise ValueError("return_period_years must be greater than zero.")
