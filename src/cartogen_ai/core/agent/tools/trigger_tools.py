@@ -89,6 +89,10 @@ def validate_rule(threshold, comparison, lead_days, min_probability, min_exceeda
     return None
 
 
+MAX_PASSING_ROWS = 20
+ROW_ID_KEY = "_row_id"
+
+
 def evaluate_triggers(rows, value_key, threshold, comparison=">=", unit_key=None, date_key=None, as_of=None, lead_days=None,
                       probability_key=None, min_probability=None, min_exceedances=1):
     """Apply the rule to forecast rows (dicts). Pure. Returns {units, activated_count, unit_count, rows_used, rows_skipped, ...}.
@@ -110,6 +114,8 @@ def evaluate_triggers(rows, value_key, threshold, comparison=">=", unit_key=None
     units = {}
     skipped = {"non_numeric_value": 0, "outside_lead_window": 0, "unreadable_date": 0, "missing_probability": 0}
     used = 0
+    passing = []
+    passing_total = 0
     for row in rows:
         unit = "all" if unit_key is None else str(row.get(unit_key))
         entry = units.setdefault(unit, {"unit": unit, "rows": 0, "max_value": None, "min_value": None,
@@ -142,6 +148,13 @@ def evaluate_triggers(rows, value_key, threshold, comparison=">=", unit_key=None
         entry["min_value"] = value if entry["min_value"] is None else min(entry["min_value"], value)
         if compare(value, threshold) and probability_ok:
             entry["exceedances"] += 1
+            # The 2026-11-20 live run (card D2 step 7) asked for the rows that pass; with no unit_field every
+            # row falls in the single unit "all", so the counts alone never named one.
+            passing_total += 1
+            if len(passing) < MAX_PASSING_ROWS:
+                passing.append({"row": row.get(ROW_ID_KEY), "value": value,
+                                "date": when.isoformat() if when is not None else None,
+                                **({"unit": unit} if unit_key is not None else {})})
             if when is not None and (entry["first_exceedance"] is None or when < entry["first_exceedance"]):
                 entry["first_exceedance"] = when
 
@@ -158,6 +171,8 @@ def evaluate_triggers(rows, value_key, threshold, comparison=">=", unit_key=None
         "activated_count": sum(1 for e in out if e["activated"]),
         "rows_used": used,
         "rows_skipped": {k: v for k, v in skipped.items() if v},
+        "passing_rows": passing,
+        "passing_row_count": passing_total,
     }
 
 
@@ -241,7 +256,7 @@ def evaluate_forecast_trigger(layer_name, value_field, threshold=None, compariso
         return {"error": f"'{layer_name}' has {layer.featureCount()} rows; the limit is {_MAX_ROWS}."}
 
     keys = [k for k in (value_field, unit_field, date_field, probability_field) if k]
-    rows = [{k: feat.attribute(k) for k in keys} for feat in _ck.features(layer, "Trigger: reading features")]
+    rows = [{**{k: feat.attribute(k) for k in keys}, ROW_ID_KEY: feat.id()} for feat in _ck.features(layer, "Trigger: reading features")]
     result = evaluate_triggers(rows, value_field, threshold, comparison, unit_field, date_field, start,
                                lead_days, probability_field, min_probability, min_exceedances)
     result.update({
