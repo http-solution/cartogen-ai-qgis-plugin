@@ -114,6 +114,8 @@ class TestReportLayouts(unittest.TestCase):
                                      key_figures_from={"layer_name": "fields", "label_field": "name", "value_field": "lost_ha", "top_n": 2}, sources=["District health office line list"])
         body = self._body(result)
         self.assertEqual(result["template"], "epi_bulletin")
+        self.assertIs(result["exported"], False)                       # LR-3: no output_path means no file, and the reply must say so
+        self.assertIn("No file was written", result["export_note"])
         self.assertTrue(body.startswith("SUMMARY\nCases reported to 2026-11-08"), body)
         for expected in ("CASES AND RATES", "South: 30", "North: 12", "HOW TO READ THIS MAP\n" + ls.EPI_BULLETIN_GUIDE, "SOURCES\nDistrict health office line list", "METHOD AND LIMITS\n" + ls.EPI_BULLETIN_NOTE):
             self.assertIn(expected, body)
