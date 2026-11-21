@@ -104,6 +104,35 @@ def routing_phrases(name):
     return (*expand_phrases(_TOOL_ALIASES.get(name, ())), *_declared_keywords(name), *_language_phrases(name))
 
 
+@functools.cache
+def _description_words(desc):
+    """The word set of a tool description. A pure function of the text, and scoring asked for it once per tool per request (about 330 regex
+    passes a request); LR-25 measured that as a fifth of the time the routing tests spend."""
+    return frozenset(re.findall(r"\w+", desc))
+
+
+_folded_phrase_cache: dict = {}
+
+
+def _folded_routing_phrases(name):
+    """The routing phrases of a tool, already folded for matching. Cached on the exact inputs the phrases are built from (the alias tuple, the declared
+    keywords and the language table entries), so a test that changes any of them gets fresh phrases, not a stale answer."""
+    from_aliases = _TOOL_ALIASES.get(name, ())
+    try:
+        from ..agent.tools.registry import TOOL_KEYWORDS
+        declared = tuple(TOOL_KEYWORDS.get(name, ()))
+    except Exception:       # the registry is unavailable: same as _declared_keywords, no declared phrases
+        declared = ()
+    _language_phrases("")        # loads the language file once
+    languages = tuple(tuple(table.get(name, ())) for table in _languages_cache.values())
+    key = (name, tuple(from_aliases), declared, languages)
+    folded = _folded_phrase_cache.get(key)
+    if folded is None:
+        folded = tuple(fold(phrase) for phrase in routing_phrases(name))
+        _folded_phrase_cache[key] = folded
+    return folded
+
+
 def routing_phrase_tools():
     """Names of the tools that have at least one curated phrase."""
     names = set(_TOOL_ALIASES)
@@ -291,7 +320,7 @@ def _score_tool(name, desc, query_words, long_query, alias_query_lower, algorith
     name_words = set(name.lower().split("_"))
     if long_query:
         name_words -= _GENERIC_NAME_WORDS
-    desc_words = set(re.findall(r"\w+", desc))
+    desc_words = _description_words(desc)
 
     score = 0
     # Name match score
@@ -304,8 +333,8 @@ def _score_tool(name, desc, query_words, long_query, alias_query_lower, algorith
     score += 2 * (min(description_hits, _DESCRIPTION_HIT_CAP) if long_query else description_hits)
 
     # Curated alias/synonym match score
-    for alias in routing_phrases(name):
-        if fold(alias) in alias_query_lower:
+    for folded_alias in _folded_routing_phrases(name):
+        if folded_alias in alias_query_lower:
             score += _ALIAS_MATCH_SCORE
     if algorithm_topic_match and name in _PROCESSING_GENERIC_TOOLS:
         score += _ALIAS_MATCH_SCORE
