@@ -57,9 +57,13 @@ class TestTheSituationDashboardPassesLabelsTheDashboardReads(unittest.TestCase):
         def fake_dashboard(layers_config, **_kwargs):
             captured["layers"] = layers_config
             return {"success": True}
-        with patch.object(hazard_monitoring_tools, "fetch_nasa_active_fires", return_value=dict(ok)), \
-                patch.object(hazard_monitoring_tools, "fetch_nasa_eonet_events", return_value=dict(ok)), \
-                patch.object(hazard_monitoring_tools, "fetch_gdacs_disaster_alerts", return_value=dict(ok)), \
+        # The dashboard is two-phase now (LR-21 follow-up): patch the three network phases and the three layer steps it composes.
+        with patch.object(hazard_monitoring_tools, "fetch_nasa_active_fires_network_phase", return_value={"success": True}), \
+                patch.object(hazard_monitoring_tools, "fetch_nasa_eonet_events_network_phase", return_value={"success": True}), \
+                patch.object(hazard_monitoring_tools, "fetch_gdacs_disaster_alerts_network_phase", return_value={"success": True}), \
+                patch.object(hazard_monitoring_tools, "add_nasa_active_fires_layer_main_thread_phase", return_value=dict(ok)), \
+                patch.object(hazard_monitoring_tools, "add_nasa_eonet_events_layer_main_thread_phase", return_value=dict(ok)), \
+                patch.object(hazard_monitoring_tools, "add_gdacs_disaster_alerts_layer_main_thread_phase", return_value=dict(ok)), \
                 patch.object(export_tools, "generate_html_dashboard", fake_dashboard):
             hazard_monitoring_tools.generate_situation_dashboard([-20, -35, 60, 40], title="t")
         self.assertEqual(len(captured["layers"]), 3)

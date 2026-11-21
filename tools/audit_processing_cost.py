@@ -75,7 +75,6 @@ def _scan(fn, helpers):
     seen = {fn.name}
     frontier = [h for h in set(calls) if h in helpers and helpers[h] is not fn]
     called_helpers = []
-    near_calls = None          # the calls of the tool and its first-level helpers: what the network check has always looked at
     for _level in range(HELPER_DEPTH):
         next_frontier = []
         for h in frontier:
@@ -95,15 +94,12 @@ def _scan(fn, helpers):
                         spatial_index = True
                     if nm in helpers and nm not in seen:
                         next_frontier.append(nm)
-        if near_calls is None:
-            near_calls = set(calls)
         frontier = next_frontier
-    near_calls = near_calls if near_calls is not None else set(calls)
     depth = max([_loop_depth_over_data(fn)] + [_loop_depth_over_data(helpers[h]) for h in called_helpers])
     cs = set(calls)
     return {
         "loops": depth, "get_features": get_features, "processing_run": pr_calls, "sleep": sleeps,
-        "raster_reads": len(cs & RASTER), "network": bool(near_calls & NET), "spatial_index": spatial_index,
+        "raster_reads": len(cs & RASTER), "network": bool(cs & NET), "spatial_index": spatial_index,
         "background": bool(cs & BACKGROUND), "cancel": bool(cs & CANCEL), "caps": caps > 0,
     }
 
