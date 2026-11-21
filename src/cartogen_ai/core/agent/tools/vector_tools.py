@@ -2596,6 +2596,57 @@ def _obfuscation_size_problem(layer, method, radius, cell_size):
     return None
 
 
+def _obfuscation_inputs(method, radius, cell_size, admin_layer_name):
+    """(admin polygon layer or None, None) when the options the method needs are present and usable, else (None, the problem). Split out of
+    obfuscate_sensitive_points (LR-21, no behaviour change)."""
+    if method == "jitter":
+        if not radius or radius <= 0:
+            return None, "radius (a positive number) is required for method='jitter'."
+        return None, None
+    if method == "grid_snap":
+        if not cell_size or cell_size <= 0:
+            return None, "cell_size (a positive number) is required for method='grid_snap'."
+        return None, None
+    if not admin_layer_name:
+        return None, "admin_layer_name is required for method='admin_unit_snap'."
+    admin_layer = _find_layer_by_name(admin_layer_name)
+    if admin_layer is None:
+        return None, f"Layer '{admin_layer_name}' not found"
+    if QgsWkbTypes.geometryType(admin_layer.wkbType()) != QgsWkbTypes.GeometryType.PolygonGeometry:
+        return None, f"'{admin_layer_name}' is not a polygon layer."
+    return admin_layer, None
+
+
+def _admin_snap_setup(method, admin_layer, layer):
+    """(spatial index, features by id, transform to the admin CRS, transform back) for admin_unit_snap; all None for the other methods. Split out
+    of obfuscate_sensitive_points (LR-21, no behaviour change)."""
+    if method != "admin_unit_snap":
+        return None, None, None, None
+    index = QgsSpatialIndex(admin_layer.getFeatures())
+    admin_features_by_id = {f.id(): f for f in _ck.features(admin_layer, "Vector: reading features")}
+    to_admin = to_layer = None
+    # PLAN-010: the polygons are indexed and matched in THEIR CRS, so a point in another CRS was tested against the wrong coordinates (no
+    # match, or the wrong unit) and the centroid was written into the point layer's CRS untransformed. Match in the admin CRS, write back
+    # in the point layer's CRS.
+    if admin_layer.crs() != layer.crs():
+        to_admin = QgsCoordinateTransform(layer.crs(), admin_layer.crs(), QgsProject.instance())
+        to_layer = QgsCoordinateTransform(admin_layer.crs(), layer.crs(), QgsProject.instance())
+    return index, admin_features_by_id, to_admin, to_layer
+
+
+def _obfuscated_point(pt, method, radius, cell_size, rng, admin):
+    """The moved point for one input point, or None when admin_unit_snap finds no polygon for it. `admin` is (index, features by id, to admin,
+    to layer). Split out of obfuscate_sensitive_points (LR-21, no behaviour change)."""
+    if method == "jitter":
+        dx, dy = _uniform_disk_offset(radius, rng)
+        return QgsPointXY(pt.x() + dx, pt.y() + dy)
+    if method == "grid_snap":
+        nx, ny = _grid_snap(pt.x(), pt.y(), cell_size)
+        return QgsPointXY(nx, ny)
+    index, admin_features_by_id, to_admin, to_layer = admin
+    return _admin_unit_centroid(QgsGeometry.fromPointXY(pt), index, admin_features_by_id, to_admin, to_layer)
+
+
 @register_tool(
     "obfuscate_sensitive_points",
     "Displace or aggregate sensitive point locations (e.g. GBV survivors, individual IDP "
@@ -2649,21 +2700,9 @@ def obfuscate_sensitive_points(layer_name, method, radius=None, cell_size=None, 
     problem = _obfuscation_size_problem(layer, method, radius, cell_size)
     if problem:
         return {"error": problem}
-    admin_layer = None
-    if method == "jitter":
-        if not radius or radius <= 0:
-            return {"error": "radius (a positive number) is required for method='jitter'."}
-    elif method == "grid_snap":
-        if not cell_size or cell_size <= 0:
-            return {"error": "cell_size (a positive number) is required for method='grid_snap'."}
-    else:  # admin_unit_snap
-        if not admin_layer_name:
-            return {"error": "admin_layer_name is required for method='admin_unit_snap'."}
-        admin_layer = _find_layer_by_name(admin_layer_name)
-        if admin_layer is None:
-            return {"error": f"Layer '{admin_layer_name}' not found"}
-        if QgsWkbTypes.geometryType(admin_layer.wkbType()) != QgsWkbTypes.GeometryType.PolygonGeometry:
-            return {"error": f"'{admin_layer_name}' is not a polygon layer."}
+    admin_layer, problem = _obfuscation_inputs(method, radius, cell_size, admin_layer_name)
+    if problem:
+        return {"error": problem}
 
     out_name = output_layer_name or f"{layer_name}_obfuscated"
     crs = layer.crs().authid()
@@ -2673,18 +2712,7 @@ def obfuscate_sensitive_points(layer_name, method, radius=None, cell_size=None, 
     provider.addAttributes(layer.fields())
     new_layer.updateFields()
 
-    index = None
-    admin_features_by_id = None
-    to_admin = to_layer = None
-    if method == "admin_unit_snap":
-        index = QgsSpatialIndex(admin_layer.getFeatures())
-        admin_features_by_id = {f.id(): f for f in _ck.features(admin_layer, "Vector: reading features")}
-        # PLAN-010: the polygons are indexed and matched in THEIR CRS, so a point in another CRS was tested against the wrong coordinates (no
-        # match, or the wrong unit) and the centroid was written into the point layer's CRS untransformed. Match in the admin CRS, write back
-        # in the point layer's CRS.
-        if admin_layer.crs() != layer.crs():
-            to_admin = QgsCoordinateTransform(layer.crs(), admin_layer.crs(), QgsProject.instance())
-            to_layer = QgsCoordinateTransform(admin_layer.crs(), layer.crs(), QgsProject.instance())
+    index, admin_features_by_id, to_admin, to_layer = _admin_snap_setup(method, admin_layer, layer)
 
     rng = random.Random(seed)  # noqa: S311  # nosec B311 (seeded sampling for reproducibility, not security)
     new_features = []
@@ -2697,17 +2725,10 @@ def obfuscate_sensitive_points(layer_name, method, radius=None, cell_size=None, 
         # PLAN-012 item 1: a MultiPoint feature has several points; asPoint() raises on it (QGIS 4.2 live CI: "MultiPoint geometry cannot be
         # converted to a point"). Each part is obfuscated on its own and written as its own feature with the same attributes.
         for pt in _geometry_points(geom):
-            if method == "jitter":
-                dx, dy = _uniform_disk_offset(radius, rng)
-                new_pt = QgsPointXY(pt.x() + dx, pt.y() + dy)
-            elif method == "grid_snap":
-                nx, ny = _grid_snap(pt.x(), pt.y(), cell_size)
-                new_pt = QgsPointXY(nx, ny)
-            else:  # admin_unit_snap
-                new_pt = _admin_unit_centroid(QgsGeometry.fromPointXY(pt), index, admin_features_by_id, to_admin, to_layer)
-                if new_pt is None:
-                    unmatched_count += 1
-                    continue
+            new_pt = _obfuscated_point(pt, method, radius, cell_size, rng, (index, admin_features_by_id, to_admin, to_layer))
+            if new_pt is None:
+                unmatched_count += 1
+                continue
 
             new_feat = QgsFeature(new_layer.fields())
             new_feat.setGeometry(QgsGeometry.fromPointXY(new_pt))
