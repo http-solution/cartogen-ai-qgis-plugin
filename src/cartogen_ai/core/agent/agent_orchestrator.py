@@ -1737,7 +1737,14 @@ class CartogenAi:
             sources = derive_sources(name, args, [lyr.name() for lyr in read_layers])
             source_ids = source_layer_ids(sources, read_layers)
             superseded_now = []
-            for created in created_layer_names(res, sources, known):
+            # A re-run names its output like the earlier result, so by now that name is one of the call's "sources" (it is a loaded layer
+            # called that) and the result was skipped as an echo of its own input: no lineage and no "(superseded)" rename. Live trace
+            # 2026-11-20, row D2: buffer_analysis run twice with output_name 'smoke_points_4326_buffer_1deg' left two layers with one
+            # name. A name that a layer ADDED BY THIS CALL carries is an output whatever else shares it; the sources recorded in the
+            # lineage stay as they were (the older layers are still read-side, which is the cautious reading for the egress gate).
+            added = {lyr.name() for lyr in all_layers if layers_before is not None and lyr.id() not in layers_before}
+            echo_skip = [src for src in sources if src not in added]
+            for created in created_layer_names(res, echo_skip, known):
                 # The layer THIS call made, not the first of the same name (PLAN-072): with duplicate names the first could be an older result.
                 layer = superseded.pick_new_layer(project.mapLayersByName(created), layers_before)
                 if layer is None:
