@@ -36,6 +36,11 @@ def check(folder):
             problems.append(f"{name} was changed or damaged")
         else:
             entries.append((name, "OK", ""))
+    # A row run inside the original folder leaves its tool record here, and every later work copy then carries it too, so a
+    # record found in a copy cannot be attributed to the row that made it (2026-11-20 run: E5 and W11 stayed UNSUPPORTED for this reason).
+    problems += [f"{leftover.relative_to(folder)} is inside the test files: a row was run in the original folder. "
+                 "Copy a fresh 3_test_files to results\\work\\<row>_copy for each row and save the project there"
+                 for leftover in sorted(folder.rglob("cartogen_evidence")) if leftover.is_dir()]
     rows_file = folder.parent / "3_ROWS.json"
     if rows_file.is_file():
         present = {name for name, status, _ in entries if status == "OK"}
