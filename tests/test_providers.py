@@ -2,6 +2,8 @@ from typing import ClassVar
 import json
 import unittest
 from unittest.mock import patch, MagicMock
+
+import tests._needs_requests  # noqa: F401  (skips this module where the requests library is missing)
 from cartogen_ai.infrastructure.providers import OpenAIClient, ClaudeClient
 from cartogen_ai.infrastructure.providers.claude import to_anthropic_request, from_anthropic_response
 from cartogen_ai.infrastructure.providers import openrouter as openrouter_mod
