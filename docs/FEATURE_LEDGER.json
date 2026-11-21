@@ -1218,7 +1218,9 @@
       ],
       "guards": [
           "tests/test_trigger_tools.py::TestEvaluate::test_percent_scale_compares_a_0_to_100_column_directly",
-          "tests/test_trigger_tools.py::TestEvaluate::test_scale_validation"
+          "tests/test_trigger_tools.py::TestEvaluate::test_scale_validation",
+          "tests/test_trigger_tools.py::TestEvaluate::test_passing_rows_are_named_even_without_a_unit_field",
+          "tests/test_trigger_tools.py::TestEvaluate::test_passing_rows_are_capped_but_counted"
       ],
       "hand_verified": "not verified: offline tests only",
     "hand_row": "R7"
