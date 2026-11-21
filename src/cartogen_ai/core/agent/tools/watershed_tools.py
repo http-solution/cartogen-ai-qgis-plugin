@@ -15,7 +15,7 @@ import re
 
 from ...models.confidence import set_layer_confidence
 from . import watershed_delineation as wd
-from .engineering_tools import KIRPICH_CALIBRATION_AREA_KM2, RATIONAL_AREA_LIMIT_KM2, kirpich_tc_minutes, parse_dms_location_text
+from .engineering_tools import KIRPICH_CALIBRATION_AREA_KM2, RATIONAL_AREA_LIMIT_KM2, kirpich_tc_minutes, parse_location_text
 from .registry import register_tool
 
 try:
@@ -41,12 +41,22 @@ REFERENCE_C_RANGES = {
 }
 
 
+def largest_radius_km(dx_m, dy_m, max_cells=MAX_CELLS):
+    """The biggest radius_km whose square window (2 * half + 1 cells a side, as delineate_watershed builds it) stays within `max_cells`,
+    rounded down to 0.1 km and never below 0.1. Pure.
+
+    Why: row C19 of the 2026-11-20 live run asked for a window of 1,100,143 cells and was told only "use a smaller radius_km", so the model
+    guessed, failed again or gave up and the reply and the layers disagreed. The refusal now names the radius that fits this DEM."""
+    half = max(int((max_cells ** 0.5 - 1) // 2), 5)
+    return max(int(half * min(dx_m, dy_m) / 100.0) / 10.0, 0.1)
+
+
 def parse_outlet(location=None, lat=None, lon=None):
     """((lon, lat), error) from a DMS string, a 'lat, lon' decimal string, or lat / lon numbers. Pure."""
     if location:
         text = str(location)
         try:
-            return parse_dms_location_text(text), None
+            return parse_location_text(text), None
         except ValueError:
             pass
         m = re.match(r"^\s*(-?\d+(?:\.\d+)?)\s*[,; ]\s*(-?\d+(?:\.\d+)?)\s*$", text)
@@ -182,7 +192,10 @@ def delineate_watershed(location=None, lat=None, lon=None, dem_layer=None, retur
     x0, y0 = max(0, col - half), max(0, row - half)
     x1, y1 = min(dataset.RasterXSize, col + half + 1), min(dataset.RasterYSize, row + half + 1)
     if (x1 - x0) * (y1 - y0) > MAX_CELLS:
-        return {"error": f"That window is {(x1 - x0) * (y1 - y0):,} cells; the limit is {MAX_CELLS:,}. Use a smaller radius_km."}
+        fits = largest_radius_km(dx_m, dy_m)
+        return {"error": f"That window is {(x1 - x0) * (y1 - y0):,} cells at {min(dx_m, dy_m):.0f} m per cell; the limit is {MAX_CELLS:,}. "
+                         f"Call delineate_watershed again with radius_km={fits:g} or smaller (the largest that fits this DEM).",
+                "largest_radius_km": fits}
     import numpy as np
     array = band.ReadAsArray(x0, y0, x1 - x0, y1 - y0).astype(np.float64)
     if nodata is not None:
