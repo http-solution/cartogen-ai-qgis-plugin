@@ -57,7 +57,7 @@ class TestGenericProcessingTool(unittest.TestCase):
         self.assertTrue(res.get("success"), res)
         self.assertIs(res.get("layer_created"), False)
         self.assertEqual(set(QgsProject.instance().mapLayers()), before)
-        self.assertEqual(res["table"]["row_count"], 1)
+        self.assertEqual(res["table"]["row_count"], 3)         # the helper names the points pts0, pts1, pts2
         self.assertIn("NOT added", res["message"])
         kept = run_allowlisted_processing_algorithm("native:listuniquevalues", {"INPUT": "pts", "FIELDS": "name"}, new_layer_name="names_table")
         self.assertTrue(kept.get("success"), kept)
