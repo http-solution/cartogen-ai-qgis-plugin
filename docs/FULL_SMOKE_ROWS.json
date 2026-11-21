@@ -832,7 +832,7 @@
    "title": "Charts and file information",
    "covers": [
     "file-output-wave-e2b-e2a-charts-and-info"
-   ],
+   , "report-tables-stay-out-of-project"],
    "needs": "person and a real model",
    "starts_from": "A new empty project; a fresh chat, 'Save an evidence folder for each request' ticked; load smoke_zones from smoke_data.gpkg and any elevation GeoTIFF as dem",
    "do": "Send in order: (1) make a histogram of the dem values  (2) make a bar chart of smoke_zones by name  (3) tell me what projection and extent the dem file has  (4) what are the fields and feature count of the smoke_zones file.",

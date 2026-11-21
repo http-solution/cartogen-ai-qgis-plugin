@@ -3462,6 +3462,21 @@
     ],
     "hand_verified": "not verified: offline tests only; found in row C19 of the 2026-11-20 live run (decimal location refused by the hydrology assessment, window of 1,100,143 cells refused with no radius to use); never seen in a real chat since",
     "hand_row": "C19-persona-request"
+  },
+  {
+    "id": "report-tables-stay-out-of-project",
+    "feature": "A Processing report algorithm (list unique values, basic statistics, statistics by categories, raster unique-values report, raster zonal statistics) that returns a geometry-less table and was not given new_layer_name has its table (first 50 rows) returned in the tool result and is NOT added to the project; naming the result keeps it as a table, and a result with geometry is always added",
+    "issues": [],
+    "since": "1.18.6",
+    "sources": ["src/cartogen_ai/core/agent/tools/processing_allowlist_tools.py"],
+    "guards": [
+      "tests/test_processing_allowlist_tools.py::TestReportTablesStayOutOfTheProject::test_only_unnamed_geometry_less_results_of_report_algorithms_are_kept_out",
+      "tests/test_processing_allowlist_tools.py::TestReportTablesStayOutOfTheProject::test_the_preview_is_capped_and_plain",
+      "tests/test_processing_allowlist_tools_live.py::TestGenericProcessingTool::test_a_report_table_is_read_back_and_kept_out_of_the_project_unless_named",
+      "tests/test_processing_allowlist_tools_live.py::TestGenericProcessingTool::test_a_spatial_result_of_the_same_kind_of_call_is_still_added"
+    ],
+    "hand_verified": "not verified: offline tests and QGIS CI only; found in row C16 of the 2026-11-20 live run (a bar chart request took 23 tool calls and left four report tables in the project, master list LR-7); never seen in a real chat since",
+    "hand_row": "C16-charts-and-file-info"
   }
 ]
 }

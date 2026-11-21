@@ -44,8 +44,34 @@ _SAFE_OUTPUT_VALUE = "memory:"
 _SAFE_RASTER_OUTPUT_VALUE = "TEMPORARY_OUTPUT"   # a temporary file: rasters cannot go to "memory:"
 REPORT_EXCERPT_CHARS = 4000     # PLAN-006 E2a: the most of an information report the model is given
 MEMORY_COPY_LIMIT = 50000      # PLAN-005 rule R1: a file-backed vector result up to this many features is copied into a memory layer
+# LR-7 (live run 2026-11-20, row C16): a bar chart request took 23 tool calls and left a list-unique-values table, a statistics-by-category table and
+# two basic-statistics tables in the project, none asked for. These algorithms only REPORT: when the caller does not name the result, their table is
+# read back to the model and not added to the project. Naming the result (new_layer_name) keeps it as a table, as before.
+REPORT_TABLE_ALGORITHM_IDS = frozenset({
+    "native:basicstatisticsforfields", "native:listuniquevalues", "qgis:statisticsbycategories", "native:statisticsbycategories",
+    "native:rasterlayeruniquevaluesreport", "native:rasterlayerzonalstats",
+})
+TABLE_PREVIEW_ROWS = 50
+TABLE_PREVIEW_CELL_CHARS = 120
 MAX_STATISTICS = 40            # PLAN-005 rule R3: at most this many plain values from a result dictionary reach the model
 MAX_STATISTIC_TEXT = 200
+
+
+def keeps_table_out_of_project(alg_id, caller_named_it, is_spatial):
+    """True when a report algorithm's unnamed, geometry-less result should be read back instead of added to the project. Pure."""
+    return alg_id in REPORT_TABLE_ALGORITHM_IDS and not caller_named_it and not is_spatial
+
+
+def table_preview(field_names, rows, cap=TABLE_PREVIEW_ROWS, cell_chars=TABLE_PREVIEW_CELL_CHARS):
+    """{'fields', 'rows', 'row_count', 'truncated'}: the first `cap` rows of a table as plain lists, long text cut at `cell_chars`. Pure."""
+    rows = list(rows)
+
+    def cell(value):
+        if value is None or isinstance(value, (bool, int, float)):
+            return value
+        text = str(value)
+        return text if len(text) <= cell_chars else text[:cell_chars] + "..."
+    return {"fields": list(field_names), "rows": [[cell(v) for v in row] for row in rows[:cap]], "row_count": len(rows), "truncated": len(rows) > cap}
 
 
 def _find_layer_by_name(name):
@@ -689,6 +715,21 @@ def run_allowlisted_processing_algorithm(alg_id, params, new_layer_name=None):
     if alg_id in FILE_VECTOR_ALGORITHM_IDS:
         layers = [(key, _small_result_in_memory(layer)) for key, layer in layers]
     primary_key, new_layer = layers[0]
+    if len(layers) == 1 and keeps_table_out_of_project(alg_id, new_layer_name is not None, bool(getattr(new_layer, "isSpatial", lambda: True)())):
+        # Read the table back and leave the project as it was (LR-7). Never raises into a failed call: when the rows cannot be read the layer is
+        # added as before, so the answer is never lost.
+        with contextlib.suppress(Exception):
+            names = [f.name() for f in new_layer.fields()]
+            preview = table_preview(names, ([f[n] for n in names] for f in new_layer.getFeatures()))
+            result = {"success": True, "alg_id": alg_id, "layer_created": False, "table": preview,
+                      "message": (f"'{alg_id}' only reports, so its table is returned here ({preview['row_count']} rows) and was NOT added to the project. "
+                                  "Do not tell the user a layer exists. To keep it as a table, run it again with new_layer_name.")}
+            if parameter_note:
+                result["parameter_note"] = parameter_note
+            message = result["message"]
+            _with_report_fields(result, statistics, report_files)
+            result["message"] = message          # _with_report_fields words a numbers-only result; this one must keep its "not added" warning
+            return result
 
     # IMPLEMENTATION_TRACKER.md §1.9, option 1 (narrow fix, 2026-09-24): a real turn calling this
     # tool 4x to reproject/buffer/intersect its way to one answer left 3 purely-internal scratch
