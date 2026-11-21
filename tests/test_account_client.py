@@ -1,6 +1,7 @@
 import unittest
 from unittest.mock import Mock, patch
 
+import tests._needs_requests  # noqa: F401  (skips this module where the requests library is missing)
 from cartogen_ai.core.agent.account import CartogenAccountClient, normalize_account_base_url
 
 
