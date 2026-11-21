@@ -137,6 +137,78 @@ def _segment_slope_penalty(dem, geom, to_dem, length_m, vertical_factor):
     return _slope_penalty(dem, start_pt, end_pt, length, vertical_factor)
 
 
+def _dem_measuring(network, dem):
+    """(transform from the network CRS to the DEM's, ellipsoidal length measurer) for slope sampling; (None, None) with no DEM. Audit F18 (#154):
+    the slope used the endpoints as they are in the NETWORK's CRS (sampled in the DEM without a transform) divided by the planar length in that
+    CRS's units, so a geographic or foot-unit network got a meaningless grade. Endpoints are transformed into the DEM's CRS and the length is
+    measured in metres on the ellipsoid. Split out of build_composite_impedance_field (LR-21, no behaviour change)."""
+    if dem is None:
+        return None, None
+    to_dem = None
+    if network.crs().isValid() and dem.crs().isValid() and network.crs() != dem.crs():
+        to_dem = QgsCoordinateTransform(network.crs(), dem.crs(), QgsProject.instance().transformContext())
+    length_m = QgsDistanceArea()
+    length_m.setSourceCrs(network.crs(), QgsProject.instance().transformContext())
+    project_ellipsoid = QgsProject.instance().ellipsoid()
+    length_m.setEllipsoid(project_ellipsoid if project_ellipsoid and project_ellipsoid != "NONE" else "WGS84")
+    return to_dem, length_m
+
+
+def _segment_speed(feat, geom, counts, ctx):
+    """The effective speed (km/h) for one road segment, adding to `counts` (non_numeric_damage, sampled_slope, closed). `ctx` holds the field names
+    that exist (None when absent), the DEM and its transforms. Split out of build_composite_impedance_field (LR-21, no behaviour change)."""
+    highway_field, surface_field, damage_field = ctx["highway_field"], ctx["surface_field"], ctx["damage_field"]
+    base_speed = _base_speed_kmh(feat, highway_field) if highway_field else _DEFAULT_BASE_SPEED_KMH
+    surface_penalty = _surface_penalty(feat, surface_field) if surface_field else _DEFAULT_SURFACE_PENALTY
+    damage_multiplier = 1.0
+    if damage_field:
+        damage_multiplier, was_numeric = _damage_multiplier(feat, damage_field)
+        if not was_numeric:
+            counts["non_numeric_damage"] += 1
+    slope_penalty = 1.0
+    if ctx["dem"] is not None:
+        slope_penalty = _segment_slope_penalty(ctx["dem"], geom, ctx["to_dem"], ctx["length_m"], ctx["vertical_factor"])
+        if slope_penalty != 1.0:
+            counts["sampled_slope"] += 1
+    # Audit F19 (#155): passability 0 used to be clamped to the 0.1 km/h floor, so routing could still cross a
+    # "closed" road. It now writes the closed sentinel, which the routing tools remove from the network.
+    if damage_field and damage_multiplier == 0.0:
+        counts["closed"] += 1
+        return CLOSED_SPEED_KMH
+    return max(_MIN_EFFECTIVE_SPEED_KMH, base_speed * surface_penalty * damage_multiplier * slope_penalty)
+
+
+def _impedance_result(network, road_network_layer, output_field, damage_field, dem_layer, counts, owned):
+    """The success reply of build_composite_impedance_field. Split out of it (LR-21, no behaviour change)."""
+    result = {
+        "success": True,
+        "layer_name": road_network_layer,
+        "output_field": output_field,
+        "feature_count": network.featureCount(),
+    }
+    from .humanitarian_style import measure_hint
+    result["map_looks"] = [measure_hint(road_network_layer, output_field, "The composite impedance cost per road segment")]
+    if not owned:
+        result["note"] = ("The layer is already in edit mode, so the new values are in your edit session and are NOT saved: "
+                          "save or discard the layer edits yourself.")
+    closed_count = counts["closed"]
+    if closed_count:
+        result["closed_segments"] = closed_count
+        result["closure_note"] = (f"{closed_count} segment(s) with passability 0 are written as closed (speed {CLOSED_SPEED_KMH:g}); "
+                                  "calculate_service_area / travel_time_matrix / optimize_delivery_route remove them from the network.")
+    if damage_field is not None:
+        result["damage_field"] = damage_field
+        if counts["non_numeric_damage"]:
+            result["warning"] = (
+                f"{counts['non_numeric_damage']} feature(s) had a non-numeric or unparsable value in "
+                f"'{damage_field}' -- defaulted to fully passable (1.0) for those."
+            )
+    if dem_layer is not None:
+        result["dem_layer"] = dem_layer
+        result["slope_penalized_segment_count"] = counts["sampled_slope"]
+    return result
+
+
 @register_tool(
     "build_composite_impedance_field",
     "Builds a single blended per-segment speed field on a road network layer -- combining OSM "
@@ -194,21 +266,12 @@ def build_composite_impedance_field(road_network_layer, highway_field="highway",
     # GitHub #143 / #144 (audit F07, F08): the field is now added through the edit buffer, inside one edit command, and every
     # write is checked. A road layer the user already has in edit mode keeps its session (nothing is committed or rolled back
     # on their behalf), and a read-only source reports an error instead of "success" with nothing written.
-    non_numeric_damage_count = 0
-    sampled_slope_count = 0
-    closed_count = 0
+    counts = {"non_numeric_damage": 0, "sampled_slope": 0, "closed": 0}
     # Audit F18 (#154): the slope used the endpoints as they are in the NETWORK's CRS (sampled in the DEM without a
     # transform) divided by the planar length in that CRS's units, so a geographic or foot-unit network got a meaningless
     # grade. Endpoints are now transformed into the DEM's CRS and the length is measured in metres on the ellipsoid.
     # The DEM's vertical unit is still ASSUMED to be metres: it is not stored in a form QGIS exposes reliably.
-    to_dem = length_m = None
-    if dem is not None:
-        if network.crs().isValid() and dem.crs().isValid() and network.crs() != dem.crs():
-            to_dem = QgsCoordinateTransform(network.crs(), dem.crs(), QgsProject.instance().transformContext())
-        length_m = QgsDistanceArea()
-        length_m.setSourceCrs(network.crs(), QgsProject.instance().transformContext())
-        project_ellipsoid = QgsProject.instance().ellipsoid()
-        length_m.setEllipsoid(project_ellipsoid if project_ellipsoid and project_ellipsoid != "NONE" else "WGS84")
+    to_dem, length_m = _dem_measuring(network, dem)
     try:
         with edit_command(network, "Cartogen AI: write " + output_field) as owned:
             out_idx = add_numeric_field(network, output_field)
@@ -217,58 +280,15 @@ def build_composite_impedance_field(road_network_layer, highway_field="highway",
                 if geom is None or geom.isEmpty():
                     continue
 
-                base_speed = _base_speed_kmh(feat, highway_field) if has_highway else _DEFAULT_BASE_SPEED_KMH
-                surface_penalty = _surface_penalty(feat, surface_field) if has_surface else _DEFAULT_SURFACE_PENALTY
-                damage_multiplier = 1.0
-                if has_damage:
-                    damage_multiplier, was_numeric = _damage_multiplier(feat, damage_field)
-                    if not was_numeric:
-                        non_numeric_damage_count += 1
-                slope_penalty = 1.0
-                if dem is not None:
-                    slope_penalty = _segment_slope_penalty(dem, geom, to_dem, length_m, vertical_factor)
-                    if slope_penalty != 1.0:
-                        sampled_slope_count += 1
-
-                # Audit F19 (#155): passability 0 used to be clamped to the 0.1 km/h floor, so routing could still cross a
-                # "closed" road. It now writes the closed sentinel, which the routing tools remove from the network.
-                if has_damage and damage_multiplier == 0.0:
-                    effective_speed = CLOSED_SPEED_KMH
-                    closed_count += 1
-                else:
-                    effective_speed = max(
-                        _MIN_EFFECTIVE_SPEED_KMH,
-                        base_speed * surface_penalty * damage_multiplier * slope_penalty,
-                    )
+                effective_speed = _segment_speed(feat, geom, counts, {
+                    "highway_field": highway_field if has_highway else None, "surface_field": surface_field if has_surface else None,
+                    "damage_field": damage_field if has_damage else None, "dem": dem, "to_dem": to_dem, "length_m": length_m,
+                    "vertical_factor": vertical_factor})
                 set_value(network, feat.id(), out_idx, effective_speed)
     except EditError as e:
         return {"error": f"build_composite_impedance_field failed, nothing was changed: {e}"}
     except Exception as e:
         return {"error": f"build_composite_impedance_field failed: {e}"}
 
-    result = {
-        "success": True,
-        "layer_name": road_network_layer,
-        "output_field": output_field,
-        "feature_count": network.featureCount(),
-    }
-    from .humanitarian_style import measure_hint
-    result["map_looks"] = [measure_hint(road_network_layer, output_field, "The composite impedance cost per road segment")]
-    if not owned:
-        result["note"] = ("The layer is already in edit mode, so the new values are in your edit session and are NOT saved: "
-                          "save or discard the layer edits yourself.")
-    if closed_count:
-        result["closed_segments"] = closed_count
-        result["closure_note"] = (f"{closed_count} segment(s) with passability 0 are written as closed (speed {CLOSED_SPEED_KMH:g}); "
-                                  "calculate_service_area / travel_time_matrix / optimize_delivery_route remove them from the network.")
-    if damage_field is not None:
-        result["damage_field"] = damage_field
-        if non_numeric_damage_count:
-            result["warning"] = (
-                f"{non_numeric_damage_count} feature(s) had a non-numeric or unparsable value in "
-                f"'{damage_field}' -- defaulted to fully passable (1.0) for those."
-            )
-    if dem is not None:
-        result["dem_layer"] = dem_layer
-        result["slope_penalized_segment_count"] = sampled_slope_count
-    return result
+    return _impedance_result(network, road_network_layer, output_field, damage_field, dem_layer, counts, owned)
+

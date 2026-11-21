@@ -1048,6 +1048,106 @@ class ChatTabWidget(QWidget):
             self._dock.statusSignal.emit("Still working on the previous request: your message is kept in the box. "
                                          "Send it when this one finishes, or press Stop.")
 
+    def _answer_local_data_question(self, text):
+        """True when `text` answers the outstanding local-data question (and the turn is finished); any other text drops the question and is treated as
+        a new request. Split out of send_message (LR-21, no behaviour change)."""
+        self._awaiting_local_data_reply = False
+        self.input_edit.setPlaceholderText(self._default_input_placeholder)
+        from ..agent import local_data_sources
+        choice = local_data_sources.parse_reply(text)
+        if choice is not None:
+            self._dock.receiveMessageSignal.emit("user", text)
+            self.input_edit.clear()
+            self._on_local_data_reply(choice)
+            return True
+        self._local_data_pending = None
+        return False
+
+    def _apply_requirement_answer(self, text):
+        """The text to send: a whole new request abandons the open requirement question; an answer to it is echoed and folded into the pending request.
+        Split out of send_message (LR-21, no behaviour change)."""
+        if self._awaiting_requirement_reply and reply_vocab.is_new_request(text):
+            # A whole new request typed instead of an answer abandons the open question; it is NOT pasted under the old request.
+            self._awaiting_requirement_reply = False
+            self._pending_analysis_text = None
+            self._pending_analysis = None
+            self.input_edit.setPlaceholderText(self._default_input_placeholder)
+        if self._awaiting_requirement_reply:
+            self._dock.receiveMessageSignal.emit("user", text)
+            text = f"{self._pending_analysis_text}\n\nDetails: {text}"
+            self._awaiting_requirement_reply = False
+            self.input_edit.setPlaceholderText(self._default_input_placeholder)
+        return text
+
+    def _answer_preview_question(self, text):
+        """Resolves the in-chat preview question: a yes sends the composed prompt, a cancel abandons it, anything else is sent as typed. Always finishes
+        the turn. Split out of send_message (LR-21, no behaviour change)."""
+        self._awaiting_preview_reply = False
+        original_text, pending_analysis = self._pending_analysis_text, self._pending_analysis
+        self._pending_analysis_text = None
+        self._pending_analysis = None
+        self.input_edit.setPlaceholderText(self._default_input_placeholder)
+        # rc22 hand test R2/A1 (issue 230): the exact-keyword sets missed "Yes, proceed." -- the rc18 fix (reply_vocab.router_reply)
+        # reached the other reply branches but not this one, so a natural yes was sent to the model as a new message and the
+        # original request never ran. router_reply accepts a short reply made only of yes words and fillers.
+        decision = reply_vocab.router_reply(text)
+        if decision == "confirm":
+            self._dock.receiveMessageSignal.emit("user", text)
+            # already_echoed=True: original_text was already shown as its own bubble
+            # by _ask_preview_in_chat when the question was first asked -- see that
+            # method's docstring.
+            self._dispatch_message(original_text, pending_analysis, already_echoed=True)
+        elif decision == "cancel":
+            self._dock.receiveMessageSignal.emit("user", text)
+            self._dock.receiveMessageSignal.emit(
+                "ai", "Okay, cancelled -- send a new message whenever you're ready.")
+        else:
+            # Edit fallback: exactly _send_preview_original's old behavior -- no manual
+            # echo here, _dispatch_message already echoes `text` itself.
+            self._dispatch_message(text, None)
+
+    def _answer_pending_confirmation(self, text, agent):
+        """True when `text` settled a pending destructive-action confirmation (confirmed, cancelled, refused or expired) and the turn is finished.
+        Split out of send_message (LR-21, no behaviour change)."""
+        pending_task = self._pending_confirmation_task(agent)
+        if pending_task is not None:
+            # Only an explicit word confirms a destructive action -- a casual "yes"/"ok" typed to
+            # answer something else must never (F16) -- and only while the preview is recent.
+            decision = reply_vocab.gate_reply(text)
+            if decision == "confirm" and pending_task.get("egress_override"):
+                # A decision to let protected data leave the machine is made on the card, not with a typed word
+                # (rc11 smoke test, #125: a typed "confirm" approved a cloud override the user was never shown).
+                self._dock.receiveMessageSignal.emit("user", text)
+                self._dock.receiveMessageSignal.emit(
+                    "ai", "Sending protected data to a cloud provider can only be approved with the **Send to cloud once** "
+                          "button on its card. Typing a word does not approve it. Say **cancel** to drop it.")
+                return True
+            if decision is None and reply_vocab.router_reply(text) == "confirm":
+                # "yes" / "ok" / "sure" / "go" never confirm a destructive action, and must not be passed to the model
+                # either: it answered by retrying the same action through another tool (rc11 smoke test, #125).
+                self._dock.receiveMessageSignal.emit("user", text)
+                self._dock.receiveMessageSignal.emit(
+                    "ai", "That is not enough to confirm a change that cannot be undone. Click the button on the card, "
+                          "or type **Confirm** to go ahead, or **Cancel** to drop it.")
+                return True
+            if decision is None:
+                # An unrelated message: the preview is not consent for anything the user types later (F16 step 3).
+                self._expire_pending_previews(agent)
+                pending_task = None
+            if pending_task is not None and decision == "confirm" and not reply_vocab.preview_is_fresh(pending_task.get("updated_at")):
+                self._dock.receiveMessageSignal.emit("user", text)
+                self._dock.receiveMessageSignal.emit(
+                    "ai",
+                    "That confirmation request is more than "
+                    f"{reply_vocab.PREVIEW_MAX_AGE_SECONDS // 60} minutes old, so typing Confirm no longer "
+                    "applies it. Use the Confirm button in the Activity tab, or ask again.")
+                return True
+            if pending_task is not None and decision is not None:
+                self._dock.receiveMessageSignal.emit("user", text)
+                self._resolve_pending_confirmation(agent, pending_task, confirmed=(decision == "confirm"))
+                return True
+        return False
+
     def send_message(self):
         if not self.send_btn.isEnabled():
             # A request is already in flight. send_btn.setEnabled(False) blocks
@@ -1067,17 +1167,8 @@ class ChatTabWidget(QWidget):
         # The local-data question (see _ask_local_data_in_chat) is outstanding. A recognised
         # answer resolves it; anything else is treated as a new request and the question is
         # dropped, the same way an unrecognised preview reply is "send as typed".
-        if self._awaiting_local_data_reply:
-            self._awaiting_local_data_reply = False
-            self.input_edit.setPlaceholderText(self._default_input_placeholder)
-            from ..agent import local_data_sources
-            choice = local_data_sources.parse_reply(text)
-            if choice is not None:
-                self._dock.receiveMessageSignal.emit("user", text)
-                self.input_edit.clear()
-                self._on_local_data_reply(choice)
-                return
-            self._local_data_pending = None
+        if self._awaiting_local_data_reply and self._answer_local_data_question(text):
+            return
 
         # A requirement question is outstanding (see _ask_requirement_in_chat) -- this
         # message IS the answer to it, not a new unrelated request. Real-session report,
@@ -1089,17 +1180,7 @@ class ChatTabWidget(QWidget):
         # this feel like an actual chat rather than a black box -- the eventual composed
         # request (original + "Details: ...") still shows too, once dispatch/preview
         # actually happens, exactly like any other task-matched message already does.
-        if self._awaiting_requirement_reply and reply_vocab.is_new_request(text):
-            # A whole new request typed instead of an answer abandons the open question; it is NOT pasted under the old request.
-            self._awaiting_requirement_reply = False
-            self._pending_analysis_text = None
-            self._pending_analysis = None
-            self.input_edit.setPlaceholderText(self._default_input_placeholder)
-        if self._awaiting_requirement_reply:
-            self._dock.receiveMessageSignal.emit("user", text)
-            text = f"{self._pending_analysis_text}\n\nDetails: {text}"
-            self._awaiting_requirement_reply = False
-            self.input_edit.setPlaceholderText(self._default_input_placeholder)
+        text = self._apply_requirement_answer(text)
 
         # Answering the in-chat preview question (see _ask_preview_in_chat) -- this reply
         # resolves the pending 3-way choice the old boxed panel used to offer as buttons:
@@ -1109,29 +1190,7 @@ class ChatTabWidget(QWidget):
         # design, 2026-09-15). Fully resolves the turn itself, unlike the requirement-reply
         # branch above (which merges and falls through) -- returns immediately either way.
         if self._awaiting_preview_reply:
-            self._awaiting_preview_reply = False
-            original_text, pending_analysis = self._pending_analysis_text, self._pending_analysis
-            self._pending_analysis_text = None
-            self._pending_analysis = None
-            self.input_edit.setPlaceholderText(self._default_input_placeholder)
-            # rc22 hand test R2/A1 (issue 230): the exact-keyword sets missed "Yes, proceed." -- the rc18 fix (reply_vocab.router_reply)
-            # reached the other reply branches but not this one, so a natural yes was sent to the model as a new message and the
-            # original request never ran. router_reply accepts a short reply made only of yes words and fillers.
-            decision = reply_vocab.router_reply(text)
-            if decision == "confirm":
-                self._dock.receiveMessageSignal.emit("user", text)
-                # already_echoed=True: original_text was already shown as its own bubble
-                # by _ask_preview_in_chat when the question was first asked -- see that
-                # method's docstring.
-                self._dispatch_message(original_text, pending_analysis, already_echoed=True)
-            elif decision == "cancel":
-                self._dock.receiveMessageSignal.emit("user", text)
-                self._dock.receiveMessageSignal.emit(
-                    "ai", "Okay, cancelled -- send a new message whenever you're ready.")
-            else:
-                # Edit fallback: exactly _send_preview_original's old behavior -- no manual
-                # echo here, _dispatch_message already echoes `text` itself.
-                self._dispatch_message(text, None)
+            self._answer_preview_question(text)
             return
 
         # A destructive-action confirmation gate (field_calculator etc. -- see agent_orchestrator.py's
@@ -1156,43 +1215,8 @@ class ChatTabWidget(QWidget):
         # more specific, just-asked exchange) always takes priority over an older pending
         # gate.
         agent = self._agent_provider() if self._agent_provider else None
-        pending_task = self._pending_confirmation_task(agent)
-        if pending_task is not None:
-            # Only an explicit word confirms a destructive action -- a casual "yes"/"ok" typed to
-            # answer something else must never (F16) -- and only while the preview is recent.
-            decision = reply_vocab.gate_reply(text)
-            if decision == "confirm" and pending_task.get("egress_override"):
-                # A decision to let protected data leave the machine is made on the card, not with a typed word
-                # (rc11 smoke test, #125: a typed "confirm" approved a cloud override the user was never shown).
-                self._dock.receiveMessageSignal.emit("user", text)
-                self._dock.receiveMessageSignal.emit(
-                    "ai", "Sending protected data to a cloud provider can only be approved with the **Send to cloud once** "
-                          "button on its card. Typing a word does not approve it. Say **cancel** to drop it.")
-                return
-            if decision is None and reply_vocab.router_reply(text) == "confirm":
-                # "yes" / "ok" / "sure" / "go" never confirm a destructive action, and must not be passed to the model
-                # either: it answered by retrying the same action through another tool (rc11 smoke test, #125).
-                self._dock.receiveMessageSignal.emit("user", text)
-                self._dock.receiveMessageSignal.emit(
-                    "ai", "That is not enough to confirm a change that cannot be undone. Click the button on the card, "
-                          "or type **Confirm** to go ahead, or **Cancel** to drop it.")
-                return
-            if decision is None:
-                # An unrelated message: the preview is not consent for anything the user types later (F16 step 3).
-                self._expire_pending_previews(agent)
-                pending_task = None
-            if pending_task is not None and decision == "confirm" and not reply_vocab.preview_is_fresh(pending_task.get("updated_at")):
-                self._dock.receiveMessageSignal.emit("user", text)
-                self._dock.receiveMessageSignal.emit(
-                    "ai",
-                    "That confirmation request is more than "
-                    f"{reply_vocab.PREVIEW_MAX_AGE_SECONDS // 60} minutes old, so typing Confirm no longer "
-                    "applies it. Use the Confirm button in the Activity tab, or ask again.")
-                return
-            if pending_task is not None and decision is not None:
-                self._dock.receiveMessageSignal.emit("user", text)
-                self._resolve_pending_confirmation(agent, pending_task, confirmed=(decision == "confirm"))
-                return
+        if self._answer_pending_confirmation(text, agent):
+            return
 
         # A fresh send attempt abandons any still-pending refinement cards from a previous
         # message -- the practical equivalent of spec §7's "user closes the card without
