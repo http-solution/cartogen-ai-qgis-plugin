@@ -2068,6 +2068,47 @@ class CartogenAi:
             self._workflow_context = None
             cancel_signal.end(token)
 
+    @staticmethod
+    def _reply_text(message):
+        """The model's final answer: its content, or the neutral empty-response line when the content is missing or only whitespace."""
+        content = message.get("content")
+        if content is None or (isinstance(content, str) and not content.strip()):
+            return EMPTY_RESPONSE_FALLBACK
+        return content
+
+    @staticmethod
+    def _log_tool_outcome(name, tool_result, is_error, duration_ms, correlation_id, provider_name):
+        """The metadata-only log line for a finished tool call (name, status, duration, correlation id, provider and, on failure, an error class;
+        never argument or result content: structured-logging policy, 2026-09-20)."""
+        if is_error:
+            log_event("tool_call", tag="Agent", tool=name, status="failed", duration_ms=duration_ms, correlation_id=correlation_id,
+                      provider=provider_name, error_class=tool_results.error_class_of(tool_result), error=True)
+        else:
+            log_event("tool_call", tag="Agent", tool=name, status="done", duration_ms=duration_ms, correlation_id=correlation_id,
+                      provider=provider_name)
+
+    def _learn_from_correction(self, user_query):
+        """Correction detection (self-learning mechanism 2, 2026-09-02): when this new message reads as a correction of the last tool call this
+        session made, remember a rule from it. A plain-text heuristic with a known imperfection (see learning.py's module docstring): a miss
+        remembers nothing extra, a false hit stores an overly specific rule that the memory panel's Forget control removes."""
+        if learning.detect_correction(user_query) and self._last_tool_call:
+            last_name, last_args = self._last_tool_call
+            learning.record_correction_rule(self.memory_manager, user_query, last_name, last_args)
+
+    def _new_loop_guard(self):
+        """The turn's loop guard; with the guard switched off (loop_guard_enabled False) every limit is raised out of reach."""
+        if getattr(self, "loop_guard_enabled", True):
+            return loop_guard.LoopGuard()
+        return loop_guard.LoopGuard(max_identical_calls=10 ** 9, max_consecutive_failures=10 ** 9, max_failures=10 ** 9, stall_rounds=10 ** 9)
+
+    def _turn_budget_would_be_exceeded(self, iteration_index, max_turn_tokens, turn_id):
+        """True when the tokens already spent this turn plus the observed size of the last call (the next call cannot be smaller, the history only
+        grows) no longer fit the turn's budget. Checked BEFORE a request, not merely "already over"; never on the first round."""
+        if not max_turn_tokens or iteration_index <= 0:
+            return False
+        return loop_guard.budget_exceeded(self._get_usage_tracker().turn_budget_tokens(), max_turn_tokens,
+                                          call_metrics.next_call_budget_estimate(self._get_call_log().turn_records(turn_id)))
+
     def _run_impl(self, user_query, map_context=None, should_stop=None, tool_step_callback=None):
         """should_stop, if given, is a zero-arg callable returning True once the
         user has asked to abort (task_runner.py passes the running QgsTask's
@@ -2106,9 +2147,7 @@ class CartogenAi:
         # short of asking them). False negatives just mean nothing extra gets
         # remembered; false positives store an overly specific rule, which the
         # memory panel's Forget control (memory_dialog.py) lets the user remove.
-        if learning.detect_correction(user_query) and self._last_tool_call:
-            last_name, last_args = self._last_tool_call
-            learning.record_correction_rule(self.memory_manager, user_query, last_name, last_args)
+        self._learn_from_correction(user_query)
         # Router runs BEFORE build_system_prompt now (2026-09-12, prompt modularization --
         # following v1.13.1's fix to the same shape of problem on the tool-schema side): which
         # of the 47 base-prompt rules actually need sending depends on which tools this turn can
@@ -2145,15 +2184,12 @@ class CartogenAi:
         token_budget_hit = False
         wrap_up_sent = False            # a tool-less answer round was requested (last round, or a data source that is down)
         data_source_is_down = False
-        guard = loop_guard.LoopGuard() if getattr(self, "loop_guard_enabled", True) else loop_guard.LoopGuard(
-            max_identical_calls=10 ** 9, max_consecutive_failures=10 ** 9, max_failures=10 ** 9, stall_rounds=10 ** 9)
+        guard = self._new_loop_guard()
         guard_stop = None
         for iteration_index in range(max_rounds):
             # Checked BEFORE the request: tokens already spent this turn plus the observed size of the last call (the next call
             # cannot be smaller, the history only grows) must fit the budget -- not merely "already over".
-            if max_turn_tokens and iteration_index > 0 and loop_guard.budget_exceeded(
-                    self._get_usage_tracker().turn_budget_tokens(), max_turn_tokens,
-                    call_metrics.next_call_budget_estimate(self._get_call_log().turn_records(turn_id))):
+            if self._turn_budget_would_be_exceeded(iteration_index, max_turn_tokens, turn_id):
                 token_budget_hit = True
                 break
             if should_stop is not None and should_stop():
@@ -2211,11 +2247,7 @@ class CartogenAi:
                     messages.append({"role": "user", "content": nudge})
                     continue
             if not tool_calls:
-                content = message.get("content")
-                if content is None or (isinstance(content, str) and not content.strip()):
-                    final_text = EMPTY_RESPONSE_FALLBACK
-                else:
-                    final_text = content
+                final_text = self._reply_text(message)
                 final_text = self._reconcile_final_text_with_tool_log(final_text, turn_tool_log)
                 final_text = self._guard_unbacked_data(final_text, turn_tool_log, turn_pending)
                 self._append_history(user_message, {"role": "assistant", "content": final_text})
@@ -2281,15 +2313,7 @@ class CartogenAi:
                     turn_pending.append(name)
                 elif not is_error and name in turn_pending:
                     turn_pending = [n for n in turn_pending if n != name]
-                if is_error:
-                    error_class = tool_results.error_class_of(tool_result)
-                    log_event("tool_call", tag="Agent", tool=name, status="failed",
-                               duration_ms=_duration_ms, correlation_id=correlation_id,
-                               provider=provider_name, error_class=error_class, error=True)
-                else:
-                    log_event("tool_call", tag="Agent", tool=name, status="done",
-                               duration_ms=_duration_ms, correlation_id=correlation_id,
-                               provider=provider_name)
+                self._log_tool_outcome(name, tool_result, is_error, _duration_ms, correlation_id, provider_name)
                 if tool_step_callback is not None:
                     with contextlib.suppress(Exception):
                         tool_step_callback(name, "failed" if is_error else "done", tool_results.error_of(tool_result))

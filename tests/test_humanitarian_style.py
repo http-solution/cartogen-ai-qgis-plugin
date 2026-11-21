@@ -75,3 +75,24 @@ class TestWiring(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestSplitOutLookPieces(unittest.TestCase):
+    """LR-21: pieces split out of style_result_field."""
+
+    def test_numbers_keeps_numbers_only(self):
+        self.assertEqual(hs._numbers([1, "x", None, 2.5, True]), [1.0, 2.5, 1.0])      # a bool is an int in Python, as before the split
+        self.assertEqual(hs._numbers([]), [])
+
+    def test_the_severity_look_notes_values_outside_zero_to_one(self):
+        notes = []
+        ranges, error = hs._ranges_for("severity", "score", [0.2, 1.4], None, notes)
+        self.assertIsNone(error)
+        self.assertTrue(ranges)
+        self.assertIn("outside 0-1", notes[0])
+
+    def test_a_look_with_no_numbers_is_refused_by_name(self):
+        for look in ("severity", "rank", "people_in_need"):
+            ranges, error = hs._ranges_for(look, "f", ["a", None], None, [])
+            self.assertIsNone(ranges, look)
+            self.assertEqual(error, {"error": "'f' holds no numeric values."})

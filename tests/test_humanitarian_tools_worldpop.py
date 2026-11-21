@@ -9,6 +9,7 @@ geoBoundaries' geojson) were both verified by hand against the real API
 before writing this tool; see the session notes."""
 import json
 import unittest
+from typing import ClassVar
 from unittest.mock import patch, MagicMock
 from cartogen_ai.core.agent.tools.humanitarian_tools import (
     fetch_worldpop_population_network_phase, add_worldpop_population_layer_main_thread_phase,
@@ -189,3 +190,30 @@ class TestFetchWorldpopPopulationCombined(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestSplitOutPieces(unittest.TestCase):
+    """LR-21: pieces split out of fetch_worldpop_population_network_phase, tested on their own."""
+
+    DATASETS: ClassVar[list] = [{"popyear": 2019}, {"popyear": 2020}, {"popyear": 2018}]
+
+    def test_the_latest_year_is_the_default_and_a_named_year_is_found(self):
+        from cartogen_ai.core.agent.tools.humanitarian_tools import _pick_worldpop_dataset
+        self.assertEqual(_pick_worldpop_dataset(self.DATASETS, "YEM", None), ({"popyear": 2020}, None))
+        self.assertEqual(_pick_worldpop_dataset(self.DATASETS, "YEM", "2018"), ({"popyear": 2018}, None))
+
+    def test_a_missing_year_names_the_years_that_exist(self):
+        from cartogen_ai.core.agent.tools.humanitarian_tools import _pick_worldpop_dataset
+        dataset, error = _pick_worldpop_dataset(self.DATASETS, "YEM", "2001")
+        self.assertIsNone(dataset)
+        self.assertIn("No WorldPop dataset for YEM in 2001", error)
+        self.assertIn("['2018', '2019', '2020']", error)
+
+    def test_the_window_refusal_says_not_to_retry_and_how_to_download_once(self):
+        from cartogen_ai.core.agent.tools import humanitarian_tools as ht
+        with patch("cartogen_ai.core.agent.local_data_loader._remote_size", return_value=250_000_000):
+            reply = ht._worldpop_window_refusal(RuntimeError("Range downloading not supported"), "YEM", "https://data.worldpop.org/x.tif")
+        self.assertIn("250 MB", reply["error"])
+        self.assertIn("Do NOT retry", reply["error"])
+        self.assertEqual(reply["retry_with"], {"allow_whole_country": True})
+        self.assertTrue(reply["needs_user_confirmation"])
