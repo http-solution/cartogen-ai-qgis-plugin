@@ -507,6 +507,27 @@ def _fallback_to_local_osm_extract(key: str, value: str, bbox: list | None = Non
     return None
 
 
+def _osm_bbox(bbox, center_lat, center_lon, radius_km):
+    """((south, west, north, east), error) for an OSM query: the given bbox, or a box of `radius_km` (default 10) around a centre point (a degree
+    of longitude shrinks with latitude). `error` is a sentence when neither is given or the box is upside down. Pure."""
+    if bbox is not None and isinstance(bbox, (list, tuple)) and len(bbox) == 4:
+        s, w, n, e = [float(x) for x in bbox]
+    elif center_lat is not None and center_lon is not None:
+        r = float(radius_km) if (radius_km is not None and radius_km > 0) else 10.0
+        lat_delta = r / 111.0
+        cos_lat = math.cos(math.radians(float(center_lat)))
+        lon_delta = r / (111.0 * max(0.01, abs(cos_lat)))
+        s = float(center_lat) - lat_delta
+        n = float(center_lat) + lat_delta
+        w = float(center_lon) - lon_delta
+        e = float(center_lon) + lon_delta
+    else:
+        return None, "Either 'bbox' ([south, west, north, east]) or ('center_lat', 'center_lon') must be provided."
+    if s >= n or w >= e:
+        return None, f"Invalid bounding box: south ({s}) must be < north ({n}) and west ({w}) < east ({e})."
+    return (s, w, n, e), None
+
+
 def ingest_osm_features_network_phase(
     key: str,
     value: str,
@@ -521,22 +542,10 @@ def ingest_osm_features_network_phase(
     if not key or not value:
         return {"error": "'key' and 'value' parameters are required (e.g. key='amenity', value='hospital')."}
 
-    if bbox is not None and isinstance(bbox, (list, tuple)) and len(bbox) == 4:
-        s, w, n, e = [float(x) for x in bbox]
-    elif center_lat is not None and center_lon is not None:
-        r = float(radius_km) if (radius_km is not None and radius_km > 0) else 10.0
-        lat_delta = r / 111.0
-        cos_lat = math.cos(math.radians(float(center_lat)))
-        lon_delta = r / (111.0 * max(0.01, abs(cos_lat)))
-        s = float(center_lat) - lat_delta
-        n = float(center_lat) + lat_delta
-        w = float(center_lon) - lon_delta
-        e = float(center_lon) + lon_delta
-    else:
-        return {"error": "Either 'bbox' ([south, west, north, east]) or ('center_lat', 'center_lon') must be provided."}
-
-    if s >= n or w >= e:
-        return {"error": f"Invalid bounding box: south ({s}) must be < north ({n}) and west ({w}) < east ({e})."}
+    box, box_error = _osm_bbox(bbox, center_lat, center_lon, radius_km)
+    if box_error:
+        return {"error": box_error}
+    s, w, n, e = box
 
     clean_key = re.sub(r'[^a-zA-Z0-9_:-]', '', key)
     clean_value = value.replace('\\', '\\\\').replace('"', '\\"')
@@ -1270,6 +1279,18 @@ def _iter_coords(coords):
         yield from _iter_coords(c)
 
 
+def _bbox_problem(bbox):
+    """A sentence when `bbox` is not a usable [south, west, north, east] in WGS84 degrees (wrong length, out of range, or upside down), else None. Pure."""
+    if len(bbox) != 4:
+        return "bbox must be [south, west, north, east]."
+    south, west, north, east = bbox
+    if not (-90 <= south <= 90 and -90 <= north <= 90 and -180 <= west <= 180 and -180 <= east <= 180):
+        return "bbox values out of range -- expected [south, west, north, east] in WGS84 degrees."
+    if south >= north or west >= east:
+        return "bbox must have south < north and west < east."
+    return None
+
+
 def fetch_building_footprints_network_phase(country_name, bbox, max_features=5000, allow_large_download=False):
     """Pure network phase: downloads Microsoft's Global ML Building
     Footprints tiles intersecting bbox for the matched country, crops to the
@@ -1288,13 +1309,10 @@ def fetch_building_footprints_network_phase(country_name, bbox, max_features=500
     geometric extraction, a real risk for humanitarian digitization/damage
     work where geometric accuracy has real consequences -- this fetches
     already-vetted pre-computed footprints instead."""
-    if len(bbox) != 4:
-        return {"error": "bbox must be [south, west, north, east]."}
+    bbox_error = _bbox_problem(bbox)
+    if bbox_error:
+        return {"error": bbox_error}
     south, west, north, east = bbox
-    if not (-90 <= south <= 90 and -90 <= north <= 90 and -180 <= west <= 180 and -180 <= east <= 180):
-        return {"error": "bbox values out of range -- expected [south, west, north, east] in WGS84 degrees."}
-    if south >= north or west >= east:
-        return {"error": "bbox must have south < north and west < east."}
 
     cache_key = ("building_footprints_links",)
     cached = _LOOKUP_CACHE.get(cache_key)
@@ -1673,6 +1691,42 @@ def _download_to_file(url, dest, chunk=1 << 20):
         raise RuntimeError(f"downloading the country file failed: {e}") from e
 
 
+def _pick_worldpop_dataset(datasets, iso3, year):
+    """(dataset, error): the WorldPop dataset for `year`, or the most recent one when no year is given. `error` names the years that exist when
+    the asked-for year has no dataset. Pure."""
+    if year:
+        matches = [d for d in datasets if str(d.get("popyear")) == str(year)]
+        if not matches:
+            available = sorted({str(d.get("popyear")) for d in datasets})
+            return None, f"No WorldPop dataset for {iso3} in {year}. Available years: {available}"
+        return matches[0], None
+    return max(datasets, key=lambda d: str(d.get("popyear", ""))), None
+
+
+def _worldpop_window_refusal(window_error, iso3, file_url):
+    """The reply when worldpop.org cannot send just the requested window. Nothing has been downloaded."""
+    # rc10 smoke test (first run against the real server): worldpop.org answers "Range downloading not
+    # supported by this server", so the remote window read cannot work there and the model retried the same
+    # call three times, then guessed the size ("100 MB to over 1 GB"). Say what is true and what to do:
+    # the real size, that retrying is pointless, and the one call that downloads once and clips locally.
+    size_bytes = 0
+    try:
+        from ..local_data_loader import _remote_size
+        size_bytes = _remote_size(file_url)
+    except Exception:
+        size_bytes = 0
+    size_text = f"{round(size_bytes / 1e6)} MB" if size_bytes else "size unknown"
+    return {"error": (
+        f"WorldPop's server cannot send just the requested area ({window_error}); that is a limit of worldpop.org, not of this plugin. "
+        f"Nothing was downloaded. The whole-country file for {iso3} is {size_text}. Do NOT retry this call. Tell "
+        "the user the size and ask whether to download it. If they agree, call again with the same "
+        "extent_layer/bbox plus allow_whole_country=true: the full file is downloaded once and kept in the "
+        "project's data folder, only the requested area is added to the project, and every later area in "
+        f"{iso3} reuses the file without downloading again."),
+        "needs_user_confirmation": True, "whole_country_size_bytes": size_bytes,
+        "retry_with": {"allow_whole_country": True}}
+
+
 def fetch_worldpop_population_network_phase(iso3: str, year: str | None = None, bbox=None, allow_whole_country=False,
                                             cache_dir=None) -> dict:
     """Pure network phase: queries WorldPop's API for available population raster
@@ -1720,14 +1774,9 @@ def fetch_worldpop_population_network_phase(iso3: str, year: str | None = None, 
         if not datasets:
             return {"error": f"No WorldPop population datasets found for '{iso3}' -- check the ISO3 code is correct."}
 
-        if year:
-            matches = [d for d in datasets if str(d.get("popyear")) == str(year)]
-            if not matches:
-                available = sorted({str(d.get("popyear")) for d in datasets})
-                return {"error": f"No WorldPop dataset for {iso3} in {year}. Available years: {available}"}
-            dataset = matches[0]
-        else:
-            dataset = max(datasets, key=lambda d: str(d.get("popyear", "")))
+        dataset, year_error = _pick_worldpop_dataset(datasets, iso3, year)
+        if year_error:
+            return {"error": year_error}
 
         file_urls = dataset.get("files") or []
         if not file_urls:
@@ -1772,26 +1821,7 @@ def fetch_worldpop_population_network_phase(iso3: str, year: str | None = None, 
                 with contextlib.suppress(OSError):
                     os.remove(tmp_path)
                 if _is_transport_failure(e) and not allow_whole_country:
-                    # rc10 smoke test (first run against the real server): worldpop.org answers "Range downloading not
-                    # supported by this server", so the remote window read cannot work there and the model retried the same
-                    # call three times, then guessed the size ("100 MB to over 1 GB"). Say what is true and what to do:
-                    # the real size, that retrying is pointless, and the one call that downloads once and clips locally.
-                    size_bytes = 0
-                    try:
-                        from ..local_data_loader import _remote_size
-                        size_bytes = _remote_size(file_urls[0])
-                    except Exception:
-                        size_bytes = 0
-                    size_text = f"{round(size_bytes / 1e6)} MB" if size_bytes else "size unknown"
-                    return {"error": (
-                        f"WorldPop's server cannot send just the requested area ({e}); that is a limit of worldpop.org, not of this plugin. "
-                        f"Nothing was downloaded. The whole-country file for {iso3} is {size_text}. Do NOT retry this call. Tell "
-                        "the user the size and ask whether to download it. If they agree, call again with the same "
-                        "extent_layer/bbox plus allow_whole_country=true: the full file is downloaded once and kept in the "
-                        "project's data folder, only the requested area is added to the project, and every later area in "
-                        f"{iso3} reuses the file without downloading again."),
-                        "needs_user_confirmation": True, "whole_country_size_bytes": size_bytes,
-                        "retry_with": {"allow_whole_country": True}}
+                    return _worldpop_window_refusal(e, iso3, file_urls[0])
                 return {"error": (
                     f"Could not fetch just the requested area from WorldPop ({e}). Nothing was downloaded. "
                     "Check the bbox overlaps the country, or call again without bbox/extent_layer to "
@@ -2327,6 +2357,51 @@ def _keep_or_say_temporary(layer, result):
         result["temporary_note"] = note
 
 
+def _reused_point_layer_result(point, source_crs, transform):
+    """The reply when a single requested point already has a point layer at that location (no duplicate layer is made), else None. The position is
+    resolved in code from the point's own CRS, never by the model."""
+    try:
+        lon, lat = _coords.resolve_lon_lat(point, source_crs, transform)
+    except ValueError:
+        return None
+    reused = _find_point_layer_at(lon, lat)
+    if reused is None:
+        return None
+    return {
+        "success": True, "layer_name": reused.name(), "added": 0, "requested": 1,
+        "reused_existing_layer": True,
+        "placed_wgs84": [{"name": str(point.get("name", "")), "lon": round(lon, 6), "lat": round(lat, 6)}],
+        "message": (f"A point layer already holds this location: '{reused.name()}'. No duplicate layer was created. "
+                    f"Use '{reused.name()}' as the origin layer in the next step and tell the user it was reused."),
+    }
+
+
+def _add_points(layer, field_names, points, source_crs, transform):
+    """(added, placed, errors, data_quality_warnings): adds each point to `layer` (inside the caller's edit session). A point whose position cannot be
+    resolved or that the layer refuses is reported in `errors` and the rest still go in. Both ACLED/IMSMA coding warnings and event_start/event_end
+    ordering warnings land in the one per-point warnings list, since both are advisory data-quality flags on the same point."""
+    added = 0
+    placed = []
+    errors = []
+    data_quality_warnings = []
+    for i, pt in enumerate(points):
+        try:
+            lon, lat = _coords.resolve_lon_lat(pt, source_crs, transform)
+        except ValueError as e:
+            errors.append(f"Point {i}: {e}")
+            continue
+
+        feat, point_warnings = _build_point_feature(layer, field_names, pt, lon, lat)
+        if point_warnings:
+            data_quality_warnings.append(f"Point {i}: " + "; ".join(point_warnings))
+        if layer.addFeature(feat):
+            added += 1
+            placed.append({"name": str(pt.get("name", "")), "lon": round(lon, 6), "lat": round(lat, 6)})
+        else:
+            errors.append(f"Point {i}: failed to add feature")
+    return added, placed, errors, data_quality_warnings
+
+
 @register_tool(
     "add_point_layer",
     "Create a new point layer (or append to an existing one with the same name) from a LIST of real, "
@@ -2424,19 +2499,9 @@ def add_point_layer(layer_name: str, points: list, crs: str | None = None, crs_s
 
     existing = QgsProject.instance().mapLayersByName(layer_name)
     if not existing and len(points) == 1:
-        try:
-            _lon, _lat = _coords.resolve_lon_lat(points[0], source_crs, transform)
-        except ValueError:
-            _lon = _lat = None
-        reused = _find_point_layer_at(_lon, _lat) if _lon is not None else None
-        if reused is not None:
-            return {
-                "success": True, "layer_name": reused.name(), "added": 0, "requested": 1,
-                "reused_existing_layer": True,
-                "placed_wgs84": [{"name": str(points[0].get("name", "")), "lon": round(_lon, 6), "lat": round(_lat, 6)}],
-                "message": (f"A point layer already holds this location: '{reused.name()}'. No duplicate layer was created. "
-                            f"Use '{reused.name()}' as the origin layer in the next step and tell the user it was reused."),
-            }
+        reused_result = _reused_point_layer_result(points[0], source_crs, transform)
+        if reused_result is not None:
+            return reused_result
     if existing:
         layer = existing[0]
     else:
@@ -2459,33 +2524,12 @@ def add_point_layer(layer_name: str, points: list, crs: str | None = None, crs_s
             log_event("failed_to_style_new_layer", tag="humanitarian_tools", error_class=type(e).__name__, error=True)
 
     field_names = [f.name() for f in layer.fields()]
-    added = 0
-    placed = []
-    errors = []
-    # Both ACLED/IMSMA coding warnings and event_start/event_end ordering
-    # warnings land here -- kept as one per-point aggregate list rather than
-    # two, since both are advisory data-quality flags on the same point.
-    data_quality_warnings = []
     from ._edit_session import EditError, begin_feature_edits, finish_feature_edits
     try:
         owns_session = begin_feature_edits(layer)
     except EditError as e:
         return {"error": f"Could not edit layer '{layer_name}': {e}"}
-    for i, pt in enumerate(points):
-        try:
-            lon, lat = _coords.resolve_lon_lat(pt, source_crs, transform)
-        except ValueError as e:
-            errors.append(f"Point {i}: {e}")
-            continue
-
-        feat, point_warnings = _build_point_feature(layer, field_names, pt, lon, lat)
-        if point_warnings:
-            data_quality_warnings.append(f"Point {i}: " + "; ".join(point_warnings))
-        if layer.addFeature(feat):
-            added += 1
-            placed.append({"name": str(pt.get("name", "")), "lon": round(lon, 6), "lat": round(lat, 6)})
-        else:
-            errors.append(f"Point {i}: failed to add feature")
+    added, placed, errors, data_quality_warnings = _add_points(layer, field_names, points, source_crs, transform)
     try:
         finish_feature_edits(layer, owns_session)
     except EditError as e:

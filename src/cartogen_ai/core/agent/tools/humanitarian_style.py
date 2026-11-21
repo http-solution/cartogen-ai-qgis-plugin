@@ -524,6 +524,107 @@ def _rule_based(layer, rules):
     return [label for label, _e, _c in rules]
 
 
+def _numbers(values):
+    """The numeric entries of `values` as floats (a bool is not a number here). Pure."""
+    return [float(v) for v in values if isinstance(v, (int, float))]
+
+
+def _no_numbers(field):
+    return {"error": f"'{field}' holds no numeric values."}
+
+
+def _look_presence_gap(layer, look, field, values):
+    cats = presence_gap_categories(values)
+    if not cats:
+        return {"error": f"'{field}' holds no presence-gap status values (gap / covered / unmatched)."}
+
+    def symbol(colour):
+        return _symbol(layer, colour)
+    _categorized(layer, field, cats, symbol)
+    layer.setCustomProperty("cartogen_look", look)
+    return {"classes": [label for _v, _c, label in cats], "notes": []}
+
+
+def _look_ipc_phase(layer, look, field, values):
+    if not _numbers(values):
+        return _no_numbers(field)
+    classes = _rule_based(layer, phase_rules(field, IPC_PHASES, IPC_NOT_ANALYSED))
+    layer.setCustomProperty("cartogen_look", look)
+    return {"classes": classes, "notes": ["Areas with no phase are drawn grey as not analysed, never as phase 1."]}
+
+
+def _look_inform_risk(layer, look, field, values):
+    nums = _numbers(values)
+    if not nums:
+        return _no_numbers(field)
+    notes = []
+    if max(nums) > 10.0 + 1e-9 or min(nums) < -1e-9:
+        notes.append(f"'{field}' has values outside 0-10 ({min(nums):g} to {max(nums):g}); those areas fall outside the five INFORM classes and are not drawn.")
+    classes = _graduated(layer, field, inform_ranges())
+    layer.setCustomProperty("cartogen_look", look)
+    notes.append("Areas with no value are not drawn.")
+    return {"classes": classes, "notes": notes}
+
+
+def _look_damage_class(layer, look, field, values):
+    rules = damage_rules(field, values)
+    if not rules:
+        return {"error": f"'{field}' holds no recognised damage class (destroyed, severe damage, moderate damage, possible damage, no visible damage)."}
+    classes = _rule_based(layer, rules)
+    layer.setCustomProperty("cartogen_look", look)
+    return {"classes": classes, "notes": []}
+
+
+def _look_jiaf(layer, look, field, values):
+    nums = _numbers(values)
+    if not nums:
+        return _no_numbers(field)
+    notes = []
+    rules = jiaf_phase_rules(field) if look == "jiaf_severity" else jiaf_review_rules(look, field)
+    if look == "jiaf_severity" and (max(nums) > 5.5 or min(nums) < 0.5):
+        notes.append(f"'{field}' has values outside phases 1-5 ({min(nums):g} to {max(nums):g}); those units are drawn as not assessed.")
+    classes = _rule_based(layer, rules)
+    layer.setCustomProperty("cartogen_look", look)
+    notes.append("Units with no value are drawn grey as not assessed, never as a low phase.")
+    return {"classes": classes, "notes": notes}
+
+
+def _ranges_for(look, field, values, top_k, notes):
+    """(graduated ranges, error) for the looks drawn as value ranges (severity, counts, rank); out-of-range notes are appended to `notes`."""
+    if look == "severity":
+        nums = _numbers(values)
+        if not nums:
+            return None, _no_numbers(field)
+        if max(nums) > 1.0 + 1e-9 or min(nums) < -1e-9:
+            notes.append(f"'{field}' has values outside 0-1 ({min(nums):g} to {max(nums):g}); this look expects the 0-1 composite "
+                         "score, so those units fall outside the five classes and are not drawn.")
+        return severity_ranges(), None
+    if look in ("people_in_need", "exposure", "allocation", "jiaf_count", "measure"):
+        palette = {"people_in_need": PIN_COLORS, "exposure": EXPOSURE_COLORS, "allocation": ALLOCATION_COLORS,
+                   "jiaf_count": EXPOSURE_COLORS, "measure": MEASURE_COLORS}[look]
+        ranges = count_ranges(values, palette, unit="people" if look in ("people_in_need", "exposure") else "")
+        return (ranges, None) if ranges else (None, _no_numbers(field))
+    nums = _numbers(values)       # rank
+    if not nums:
+        return None, _no_numbers(field)
+    return rank_ranges(max(nums), top_k if top_k else 10), None
+
+
+def _look_ranged(layer, look, field, values, top_k):
+    notes = []
+    ranges, error = _ranges_for(look, field, values, top_k, notes)
+    if error:
+        return error
+    notes.append("Units with no value in the field are not drawn.")
+    classes = _graduated(layer, field, ranges)
+    layer.setCustomProperty("cartogen_look", look)
+    return {"classes": classes, "notes": notes}
+
+
+_LOOK_APPLIERS = {"presence_gap": _look_presence_gap, "ipc_phase": _look_ipc_phase, "inform_risk": _look_inform_risk,
+                  "damage_class": _look_damage_class, "jiaf_severity": _look_jiaf, "jiaf_review_pin": _look_jiaf, "jiaf_review_severity": _look_jiaf}
+
+
 def style_result_field(layer, look, field, top_k=None):
     """Apply one of LOOKS to `field` of `layer`. Returns {"classes": [labels], "notes": [..]} on success or {"error": text}. Only the
     renderer changes; nothing is written to the layer. Called by apply_humanitarian_look when the user asks for it."""
@@ -535,76 +636,10 @@ def style_result_field(layer, look, field, top_k=None):
         return {"error": f"Field '{field}' not found on '{layer.name()}'."}
     try:
         values = _values(layer, field)
-        notes = []
-        if look == "presence_gap":
-            cats = presence_gap_categories(values)
-            if not cats:
-                return {"error": f"'{field}' holds no presence-gap status values (gap / covered / unmatched)."}
-
-            def symbol(colour):
-                return _symbol(layer, colour)
-            _categorized(layer, field, cats, symbol)
-            layer.setCustomProperty("cartogen_look", look)
-            return {"classes": [label for _v, _c, label in cats], "notes": notes}
-        if look == "ipc_phase":
-            nums = [float(v) for v in values if isinstance(v, (int, float))]
-            if not nums:
-                return {"error": f"'{field}' holds no numeric values."}
-            classes = _rule_based(layer, phase_rules(field, IPC_PHASES, IPC_NOT_ANALYSED))
-            layer.setCustomProperty("cartogen_look", look)
-            notes.append("Areas with no phase are drawn grey as not analysed, never as phase 1.")
-            return {"classes": classes, "notes": notes}
-        if look == "inform_risk":
-            nums = [float(v) for v in values if isinstance(v, (int, float))]
-            if not nums:
-                return {"error": f"'{field}' holds no numeric values."}
-            if max(nums) > 10.0 + 1e-9 or min(nums) < -1e-9:
-                notes.append(f"'{field}' has values outside 0-10 ({min(nums):g} to {max(nums):g}); those areas fall outside the five INFORM classes and are not drawn.")
-            classes = _graduated(layer, field, inform_ranges())
-            layer.setCustomProperty("cartogen_look", look)
-            notes.append("Areas with no value are not drawn.")
-            return {"classes": classes, "notes": notes}
-        if look == "damage_class":
-            rules = damage_rules(field, values)
-            if not rules:
-                return {"error": f"'{field}' holds no recognised damage class (destroyed, severe damage, moderate damage, possible damage, no visible damage)."}
-            classes = _rule_based(layer, rules)
-            layer.setCustomProperty("cartogen_look", look)
-            return {"classes": classes, "notes": notes}
-        if look in ("jiaf_severity", "jiaf_review_pin", "jiaf_review_severity"):
-            nums = [float(v) for v in values if isinstance(v, (int, float))]
-            if not nums:
-                return {"error": f"'{field}' holds no numeric values."}
-            rules = jiaf_phase_rules(field) if look == "jiaf_severity" else jiaf_review_rules(look, field)
-            if look == "jiaf_severity" and (max(nums) > 5.5 or min(nums) < 0.5):
-                notes.append(f"'{field}' has values outside phases 1-5 ({min(nums):g} to {max(nums):g}); those units are drawn as not assessed.")
-            classes = _rule_based(layer, rules)
-            layer.setCustomProperty("cartogen_look", look)
-            notes.append("Units with no value are drawn grey as not assessed, never as a low phase.")
-            return {"classes": classes, "notes": notes}
-        if look == "severity":
-            nums = [float(v) for v in values if isinstance(v, (int, float))]
-            if not nums:
-                return {"error": f"'{field}' holds no numeric values."}
-            if max(nums) > 1.0 + 1e-9 or min(nums) < -1e-9:
-                notes.append(f"'{field}' has values outside 0-1 ({min(nums):g} to {max(nums):g}); this look expects the 0-1 composite "
-                             "score, so those units fall outside the five classes and are not drawn.")
-            ranges = severity_ranges()
-        elif look in ("people_in_need", "exposure", "allocation", "jiaf_count", "measure"):
-            palette = {"people_in_need": PIN_COLORS, "exposure": EXPOSURE_COLORS, "allocation": ALLOCATION_COLORS,
-                       "jiaf_count": EXPOSURE_COLORS, "measure": MEASURE_COLORS}[look]
-            ranges = count_ranges(values, palette, unit="people" if look in ("people_in_need", "exposure") else "")
-            if not ranges:
-                return {"error": f"'{field}' holds no numeric values."}
-        else:  # rank
-            nums = [float(v) for v in values if isinstance(v, (int, float))]
-            if not nums:
-                return {"error": f"'{field}' holds no numeric values."}
-            ranges = rank_ranges(max(nums), top_k if top_k else 10)
-        notes.append("Units with no value in the field are not drawn.")
-        classes = _graduated(layer, field, ranges)
-        layer.setCustomProperty("cartogen_look", look)
-        return {"classes": classes, "notes": notes}
+        applier = _LOOK_APPLIERS.get(look)
+        if applier is not None:
+            return applier(layer, look, field, values)
+        return _look_ranged(layer, look, field, values, top_k)
     except Exception as e:
         return {"error": f"Could not apply the {look} look: {e}"}
 

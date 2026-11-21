@@ -250,6 +250,40 @@ def _finalize_extracted_geometry(qgs_geom, pixel_size, min_area_m2, area_m2=None
     return qgs_geom
 
 
+def _checked_raster(raster_layer, confidence_threshold, max_pixel_dimension):
+    """(layer, error): the named raster layer, or a sentence when it is missing, not a raster, the confidence is outside 0-1, or the raster is
+    larger than `max_pixel_dimension` on a side (clip to a smaller area first)."""
+    layer = _find_layer_by_name(raster_layer)
+    if layer is None:
+        return None, f"Layer '{raster_layer}' not found"
+    if not isinstance(layer, QgsRasterLayer):
+        return None, f"'{raster_layer}' is not a raster layer."
+    if not (0 <= confidence_threshold <= 1):
+        return None, "confidence_threshold must be between 0 and 1."
+    width, height = layer.width(), layer.height()
+    if width > max_pixel_dimension or height > max_pixel_dimension:
+        return None, (f"Raster is {width}x{height}px, exceeding the {max_pixel_dimension}px cap. "
+                      "Clip to a smaller area of interest first rather than processing the full extent.")
+    return layer, None
+
+
+def _export_png(ds, png_path):
+    """Writes the raster as an 8-bit PNG the model can read; None on success, else a sentence.
+
+    FastSAM expects a standard 8-bit visual image, not necessarily what the source raster's band count/bit depth already is (satellite/drone
+    imagery is often >8-bit or has more than 3 bands) -- gdal.Translate handles the type/band-count conversion in one step, reusing GDAL's
+    own conversion rather than hand-rolling one."""
+    from osgeo import gdal
+    try:
+        band_list = [1, 2, 3] if ds.RasterCount >= 3 else [1, 1, 1]
+        gdal.Translate(png_path, ds, format="PNG", outputType=gdal.GDT_Byte, bandList=band_list, scaleParams=[[]])
+    except Exception as e:
+        return f"Failed to prepare imagery for the model: {e}"
+    if not os.path.exists(png_path):
+        return "Failed to export the raster to an image the model can read."
+    return None
+
+
 @register_tool(
     "extract_features_from_imagery",
     "Extract object boundary polygons from a loaded raster using a class-agnostic segmentation "
@@ -284,21 +318,10 @@ def extract_features_from_imagery(raster_layer, output_layer_name=None, min_area
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
 
-    layer = _find_layer_by_name(raster_layer)
-    if layer is None:
-        return {"error": f"Layer '{raster_layer}' not found"}
-    if not isinstance(layer, QgsRasterLayer):
-        return {"error": f"'{raster_layer}' is not a raster layer."}
-
-    if not (0 <= confidence_threshold <= 1):
-        return {"error": "confidence_threshold must be between 0 and 1."}
-
+    layer, input_error = _checked_raster(raster_layer, confidence_threshold, max_pixel_dimension)
+    if input_error:
+        return {"error": input_error}
     width, height = layer.width(), layer.height()
-    if width > max_pixel_dimension or height > max_pixel_dimension:
-        return {
-            "error": f"Raster is {width}x{height}px, exceeding the {max_pixel_dimension}px cap. "
-                     "Clip to a smaller area of interest first rather than processing the full extent."
-        }
 
     try:
         from ultralytics import FastSAM
@@ -337,14 +360,9 @@ def extract_features_from_imagery(raster_layer, output_layer_name=None, min_area
     # handles the type/band-count conversion in one step, reusing GDAL's
     # own conversion rather than hand-rolling one.
     png_path = _temp_path(".png")
-    try:
-        band_count = ds.RasterCount
-        band_list = [1, 2, 3] if band_count >= 3 else [1, 1, 1]
-        gdal.Translate(png_path, ds, format="PNG", outputType=gdal.GDT_Byte, bandList=band_list, scaleParams=[[]])
-    except Exception as e:
-        return {"error": f"Failed to prepare imagery for the model: {e}"}
-    if not os.path.exists(png_path):
-        return {"error": "Failed to export the raster to an image the model can read."}
+    export_error = _export_png(ds, png_path)
+    if export_error:
+        return {"error": export_error}
 
     def _infer():
         # No QGIS objects in here (audit A14): CPU inference on a PNG file can take minutes, so it runs off the GUI thread.

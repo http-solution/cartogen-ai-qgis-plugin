@@ -978,6 +978,36 @@ def _tally_buildings(severity_results, fid_by_unit, building_counts, high_classe
     return unit_results, class_buildings, in_high
 
 
+def _add_zonal_mean(layer, raster, base_prefix, mean_flag, overlap_hint):
+    """(field name, error): runs a zonal mean of `raster` over `layer` into a field whose prefix does not exist yet (so a second run never reads
+    the first run's stale column), and checks that QGIS really created it. `error` is a sentence ending in `overlap_hint` when it did not."""
+    from qgis.analysis import QgsZonalStatistics
+    prefix = _free_zonal_prefix(layer, base_prefix)
+    field = f"{prefix}mean"
+    QgsZonalStatistics(layer, raster, prefix, 1, mean_flag).calculateStatistics(None)
+    if layer.fields().indexFromName(field) < 0:
+        return None, f"Zonal statistics ran but no '{field}' field was created -- {overlap_hint}"
+    return field, None
+
+
+def _damage_inputs(admin_layer, unit_name_field, building_footprints_layer, high_severity_classes):
+    """((admin layer, footprints layer, high severity classes), error): the two layers looked up, the unit-name field checked, and the classes that
+    count as high severity (default 4 and 5) checked to be within 1-5. `error` is a sentence when any of that fails."""
+    layer = _find_layer_by_name(admin_layer)
+    if layer is None:
+        return None, f"Layer '{admin_layer}' not found"
+    if unit_name_field not in [f.name() for f in layer.fields()]:
+        return None, f"Field '{unit_name_field}' not found on '{admin_layer}'. Available: {[f.name() for f in layer.fields()]}"
+    footprints = _find_layer_by_name(building_footprints_layer)
+    if footprints is None:
+        return None, f"Layer '{building_footprints_layer}' not found"
+    high_classes = set(high_severity_classes) if high_severity_classes else {4, 5}
+    unknown_classes = high_classes - {1, 2, 3, 4, 5}
+    if unknown_classes:
+        return None, f"high_severity_classes must be within 1-5, got {sorted(unknown_classes)}."
+    return (layer, footprints, high_classes), None
+
+
 @register_tool(
     "calculate_damage_exposure_severity",
     "Composite post-crisis damage-and-exposure assessment, in the same thin-composite pattern as "
@@ -1022,20 +1052,10 @@ def calculate_damage_exposure_severity(admin_layer, unit_name_field, raster_befo
                                         confirmed: bool = False):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
-    layer = _find_layer_by_name(admin_layer)
-    if layer is None:
-        return {"error": f"Layer '{admin_layer}' not found"}
-    if unit_name_field not in [f.name() for f in layer.fields()]:
-        return {"error": f"Field '{unit_name_field}' not found on '{admin_layer}'. Available: {[f.name() for f in layer.fields()]}"}
-
-    footprints = _find_layer_by_name(building_footprints_layer)
-    if footprints is None:
-        return {"error": f"Layer '{building_footprints_layer}' not found"}
-
-    high_classes = set(high_severity_classes) if high_severity_classes else {4, 5}
-    unknown_classes = high_classes - {1, 2, 3, 4, 5}
-    if unknown_classes:
-        return {"error": f"high_severity_classes must be within 1-5, got {sorted(unknown_classes)}."}
+    checked, input_error = _damage_inputs(admin_layer, unit_name_field, building_footprints_layer, high_severity_classes)
+    if input_error:
+        return {"error": input_error}
+    layer, footprints, high_classes = checked
 
     # QGIS-008, 2026-09-13 audit -- see calculate_severity_index's identical gate for the
     # full rationale. Gated on output_field specifically, not the whole function.
@@ -1065,24 +1085,18 @@ def calculate_damage_exposure_severity(admin_layer, unit_name_field, raster_befo
     # Self-audit round 2 (2026-10-26): a second run on the same layer found 'chg_mean' already there, QGIS wrote the new values to
     # 'chg_mean_2', and the code went on reading the OLD 'chg_mean': stale numbers (the signed ones of 1.18.3, after an upgrade) scored the
     # districts. Each run uses a prefix whose field does not exist yet and reads that field.
-    chg_prefix = _free_zonal_prefix(layer, "chg_")
-    chg_field = f"{chg_prefix}mean"
-    zonal = QgsZonalStatistics(layer, magnitude_raster, chg_prefix, 1, mean_flag)
-    zonal.calculateStatistics(None)
-    if layer.fields().indexFromName(chg_field) < 0:
-        return {"error": f"Zonal statistics ran but no '{chg_field}' field was created -- check admin_layer overlaps the change-detection raster."}
+    chg_field, zonal_error = _add_zonal_mean(layer, magnitude_raster, "chg_", mean_flag, "check admin_layer overlaps the change-detection raster.")
+    if zonal_error:
+        return {"error": zonal_error}
 
     intensity_raster = None
     if hazard_intensity_raster:
         intensity_raster = _find_layer_by_name(hazard_intensity_raster)
         if intensity_raster is None:
             return {"error": f"Layer '{hazard_intensity_raster}' not found"}
-        hzd_prefix = _free_zonal_prefix(layer, "hzd_")
-        hzd_field = f"{hzd_prefix}mean"
-        zonal2 = QgsZonalStatistics(layer, intensity_raster, hzd_prefix, 1, mean_flag)
-        zonal2.calculateStatistics(None)
-        if layer.fields().indexFromName(hzd_field) < 0:
-            return {"error": f"Zonal statistics ran but no '{hzd_field}' field was created -- check hazard_intensity_raster overlaps admin_layer."}
+        hzd_field, zonal_error = _add_zonal_mean(layer, intensity_raster, "hzd_", mean_flag, "check hazard_intensity_raster overlaps admin_layer.")
+        if zonal_error:
+            return {"error": zonal_error}
 
     footprint_centroids = _geometries_in_crs((feat.geometry().centroid() for feat in _ck.features(footprints, "Analysis: reading features")),
                                              footprints.crs(), layer.crs())

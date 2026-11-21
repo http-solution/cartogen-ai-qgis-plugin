@@ -1693,6 +1693,27 @@ class TestNewTools(unittest.TestCase):
         self.assertIsNone(agent._auto_model_provider)
         self.assertEqual(agent.client.model, "llama3.1")
 
+    def test_the_reply_text_is_the_content_or_the_neutral_empty_line(self):
+        """LR-21: split out of _run_impl."""
+        self.assertEqual(CartogenAi._reply_text({"content": "Done."}), "Done.")
+        for empty in ({"content": None}, {"content": ""}, {"content": "  \n"}, {}):
+            self.assertEqual(CartogenAi._reply_text(empty), agent_mod.EMPTY_RESPONSE_FALLBACK, empty)
+
+    def test_the_loop_guard_is_raised_out_of_reach_only_when_switched_off(self):
+        agent = CartogenAi()
+        agent.loop_guard_enabled = True
+        normal = agent._new_loop_guard()
+        agent.loop_guard_enabled = False
+        off = agent._new_loop_guard()
+        self.assertLess(normal.max_identical_calls, 10 ** 9)
+        self.assertEqual(off.max_identical_calls, 10 ** 9)
+
+    def test_the_turn_budget_is_never_checked_on_the_first_round_or_without_a_budget(self):
+        agent = CartogenAi()
+        self.assertFalse(agent._turn_budget_would_be_exceeded(0, 1000, "t1"))
+        self.assertFalse(agent._turn_budget_would_be_exceeded(3, 0, "t1"))
+        self.assertFalse(agent._turn_budget_would_be_exceeded(3, None, "t1"))
+
     def test_reconcile_appends_correction_when_last_call_errored_unacknowledged(self):
         agent = CartogenAi()
         log = [("get_layers", False, None), ("add_point_layer", True, "boom")]

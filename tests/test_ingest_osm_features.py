@@ -365,3 +365,29 @@ class TestOverpassResilience(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestBoundingBoxPieces(unittest.TestCase):
+    """LR-21: the bbox readers split out of ingest_osm_features_network_phase and fetch_building_footprints_network_phase."""
+
+    def test_a_bbox_is_used_as_given_and_a_centre_makes_a_box(self):
+        from cartogen_ai.core.agent.tools.humanitarian_tools import _osm_bbox
+        self.assertEqual(_osm_bbox([1, 2, 3, 4], None, None, None), ((1.0, 2.0, 3.0, 4.0), None))
+        (s, w, n, e), error = _osm_bbox(None, 0.0, 10.0, 111.0)             # at the equator 111 km is about one degree each way
+        self.assertIsNone(error)
+        self.assertAlmostEqual(n - s, 2.0, places=6)
+        self.assertAlmostEqual(e - w, 2.0, places=6)
+        (_s, w2, _n, e2), _ = _osm_bbox(None, 60.0, 10.0, 111.0)             # a degree of longitude is half as long at 60 degrees
+        self.assertAlmostEqual(e2 - w2, 4.0, places=2)
+
+    def test_a_missing_or_upside_down_box_is_refused_with_a_sentence(self):
+        from cartogen_ai.core.agent.tools.humanitarian_tools import _osm_bbox
+        self.assertIn("Either 'bbox'", _osm_bbox(None, None, None, None)[1])
+        self.assertIn("Invalid bounding box", _osm_bbox([5, 2, 3, 4], None, None, None)[1])
+
+    def test_the_footprint_bbox_checks(self):
+        from cartogen_ai.core.agent.tools.humanitarian_tools import _bbox_problem
+        self.assertIsNone(_bbox_problem([10, 20, 11, 21]))
+        self.assertIn("[south, west, north, east]", _bbox_problem([1, 2, 3]))
+        self.assertIn("out of range", _bbox_problem([10, 20, 95, 21]))
+        self.assertIn("south < north", _bbox_problem([11, 20, 10, 21]))
