@@ -205,10 +205,10 @@ Source: the results of the first long computer-use run (seven result parts, 2026
 | LR-14 | Rebuild the computer-use package from main (dock logging, work-on-a-copy cards C7 and D2, no-dock grading) and write one prompt that works with or without the dock. | The package in your hands predates every fix of 2026-11-20. | Claude | LR-13 | S | P1 | Not started | live run 2026-11-20 |
 | LR-15 | Rows that need the Python console or a typed command (C20 steps 1-5, C23, C25 steps 1-5, W1, W6-W8, W10) cannot be done by a click-only agent: give each a click-only version or move its checks into the headless runner (15 rows today). | Eleven rows ended unrun for a reason the package could have removed. | Claude | - | L | P1 | Not started | live run 2026-11-20 |
 | LR-16 | Screenshots without the dock: Haiku's screenshot tool cannot save files, so 25 pictures were not captured. Add a supervisor-driven capture (PowerShell, outside QGIS) on a timer and at each row change. | Window pictures are the only evidence a person can look at. | Claude | LR-14 | M | P1 | Not started | live run 2026-11-20 |
-| LR-17 | Ship 3_test_files without any cartogen_evidence folder: the shipped folder already holds earlier rows' tool records, so a work copy's evidence cannot be attributed to a row (E5 and W11 stayed UNSUPPORTED). | Attribution of plugin evidence to a row is what lets a PASS be believed. | Claude | - | XS | P1 | Not started | live run 2026-11-20 |
+| LR-17 | Ship 3_test_files without any cartogen_evidence folder: the shipped folder already holds earlier rows' tool records, so a work copy's evidence cannot be attributed to a row (E5 and W11 stayed UNSUPPORTED). | Attribution of plugin evidence to a row is what lets a PASS be believed. | Claude | - | XS | P1 | Closed | live run 2026-11-20 |
 | LR-18 | Correct the cards that misled the tester: C14 step 4 ('selected only' must be in the sentence to send), B5 (exactly 20 requests), V2 (300,000 points finish in 2.3 s, so Stop cannot come first: use a slower request). | Three FAIL rows were the card's fault, not the plugin's. | Claude | - | S | P2 | Closed | live run 2026-11-20 |
 | LR-19 | Run the seven rows the run did not reach (R1-H1, W1, W2, W3, W5, W12, D1) with the continuation prompt already sent, and the nine HT rows C21-C27 by hand. | Nine rows have no result; C23 and C27 are covered by program rows H7 and H4. | You | LR-13 | M | P1 | Waiting on you | live run 2026-11-20 |
-| LR-20 | Make the report refuse rows written by someone other than the dock: 50 result lines in RESULTS_GUI.csv were typed in afterwards; record who wrote each line and show it. | A verdict nobody can trace is the problem this package was built to remove. | Claude | LR-14 | S | P2 | Not started | live run 2026-11-20 |
+| LR-20 | Make the report refuse rows written by someone other than the dock: 50 result lines in RESULTS_GUI.csv were typed in afterwards; record who wrote each line and show it. | A verdict nobody can trace is the problem this package was built to remove. | Claude | LR-14 | S | P2 | Closed | live run 2026-11-20 |
 | LR-21 | Split the functions at the complexity limit (ruff C901 at 22): _run_impl 25, calculate_damage_exposure_severity 25, analyze_critical_links 25, add_point_layer 25, extract_features_from_imagery 25, allocate 24, style_result_field 24, three network_phase functions 24, apply_graduated_style 23, run_allowlisted_processing_algorithm 23. One helper per decision, no behaviour change. | edit_vertices was done as the model (25 to under 22); the others are one change away from breaking the CI limit. | Claude | - | L | P3 | Not started | live run 2026-11-20 |
 | LR-22 | Fix tools/local_ci.sh: the release-zip step still looks for cartogen-ai/metadata.txt, the zip folder is cartogen_ai_plugin/, so the offline script reports a false 'FAILED: zip'. | The pre-push script the working agreement asks for gives a wrong answer. | Claude | - | XS | P2 | Closed | live run 2026-11-20 |
 | LR-23 | Tool descriptions that invite side effects: search every registered description for wording like 'at the end of a task', 'to persist', 'checkpoint' (save_project said it; fixed) and for tools that write files without being asked. | One description caused an unrequested file write; the same pattern may be elsewhere. | Claude | - | S | P2 | Closed | live run 2026-11-20 |
@@ -222,10 +222,10 @@ Source: the results of the first long computer-use run (seven result parts, 2026
 | Status | Rows |
 |---|---|
 | In progress | 55 |
-| Closed | 37 |
+| Closed | 39 |
 | Waiting on you | 17 |
 | Blocked | 14 |
-| Not started | 13 |
+| Not started | 11 |
 | Closed (record) | 1 |
 | Decision needed | 1 |
 | **Total** | **138** |
@@ -511,3 +511,5 @@ Newest last. One line per status change; written by `tools/master_list.py set`.
 - 2026-11-20: LR-10 In progress -> Closed. 2026-11-20: New chat button merged (PR 656); QGIS CI proves the log and history reset and the refusal while a request runs; never seen on a desktop QGIS, hand row F4-new-chat
 - 2026-11-20: LR-5 In progress -> Closed. 2026-11-20: colour sentence in the change report is conditional on a visible layer with the change look (PR 657, QGIS CI); NOTE box, yield wording and ties not changed for lack of a trace
 - 2026-11-20: LR-6 Not started -> Closed. No change needed: free-spot placement exists (DEF-37); not reproduced from the run
+- 2026-11-21: LR-17 Not started -> Closed. 2026-11-21: the package already shipped without evidence folders (a test now pins that); verify_inputs.py now flags a cartogen_evidence folder left inside 3_test_files, so a contaminated copy is caught before a row is attributed
+- 2026-11-21: LR-20 Not started -> Closed. 2026-11-21: REPORT.md now shows who wrote each result line (dock timings present = dock, else typed by the agent) and counts both
