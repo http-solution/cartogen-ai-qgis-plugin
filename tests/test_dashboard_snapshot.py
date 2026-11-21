@@ -2,6 +2,7 @@
 import importlib.util
 import json
 import sys
+import shutil
 import tempfile
 import unittest
 from pathlib import Path
@@ -39,9 +40,12 @@ class TestLedgerClass(unittest.TestCase):
 
 
 class TestBuild(unittest.TestCase):
-    def setUp(self):
-        self.out = Path(tempfile.mkdtemp())
-        self.summary = snap.build(self.out, ROOT, {"tests": 10, "sandbox_errors": 2, "open_prs": 1, "open_pr_note": "x"})
+    @classmethod
+    def setUpClass(cls):
+        # Built once for the class (LR-25): the five tests only READ the files, and each build took about four seconds.
+        cls.out = Path(tempfile.mkdtemp())
+        cls.addClassCleanup(shutil.rmtree, cls.out, True)
+        cls.summary = snap.build(cls.out, ROOT, {"tests": 10, "sandbox_errors": 2, "open_prs": 1, "open_pr_note": "x"})
 
     def test_the_summary_has_every_column_the_page_reads_and_the_ledger_adds_up(self):
         self.assertEqual(set(self.summary), SUMMARY_KEYS)

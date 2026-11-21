@@ -1,5 +1,6 @@
 """rc40 hand test RC37-F2 / OI-223: Stop pressed while a model request is in flight. net.py drops the request; the orchestrator must
 then report a stop, not an API error, and the provider retry loop must not resend it."""
+import importlib.util
 import unittest
 from unittest.mock import patch
 
@@ -33,6 +34,7 @@ class TestStopDuringModelCall(unittest.TestCase):
     def test_the_same_failure_without_stop_is_still_an_api_error(self):
         self.assertTrue(self._run(lambda: False).startswith("[API error]"))
 
+    @unittest.skipUnless(importlib.util.find_spec("requests"), "the requests library is not installed here (CI installs it; see tests/test_requests_present_in_ci.py)")
     def test_the_retry_loop_does_not_resend_after_stop(self):
         from cartogen_ai.infrastructure.providers import base
         from requests import RequestException
