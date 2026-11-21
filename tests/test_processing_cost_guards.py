@@ -24,6 +24,24 @@ class TestNetworkToolsStayOffTheGuiThread(unittest.TestCase):
                                             "(no QGIS objects) or TWO_PHASE_TOOLS (fetch off-thread, layer on the GUI thread)")
 
 
+class TestNetworkReachFollowsImports(unittest.TestCase):
+    def test_search_web_is_flagged_through_a_helper_imported_from_another_module(self):
+        by_name = {r["tool"]: r for r in _audit_module().audit()}
+        self.assertTrue(by_name["search_web"]["network"])      # its fetch is web_research_tools.fetch_web_results, reached via _search_web_without_package
+
+    def test_a_cross_module_fetch_is_found_and_a_pure_tool_is_not(self):
+        import ast
+        import textwrap
+        m = _audit_module()
+        funcs = {"a": {"tool": ast.parse(textwrap.dedent("def tool():\n    return helper()\n")).body[0]},
+                 "b": {"helper": ast.parse(textwrap.dedent("def helper():\n    return urlopen_with_retry('u')\n")).body[0],
+                       "pure": ast.parse("def pure():\n    return 1\n").body[0]}}
+        imports = {"a": {"helper": ("b", "helper"), "pure": ("b", "pure")}, "b": {}}
+        self.assertTrue(m._reaches_network(funcs["a"]["tool"], "a", funcs, imports))
+        calls_pure = ast.parse("def tool2():\n    return pure()\n").body[0]
+        self.assertFalse(m._reaches_network(calls_pure, "a", funcs, imports))
+
+
 class TestGeocodeBatch(unittest.TestCase):
     def test_stop_ends_the_batch_between_lookups_and_returns_what_was_done(self):
         from cartogen_ai.core.agent.tools import system_tools as st

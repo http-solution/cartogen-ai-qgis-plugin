@@ -120,14 +120,60 @@ def score(m):
     return max(s, 0)
 
 
+def _module_functions():
+    """{module stem: {function name: FunctionDef}} for every tools module, plus {module stem: {local name: (source module stem, name)}} for the
+    names each module imports from a sibling tools module (module-level or inside a function: incident_search_tools imports its fetchers both ways)."""
+    funcs, imports = {}, {}
+    for path in sorted(TOOLS.glob("*.py")):
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        funcs[path.stem] = {n.name: n for n in tree.body if isinstance(n, ast.FunctionDef)}
+        imported = {}
+        for n in ast.walk(tree):
+            if isinstance(n, ast.ImportFrom) and n.level == 1 and n.module:
+                for a in n.names:
+                    imported[a.asname or a.name] = (n.module, a.name)
+        imports[path.stem] = imported
+    return funcs, imports
+
+
+def _reaches_network(fn, module, funcs, imports):
+    """True when `fn` reaches a NET call through same-module helpers AND helpers imported from sibling tools modules, HELPER_DEPTH levels down.
+
+    The per-module walk in _scan cannot see a tool whose fetch lives in another module (search_web's fallback calls fetch_web_results, imported from
+    web_research_tools inside a helper), so a tool like that was never flagged and nothing checked it was routed off the GUI thread."""
+    seen, frontier = set(), [(fn, module)]
+    for _ in range(HELPER_DEPTH + 1):
+        nxt = []
+        for f, mod in frontier:
+            for n in ast.walk(f):
+                if not isinstance(n, ast.Call):
+                    continue
+                nm = _name(n.func)
+                if nm in NET:
+                    return True
+                if nm in funcs[mod] and (mod, nm) not in seen:
+                    seen.add((mod, nm))
+                    nxt.append((funcs[mod][nm], mod))
+                elif nm in imports[mod]:
+                    src_mod, src_name = imports[mod][nm]
+                    target = funcs.get(src_mod, {}).get(src_name)
+                    if target is not None and (src_mod, src_name) not in seen:
+                        seen.add((src_mod, src_name))
+                        nxt.append((target, src_mod))
+        frontier = nxt
+    return False
+
+
 def audit():
     rows = []
+    funcs, imports = _module_functions()
     for path in sorted(TOOLS.glob("*.py")):
         tree = ast.parse(path.read_text(encoding="utf-8"))
         helpers = {n.name: n for n in tree.body if isinstance(n, ast.FunctionDef)}
         for fn in helpers.values():
             if _is_tool(fn):
                 m = _scan(fn, helpers)
+                m["network"] = m["network"] or _reaches_network(fn, path.stem, funcs, imports)
                 m.update(tool=fn.name, module=path.stem, score=score(m), lines=fn.end_lineno - fn.lineno + 1)
                 rows.append(m)
     return sorted(rows, key=lambda r: (-r["score"], r["tool"]))
