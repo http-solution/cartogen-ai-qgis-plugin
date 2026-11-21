@@ -162,6 +162,46 @@ def simplify_latex(text):
     return _LATEX_SPAN.sub(_span, text)
 
 
+def _single_line_block(stripped, border_color):
+    """The HTML for a line that is a rule, a heading or a numbered item (each stands alone), else None. Pure; split out of render_markdown (LR-21)."""
+    if re.match(r'^-{3,}$', stripped):
+        return f'<hr style="border:none;border-top:1px solid {border_color};margin:6px 0;">'
+    h = re.match(r'^(#{1,6})\s+(.*)$', stripped)
+    if h:
+        size = {1: "15px", 2: "14px", 3: "13.5px"}.get(len(h.group(1)), "13px")
+        return f'<div style="font-weight:bold;font-size:{size};margin:8px 0 3px;">{h.group(2)}</div>'
+    n = re.match(r'^(\d+)\.\s+(.*)$', stripped)
+    if n:
+        return f'&nbsp;&nbsp;{n.group(1)}. {n.group(2)}'
+    return None
+
+
+def _bullet_html(line):
+    """The HTML for a bullet line, else None. Indentation (2 spaces/level) maps to nesting depth, so a sub-list under a bullet reads as visually
+    nested instead of flat. Supports markdown hyphens/asterisks (-/*) and unicode bullets. A plain-text next step is linkified into a cartogen
+    action chip when it is not already a link (zoom, export, or an analysis verb). Pure; split out of render_markdown (LR-21)."""
+    b = re.match(r'^(\s*)[-*\u2022]\s+(.*)$', line)
+    if not b:
+        return None
+    indent_level = len(b.group(1)) // 2
+    pad = "&nbsp;&nbsp;" * (2 + indent_level * 2)
+    content = b.group(2).strip()
+    if not re.search(r'\[.+?\]\(.+?\)', content):
+        zoom_match = re.search(r'(?:🔍\s*)?(?:Zoom\s+to|zoom\s+to)\s+(?:extent\s+of\s+)?([A-Za-z0-9_,\.\-]+)', content, re.IGNORECASE)
+        csv_match = re.search(r'(?:📁\s*)?Export\s+(?:layer\s+|table\s+)?([A-Za-z0-9_,\.\-]+)?\s*(?:to\s+CSV|\.csv)', content, re.IGNORECASE)
+        if zoom_match:
+            layer_target = zoom_match.group(1).strip()
+            content = f'<a href="cartogen://zoom/{layer_target}">{content}</a>'
+        elif csv_match:
+            layer_target = (csv_match.group(1) or "").strip()
+            content = f'<a href="cartogen://export/{layer_target}">{content}</a>'
+        elif any(action_kw in content.lower() for action_kw in ["reproject", "calculate", "generate", "analyze", "buffer", "heatmap", "kde", "filter"]):
+            import urllib.parse
+            encoded_prompt = urllib.parse.quote(content)
+            content = f'<a href="cartogen://prompt/{encoded_prompt}">{content}</a>'
+    return f'{pad}&bull; {content}'
+
+
 def render_markdown(text, colors=None):
     """colors is the same theme-derived dict derive_bubble_colors() returns
     (text/subtle/border/agent_bg) -- threaded through so code blocks, inline
@@ -221,15 +261,9 @@ def render_markdown(text, colors=None):
             i = j
             continue
 
-        if re.match(r'^-{3,}$', stripped):
-            out_lines.append(f'<hr style="border:none;border-top:1px solid {border_color};margin:6px 0;">')
-            i += 1
-            continue
-
-        h = re.match(r'^(#{1,6})\s+(.*)$', stripped)
-        if h:
-            size = {1: "15px", 2: "14px", 3: "13.5px"}.get(len(h.group(1)), "13px")
-            out_lines.append(f'<div style="font-weight:bold;font-size:{size};margin:8px 0 3px;">{h.group(2)}</div>')
+        single = _single_line_block(stripped, border_color)
+        if single is not None:
+            out_lines.append(single)
             i += 1
             continue
 
@@ -247,38 +281,9 @@ def render_markdown(text, colors=None):
             )
             continue
 
-        n = re.match(r'^(\d+)\.\s+(.*)$', stripped)
-        if n:
-            out_lines.append(f'&nbsp;&nbsp;{n.group(1)}. {n.group(2)}')
-            i += 1
-            continue
-
-        # Bullet -- indentation (2 spaces/level) maps to nesting depth, so a
-        # sub-list under a bullet reads as visually nested instead of flat.
-        # Supports standard markdown hyphens/asterisks (-/*) as well as unicode bullets (•).
-        b = re.match(r'^(\s*)[-*\u2022]\s+(.*)$', line)
-        if b:
-            indent_level = len(b.group(1)) // 2
-            pad = "&nbsp;&nbsp;" * (2 + indent_level * 2)
-            content = b.group(2).strip()
-
-            # Auto-linkify plain text next steps into cartogen action chips if not already linked:
-            # e.g., "🔍 Zoom to Layer Extent" or "Export to CSV" or "Reproject to UTM Zone 36N"
-            if not re.search(r'\[.+?\]\(.+?\)', content):
-                zoom_match = re.search(r'(?:🔍\s*)?(?:Zoom\s+to|zoom\s+to)\s+(?:extent\s+of\s+)?([A-Za-z0-9_,\.\-]+)', content, re.IGNORECASE)
-                csv_match = re.search(r'(?:📁\s*)?Export\s+(?:layer\s+|table\s+)?([A-Za-z0-9_,\.\-]+)?\s*(?:to\s+CSV|\.csv)', content, re.IGNORECASE)
-                if zoom_match:
-                    layer_target = zoom_match.group(1).strip()
-                    content = f'<a href="cartogen://zoom/{layer_target}">{content}</a>'
-                elif csv_match:
-                    layer_target = (csv_match.group(1) or "").strip()
-                    content = f'<a href="cartogen://export/{layer_target}">{content}</a>'
-                elif any(action_kw in content.lower() for action_kw in ["reproject", "calculate", "generate", "analyze", "buffer", "heatmap", "kde", "filter"]):
-                    import urllib.parse
-                    encoded_prompt = urllib.parse.quote(content)
-                    content = f'<a href="cartogen://prompt/{encoded_prompt}">{content}</a>'
-
-            out_lines.append(f'{pad}&bull; {content}')
+        bullet = _bullet_html(line)
+        if bullet is not None:
+            out_lines.append(bullet)
             i += 1
             continue
 

@@ -29,6 +29,60 @@ MAX_RASTERS = 60
 ACCUMULATOR_ARRAYS = 8        # full-size float64 arrays held at once (the largest statistic holds five), counted against the existing value budget
 
 
+def _band_layers(refs):
+    """([(raster layer, band number)], None) for every reference, or (None, the first problem in a plain sentence). Split out of
+    raster_time_series_stats (LR-21, no behaviour change)."""
+    layers = []
+    for ref in refs:
+        layer_name, band_no = ri.parse_band_ref(ref)
+        if layer_name is None:
+            return None, f"'{ref}' is not a valid raster reference: use a layer name or 'layer name@band' with band 1 or higher."
+        layer = _find_layer_by_name(layer_name)
+        if layer is None:
+            return None, f"Layer '{layer_name}' not found."
+        if not isinstance(layer, QgsRasterLayer):
+            return None, f"'{layer_name}' is not a raster layer."
+        if band_no > layer.bandCount():
+            return None, f"'{layer_name}' has {layer.bandCount()} band(s); band {band_no} was asked for."
+        layers.append((layer, band_no))
+    return layers, None
+
+
+def _accumulate(stat, layers, by_id, shape, years, min_obs):
+    """(values, valid mask, band info of the first raster read) for the mean, trend or anomaly, reading the rasters one at a time. Split out of
+    raster_time_series_stats (LR-21, no behaviour change)."""
+    info = None
+
+    def read(layer_band):
+        nonlocal info
+        layer, band_no = layer_band
+        data, valid, band_info = rn.read_bands(by_id[layer.id()].source(), [band_no])
+        info = info or band_info
+        return data[:, :, 0], valid
+
+    if stat == "mean":
+        acc = rs.SeriesAccumulator(shape, "mean")
+        for item in layers:
+            values, valid = read(item)
+            acc.add(values, valid)
+        out, ok = acc.mean(min_obs or 1)
+    elif stat == "trend":
+        t0 = min(years)
+        acc = rs.SeriesAccumulator(shape, "trend")
+        for item, year in zip(layers, years, strict=True):
+            values, valid = read(item)
+            acc.add(values, valid, year - t0)
+        out, ok = acc.trend(min_obs or rs.MIN_OBSERVATIONS_TREND)
+    else:
+        acc = rs.SeriesAccumulator(shape, "baseline")
+        for item in layers[:-1]:
+            values, valid = read(item)
+            acc.add(values, valid)
+        values, valid = read(layers[-1])
+        out, ok = acc.anomaly(values, valid, min_obs or rs.MIN_OBSERVATIONS_BASELINE)
+    return out, ok, info
+
+
 @register_tool(
     "raster_time_series_stats",
     "Per-pixel statistics over a time series of rasters already in the project: 'mean' (average of the valid values), 'trend' (straight-line slope in value "
@@ -76,19 +130,9 @@ def raster_time_series_stats(rasters, statistic="mean", times=None, target=None,
         ordered = [*base_refs, target]                                 # the baseline first, the target last
     else:
         ordered = refs
-    layers = []
-    for ref in ordered:
-        layer_name, band_no = ri.parse_band_ref(ref)
-        if layer_name is None:
-            return {"error": f"'{ref}' is not a valid raster reference: use a layer name or 'layer name@band' with band 1 or higher."}
-        layer = _find_layer_by_name(layer_name)
-        if layer is None:
-            return {"error": f"Layer '{layer_name}' not found."}
-        if not isinstance(layer, QgsRasterLayer):
-            return {"error": f"'{layer_name}' is not a raster layer."}
-        if band_no > layer.bandCount():
-            return {"error": f"'{layer_name}' has {layer.bandCount()} band(s); band {band_no} was asked for."}
-        layers.append((layer, band_no))
+    layers, layer_error = _band_layers(ordered)
+    if layer_error:
+        return {"error": layer_error}
     unique = list({layer.id(): layer for layer, _b in layers}.values())
     used, grid_error, align_note = _grid_or_error(unique, align_to_first, resampling)
     if grid_error:
@@ -98,37 +142,9 @@ def raster_time_series_stats(rasters, statistic="mean", times=None, target=None,
     try:
         rn.check_memory_budget(first.width(), first.height(), ACCUMULATOR_ARRAYS)
         shape = (first.height(), first.width())
-        info = None
         n_used = len(layers)
         min_obs = None if min_observations is None else int(min_observations)
-
-        def read(layer_band):
-            nonlocal info
-            layer, band_no = layer_band
-            data, valid, band_info = rn.read_bands(by_id[layer.id()].source(), [band_no])
-            info = info or band_info
-            return data[:, :, 0], valid
-
-        if stat == "mean":
-            acc = rs.SeriesAccumulator(shape, "mean")
-            for item in layers:
-                values, valid = read(item)
-                acc.add(values, valid)
-            out, ok = acc.mean(min_obs or 1)
-        elif stat == "trend":
-            t0 = min(years)
-            acc = rs.SeriesAccumulator(shape, "trend")
-            for item, year in zip(layers, years, strict=True):
-                values, valid = read(item)
-                acc.add(values, valid, year - t0)
-            out, ok = acc.trend(min_obs or rs.MIN_OBSERVATIONS_TREND)
-        else:
-            acc = rs.SeriesAccumulator(shape, "baseline")
-            for item in layers[:-1]:
-                values, valid = read(item)
-                acc.add(values, valid)
-            values, valid = read(layers[-1])
-            out, ok = acc.anomaly(values, valid, min_obs or rs.MIN_OBSERVATIONS_BASELINE)
+        out, ok, info = _accumulate(stat, layers, by_id, shape, years, min_obs)
         path = write_float_raster(out, ok, info)
     except ValueError as e:
         return {"error": f"{stat}: {e}"}
