@@ -1,6 +1,6 @@
 # Tool Reference
 
-Auto-generated from the live tool registry (335 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
+Auto-generated from the live tool registry (336 tools) by `docs/generate_tools_reference.py` -- do not hand-edit, regenerate instead so this can never drift from the actual code.
 
 Flags: **network-only** tools bypass the main-thread QGIS dispatcher entirely (pure HTTP, safe from any background thread); **two-phase** tools split a network fetch (background thread) from the QGIS-touching part (main thread); **task-management** tools are excluded from auto-advance in the Task Manager.
 
@@ -1770,6 +1770,23 @@ Recommends which styling tool fits a layer/field's actual data semantics -- geom
 | `layer_name` | string | yes |  |
 | `field` | string | no | Optional. Omit for a reference/location-only map with no field to style by. |
 | `intended_message` | string | no | Optional free-text hint, e.g. 'show which districts have the worst access gap' or 'show route status'. Used only to explain a recommendation more specifically -- never to override what the data itself actually supports. |
+
+## chart_layer_tool
+
+### `chart_field_by_category`
+
+Draw a bar, pie or line chart of a layer's field by category in ONE call, with the numbers counted or summed from the layer itself: 'bar chart of smoke_zones by zone_type', 'pie chart of cases per district', 'chart of population by region'. Give category_field (the field whose values are the bars) and, to total a number, value_field with aggregate sum, mean, min or max; with no value_field it counts features per category. Returns the PNG path and the exact figures plotted, so report those and never type numbers by hand. Prefer this to listing unique values, running statistics algorithms and then generate_chart: those take many calls and leave extra tables in the project. Use generate_chart only when the labels and values are not in a layer.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `layer_name` | string | yes | The vector layer (or table) to chart. |
+| `category_field` | string | yes | The field whose distinct values become the bars, slices or points. |
+| `value_field` | string | no | Optional numeric field to total per category. Omit to count the features per category. |
+| `aggregate` | string | no | count, sum, mean, min or max. Default: count without value_field, sum with it. |
+| `chart_type` | string | no | 'bar' (default), 'pie' or 'line'. |
+| `title` | string | no | Chart title. Default names the layer, the field and the aggregate. |
+| `top_n` | integer | no | At most this many bars (default 20); the rest are combined into 'Other' for counts and sums. |
+| `output_path` | string | no | Where to save the PNG. Defaults to a temporary file. |
 
 ## cluster_scan_tool
 

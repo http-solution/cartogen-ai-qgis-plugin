@@ -372,7 +372,7 @@ Health services and disease patterns by area: catchments, access, rates and tren
 **Workflows:**
 
 - Health facility access: `calculate_service_area` -> `classify_facilities_by_access` -> `population_access_gap` -> `fetch_worldpop_population`
-- Trends and hotspots: `geocode_batch` -> `analyze_incident_trend` -> `hotspot_analysis` -> `generate_chart`
+- Trends and hotspots: `geocode_batch` -> `analyze_incident_trend` -> `hotspot_analysis` -> `generate_chart` -> `chart_field_by_category`
 - Rates and risk by area: `calculate_health_rates`
 - Is there a spatial pattern?: `calculate_spatial_autocorrelation` -> `analyze_hotspots_gi_star` -> `detect_spatial_clusters` -> `apply_public_health_look`
 - Epidemic bulletin: `apply_public_health_look` -> `generate_chart` -> `create_print_layout`

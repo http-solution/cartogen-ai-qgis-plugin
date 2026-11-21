@@ -27,7 +27,8 @@
     "geocode_batch",
     "analyze_incident_trend",
     "hotspot_analysis",
-    "generate_chart"
+    "generate_chart",
+    "chart_field_by_category"
    ]
   },
   {

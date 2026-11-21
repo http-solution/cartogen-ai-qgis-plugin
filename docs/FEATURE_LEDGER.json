@@ -3482,6 +3482,21 @@
     ],
     "hand_verified": "not verified: offline tests and QGIS CI only; found in row C16 of the 2026-11-20 live run (a bar chart request took 23 tool calls and left four report tables in the project, master list LR-7); never seen in a real chat since",
     "hand_row": "C16-charts-and-file-info"
+  },
+  {
+    "id": "chart-layer-field-one-call",
+    "feature": "chart_field_by_category draws a bar, pie or line chart of a layer's field by category in one call: the features are counted (or summed, averaged, min or max of a numeric field) in code, at most 20 bars with the rest combined into 'Other' for counts and sums, and the reply carries the exact figures plotted and the PNG path; it adds no layer to the project, and a missing category is shown as '(no value)'",
+    "issues": [],
+    "since": "1.18.6",
+    "sources": ["src/cartogen_ai/core/agent/tools/chart_layer_tool.py", "src/cartogen_ai/core/tool_operations.py"],
+    "guards": [
+      "tests/test_chart_layer_tool.py::TestAggregate::test_counts_per_category_largest_first_ties_by_label",
+      "tests/test_chart_layer_tool.py::TestCap::test_counts_and_sums_combine_the_rest_into_other",
+      "tests/test_chart_layer_tool.py::TestRoutingAndRegistration::test_a_chart_request_is_offered_the_one_call_tool",
+      "tests/test_chart_layer_tool_live.py::TestChartFieldByCategory::test_a_count_chart_in_one_call_with_the_figures_and_no_new_layer"
+    ],
+    "hand_verified": "not verified: offline tests and QGIS CI only; found in row C16 of the 2026-11-20 live run (a bar chart request took 22 tool calls and left four report tables in the project, master list LR-24); never seen in a real chat",
+    "hand_row": "C16-charts-and-file-info"
   }
 ]
 }
