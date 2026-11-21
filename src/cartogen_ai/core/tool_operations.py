@@ -315,6 +315,7 @@ TOOL_OPERATION_TYPES = {
 
     # -- reporting_tools.py --
     "generate_chart": PUBLISH,
+    "chart_field_by_category": PUBLISH,  # LR-24: reads a layer, writes a PNG like generate_chart; changes no layer
     "extract_pdf_tables": READ,
     "extract_word_tables": READ,
     "load_3w_data": READ,

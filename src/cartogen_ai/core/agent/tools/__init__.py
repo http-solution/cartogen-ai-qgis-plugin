@@ -26,6 +26,7 @@ from . import land_cover_look_tool
 from . import spatial_stats_tool
 from . import hotspot_tool
 from . import cluster_scan_tool
+from . import chart_layer_tool
 from . import health_rates_tool
 from . import public_health_look_tool
 from . import raster_series_tool
@@ -111,6 +112,7 @@ __all__ = [
     "barrier_tools",
     "batch_tool",
     "cartographic_advisory_tools",
+    "chart_layer_tool",
     "cluster_scan_tool",
     "confidence_tools",
     "copy_features_tool",
