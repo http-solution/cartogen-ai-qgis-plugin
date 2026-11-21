@@ -1065,6 +1065,79 @@ def _load_excel_as_geometry_layer(file_path, name, sheet_name, x_field, y_field,
     return {"layer": layer, "skipped_rows": skipped, "total_rows": len(df)}
 
 
+def _detect_geometry_columns(file_path, ext, delimiter, sheet_name):
+    """(detected coordinate columns or None, early result or None). The early result is an error, or the FIELD_SUGGESTION that lists the columns when
+    none can be told confidently. Split out of load_tabular_data_as_layer (LR-21, no behaviour change)."""
+    try:
+        header = _sniff_csv_header(file_path, delimiter) if ext == ".csv" else _sniff_excel_header(file_path, sheet_name)
+    except ImportError:
+        return None, {"error": "pandas and openpyxl are required to read Excel files. Install via qpip, or in the OSGeo4W Shell: python -m pip install pandas openpyxl"}
+    except Exception as e:
+        return None, {"error": f"Could not read file header: {e}"}
+    detected = _detect_geometry_fields(header)
+    if detected:
+        return detected, None
+    if header:
+        return None, {
+            "status": "FIELD_SUGGESTION",
+            "message": (
+                "Couldn't confidently auto-detect coordinate columns for a point layer. Call "
+                "again with x_field/y_field (or wkt_field) set to one of the columns below to "
+                "create a point layer, or call again with as_table=true to load the FULL "
+                "file as a non-spatial attribute table instead."
+            ),
+            "columns": header,
+        }
+    return None, None
+
+
+def _open_tabular_layer(file_path, ext, name, sheet_name, x_field, y_field, wkt_field, crs, delimiter):
+    """(layer, None), or (None, the error result) when the Excel geometry loader fails. Which loader runs depends on the columns given. Split out
+    of load_tabular_data_as_layer (LR-21, no behaviour change)."""
+    if ext in (".xlsx", ".xls") and (wkt_field or (x_field and y_field)):
+        excel_res = _load_excel_as_geometry_layer(file_path, name, sheet_name, x_field, y_field, wkt_field, crs)
+        if "error" in excel_res:
+            return None, excel_res
+        return excel_res["layer"], None
+    if wkt_field or (x_field and y_field):
+        from qgis.PyQt.QtCore import QUrl, QUrlQuery
+        url = QUrl.fromLocalFile(file_path)
+        query = QUrlQuery()
+        query.addQueryItem("type", "csv")
+        query.addQueryItem("delimiter", delimiter)
+        if wkt_field:
+            query.addQueryItem("wktField", wkt_field)
+        else:
+            query.addQueryItem("xField", x_field)
+            query.addQueryItem("yField", y_field)
+        query.addQueryItem("crs", crs)
+        url.setQuery(query)
+        return QgsVectorLayer(url.toString(), name, "delimitedtext"), None
+    path_spec = file_path
+    if ext in (".xlsx", ".xls") and sheet_name:
+        path_spec = f"{file_path}|layername={sheet_name}"
+    return QgsVectorLayer(path_spec, name, "ogr"), None
+
+
+def _already_loaded_result(layer):
+    """The "nothing was added" result when the project already holds a layer of this name from the same source, else None. Split out of
+    load_tabular_data_as_layer (LR-21, no behaviour change).
+
+    1.18.2 hand test D5 (2026-10-26): the same CSV was loaded three times in one turn until the loop guard stopped it. Each call silently added
+    another copy and said "success", so the model never learned the table was already there. A second identical load now adds nothing and says so."""
+    for existing in QgsProject.instance().mapLayersByName(layer.name()):
+        if existing.source() == layer.source():
+            return {
+                "success": True,
+                "already_loaded": True,
+                "layer_name": existing.name(),
+                "feature_count": existing.featureCount(),
+                "is_spatial": existing.isSpatial(),
+                "note": f"'{existing.name()}' is already in the project from this file; nothing was added. Use that layer.",
+            }
+    return None
+
+
 @register_tool(
     "load_tabular_data_as_layer",
     "Load the FULL contents of a CSV or Excel (.xlsx/.xls) file as a real QGIS layer -- not a "
@@ -1114,29 +1187,14 @@ def load_tabular_data_as_layer(file_path, layer_name=None, x_field=None, y_field
     auto_detected = None
 
     if not (x_field or y_field or wkt_field or as_table):
-        try:
-            header = _sniff_csv_header(file_path, delimiter) if ext == ".csv" else _sniff_excel_header(file_path, sheet_name)
-        except ImportError:
-            return {"error": "pandas and openpyxl are required to read Excel files. Install via qpip, or in the OSGeo4W Shell: python -m pip install pandas openpyxl"}
-        except Exception as e:
-            return {"error": f"Could not read file header: {e}"}
-        detected = _detect_geometry_fields(header)
+        detected, early = _detect_geometry_columns(file_path, ext, delimiter, sheet_name)
+        if early:
+            return early
         if detected:
             x_field = detected.get("x_field")
             y_field = detected.get("y_field")
             wkt_field = detected.get("wkt_field")
             auto_detected = detected
-        elif header:
-            return {
-                "status": "FIELD_SUGGESTION",
-                "message": (
-                    "Couldn't confidently auto-detect coordinate columns for a point layer. Call "
-                    "again with x_field/y_field (or wkt_field) set to one of the columns below to "
-                    "create a point layer, or call again with as_table=true to load the FULL "
-                    "file as a non-spatial attribute table instead."
-                ),
-                "columns": header,
-            }
 
     if x_field and y_field and crs.upper() == "EPSG:4326":
         xs, ys = _sample_xy_values(file_path, ext, x_field, y_field, delimiter, sheet_name)
@@ -1145,30 +1203,9 @@ def load_tabular_data_as_layer(file_path, layer_name=None, x_field=None, y_field
             return {"error": coord_warning}
 
     try:
-        if ext in (".xlsx", ".xls") and (wkt_field or (x_field and y_field)):
-            excel_res = _load_excel_as_geometry_layer(file_path, name, sheet_name, x_field, y_field, wkt_field, crs)
-            if "error" in excel_res:
-                return excel_res
-            layer = excel_res["layer"]
-        elif wkt_field or (x_field and y_field):
-            from qgis.PyQt.QtCore import QUrl, QUrlQuery
-            url = QUrl.fromLocalFile(file_path)
-            query = QUrlQuery()
-            query.addQueryItem("type", "csv")
-            query.addQueryItem("delimiter", delimiter)
-            if wkt_field:
-                query.addQueryItem("wktField", wkt_field)
-            else:
-                query.addQueryItem("xField", x_field)
-                query.addQueryItem("yField", y_field)
-            query.addQueryItem("crs", crs)
-            url.setQuery(query)
-            layer = QgsVectorLayer(url.toString(), name, "delimitedtext")
-        else:
-            path_spec = file_path
-            if ext in (".xlsx", ".xls") and sheet_name:
-                path_spec = f"{file_path}|layername={sheet_name}"
-            layer = QgsVectorLayer(path_spec, name, "ogr")
+        layer, early = _open_tabular_layer(file_path, ext, name, sheet_name, x_field, y_field, wkt_field, crs, delimiter)
+        if early:
+            return early
 
         if not layer.isValid():
             return {"error": f"Could not load '{file_path}' as a layer -- check the file and field names are correct."}
@@ -1176,16 +1213,9 @@ def load_tabular_data_as_layer(file_path, layer_name=None, x_field=None, y_field
         # 1.18.2 hand test D5 (2026-10-26): the same CSV was loaded three times in one turn until the loop guard stopped it. Each call
         # silently added another copy and said "success", so the model never learned the table was already there. A second identical
         # load now adds nothing and says so.
-        for existing in QgsProject.instance().mapLayersByName(layer.name()):
-            if existing.source() == layer.source():
-                return {
-                    "success": True,
-                    "already_loaded": True,
-                    "layer_name": existing.name(),
-                    "feature_count": existing.featureCount(),
-                    "is_spatial": existing.isSpatial(),
-                    "note": f"'{existing.name()}' is already in the project from this file; nothing was added. Use that layer.",
-                }
+        already = _already_loaded_result(layer)
+        if already:
+            return already
 
         QgsProject.instance().addMapLayer(layer)
         if layer.isSpatial():
@@ -2596,6 +2626,57 @@ def _obfuscation_size_problem(layer, method, radius, cell_size):
     return None
 
 
+def _obfuscation_inputs(method, radius, cell_size, admin_layer_name):
+    """(admin polygon layer or None, None) when the options the method needs are present and usable, else (None, the problem). Split out of
+    obfuscate_sensitive_points (LR-21, no behaviour change)."""
+    if method == "jitter":
+        if not radius or radius <= 0:
+            return None, "radius (a positive number) is required for method='jitter'."
+        return None, None
+    if method == "grid_snap":
+        if not cell_size or cell_size <= 0:
+            return None, "cell_size (a positive number) is required for method='grid_snap'."
+        return None, None
+    if not admin_layer_name:
+        return None, "admin_layer_name is required for method='admin_unit_snap'."
+    admin_layer = _find_layer_by_name(admin_layer_name)
+    if admin_layer is None:
+        return None, f"Layer '{admin_layer_name}' not found"
+    if QgsWkbTypes.geometryType(admin_layer.wkbType()) != QgsWkbTypes.GeometryType.PolygonGeometry:
+        return None, f"'{admin_layer_name}' is not a polygon layer."
+    return admin_layer, None
+
+
+def _admin_snap_setup(method, admin_layer, layer):
+    """(spatial index, features by id, transform to the admin CRS, transform back) for admin_unit_snap; all None for the other methods. Split out
+    of obfuscate_sensitive_points (LR-21, no behaviour change)."""
+    if method != "admin_unit_snap":
+        return None, None, None, None
+    index = QgsSpatialIndex(admin_layer.getFeatures())
+    admin_features_by_id = {f.id(): f for f in _ck.features(admin_layer, "Vector: reading features")}
+    to_admin = to_layer = None
+    # PLAN-010: the polygons are indexed and matched in THEIR CRS, so a point in another CRS was tested against the wrong coordinates (no
+    # match, or the wrong unit) and the centroid was written into the point layer's CRS untransformed. Match in the admin CRS, write back
+    # in the point layer's CRS.
+    if admin_layer.crs() != layer.crs():
+        to_admin = QgsCoordinateTransform(layer.crs(), admin_layer.crs(), QgsProject.instance())
+        to_layer = QgsCoordinateTransform(admin_layer.crs(), layer.crs(), QgsProject.instance())
+    return index, admin_features_by_id, to_admin, to_layer
+
+
+def _obfuscated_point(pt, method, radius, cell_size, rng, admin):
+    """The moved point for one input point, or None when admin_unit_snap finds no polygon for it. `admin` is (index, features by id, to admin,
+    to layer). Split out of obfuscate_sensitive_points (LR-21, no behaviour change)."""
+    if method == "jitter":
+        dx, dy = _uniform_disk_offset(radius, rng)
+        return QgsPointXY(pt.x() + dx, pt.y() + dy)
+    if method == "grid_snap":
+        nx, ny = _grid_snap(pt.x(), pt.y(), cell_size)
+        return QgsPointXY(nx, ny)
+    index, admin_features_by_id, to_admin, to_layer = admin
+    return _admin_unit_centroid(QgsGeometry.fromPointXY(pt), index, admin_features_by_id, to_admin, to_layer)
+
+
 @register_tool(
     "obfuscate_sensitive_points",
     "Displace or aggregate sensitive point locations (e.g. GBV survivors, individual IDP "
@@ -2649,21 +2730,9 @@ def obfuscate_sensitive_points(layer_name, method, radius=None, cell_size=None, 
     problem = _obfuscation_size_problem(layer, method, radius, cell_size)
     if problem:
         return {"error": problem}
-    admin_layer = None
-    if method == "jitter":
-        if not radius or radius <= 0:
-            return {"error": "radius (a positive number) is required for method='jitter'."}
-    elif method == "grid_snap":
-        if not cell_size or cell_size <= 0:
-            return {"error": "cell_size (a positive number) is required for method='grid_snap'."}
-    else:  # admin_unit_snap
-        if not admin_layer_name:
-            return {"error": "admin_layer_name is required for method='admin_unit_snap'."}
-        admin_layer = _find_layer_by_name(admin_layer_name)
-        if admin_layer is None:
-            return {"error": f"Layer '{admin_layer_name}' not found"}
-        if QgsWkbTypes.geometryType(admin_layer.wkbType()) != QgsWkbTypes.GeometryType.PolygonGeometry:
-            return {"error": f"'{admin_layer_name}' is not a polygon layer."}
+    admin_layer, problem = _obfuscation_inputs(method, radius, cell_size, admin_layer_name)
+    if problem:
+        return {"error": problem}
 
     out_name = output_layer_name or f"{layer_name}_obfuscated"
     crs = layer.crs().authid()
@@ -2673,18 +2742,7 @@ def obfuscate_sensitive_points(layer_name, method, radius=None, cell_size=None, 
     provider.addAttributes(layer.fields())
     new_layer.updateFields()
 
-    index = None
-    admin_features_by_id = None
-    to_admin = to_layer = None
-    if method == "admin_unit_snap":
-        index = QgsSpatialIndex(admin_layer.getFeatures())
-        admin_features_by_id = {f.id(): f for f in _ck.features(admin_layer, "Vector: reading features")}
-        # PLAN-010: the polygons are indexed and matched in THEIR CRS, so a point in another CRS was tested against the wrong coordinates (no
-        # match, or the wrong unit) and the centroid was written into the point layer's CRS untransformed. Match in the admin CRS, write back
-        # in the point layer's CRS.
-        if admin_layer.crs() != layer.crs():
-            to_admin = QgsCoordinateTransform(layer.crs(), admin_layer.crs(), QgsProject.instance())
-            to_layer = QgsCoordinateTransform(admin_layer.crs(), layer.crs(), QgsProject.instance())
+    index, admin_features_by_id, to_admin, to_layer = _admin_snap_setup(method, admin_layer, layer)
 
     rng = random.Random(seed)  # noqa: S311  # nosec B311 (seeded sampling for reproducibility, not security)
     new_features = []
@@ -2697,17 +2755,10 @@ def obfuscate_sensitive_points(layer_name, method, radius=None, cell_size=None, 
         # PLAN-012 item 1: a MultiPoint feature has several points; asPoint() raises on it (QGIS 4.2 live CI: "MultiPoint geometry cannot be
         # converted to a point"). Each part is obfuscated on its own and written as its own feature with the same attributes.
         for pt in _geometry_points(geom):
-            if method == "jitter":
-                dx, dy = _uniform_disk_offset(radius, rng)
-                new_pt = QgsPointXY(pt.x() + dx, pt.y() + dy)
-            elif method == "grid_snap":
-                nx, ny = _grid_snap(pt.x(), pt.y(), cell_size)
-                new_pt = QgsPointXY(nx, ny)
-            else:  # admin_unit_snap
-                new_pt = _admin_unit_centroid(QgsGeometry.fromPointXY(pt), index, admin_features_by_id, to_admin, to_layer)
-                if new_pt is None:
-                    unmatched_count += 1
-                    continue
+            new_pt = _obfuscated_point(pt, method, radius, cell_size, rng, (index, admin_features_by_id, to_admin, to_layer))
+            if new_pt is None:
+                unmatched_count += 1
+                continue
 
             new_feat = QgsFeature(new_layer.fields())
             new_feat.setGeometry(QgsGeometry.fromPointXY(new_pt))

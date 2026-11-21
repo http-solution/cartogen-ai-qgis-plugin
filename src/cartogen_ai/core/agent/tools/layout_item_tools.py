@@ -494,6 +494,55 @@ def load_layout_template(template_path, new_layout_name):
     return {"success": True, "layout_name": name, "items": len([i for i in layout.items() if hasattr(i, "id") and i.id()])}
 
 
+def _write_layout_file(layout, kind, path, dpi, world_file, geopdf):
+    """None once the file is written, or the error reply when the exporter raises or does not report Success. Split out of export_layout (LR-21,
+    no behaviour change)."""
+    exporter = QgsLayoutExporter(layout)
+    try:
+        os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+        if kind == "pdf":
+            settings = QgsLayoutExporter.PdfExportSettings()
+            settings.dpi = dpi
+            if geopdf:
+                settings.writeGeoPdf = True
+            code = exporter.exportToPdf(path, settings)
+        elif kind == "svg":
+            code = exporter.exportToSvg(path, QgsLayoutExporter.SvgExportSettings())
+        else:
+            settings = QgsLayoutExporter.ImageExportSettings()
+            settings.dpi = dpi
+            if world_file:
+                settings.generateWorldFile = True
+            code = exporter.exportToImage(path, settings)
+    except Exception as e:
+        return {"error": f"export_layout failed: {e}"}
+    if code != QgsLayoutExporter.ExportResult.Success:
+        return {"error": f"Export to '{path}' failed (QgsLayoutExporter result code {code})."}
+    return None
+
+
+def _export_reply(layout, layout_name, path, dpi, world_file, geopdf, purpose, override_reason, profile_note):
+    """The success reply of export_layout: the file, the world file found next to an image, the export report and, for a publication with warnings,
+    the publication record. Split out of export_layout (LR-21, no behaviour change)."""
+    out = {"success": True, "layout_name": layout_name, "output_path": path, "format": os.path.splitext(path)[1].lower().lstrip("."), "dpi": dpi}
+    if world_file:
+        stem, ext = os.path.splitext(path)
+        sidecar = next((stem + e for e in (ext[:2] + ext[-1] + "w", ".wld") if os.path.isfile(stem + e)), None)
+        out["world_file"] = sidecar or "requested, but no world file was found next to the image (the layout needs a map item)"
+    if geopdf:
+        out["geopdf"] = True
+    from .layout_export_checks import layout_export_report
+    out.update(layout_export_report(layout))     # PLAN-011 phase A: protected layers drawn, missing mandatory elements
+    if profile_note:
+        out["profile_note"] = profile_note
+    if str(purpose or "").lower() == "publication" and out.get("export_warnings"):
+        from .layout_export_checks import write_publication_record
+        record = write_publication_record(path, layout_name, out.get("export_warnings", []), override_reason)
+        if record:
+            out["publication_record"] = record
+    return out
+
+
 @register_tool(
     "export_layout",
     "Export an existing print layout to a file: .pdf, .png, .jpg, .tif (image) or .svg (vector). dpi applies to PDF and images (default 150). "
@@ -556,42 +605,9 @@ def export_layout(layout_name, output_path, dpi=None, world_file=False, geopdf=F
         preview = overwrite_preview("export_layout", arguments, path)
         if preview:
             return preview
-    exporter = QgsLayoutExporter(layout)
-    try:
-        os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
-        if kind == "pdf":
-            settings = QgsLayoutExporter.PdfExportSettings()
-            settings.dpi = dpi
-            if geopdf:
-                settings.writeGeoPdf = True
-            code = exporter.exportToPdf(path, settings)
-        elif kind == "svg":
-            code = exporter.exportToSvg(path, QgsLayoutExporter.SvgExportSettings())
-        else:
-            settings = QgsLayoutExporter.ImageExportSettings()
-            settings.dpi = dpi
-            if world_file:
-                settings.generateWorldFile = True
-            code = exporter.exportToImage(path, settings)
-    except Exception as e:
-        return {"error": f"export_layout failed: {e}"}
-    if code != QgsLayoutExporter.ExportResult.Success:
-        return {"error": f"Export to '{path}' failed (QgsLayoutExporter result code {code})."}
+    failure = _write_layout_file(layout, kind, path, dpi, world_file, geopdf)
+    if failure:
+        return failure
     remember_written(path)
-    out = {"success": True, "layout_name": layout_name, "output_path": path, "format": os.path.splitext(path)[1].lower().lstrip("."), "dpi": dpi}
-    if world_file:
-        stem, ext = os.path.splitext(path)
-        sidecar = next((stem + e for e in (ext[:2] + ext[-1] + "w", ".wld") if os.path.isfile(stem + e)), None)
-        out["world_file"] = sidecar or "requested, but no world file was found next to the image (the layout needs a map item)"
-    if geopdf:
-        out["geopdf"] = True
-    from .layout_export_checks import layout_export_report
-    out.update(layout_export_report(layout))     # PLAN-011 phase A: protected layers drawn, missing mandatory elements
-    if profile_note:
-        out["profile_note"] = profile_note
-    if str(purpose or "").lower() == "publication" and out.get("export_warnings"):
-        from .layout_export_checks import write_publication_record
-        record = write_publication_record(path, layout_name, out.get("export_warnings", []), override_reason)
-        if record:
-            out["publication_record"] = record
-    return out
+    return _export_reply(layout, layout_name, path, dpi, world_file, geopdf, purpose, override_reason, profile_note)
+

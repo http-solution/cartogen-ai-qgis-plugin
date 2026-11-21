@@ -26,77 +26,93 @@ def _is_optional(parameter):
     return bool(parameter.flags() & flag)
 
 
+_OMIT = object()          # "leave this parameter out" (an optional one the probe has nothing plausible for)
+
+
 def params_for(algorithm, layer_name, distinct=False):
     params = {}
     for p in algorithm.parameterDefinitions():
         if p.isDestination():
             continue
-        kind = p.type()
-        if kind in ("source", "vector"):
-            # CI run 38684090553: the hub algorithms (hublines, distance to nearest hub) refuse the same layer as hubs and spokes, so a
-            # second source parameter gets a different layer, but only on a retry so algorithms that passed with one layer are unchanged.
-            if distinct and any(v in ("polys", "lines", "linesz", "pts") for v in params.values()):
-                params[p.name()] = "polys" if layer_name == "pts" else "pts"
-            else:
-                params[p.name()] = layer_name
-        elif kind in ("number", "distance", "area", "angle"):
-            default = p.defaultValue()
-            # CI run 38683312012: native:randomextract(+withinsubsets) default NUMBER=10 exceeds the 2-5 test features and QGIS refuses
-            # "Selected number is greater than feature count"; that is the probe's fault, not the algorithm's, so ask for one.
-            if p.name() == "NUMBER":
-                default = 1
-            params[p.name()] = default if isinstance(default, (int, float)) and default > 0 else 1
-            # DEF-34 (PLAN-065): the heatmap's default radius is 100 map units, which the guard now refuses on these EPSG:4326 test layers
-            # (100 degrees); half a degree is a plausible radius for them, so the probe asks for that.
-            if p.name() == "RADIUS" and algorithm.id().endswith("heatmapkerneldensityestimation"):
-                params[p.name()] = 0.5
-            # CI run 38876512875: the fuzzify tools refuse equal low and high bounds ("choose varying values"); the probe's fault, not theirs
-            if p.name().upper().endswith("HIGHBOUND"):
-                params[p.name()] = 20
-            elif p.name().upper().endswith("LOWBOUND"):
-                params[p.name()] = 1
-        elif kind == "enum":
-            params[p.name()] = p.defaultValue() if p.defaultValue() is not None else 0
-        elif kind == "boolean":
-            params[p.name()] = bool(p.defaultValue())
-        elif kind == "field":
-            # CI run 38876512875: native:reclassifybylayer reads its MIN/MAX/VALUE fields as numbers; their data type is not reported as
-            # numeric, so those names are matched too
-            numeric = "numeric" in str(p.dataType()).lower() or any(w in p.name().upper() for w in ("MIN", "MAX", "VALUE"))
-            params[p.name()] = "val" if numeric else "name"
-        elif kind == "raster":
-            # package D: a second raster parameter gets the second raster, so "value raster vs. stack" style algorithms see two
-            params[p.name()] = "dem2" if "dem" in params.values() else "dem"
-        elif kind == "band":
-            params[p.name()] = 1
-        elif kind == "multilayer":
-            # CI run 38878940104: native:multiunion / multiintersection / multidifference refuse rasters ("All layers must be vector layers"),
-            # so a multiple-layer parameter gets rasters only when it is declared a raster layer list
-            # (CI run 38883595535: judging by layerType() text sent vector layers into the cell-stack tools, which crashed the process with
-            # SIGSEGV; the algorithm's group is what tells a raster stack from a vector overlay)
-            raster_list = "raster" in algorithm.group().lower() or "raster" in algorithm.id().lower()
-            params[p.name()] = ["dem", "dem2"] if raster_list else ["polys", "polys2"]
-        elif kind == "layer":
-            # CI run 38878940104: native:polygonfromlayerextent has a plain layer parameter, which the probe left empty
-            params[p.name()] = layer_name
-        elif kind == "crs":
-            params[p.name()] = "EPSG:4326"
-        elif kind == "extent":
-            params[p.name()] = "0.5,3.5,0.2,1.8 [EPSG:4326]"
-        elif kind == "point":
-            params[p.name()] = "1,1 [EPSG:4326]"
-        elif kind == "string" and not _is_optional(p):
-            # package E: a required text parameter (a new field name, a value to match, a delimiter) needs something plausible
-            default = p.defaultValue()
-            params[p.name()] = default if isinstance(default, str) and default else ("newfield" if "FIELD" in p.name().upper() else "1")
-        elif kind == "heatmappixelsize":
-            params[p.name()] = 0.1
-        elif kind == "expression" and not _is_optional(p):
-            # M6d: an expression a user could plausibly type, per algorithm (a geometry for geometrybyexpression, a sort key, a count)
-            params[p.name()] = EXPRESSIONS.get(algorithm.id(), '"val" > 0')
-        elif not _is_optional(p):
-            params[p.name()] = p.defaultValue()
+        value = _param_value(p, algorithm, layer_name, distinct, params)
+        if value is not _OMIT:
+            params[p.name()] = value
     return params
+
+
+def _param_value(p, algorithm, layer_name, distinct, params):
+    """The value the probe gives one parameter, or _OMIT. `params` holds the values already chosen (a second layer parameter depends on them).
+    Split out of params_for (LR-21, no behaviour change)."""
+    kind = p.type()
+    if kind in ("source", "vector", "layer", "raster", "band", "multilayer"):
+        return _layer_param_value(kind, p, algorithm, layer_name, distinct, params)
+    if kind in ("number", "distance", "area", "angle"):
+        return _number_param_value(p, algorithm)
+    if kind in ("crs", "extent", "point", "heatmappixelsize"):
+        return {"crs": "EPSG:4326", "extent": "0.5,3.5,0.2,1.8 [EPSG:4326]", "point": "1,1 [EPSG:4326]", "heatmappixelsize": 0.1}[kind]
+    if kind == "enum":
+        return p.defaultValue() if p.defaultValue() is not None else 0
+    if kind == "boolean":
+        return bool(p.defaultValue())
+    if kind == "field":
+        # CI run 38876512875: native:reclassifybylayer reads its MIN/MAX/VALUE fields as numbers; their data type is not reported as
+        # numeric, so those names are matched too
+        numeric = "numeric" in str(p.dataType()).lower() or any(w in p.name().upper() for w in ("MIN", "MAX", "VALUE"))
+        return "val" if numeric else "name"
+    if kind == "string" and not _is_optional(p):
+        # package E: a required text parameter (a new field name, a value to match, a delimiter) needs something plausible
+        default = p.defaultValue()
+        return default if isinstance(default, str) and default else ("newfield" if "FIELD" in p.name().upper() else "1")
+    if kind == "expression" and not _is_optional(p):
+        # M6d: an expression a user could plausibly type, per algorithm (a geometry for geometrybyexpression, a sort key, a count)
+        return EXPRESSIONS.get(algorithm.id(), '"val" > 0')
+    if kind in ("string", "expression") or _is_optional(p):
+        return _OMIT
+    return p.defaultValue()
+
+
+def _layer_param_value(kind, p, algorithm, layer_name, distinct, params):
+    """The value for a parameter that names a layer, a band or a layer list. Split out of params_for (LR-21, no behaviour change)."""
+    if kind in ("source", "vector"):
+        # CI run 38684090553: the hub algorithms (hublines, distance to nearest hub) refuse the same layer as hubs and spokes, so a
+        # second source parameter gets a different layer, but only on a retry so algorithms that passed with one layer are unchanged.
+        if distinct and any(v in ("polys", "lines", "linesz", "pts") for v in params.values()):
+            return "polys" if layer_name == "pts" else "pts"
+        return layer_name
+    if kind == "raster":
+        # package D: a second raster parameter gets the second raster, so "value raster vs. stack" style algorithms see two
+        return "dem2" if "dem" in params.values() else "dem"
+    if kind == "band":
+        return 1
+    if kind == "multilayer":
+        # CI run 38878940104: native:multiunion / multiintersection / multidifference refuse rasters ("All layers must be vector layers"),
+        # so a multiple-layer parameter gets rasters only when it is declared a raster layer list
+        # (CI run 38883595535: judging by layerType() text sent vector layers into the cell-stack tools, which crashed the process with
+        # SIGSEGV; the algorithm's group is what tells a raster stack from a vector overlay)
+        raster_list = "raster" in algorithm.group().lower() or "raster" in algorithm.id().lower()
+        return ["dem", "dem2"] if raster_list else ["polys", "polys2"]
+    # CI run 38878940104: native:polygonfromlayerextent has a plain layer parameter, which the probe left empty
+    return layer_name
+
+
+def _number_param_value(p, algorithm):
+    """The value for a number, distance, area or angle parameter. Split out of params_for (LR-21, no behaviour change)."""
+    default = p.defaultValue()
+    # CI run 38683312012: native:randomextract(+withinsubsets) default NUMBER=10 exceeds the 2-5 test features and QGIS refuses
+    # "Selected number is greater than feature count"; that is the probe's fault, not the algorithm's, so ask for one.
+    if p.name() == "NUMBER":
+        default = 1
+    value = default if isinstance(default, (int, float)) and default > 0 else 1
+    # DEF-34 (PLAN-065): the heatmap's default radius is 100 map units, which the guard now refuses on these EPSG:4326 test layers
+    # (100 degrees); half a degree is a plausible radius for them, so the probe asks for that.
+    if p.name() == "RADIUS" and algorithm.id().endswith("heatmapkerneldensityestimation"):
+        value = 0.5
+    # CI run 38876512875: the fuzzify tools refuse equal low and high bounds ("choose varying values"); the probe's fault, not theirs
+    if p.name().upper().endswith("HIGHBOUND"):
+        value = 20
+    elif p.name().upper().endswith("LOWBOUND"):
+        value = 1
+    return value
 
 
 def _make_rasters(directory):

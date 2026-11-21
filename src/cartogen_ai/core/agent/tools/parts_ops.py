@@ -37,6 +37,40 @@ def parse_wkt(text):
     return kind, rings, None
 
 
+def _argument_problem(part_index, ring_index, x, y):
+    """Error text when an index is not a whole number 0 or more, or x and y are not a pair of numbers, else None. Pure; split out of
+    check_request (LR-21, no behaviour change)."""
+    for name, value in (("part_index", part_index), ("ring_index", ring_index)):
+        if value is not None and (isinstance(value, bool) or _number(value) is None or float(value) != int(float(value)) or int(float(value)) < 0):
+            return f"{name} must be a whole number, 0 or more."
+    if (x is None) != (y is None) or (x is not None and (_number(x) is None or _number(y) is None)):
+        return "x and y must both be numbers."
+    return None
+
+
+def _add_problem(act, geometry_wkt, part_index, ring_index, x):
+    """Error text for an add_part / add_ring request (the shape, then the arguments it must not carry), else None. Pure; split out of
+    check_request (LR-21, no behaviour change)."""
+    kind, rings, problem = parse_wkt(geometry_wkt)
+    if problem:
+        return problem
+    if act == "add_ring" and (kind != "POLYGON" or len(rings) != 1):
+        return "add_ring needs geometry_wkt as a POLYGON with one ring: the outline of the hole."
+    if kind == "POLYGON":
+        for ring in rings:
+            if len(ring) < 4 or ring[0] != ring[-1]:
+                return "a polygon ring in geometry_wkt must be closed (the first and last point equal) and have at least 3 corners."
+            if ring_area(ring) <= 0:
+                return "the ring in geometry_wkt has no area."
+    elif len(rings[0]) < 2:
+        return "a LINESTRING in geometry_wkt needs at least 2 points."
+    if ring_index is not None or x is not None:
+        return f"{act} takes geometry_wkt only."
+    if part_index is not None:
+        return f"{act} takes no part_index: add_part appends a part and QGIS finds the part a ring is in."
+    return None
+
+
 def check_request(action, geometry_wkt=None, part_index=None, ring_index=None, x=None, y=None):
     """Error text for a parts-and-rings request that cannot be run, else None. Pure.
 
@@ -45,30 +79,12 @@ def check_request(action, geometry_wkt=None, part_index=None, ring_index=None, x
     act = str(action or "").strip().lower()
     if act not in ACTIONS:
         return f"action must be one of {', '.join(ACTIONS)}."
-    for name, value in (("part_index", part_index), ("ring_index", ring_index)):
-        if value is not None and (isinstance(value, bool) or _number(value) is None or float(value) != int(float(value)) or int(float(value)) < 0):
-            return f"{name} must be a whole number, 0 or more."
-    if (x is None) != (y is None) or (x is not None and (_number(x) is None or _number(y) is None)):
-        return "x and y must both be numbers."
+    problem = _argument_problem(part_index, ring_index, x, y)
+    if problem:
+        return problem
     if act in ("add_part", "add_ring"):
-        kind, rings, problem = parse_wkt(geometry_wkt)
-        if problem:
-            return problem
-        if act == "add_ring" and (kind != "POLYGON" or len(rings) != 1):
-            return "add_ring needs geometry_wkt as a POLYGON with one ring: the outline of the hole."
-        if kind == "POLYGON":
-            for ring in rings:
-                if len(ring) < 4 or ring[0] != ring[-1]:
-                    return "a polygon ring in geometry_wkt must be closed (the first and last point equal) and have at least 3 corners."
-                if ring_area(ring) <= 0:
-                    return "the ring in geometry_wkt has no area."
-        elif len(rings[0]) < 2:
-            return "a LINESTRING in geometry_wkt needs at least 2 points."
-        if ring_index is not None or x is not None:
-            return f"{act} takes geometry_wkt only."
-        if part_index is not None:
-            return f"{act} takes no part_index: add_part appends a part and QGIS finds the part a ring is in."
-    elif act == "fill_ring":
+        return _add_problem(act, geometry_wkt, part_index, ring_index, x)
+    if act == "fill_ring":
         if x is None:
             return "fill_ring needs x and y: a point inside the hole to fill."
         if geometry_wkt or ring_index is not None:

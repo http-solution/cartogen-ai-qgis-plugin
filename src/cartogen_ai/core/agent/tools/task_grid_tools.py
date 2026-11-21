@@ -259,6 +259,68 @@ def _raster_sums(cells_metric, raster_layer, metric):
     return [None if by_i.get(i) is None else float(by_i[i]) for i in range(len(cells_metric))]
 
 
+def _priority_inputs(priority_points_layer, population_raster_layer):
+    """(points layer, raster layer, None) for the one priority source asked for, or (None, None, the problem). Split out of
+    generate_mapping_task_grid (LR-21, no behaviour change)."""
+    points = raster = None
+    if priority_points_layer:
+        points = _layer(priority_points_layer)
+        if points is None or not hasattr(points, "getFeatures"):
+            return None, None, f"Vector layer '{priority_points_layer}' not found"
+    elif population_raster_layer:
+        raster = _layer(population_raster_layer)
+        if raster is None or not hasattr(raster, "bandCount"):
+            return None, None, f"Raster layer '{population_raster_layer}' not found"
+    return points, raster, None
+
+
+def _clipped_cells(box, size, union_m):
+    """[(cell, piece)] for each grid square that meets the area, clipped to it; slivers under _MIN_CELL_FRACTION of a full cell are dropped.
+    Split out of generate_mapping_task_grid (LR-21, no behaviour change)."""
+    full_area = size * size
+    kept = []
+    for cell in grid_cells(box.xMinimum(), box.yMinimum(), box.xMaximum(), box.yMaximum(), size):
+        x0, y0, x1, y1 = cell["bounds"]
+        square = QgsGeometry.fromRect(QgsRectangle(x0, y0, x1, y1))
+        piece = square.intersection(union_m)
+        if piece is None or piece.isEmpty() or piece.area() < _MIN_CELL_FRACTION * full_area:
+            continue
+        kept.append((cell, piece))
+    return kept
+
+
+def _priority_values(kept, points, raster, metric, points_name, raster_name):
+    """(values per task, what they are, warning). A failed count leaves the tasks unranked and says so. Split out of
+    generate_mapping_task_grid (LR-21, no behaviour change)."""
+    pieces = [p for _c, p in kept]
+    try:
+        if points is not None:
+            return _point_counts(pieces, points, metric), f"number of '{points_name}' features per task", None
+        if raster is not None:
+            return _raster_sums(pieces, raster, metric), f"sum of '{raster_name}' per task", None
+    except Exception as e:
+        return [None] * len(kept), None, f"Priority could not be computed ({e}); tasks are unranked."
+    return [None] * len(kept), None, None
+
+
+def _export_geojson(result, export_geojson_path, geojson, output_layer_name):
+    """Writes the tasks as GeoJSON ("auto" picks a safe temp file) and records the path, or a warning, on `result`. Split out of
+    generate_mapping_task_grid (LR-21, no behaviour change)."""
+    path = export_geojson_path
+    if path == "auto":
+        # PLAN-012 item 2: the layer name is model-supplied; it used to go into the path as it was, so "../x" wrote outside the temp
+        # folder and a repeat run overwrote the first file.
+        path = unique_path(tempfile.gettempdir(), safe_file_stem(output_layer_name, "mapping_tasks"), ".geojson")
+    try:
+        with open(path, "w", encoding="utf-8") as fh:
+            fh.write(to_geojson(geojson))
+        result["geojson_path"] = path
+        result["geojson_note"] = ("Plain GeoJSON polygons in EPSG:4326; not checked against a specific Tasking Manager "
+                                  "instance's import rules.")
+    except OSError as e:
+        result["warning"] = (result.get("warning", "") + f" GeoJSON could not be written: {e}").strip()
+
+
 @register_tool(
     "generate_mapping_task_grid",
     "Split an area of interest into a grid of square mapping tasks for remote or crowd mapping (Tasking Manager style), so "
@@ -302,15 +364,9 @@ def generate_mapping_task_grid(aoi_layer, cell_size_m=2000, priority_points_laye
     from qgis.core import QgsWkbTypes
     if not hasattr(aoi, "getFeatures") or "Polygon" not in QgsWkbTypes.displayString(aoi.wkbType()):
         return {"error": f"'{aoi_layer}' must be a polygon layer."}
-    points = raster = None
-    if priority_points_layer:
-        points = _layer(priority_points_layer)
-        if points is None or not hasattr(points, "getFeatures"):
-            return {"error": f"Vector layer '{priority_points_layer}' not found"}
-    elif population_raster_layer:
-        raster = _layer(population_raster_layer)
-        if raster is None or not hasattr(raster, "bandCount"):
-            return {"error": f"Raster layer '{population_raster_layer}' not found"}
+    points, raster, problem = _priority_inputs(priority_points_layer, population_raster_layer)
+    if problem:
+        return {"error": problem}
 
     union, problem = _aoi_union_or_error(aoi, aoi_layer, aoi_where)
     if problem:
@@ -326,35 +382,13 @@ def generate_mapping_task_grid(aoi_layer, cell_size_m=2000, priority_points_laye
     if needed > MAX_TASKS * 4:
         return refusal_result(size, needed, box.width(), box.height())
 
-    full_area = size * size
-    kept = []
-    for cell in grid_cells(box.xMinimum(), box.yMinimum(), box.xMaximum(), box.yMaximum(), size):
-        x0, y0, x1, y1 = cell["bounds"]
-        square = QgsGeometry.fromRect(QgsRectangle(x0, y0, x1, y1))
-        piece = square.intersection(union_m)
-        if piece is None or piece.isEmpty() or piece.area() < _MIN_CELL_FRACTION * full_area:
-            continue
-        kept.append((cell, piece))
+    kept = _clipped_cells(box, size, union_m)
     if not kept:
         return {"error": "The grid produced no tasks; check the area and cell_size_m."}
     if len(kept) > MAX_TASKS:
         return too_many_tasks_result(size, len(kept))
 
-    pieces = [p for _c, p in kept]
-    values, value_note = [None] * len(kept), None
-    try:
-        if points is not None:
-            values = _point_counts(pieces, points, metric)
-            value_note = f"number of '{priority_points_layer}' features per task"
-        elif raster is not None:
-            values = _raster_sums(pieces, raster, metric)
-            value_note = f"sum of '{population_raster_layer}' per task"
-    except Exception as e:
-        values = [None] * len(kept)
-        value_note = None
-        priority_warning = f"Priority could not be computed ({e}); tasks are unranked."
-    else:
-        priority_warning = None
+    values, value_note, priority_warning = _priority_values(kept, points, raster, metric, priority_points_layer, population_raster_layer)
     classes = priority_classes(values)
 
     out = QgsVectorLayer("Polygon?crs=EPSG:4326&field=task_id:string&field=area_km2:double&field=value:double&field=priority:string",
@@ -392,17 +426,5 @@ def generate_mapping_task_grid(aoi_layer, cell_size_m=2000, priority_points_laye
     if priority_warning:
         result["warning"] = priority_warning
     if export_geojson_path:
-        path = export_geojson_path
-        if path == "auto":
-            # PLAN-012 item 2: the layer name is model-supplied; it used to go into the path as it was, so "../x" wrote outside the temp
-            # folder and a repeat run overwrote the first file.
-            path = unique_path(tempfile.gettempdir(), safe_file_stem(output_layer_name, "mapping_tasks"), ".geojson")
-        try:
-            with open(path, "w", encoding="utf-8") as fh:
-                fh.write(to_geojson(geojson))
-            result["geojson_path"] = path
-            result["geojson_note"] = ("Plain GeoJSON polygons in EPSG:4326; not checked against a specific Tasking Manager "
-                                      "instance's import rules.")
-        except OSError as e:
-            result["warning"] = (result.get("warning", "") + f" GeoJSON could not be written: {e}").strip()
+        _export_geojson(result, export_geojson_path, geojson, output_layer_name)
     return result
