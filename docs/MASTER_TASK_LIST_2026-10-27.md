@@ -202,7 +202,7 @@ Source: the results of the first long computer-use run (seven result parts, 2026
 | LR-11 | Check the D2 card steps against the tool: the second buffer run did not rename the first result '(superseded)' as the card expects (two layers share a name), and the trigger result names stations, not the rows that pass. | Either the card or the tool is wrong; decide which, then fix it. | Claude | - | S | P3 | In progress | live run 2026-11-20 |
 | LR-12 | Fix F2-fetch-card metadata: it says internet_needed false but the tool downloads WorldPop data; and the router offers fetch_worldpop_population for styling and fetch_osm_features for map-export wording. | A card that hides a download breaks the no-website rule it is meant to respect. | Claude | - | S | P2 | Closed | live run 2026-11-20 |
 | LR-13 | Find out why the card dock recorded nothing: run START_QGIS.bat from a fresh package folder and send results\dock_start.log and dock_errors.txt (the logging is merged in PR 647). | Seventeen hours of testing produced no dock result; the cause is still unknown. | You | - | XS | P0 | Waiting on you | live run 2026-11-20 |
-| LR-14 | Rebuild the computer-use package from main (dock logging, work-on-a-copy cards C7 and D2, no-dock grading) and write one prompt that works with or without the dock. | The package in your hands predates every fix of 2026-11-20. | Claude | LR-13 | S | P1 | In progress | live run 2026-11-20 |
+| LR-14 | Rebuild the computer-use package from main (dock logging, work-on-a-copy cards C7 and D2, no-dock grading) and write one prompt that works with or without the dock. | The package in your hands predates every fix of 2026-11-20. | Claude | LR-13 | S | P1 | Closed | live run 2026-11-20 |
 | LR-15 | Rows that need the Python console or a typed command (C20 steps 1-5, C23, C25 steps 1-5, W1, W6-W8, W10) cannot be done by a click-only agent: give each a click-only version or move its checks into the headless runner (15 rows today). | Eleven rows ended unrun for a reason the package could have removed. | Claude | - | L | P1 | Not started | live run 2026-11-20 |
 | LR-16 | Screenshots without the dock: Haiku's screenshot tool cannot save files, so 25 pictures were not captured. Add a supervisor-driven capture (PowerShell, outside QGIS) on a timer and at each row change. | Window pictures are the only evidence a person can look at. | Claude | LR-14 | M | P1 | Not started | live run 2026-11-20 |
 | LR-17 | Ship 3_test_files without any cartogen_evidence folder: the shipped folder already holds earlier rows' tool records, so a work copy's evidence cannot be attributed to a row (E5 and W11 stayed UNSUPPORTED). | Attribution of plugin evidence to a row is what lets a PASS be believed. | Claude | - | XS | P1 | Closed | live run 2026-11-20 |
@@ -221,8 +221,8 @@ Source: the results of the first long computer-use run (seven result parts, 2026
 
 | Status | Rows |
 |---|---|
-| In progress | 58 |
-| Closed | 41 |
+| In progress | 57 |
+| Closed | 42 |
 | Waiting on you | 17 |
 | Blocked | 14 |
 | Not started | 6 |
@@ -518,3 +518,4 @@ Newest last. One line per status change; written by `tools/master_list.py set`.
 - 2026-11-21: LR-7 Not started -> Closed. 2026-11-21: report algorithms' geometry-less tables are returned in the tool result and no longer added to the project unless the caller names the result (row C16: four such tables). C9 test_check was loaded by the model itself (the name is nowhere in the plugin source) and the C12 flood_prep.model3 copy is where the Graphical Modeler saves a model, so neither is a plugin write; unnamed spatial outputs were already added hidden
 - 2026-11-21: LR-3 Not started -> In progress. 2026-11-21: figure check no longer grounded by id columns; epi_bulletin leaves out ungrounded figures; rates result carries top areas and the suppression count; C25 and C26 cards now say to save the project first. Still open: the PDF never written (needs a saved-project trace, owner or agent re-run) and names in layout text
 - 2026-11-21: LR-14 Not started -> In progress. 2026-11-21: prompt now works with or without the dock; FIRST_MESSAGE.txt ships in the package; package to be rebuilt from the merged main (stamp in BUILD.txt)
+- 2026-11-21: LR-14 In progress -> Closed. 2026-11-21: package rebuilt from main (stamp ebad8500 built 2026-11-21 12:47) with every fix of 2026-11-20; prompt works with or without the dock; FIRST_MESSAGE.txt ships in it; delivered to the owner. The dock itself is still unproven on the owner PC (LR-13)
