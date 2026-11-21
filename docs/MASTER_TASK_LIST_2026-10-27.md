@@ -199,7 +199,7 @@ Source: the results of the first long computer-use run (seven result parts, 2026
 | LR-8 | Ellipsoid (C11): hand check in this order: set the project CRS, set the ellipsoid, reopen Project Properties. If it still shows None / Planimetric, store the ellipsoid under the acronym the dialog lists (EPSG:7030 for WGS 84). QGIS source read so far: the dialog selects from the project CRS's ellipsoid and disables the box when there is no valid CRS. | The tool reads WGS84 back but the dialog disagrees; cause not established and the rest of the QGIS source could not be read. | Both | - | XS | P2 | Waiting on you | live run 2026-11-20 |
 | LR-9 | Identify at a point (C6): rerun steps 3 and 4 in a SAVED project to get a trace: a 500 m radius at a lon/lat point (the card expects a refusal or an explained reprojection) and a hidden layer (must not be listed). The tool reads visible layers by design, so the reply may have named the layer explicitly. | No plugin trace exists for these two failures, so no cause can be read. | Both | - | XS | P2 | Waiting on you | live run 2026-11-20 |
 | LR-10 | Add a 'New chat' control (or clear the chat when a new project opens): testers on B4, B5, C13, F2 had to start a new project to get an empty chat, and the F2 chat still showed the previous project's conversation. | Four rows needed a fresh chat; the card says the plugin has no button. | Claude | - | M | P1 | Closed | live run 2026-11-20 |
-| LR-11 | Check the D2 card steps against the tool: the second buffer run did not rename the first result '(superseded)' as the card expects (two layers share a name), and the trigger result names stations, not the rows that pass. | Either the card or the tool is wrong; decide which, then fix it. | Claude | - | S | P3 | In progress | live run 2026-11-20 |
+| LR-11 | Check the D2 card steps against the tool: the second buffer run did not rename the first result '(superseded)' as the card expects (two layers share a name), and the trigger result names stations, not the rows that pass. | Either the card or the tool is wrong; decide which, then fix it. | Claude | - | S | P3 | Closed | live run 2026-11-20 |
 | LR-12 | Fix F2-fetch-card metadata: it says internet_needed false but the tool downloads WorldPop data; and the router offers fetch_worldpop_population for styling and fetch_osm_features for map-export wording. | A card that hides a download breaks the no-website rule it is meant to respect. | Claude | - | S | P2 | Closed | live run 2026-11-20 |
 | LR-13 | Find out why the card dock recorded nothing: run START_QGIS.bat from a fresh package folder and send results\dock_start.log and dock_errors.txt (the logging is merged in PR 647). | Seventeen hours of testing produced no dock result; the cause is still unknown. | You | - | XS | P0 | Waiting on you | live run 2026-11-20 |
 | LR-14 | Rebuild the computer-use package from main (dock logging, work-on-a-copy cards C7 and D2, no-dock grading) and write one prompt that works with or without the dock. | The package in your hands predates every fix of 2026-11-20. | Claude | LR-13 | S | P1 | Closed | live run 2026-11-20 |
@@ -221,8 +221,8 @@ Source: the results of the first long computer-use run (seven result parts, 2026
 
 | Status | Rows |
 |---|---|
-| In progress | 59 |
-| Closed | 43 |
+| In progress | 58 |
+| Closed | 44 |
 | Waiting on you | 17 |
 | Blocked | 14 |
 | Not started | 3 |
@@ -522,4 +522,5 @@ Newest last. One line per status change; written by `tools/master_list.py set`.
 - 2026-11-21: LR-21 Not started -> In progress. 2026-11-21: 5 of the 13 split (run_allowlisted_processing_algorithm 25 to 20, apply_graduated_style 23 to 17, allocate 24 to 17, analyze_critical_links 25 to 18, calculate_damage_exposure_severity 25 to 23); still to do: _run_impl, style_result_field, three network_phase functions, add_point_layer, extract_features_from_imagery
 - 2026-11-21: LR-21 In progress -> Closed. 2026-11-21: every function in the list is split (all at 22 or below, no behaviour change; pure helpers have offline tests, the QGIS paths are covered by the existing live tests). 13 other functions sit at 23 to 25 and are the next candidates (create_print_layout, raster_time_series_stats, generate_mapping_task_grid, obfuscate_sensitive_points, render_markdown, send_message and others)
 - 2026-11-21: LR-24 Not started -> In progress. 2026-11-21: one-call chart tool chart_field_by_category (C16 baseline 22 calls and 4 extra tables; target 1 to 3 calls) plus the report-table fix of LR-7. Still open: measuring the 12 C26 routing requests (needs a saved-project run for a trace) and the call budgets for other request classes
+- 2026-11-21: LR-11 In progress -> Closed. Both halves fixed: second buffer supersedes the first; forecast trigger now returns passing_rows (id, value, date) and passing_row_count. Unit-tested; not seen live.
 - 2026-11-21: LR-25 Not started -> In progress. Offline suite faster (router cache, dashboard fixture once, requests tests skip not error + CI guard). Not done: sharding the live QGIS job (unverifiable here). CI wall time to be read from this PR's run.

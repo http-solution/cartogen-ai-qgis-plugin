@@ -141,6 +141,21 @@ class TestEvaluate(unittest.TestCase):
         res = t.evaluate_triggers(rows(), "q", 100, ">=", "unit")
         self.assertEqual([u["activated"] for u in res["units"]], [True, True, False])
 
+    def test_passing_rows_are_named_even_without_a_unit_field(self):
+        # 2026-11-20 live run, card D2 step 7: no unit_field puts every row in the unit "all", so the counts
+        # never said which rows passed. passing_rows names them (by feature id), capped.
+        data = [{"q": 150, "p": 70, "_row_id": 1}, {"q": 90, "p": 90, "_row_id": 2},
+                {"q": 200, "p": 80, "_row_id": 3}, {"q": 300, "p": 10, "_row_id": 4}]
+        res = t.evaluate_triggers(data, "q", 100, ">=", probability_key="p", min_probability=60)
+        self.assertEqual([r["row"] for r in res["passing_rows"]], [1, 3])
+        self.assertEqual(res["passing_row_count"], 2)
+
+    def test_passing_rows_are_capped_but_counted(self):
+        data = [{"q": 500, "_row_id": i} for i in range(t.MAX_PASSING_ROWS + 5)]
+        res = t.evaluate_triggers(data, "q", 100)
+        self.assertEqual(len(res["passing_rows"]), t.MAX_PASSING_ROWS)
+        self.assertEqual(res["passing_row_count"], t.MAX_PASSING_ROWS + 5)
+
 
 class TestDescribeRule(unittest.TestCase):
     def test_states_every_part_of_the_rule(self):
