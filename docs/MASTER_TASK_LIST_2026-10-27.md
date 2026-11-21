@@ -204,7 +204,7 @@ Source: the results of the first long computer-use run (seven result parts, 2026
 | LR-13 | Find out why the card dock recorded nothing: run START_QGIS.bat from a fresh package folder and send results\dock_start.log and dock_errors.txt (the logging is merged in PR 647). | Seventeen hours of testing produced no dock result; the cause is still unknown. | You | - | XS | P0 | Waiting on you | live run 2026-11-20 |
 | LR-14 | Rebuild the computer-use package from main (dock logging, work-on-a-copy cards C7 and D2, no-dock grading) and write one prompt that works with or without the dock. | The package in your hands predates every fix of 2026-11-20. | Claude | LR-13 | S | P1 | Closed | live run 2026-11-20 |
 | LR-15 | Rows that need the Python console or a typed command (C20 steps 1-5, C23, C25 steps 1-5, W1, W6-W8, W10) cannot be done by a click-only agent: give each a click-only version or move its checks into the headless runner (15 rows today). | Eleven rows ended unrun for a reason the package could have removed. | Claude | - | L | P1 | Not started | live run 2026-11-20 |
-| LR-16 | Screenshots without the dock: Haiku's screenshot tool cannot save files, so 25 pictures were not captured. Add a supervisor-driven capture (PowerShell, outside QGIS) on a timer and at each row change. | Window pictures are the only evidence a person can look at. | Claude | LR-14 | M | P1 | Not started | live run 2026-11-20 |
+| LR-16 | Screenshots without the dock: Haiku's screenshot tool cannot save files, so 25 pictures were not captured. Add a supervisor-driven capture (PowerShell, outside QGIS) on a timer and at each row change. | Window pictures are the only evidence a person can look at. | Claude | LR-14 | M | P1 | In progress | live run 2026-11-20 |
 | LR-17 | Ship 3_test_files without any cartogen_evidence folder: the shipped folder already holds earlier rows' tool records, so a work copy's evidence cannot be attributed to a row (E5 and W11 stayed UNSUPPORTED). | Attribution of plugin evidence to a row is what lets a PASS be believed. | Claude | - | XS | P1 | Closed | live run 2026-11-20 |
 | LR-18 | Correct the cards that misled the tester: C14 step 4 ('selected only' must be in the sentence to send), B5 (exactly 20 requests), V2 (300,000 points finish in 2.3 s, so Stop cannot come first: use a slower request). | Three FAIL rows were the card's fault, not the plugin's. | Claude | - | S | P2 | Closed | live run 2026-11-20 |
 | LR-19 | Run the seven rows the run did not reach (R1-H1, W1, W2, W3, W5, W12, D1) with the continuation prompt already sent, and the nine HT rows C21-C27 by hand. | Nine rows have no result; C23 and C27 are covered by program rows H7 and H4. | You | LR-13 | M | P1 | Waiting on you | live run 2026-11-20 |
@@ -221,11 +221,11 @@ Source: the results of the first long computer-use run (seven result parts, 2026
 
 | Status | Rows |
 |---|---|
-| In progress | 58 |
+| In progress | 59 |
 | Closed | 43 |
 | Waiting on you | 17 |
 | Blocked | 14 |
-| Not started | 4 |
+| Not started | 3 |
 | Closed (record) | 1 |
 | Decision needed | 1 |
 | **Total** | **138** |
@@ -522,3 +522,4 @@ Newest last. One line per status change; written by `tools/master_list.py set`.
 - 2026-11-21: LR-21 Not started -> In progress. 2026-11-21: 5 of the 13 split (run_allowlisted_processing_algorithm 25 to 20, apply_graduated_style 23 to 17, allocate 24 to 17, analyze_critical_links 25 to 18, calculate_damage_exposure_severity 25 to 23); still to do: _run_impl, style_result_field, three network_phase functions, add_point_layer, extract_features_from_imagery
 - 2026-11-21: LR-21 In progress -> Closed. 2026-11-21: every function in the list is split (all at 22 or below, no behaviour change; pure helpers have offline tests, the QGIS paths are covered by the existing live tests). 13 other functions sit at 23 to 25 and are the next candidates (create_print_layout, raster_time_series_stats, generate_mapping_task_grid, obfuscate_sensitive_points, render_markdown, send_message and others)
 - 2026-11-21: LR-24 Not started -> In progress. 2026-11-21: one-call chart tool chart_field_by_category (C16 baseline 22 calls and 4 extra tables; target 1 to 3 calls) plus the report-table fix of LR-7. Still open: measuring the 12 C26 routing requests (needs a saved-project run for a trace) and the call budgets for other request classes
+- 2026-11-21: LR-16 Not started -> In progress. Built: supervisor saves a timed + row-change screen picture outside QGIS (results\screens\timed). Source-text test only; unverified until a Windows run produces the PNGs, then close.
