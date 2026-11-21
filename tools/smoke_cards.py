@@ -20,7 +20,7 @@ HUMAN_IDS = {
     "W6-mcp-probe": "it needs commands typed in a terminal, which the Claude app's computer use does not allow (click only)",
     "W7-mcp-dialog": "it needs commands typed in a terminal, which the Claude app's computer use does not allow (click only)",
     "W8-export": "it needs a command typed in a terminal, which the Claude app's computer use does not allow (click only)",
-    "W10-import-bad": "it needs a command typed in a terminal, which the Claude app's computer use does not allow (click only)",
+    "W10-import-bad": "its terminal command is now run by the program as row H21 (the validator's six refusal sentences); only clicking each file in the Open workflow dialog is left to a person",
 }
 SLOW = re.compile(r"overpass|osm|download|geofabrik|worldpop|stac|sentinel|isochrone|service area|large|mirror", re.I)
 RESULT_FIELDS = ["row", "status", "note", "started", "finished", "seconds", "evidence_error"]

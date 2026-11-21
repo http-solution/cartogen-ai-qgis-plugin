@@ -76,13 +76,32 @@ class TestRowsFile(unittest.TestCase):
         for r in rows:
             self.assertTrue(r["steps"] and r["checks"], r["id"])
             for s in r["steps"]:
-                self.assertIn(s["do"], ("load", "load_raster", "tag", "tool"))
-                if s["do"] in ("load", "load_raster"):
+                self.assertIn(s["do"], ("load", "load_raster", "tag", "tool", "validate_workflow"))
+                if s["do"] in ("load", "load_raster", "validate_workflow"):
                     self.assertIn(s["file"], fx.FILES)
             for c in r["checks"]:
                 self.assertIn("what", c)
                 if "step" in c and c["step"] != "last":
                     self.assertLessEqual(c["step"], len(r["steps"]), r["id"])
+
+    def test_the_six_broken_workflow_files_are_each_refused_with_the_sentence_the_row_expects(self):
+        # LR-15: hand row W10 needed a typed command, so a click-only agent could not run it. The headless row H21 does the same
+        # check with the plugin's own validator; this runs that exact validator over the generated files with no QGIS at all,
+        # so the expected sentences cannot drift from what the plugin says.
+        import tempfile
+        import check_workflow_file as cwf
+        import make_full_smoke_fixtures as fx
+        row = next(r for r in json.loads((ROOT / "docs" / "AGENT_RUN_ROWS.json").read_text(encoding="utf-8"))["rows"] if r["id"] == "H21-workflow-files-refused")
+        module, validate = cwf.validator(["x"])
+        with tempfile.TemporaryDirectory() as tmp:
+            fx.write_all(tmp)
+            for index, step in enumerate(row["steps"], 1):
+                report = cwf.check_file(Path(tmp) / step["file"], validate, module)
+                self.assertFalse(report["accepted"], step["file"])
+                wanted = [c["value"] for c in row["checks"] if c["step"] == index and c["path"] == "first_problem"]
+                self.assertEqual(len(wanted), 1)
+                self.assertIn(wanted[0], report["problems"][0], step["file"])
+        self.assertEqual(len(row["steps"]), 6)
 
     def test_tool_steps_name_registered_tools(self):
         rows = json.loads((ROOT / "docs" / "AGENT_RUN_ROWS.json").read_text(encoding="utf-8"))["rows"]
