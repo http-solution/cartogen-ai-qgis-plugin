@@ -556,3 +556,25 @@ class TestAnalyzeIncidentTrendPerf003IndexReuse(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestDamageSeverityHelpers(unittest.TestCase):
+    """LR-21: pieces split out of calculate_damage_exposure_severity, tested on their own."""
+
+    def test_buildings_are_tallied_per_class_and_in_the_high_classes(self):
+        from cartogen_ai.core.agent.tools.analysis_tools import _tally_buildings
+        results = [{"unit": "A", "severity_score": 0.9, "severity_class": 5}, {"unit": "B", "severity_score": 0.5, "severity_class": 3},
+                   {"unit": "C", "severity_score": 0.7, "severity_class": 4}]
+        units, per_class, high = _tally_buildings(results, {"A": 1, "B": 2}, {1: 10, 2: 4, 9: 99}, {4, 5})
+        self.assertEqual([u["building_count"] for u in units], [10, 4, 0])           # C has no feature id: 0 buildings, never a KeyError
+        self.assertEqual(per_class, {1: 0, 2: 0, 3: 4, 4: 0, 5: 10})
+        self.assertEqual(high, 10)
+
+    def test_the_write_preview_echoes_the_call_with_confirmed_set(self):
+        from cartogen_ai.core.agent.tools.analysis_tools import _damage_write_preview
+        card = _damage_write_preview("admin", "name", "b", "a", "fp", None, [4], "sev")
+        self.assertEqual(card["status"], "PREVIEW_REQUIRED")
+        self.assertTrue(card["requires_confirmation"] and card["is_destructive"])
+        self.assertIs(card["arguments"]["confirmed"], True)
+        self.assertEqual(card["arguments"]["output_field"], "sev")
+        self.assertIn("'sev'", card["message"])

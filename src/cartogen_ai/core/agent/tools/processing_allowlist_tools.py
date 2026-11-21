@@ -547,6 +547,59 @@ def _with_sun_point(alg_id, params):
     return params, None
 
 
+def _definition_keys(definition):
+    """(destination_keys, raster_keys, layer_list_keys, file_keys, folder_keys) from an algorithm definition tuple, each None when there is no
+    definition or the tuple is the shorter, older shape. Pure."""
+    if definition is None:
+        return None, None, None, None, None
+
+    def at(index):
+        return definition[index] if len(definition) > index else None
+    return definition[1], definition[2], at(4), at(6), at(7)
+
+
+def _changed_existing_layer_result(alg_id, target):
+    """The reply for an algorithm whose result IS the user's own layer (for example a changed selection): never renamed, never called new."""
+    result = {"success": True, "alg_id": alg_id, "changed_existing_layer": True,
+              "message": f"'{alg_id}' changed the existing layer rather than creating a new one."}
+    if hasattr(target, "name"):
+        result["layer_name"] = target.name()
+    if hasattr(target, "selectedFeatureCount"):
+        result["selected_feature_count"] = target.selectedFeatureCount()
+    return result
+
+
+def _report_table_result(alg_id, table_layer, statistics, report_files, parameter_note):
+    """The reply for a report algorithm's unnamed table (LR-7): its first rows are returned and the layer is NOT added to the project. None when
+    the rows cannot be read, so the caller adds the layer as before and the answer is never lost."""
+    with contextlib.suppress(Exception):
+        names = [f.name() for f in table_layer.fields()]
+        preview = table_preview(names, ([f[n] for n in names] for f in table_layer.getFeatures()))
+        result = {"success": True, "alg_id": alg_id, "layer_created": False, "table": preview,
+                  "message": (f"'{alg_id}' only reports, so its table is returned here ({preview['row_count']} rows) and was NOT added to the project. "
+                              "Do not tell the user a layer exists. To keep it as a table, run it again with new_layer_name.")}
+        if parameter_note:
+            result["parameter_note"] = parameter_note
+        message = result["message"]
+        _with_report_fields(result, statistics, report_files)
+        result["message"] = message          # _with_report_fields words a numbers-only result; this one must keep its "not added" warning
+        return result
+    return None
+
+
+def _output_layers(harvested, file_vectors, raster_keys):
+    """[(output key, layer)] for the harvested outputs that are, or load as, a layer. A raster algorithm (or a GRASS vector one) returns the path
+    of the file it wrote; that is opened here. Outputs that are not layers are left out."""
+    layers = []
+    for key, harvested_value in harvested:
+        value = harvested_value
+        if isinstance(value, str):
+            value = _load_output_path(value, as_vector=file_vectors and key not in (raster_keys or ()))
+        if value is not None and hasattr(value, "setName"):
+            layers.append((key, value))
+    return layers
+
+
 @register_tool(
     "run_allowlisted_processing_algorithm",
     "Runs one QGIS Processing algorithm from a fixed, pre-approved list -- prefer this over "
@@ -662,16 +715,12 @@ def run_allowlisted_processing_algorithm(alg_id, params, new_layer_name=None):
     is_grass = alg_id in GRASS_ALGORITHM_IDS
     file_vectors = is_grass or alg_id in FILE_VECTOR_ALGORITHM_IDS     # these return the path of a vector file they wrote
     definition = _algorithm_definition(alg_id)
-    destination_keys = raster_keys = layer_list_keys = file_keys = folder_keys = None
     if definition is not None:
         wrong = unknown_parameters(params.keys(), definition[0])
         if wrong:
             return {"error": f"'{alg_id}' has no parameter(s) {wrong}. Its parameters are: {sorted(definition[0])}.",
                     "rejected_before_running": True}
-        destination_keys, raster_keys = definition[1], definition[2]
-        layer_list_keys = definition[4] if len(definition) > 4 else None
-        file_keys = definition[6] if len(definition) > 6 else None
-        folder_keys = definition[7] if len(definition) > 7 else None
+    destination_keys, raster_keys, layer_list_keys, file_keys, folder_keys = _definition_keys(definition)
 
     params, parameter_note = _with_sun_point(alg_id, params)
     try:
@@ -688,27 +737,13 @@ def run_allowlisted_processing_algorithm(alg_id, params, new_layer_name=None):
         return {"error": f"'{alg_id}' failed: {e}"}
 
     if alg_id in MUTATES_INPUT_ALGORITHM_IDS:
-        # The result IS the user's own layer (for example a changed selection): never rename it or call it new.
-        target = resolved_params.get("INPUT")
-        result = {"success": True, "alg_id": alg_id, "changed_existing_layer": True,
-                  "message": f"'{alg_id}' changed the existing layer rather than creating a new one."}
-        if hasattr(target, "name"):
-            result["layer_name"] = target.name()
-        if hasattr(target, "selectedFeatureCount"):
-            result["selected_feature_count"] = target.selectedFeatureCount()
-        return result
+        return _changed_existing_layer_result(alg_id, resolved_params.get("INPUT"))
 
     harvested = harvest_outputs(output, definition, path_outputs=file_vectors)
     # PLAN-005 wave E1: the plain numbers of a statistics result, and the temporary report file(s) the algorithm wrote
     statistics = scalar_results(output, skip_keys=set(file_keys or ()) | {k for k, _ in harvested})
     report_files = {k: v for k, v in (output.items() if isinstance(output, dict) else []) if file_keys and k in file_keys and isinstance(v, str) and v}
-    layers = []
-    for key, harvested_value in harvested:
-        value = harvested_value
-        if isinstance(value, str):                      # a raster algorithm returns the path of the file it wrote
-            value = _load_output_path(value, as_vector=file_vectors and key not in (raster_keys or ()))
-        if value is not None and hasattr(value, "setName"):
-            layers.append((key, value))
+    layers = _output_layers(harvested, file_vectors, raster_keys)
     if not layers:
         made_for_layers = (destination_keys or set()) - (file_keys or set())
         return _with_report_fields(no_layer_result(alg_id, made_for_layers, raster_keys, params.keys()), statistics, report_files)
@@ -716,20 +751,9 @@ def run_allowlisted_processing_algorithm(alg_id, params, new_layer_name=None):
         layers = [(key, _small_result_in_memory(layer)) for key, layer in layers]
     primary_key, new_layer = layers[0]
     if len(layers) == 1 and keeps_table_out_of_project(alg_id, new_layer_name is not None, bool(getattr(new_layer, "isSpatial", lambda: True)())):
-        # Read the table back and leave the project as it was (LR-7). Never raises into a failed call: when the rows cannot be read the layer is
-        # added as before, so the answer is never lost.
-        with contextlib.suppress(Exception):
-            names = [f.name() for f in new_layer.fields()]
-            preview = table_preview(names, ([f[n] for n in names] for f in new_layer.getFeatures()))
-            result = {"success": True, "alg_id": alg_id, "layer_created": False, "table": preview,
-                      "message": (f"'{alg_id}' only reports, so its table is returned here ({preview['row_count']} rows) and was NOT added to the project. "
-                                  "Do not tell the user a layer exists. To keep it as a table, run it again with new_layer_name.")}
-            if parameter_note:
-                result["parameter_note"] = parameter_note
-            message = result["message"]
-            _with_report_fields(result, statistics, report_files)
-            result["message"] = message          # _with_report_fields words a numbers-only result; this one must keep its "not added" warning
-            return result
+        table_result = _report_table_result(alg_id, new_layer, statistics, report_files, parameter_note)
+        if table_result is not None:
+            return table_result
 
     # IMPLEMENTATION_TRACKER.md §1.9, option 1 (narrow fix, 2026-09-24): a real turn calling this
     # tool 4x to reproject/buffer/intersect its way to one answer left 3 purely-internal scratch

@@ -211,6 +211,48 @@ def _build_load_layer(network, output_layer_name, load_by_edge, pts):
     return layer, total
 
 
+def _read_limits(max_origins, top_n, max_snap_m, time_budget_s):
+    """((max_origins, top_n, max_snap_m, time_budget_s), error): the four numeric limits of analyze_critical_links as numbers, top_n and max_origins
+    held to their caps, or a sentence when one is not a number or not above zero. Pure."""
+    try:
+        max_origins = int(max_origins)
+        top_n = max(1, min(_TOP_CAP, int(top_n)))
+        max_snap_m = float(max_snap_m)
+        time_budget_s = float(time_budget_s)
+    except (TypeError, ValueError):
+        return None, "max_origins, top_n, max_snap_m and time_budget_s must be numbers."
+    if max_origins < 1 or max_snap_m <= 0 or time_budget_s <= 0:
+        return None, "max_origins, max_snap_m and time_budget_s must be above zero."
+    return (min(max_origins, MAX_ORIGINS), top_n, max_snap_m, time_budget_s), None
+
+
+def _prepare_layers(road_network_layer, origins_layer, destinations_layer, origin_weight_field, destination_weight_field,
+                    speed_field, direction_field, value_forward, value_backward, value_both):
+    """((network, origins, destinations, closed_roads), error): the three layers looked up and checked (found, line geometry, weight fields present),
+    closed roads removed from the network, and the direction / speed fields validated. `error` is a sentence when any of that fails."""
+    from . import logistics_tools as lt
+    network = _layer(road_network_layer)
+    origins = _layer(origins_layer)
+    destinations = _layer(destinations_layer) if destinations_layer else origins
+    for label, lyr, nm in (("Road network", network, road_network_layer), ("Origins", origins, origins_layer),
+                           ("Destinations", destinations, destinations_layer or origins_layer)):
+        if lyr is None:
+            return None, f"{label} layer '{nm}' not found"
+    geometry_error = lt._network_geometry_error(network, road_network_layer)
+    if geometry_error:
+        return None, geometry_error
+    for lyr, field in ((origins, origin_weight_field), (destinations, destination_weight_field)):
+        if field and lyr.fields().indexOf(field) < 0:
+            return None, f"Weight field '{field}' not found on '{lyr.name()}'."
+    network, closed, closed_error = lt._open_network(network, speed_field, road_network_layer)
+    if closed_error:
+        return None, closed_error
+    _extra, field_error = lt._network_direction_speed_params(network, speed_field, direction_field, value_forward, value_backward, value_both)
+    if field_error:
+        return None, field_error
+    return (network, origins, destinations, closed), None
+
+
 @register_tool(
     "analyze_critical_links",
     "Screen a road network for bottlenecks: how much origin-to-destination demand has its shortest path through each road segment. A "
@@ -261,36 +303,16 @@ def analyze_critical_links(road_network_layer, origins_layer, destinations_layer
     strategy = (strategy or "shortest").lower()
     if strategy not in ("shortest", "fastest"):
         return {"error": "strategy must be 'shortest' or 'fastest'."}
-    try:
-        max_origins = int(max_origins)
-        top_n = max(1, min(_TOP_CAP, int(top_n)))
-        max_snap_m = float(max_snap_m)
-        time_budget_s = float(time_budget_s)
-    except (TypeError, ValueError):
-        return {"error": "max_origins, top_n, max_snap_m and time_budget_s must be numbers."}
-    if max_origins < 1 or max_snap_m <= 0 or time_budget_s <= 0:
-        return {"error": "max_origins, max_snap_m and time_budget_s must be above zero."}
-    max_origins = min(max_origins, MAX_ORIGINS)
+    limits, limits_error = _read_limits(max_origins, top_n, max_snap_m, time_budget_s)
+    if limits_error:
+        return {"error": limits_error}
+    max_origins, top_n, max_snap_m, time_budget_s = limits
 
-    network = _layer(road_network_layer)
-    origins = _layer(origins_layer)
-    destinations = _layer(destinations_layer) if destinations_layer else origins
-    for label, lyr, nm in (("Road network", network, road_network_layer), ("Origins", origins, origins_layer),
-                           ("Destinations", destinations, destinations_layer or origins_layer)):
-        if lyr is None:
-            return {"error": f"{label} layer '{nm}' not found"}
-    geometry_error = lt._network_geometry_error(network, road_network_layer)
-    if geometry_error:
-        return {"error": geometry_error}
-    for lyr, field in ((origins, origin_weight_field), (destinations, destination_weight_field)):
-        if field and lyr.fields().indexOf(field) < 0:
-            return {"error": f"Weight field '{field}' not found on '{lyr.name()}'."}
-    network, closed, closed_error = lt._open_network(network, speed_field, road_network_layer)
-    if closed_error:
-        return {"error": closed_error}
-    _extra, field_error = lt._network_direction_speed_params(network, speed_field, direction_field, value_forward, value_backward, value_both)
-    if field_error:
-        return {"error": field_error}
+    prepared, prep_error = _prepare_layers(road_network_layer, origins_layer, destinations_layer, origin_weight_field, destination_weight_field,
+                                           speed_field, direction_field, value_forward, value_backward, value_both)
+    if prep_error:
+        return {"error": prep_error}
+    network, origins, destinations, closed = prepared
 
     started = time.monotonic()
     usable, origin_skipped_weight = _weighted_features(origins, origin_weight_field)
