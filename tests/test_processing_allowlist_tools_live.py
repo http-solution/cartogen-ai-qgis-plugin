@@ -48,6 +48,28 @@ class TestGenericProcessingTool(unittest.TestCase):
         self.assertEqual(res["layer_name"], "buf")
         self.assertEqual(res["feature_count"], 1)
 
+    def test_a_report_table_is_read_back_and_kept_out_of_the_project_unless_named(self):
+        """LR-7, live run 2026-11-20 row C16: report algorithms left their tables in the project. Unnamed: rows returned, nothing added. Named: kept."""
+        from cartogen_ai.core.agent.tools.processing_allowlist_tools import run_allowlisted_processing_algorithm
+        _layer("Point", "EPSG:4326", ["POINT(0 0)", "POINT(1 1)", "POINT(2 2)"], "pts")
+        before = set(QgsProject.instance().mapLayers())
+        res = run_allowlisted_processing_algorithm("native:listuniquevalues", {"INPUT": "pts", "FIELDS": "name"})
+        self.assertTrue(res.get("success"), res)
+        self.assertIs(res.get("layer_created"), False)
+        self.assertEqual(set(QgsProject.instance().mapLayers()), before)
+        self.assertEqual(res["table"]["row_count"], 1)
+        self.assertIn("NOT added", res["message"])
+        kept = run_allowlisted_processing_algorithm("native:listuniquevalues", {"INPUT": "pts", "FIELDS": "name"}, new_layer_name="names_table")
+        self.assertTrue(kept.get("success"), kept)
+        self.assertEqual(len(QgsProject.instance().mapLayersByName("names_table")), 1)
+
+    def test_a_spatial_result_of_the_same_kind_of_call_is_still_added(self):
+        from cartogen_ai.core.agent.tools.processing_allowlist_tools import run_allowlisted_processing_algorithm
+        _layer("Point", "EPSG:4326", ["POINT(0 0)"], "pts")
+        res = run_allowlisted_processing_algorithm("native:buffer", {"INPUT": "pts", "DISTANCE": 0.01})
+        self.assertTrue(res.get("success"), res)
+        self.assertEqual(len(QgsProject.instance().mapLayersByName("buffer_output")), 1)
+
     def test_select_by_location_changes_the_selection_and_keeps_the_layer_name(self):
         from cartogen_ai.core.agent.tools.processing_allowlist_tools import run_allowlisted_processing_algorithm
         _layer("Polygon", "EPSG:4326", ["POLYGON((0 0,1 0,1 1,0 1,0 0))", "POLYGON((5 5,6 5,6 6,5 6,5 5))"], "districts")

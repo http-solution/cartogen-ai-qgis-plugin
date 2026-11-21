@@ -397,3 +397,32 @@ class TestParameterValidationAndOutputs(unittest.TestCase):
 
     def test_zonal_statistics_that_writes_into_its_input_is_no_longer_offered(self):
         self.assertNotIn("qgis:zonalstatistics", ALLOWED_ALGORITHM_IDS)
+
+
+class TestReportTablesStayOutOfTheProject(unittest.TestCase):
+    """LR-7 (live run 2026-11-20, row C16): a bar chart request left four report tables in the project."""
+
+    def test_only_unnamed_geometry_less_results_of_report_algorithms_are_kept_out(self):
+        from cartogen_ai.core.agent.tools.processing_allowlist_tools import keeps_table_out_of_project as keeps
+        self.assertTrue(keeps("native:listuniquevalues", False, False))
+        self.assertFalse(keeps("native:listuniquevalues", True, False))       # the caller named it: they want the table
+        self.assertFalse(keeps("native:listuniquevalues", False, True))       # it has geometry: a map layer
+        self.assertFalse(keeps("native:buffer", False, False))                # not a report algorithm
+
+    def test_every_report_algorithm_is_an_approved_one(self):
+        from cartogen_ai.core.agent.tools.processing_allowlist_tools import REPORT_TABLE_ALGORITHM_IDS
+        # a typo in the set would silently do nothing; ids not in the allowlist are never run, so they would be dead entries
+        for alg in REPORT_TABLE_ALGORITHM_IDS:
+            self.assertIn(alg, ALLOWED_ALGORITHM_IDS | {"native:statisticsbycategories"}, alg)
+
+    def test_the_preview_is_capped_and_plain(self):
+        from cartogen_ai.core.agent.tools.processing_allowlist_tools import table_preview
+        rows = [[i, "x" * 300, None] for i in range(80)]
+        preview = table_preview(["n", "text", "empty"], rows)
+        self.assertEqual(preview["row_count"], 80)
+        self.assertEqual(len(preview["rows"]), 50)
+        self.assertTrue(preview["truncated"])
+        self.assertTrue(preview["rows"][0][1].endswith("..."))
+        self.assertEqual(len(preview["rows"][0][1]), 123)
+        self.assertIsNone(preview["rows"][0][2])
+        self.assertFalse(table_preview(["a"], [[1]])["truncated"])
