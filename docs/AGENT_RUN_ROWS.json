@@ -1436,6 +1436,123 @@
      "value": 0
     }
    ]
+  },
+  {
+   "id": "H21-workflow-files-refused",
+   "title": "Six broken workflow files are each refused with a plain sentence by the plugin's own validator (hand row W10, which needed a typed command)",
+   "covers_row": "W10-import-bad",
+   "steps": [
+    {
+     "do": "validate_workflow",
+     "file": "bad_tool_not_allowed.cgworkflow.json"
+    },
+    {
+     "do": "validate_workflow",
+     "file": "bad_has_path.cgworkflow.json"
+    },
+    {
+     "do": "validate_workflow",
+     "file": "bad_too_many_steps.cgworkflow.json"
+    },
+    {
+     "do": "validate_workflow",
+     "file": "bad_future_version.cgworkflow.json"
+    },
+    {
+     "do": "validate_workflow",
+     "file": "bad_not_json.cgworkflow.json"
+    },
+    {
+     "do": "validate_workflow",
+     "file": "bad_unknown_role.cgworkflow.json"
+    }
+   ],
+   "checks": [
+    {
+     "what": "bad_tool_not_allowed.cgworkflow.json is refused",
+     "step": 1,
+     "path": "accepted",
+     "op": "eq",
+     "value": false
+    },
+    {
+     "what": "bad_tool_not_allowed.cgworkflow.json is refused with a sentence that says what is wrong",
+     "step": 1,
+     "path": "first_problem",
+     "op": "contains",
+     "value": "is not on the list of tools a shared workflow may use"
+    },
+    {
+     "what": "bad_has_path.cgworkflow.json is refused",
+     "step": 2,
+     "path": "accepted",
+     "op": "eq",
+     "value": false
+    },
+    {
+     "what": "bad_has_path.cgworkflow.json is refused with a sentence that says what is wrong",
+     "step": 2,
+     "path": "first_problem",
+     "op": "contains",
+     "value": "looks like a file path or web address"
+    },
+    {
+     "what": "bad_too_many_steps.cgworkflow.json is refused",
+     "step": 3,
+     "path": "accepted",
+     "op": "eq",
+     "value": false
+    },
+    {
+     "what": "bad_too_many_steps.cgworkflow.json is refused with a sentence that says what is wrong",
+     "step": 3,
+     "path": "first_problem",
+     "op": "contains",
+     "value": "At most 20 steps per file"
+    },
+    {
+     "what": "bad_future_version.cgworkflow.json is refused",
+     "step": 4,
+     "path": "accepted",
+     "op": "eq",
+     "value": false
+    },
+    {
+     "what": "bad_future_version.cgworkflow.json is refused with a sentence that says what is wrong",
+     "step": 4,
+     "path": "first_problem",
+     "op": "contains",
+     "value": "Update the plugin to open it"
+    },
+    {
+     "what": "bad_not_json.cgworkflow.json is refused",
+     "step": 5,
+     "path": "accepted",
+     "op": "eq",
+     "value": false
+    },
+    {
+     "what": "bad_not_json.cgworkflow.json is refused with a sentence that says what is wrong",
+     "step": 5,
+     "path": "first_problem",
+     "op": "contains",
+     "value": "not valid JSON"
+    },
+    {
+     "what": "bad_unknown_role.cgworkflow.json is refused",
+     "step": 6,
+     "path": "accepted",
+     "op": "eq",
+     "value": false
+    },
+    {
+     "what": "bad_unknown_role.cgworkflow.json is refused with a sentence that says what is wrong",
+     "step": 6,
+     "path": "first_problem",
+     "op": "contains",
+     "value": "is not a role declared in `roles`"
+    }
+   ]
   }
  ]
 }

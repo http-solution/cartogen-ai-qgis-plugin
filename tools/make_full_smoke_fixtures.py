@@ -201,7 +201,30 @@ def clinics():
                     ({"name": "Harbour", "address": "Port of Aden, Aden, Yemen"}, 44.995, 12.790)])
 
 
+def _workflow(**changes):
+    """A small valid workflow document with `changes` applied: the base of the six refused files (W10). Pure."""
+    doc = {"format": "cartogen-workflow", "version": 1, "name": "Reach of the smoke points", "description": "Buffers the smoke points by 500 m.",
+           "created_with": "1.18.5", "roles": {"points": {"kind": "vector", "geometry": "point", "about": "any point layer in a metric CRS"}},
+           "steps": [{"tool": "buffer_analysis", "arguments": {"layer_name": "@points", "distance": 500, "output_name": "reach"}}]}
+    doc.update(changes)
+    return json.dumps(doc, indent=1) + "\n"
+
+
+def _bad_step(**arguments):
+    return _workflow(steps=[{"tool": "buffer_analysis", "arguments": {"layer_name": "@points", "distance": 500, "output_name": "reach", **arguments}}])
+
+
+BAD_WORKFLOWS = {          # file -> text one sentence of the validator must refuse (row W10, moved into the headless runner by LR-15)
+    "bad_tool_not_allowed.cgworkflow.json": lambda: _workflow(steps=[{"tool": "execute_pyqgis_script", "arguments": {"script": "pass"}}]),
+    "bad_has_path.cgworkflow.json": lambda: _bad_step(output_name="C:\\Users\\someone\\out.gpkg"),
+    "bad_too_many_steps.cgworkflow.json": lambda: _workflow(steps=[{"tool": "get_feature_count", "arguments": {"layer_name": "@points"}}] * 21),
+    "bad_future_version.cgworkflow.json": lambda: _workflow(version=2),
+    "bad_not_json.cgworkflow.json": lambda: '{"format": "cartogen-workflow", "version": 1, "steps": [\n',
+    "bad_unknown_role.cgworkflow.json": lambda: _bad_step(layer_name="@nothing_declared"),
+}
+
 FILES = {
+    **BAD_WORKFLOWS,
     "smoke_big_area.geojson": big_area,
     "before_fixture.asc": lambda: asc("before"), "before_fixture.prj": lambda: UTM36N_PRJ,
     "after_fixture.asc": lambda: asc("after"), "after_fixture.prj": lambda: UTM36N_PRJ,
