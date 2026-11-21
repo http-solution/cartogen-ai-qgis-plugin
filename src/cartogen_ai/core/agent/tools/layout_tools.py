@@ -567,6 +567,17 @@ def _prepare_template(template, body_text, zoom_to_layer, key_figures, sources):
     return template, body_text, zoom_to_layer, sitrep_args, sitrep_warning
 
 
+def export_status(output_path):
+    """What create_print_layout says about the file, so a request for "a PDF" cannot end with a layout in the project and a reply that sounds
+    like a file exists. 2026-11-20 live run (rows C25, C26, Haiku): the PDF was never written; the model left output_path out, the tool built the
+    layout only (as documented) and its reply carried no word about that. Pure."""
+    if output_path:
+        return {"exported": True}
+    return {"exported": False,
+            "export_note": "No file was written: no output_path was given, so the layout exists in the project only. To get a PDF or image, call "
+                           "create_print_layout again with output_path (a .pdf/.png path, or a folder), and tell the user the file only exists after that."}
+
+
 def _early_export_checks(title, output_path, requested_output, confirmed, arguments):
     """(request, early_result). `request` holds the output path (a folder gets its default file name), the dpi (a preset becomes a number), the
     page size and orientation and the profile (PLAN-014 phase 2b: explicit arguments beat the profile, the profile beats the defaults). early_result
@@ -911,6 +922,7 @@ def create_print_layout(title: str, page_orientation: str | None = None, output_
                     layout_manager.removeLayout(existing)
             layout.setName(layout_name)
 
+        res_msg.update(export_status(output_path))
         if output_path:
             export_error = _export_layout(layout, output_path, dpi)
             if export_error:

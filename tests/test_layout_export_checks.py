@@ -163,5 +163,21 @@ class TestPublicationRecordAndBuildTimePreview(unittest.TestCase):
             self.assertIsNone(checks.build_time_preview("create_print_layout", {"title": "t"}, ""))
 
 
+class TestExportStatus(unittest.TestCase):
+    """LR-3 (2026-11-20 live run, rows C25 and C26): a request for a PDF ended with a layout in the project and a reply with no word about the missing file."""
+
+    def test_no_output_path_says_that_no_file_was_written_and_how_to_get_one(self):
+        from cartogen_ai.core.agent.tools.layout_tools import export_status
+        for empty in ("", None):
+            status = export_status(empty)
+            self.assertIs(status["exported"], False)
+            self.assertIn("No file was written", status["export_note"])
+            self.assertIn("output_path", status["export_note"])
+
+    def test_an_output_path_is_reported_as_exported_with_no_note(self):
+        from cartogen_ai.core.agent.tools.layout_tools import export_status
+        self.assertEqual(export_status("C:/out/bulletin.pdf"), {"exported": True})
+
+
 if __name__ == "__main__":
     unittest.main()
