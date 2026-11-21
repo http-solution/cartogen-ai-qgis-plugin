@@ -56,6 +56,28 @@ class TestMarkSupersededLive(unittest.TestCase):
         self.assertEqual(len(get_layer_lineage(second)), 1)
         self.assertEqual(len(get_layer_lineage(first)), 1)
 
+    def test_a_rerun_that_names_its_output_is_still_superseded(self):
+        """Live trace 2026-11-20, row D2: buffer_analysis run twice with output_name given. The name of the first result is then a loaded layer
+        and was counted as an input, so the second result was skipped as an echo: no lineage, no rename, two layers with one name."""
+        from cartogen_ai.core.agent.agent_orchestrator import CartogenAi
+        from cartogen_ai.core.agent.lineage import get_layer_lineage
+        self._roads()
+
+        def run():
+            before = frozenset(QgsProject.instance().mapLayers())
+            layer = QgsVectorLayer("Polygon?crs=EPSG:4326&field=id:integer", "roads_buffer_1deg", "memory")
+            QgsProject.instance().addMapLayer(layer)
+            res = {"success": True, "layer_name": "roads_buffer_1deg"}
+            args = {"layer_name": "roads", "output_name": "roads_buffer_1deg", "distance": 1}
+            CartogenAi._tag_created_layers(types.SimpleNamespace(), "buffer_analysis", args, res, before)
+            return layer, res
+        first, _res1 = run()
+        second, res2 = run()
+        self.assertEqual(self._names(), ["roads", "roads_buffer_1deg", "roads_buffer_1deg (superseded)"])
+        self.assertEqual(first.name(), "roads_buffer_1deg (superseded)")
+        self.assertEqual(res2["superseded_layers"], [{"was": "roads_buffer_1deg", "now": "roads_buffer_1deg (superseded)"}])
+        self.assertEqual(len(get_layer_lineage(second)), 1)
+
     def test_the_third_run_numbers_the_next_superseded_name(self):
         self._roads()
         for _ in range(3):

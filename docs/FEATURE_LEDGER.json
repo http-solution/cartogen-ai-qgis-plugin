@@ -1611,9 +1611,10 @@
       "tests/test_superseded_layers.py::TestMarkOlder::test_a_layer_the_user_made_is_never_renamed",
       "tests/test_superseded_layers.py::TestMarkOlder::test_a_loading_tool_never_supersedes_even_when_the_lineage_matches",
       "tests/test_superseded_layers.py::TestPureRules::test_the_new_layer_is_the_one_not_loaded_before_the_call",
-      "tests/test_superseded_layers_live.py::TestMarkSupersededLive::test_a_rerun_keeps_the_older_result_renamed_and_the_new_one_holds_the_name"
+      "tests/test_superseded_layers_live.py::TestMarkSupersededLive::test_a_rerun_keeps_the_older_result_renamed_and_the_new_one_holds_the_name",
+      "tests/test_superseded_layers_live.py::TestMarkSupersededLive::test_a_rerun_that_names_its_output_is_still_superseded"
     ],
-    "hand_verified": "not verified: CI only (offline stand-in layers and real QGIS layers driving the hook); not seen in a real chat session",
+    "hand_verified": "not verified: CI only (offline stand-in layers and real QGIS layers driving the hook); a real run on 2026-11-20 (row D2) showed the rename missing when the caller names the output, fixed 2026-11-21 and not seen in a real chat session since",
     "hand_row": "D2-damage-and-risk step 4"
   },
   {

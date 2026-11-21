@@ -28,3 +28,4 @@ Set `cartogen_ai/mark_superseded` to `false`, or revert the commit. Layers alrea
 
 ## Status log
 - 2026-11-09: built from the owner's decision. Offline suite at the 54-error baseline with no failures; the live test has not run yet (first CI run).
+- 2026-11-21: live trace of row D2 (2026-11-20): buffer_analysis run twice with output_name left two layers with one name, because the output name matched an existing layer and was skipped as an echo of an input. Fixed in _tag_created_layers (a name carried by a layer added by this call is an output); new live test test_a_rerun_that_names_its_output_is_still_superseded (first CI run).
