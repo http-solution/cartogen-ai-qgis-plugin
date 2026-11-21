@@ -34,6 +34,18 @@ START
    reopens it after a crash. Leave its black window open. (START_QGIS.bat alone opens just QGIS.)
 2. Wait for the dock. Then start the loop.
 
+IF THE DOCK DOES NOT APPEAR (the 2026-11-20 run: the dock never recorded a result in 17 hours, and the cause is not known yet)
+Wait 2 minutes after QGIS has opened. If there is still no "Smoke test" dock, do NOT keep reopening QGIS. Carry on WITHOUT it, row by row, in the order of cards.json (in the package folder; read it
+with your file tools), skipping rows whose card says it is a human row. For each row:
+1. Before the first request: File > Save As the open project into results\outputs\<ROW>\ (<ROW> is the card's id). The plugin writes its own record of the tools it called next to a SAVED project,
+   and the report can only believe a PASS that this record backs. A row run in an unsaved project cannot be checked.
+2. If the card says WORK ON A COPY (it changes a data file), copy the whole 3_test_files folder to results\work\<ROW>_copy and load from the copy. Never change a file inside 3_test_files.
+3. Do the steps under DO. Plugin downloads (OSM, HDX, WorldPop, STAC) are the plugin working, not you opening a website.
+4. Then write two things with your file tools: results\evidence\<ROW>\observations.txt (what you did and saw, one plain line each, and what you could not do), and ONE new line at the end of
+   results\RESULTS_GUI.csv in the columns row,status,note,started,finished,seconds,evidence_error (the last four empty; status is exactly PASS, PARTIAL, FAIL or SKIP; the note has no commas or is in
+   double quotes). Never edit another line of that file.
+A PASS needs the card's pass condition seen with your own eyes. The report marks every line you typed yourself as "typed" and only believes it when the observations file and the plugin's own record agree.
+
 THE LOOP (repeat until every row has a result)
 1. Click "Start this row". Do exactly the steps under DO, in QGIS. Chat prompts go in the Cartogen AI chat exactly as written, one at a time. Wait for each reply to finish before the next.
    If your own chat window covers the dock, move it away or minimise it first.
@@ -44,7 +56,7 @@ THE LOOP (repeat until every row has a result)
 WHEN SOMETHING GOES WRONG (fix it yourself)
 - QGIS looks frozen ("Not Responding"): tools can block it for up to 6 minutes. Wait, screenshot every minute, click nothing. After 8 minutes with no change: click Fail with the note "no reply"; if QGIS still does not answer after 3 more minutes, open Task Manager (Ctrl+Shift+Esc), select QGIS, End task. RUN_EVERYTHING reopens it.
 - QGIS closes or a crash window appears (qgiscrashhandler): click "Close" / "Don't send". The row that was open is recorded as FAIL "interrupted" automatically. If RUN_EVERYTHING's window is still open, QGIS comes back within seconds; otherwise double-click START_QGIS.bat. Then carry on with the next row.
-- The dock is missing, or a button crashes QGIS: the result line is written BEFORE the evidence is taken, so the verdict is not lost. Reopen QGIS by double-clicking START_QGIS.bat (or let RUN_EVERYTHING reopen it); the dock returns at the first row with no result. If the same row crashes QGIS 3 times, click Skip on it (or Fail with the note "crashes QGIS") and go on.
+- The dock is missing from the start: see IF THE DOCK DOES NOT APPEAR above. A button crashes QGIS: the result line is written BEFORE the evidence is taken, so the verdict is not lost. Reopen QGIS by double-clicking START_QGIS.bat (or let RUN_EVERYTHING reopen it); the dock returns at the first row with no result. If the same row crashes QGIS 3 times, click Skip on it (or Fail with the note "crashes QGIS") and go on.
 - The QGIS window is hidden, or a browser or viewer has come to the front and blocks your clicks: click the QGIS button on the taskbar once, then carry on. (You cannot close a browser yourself; just bring QGIS forward.)
 - A row cannot be done as written (a file or program the card names is not there): Skip with the exact reason.
 
@@ -61,6 +73,17 @@ WHEN THE DOCK SAYS EVERY ROW HAS A RESULT
 Double-click ANALYZE.bat (or wait for RUN_EVERYTHING to finish), open results\REPORT.md, and reply with its totals and the rows marked UNSUPPORTED or FAIL, each with your note. Then stop.
 
 IF YOUR SESSION RUNS OUT OF ROOM: nothing is lost. A new session picks up at the first row with no result. Say in your last message which row you were on.
+"""
+
+FIRST_MESSAGE = r"""I AM THE OWNER OF THIS PC AND OF THIS TEST, AND I AUTHORISE YOU TO RUN THE WHOLE THING NOW. I am typing this myself. Do not ask me to confirm and do not summarise the plan first: do the work below, in order, until every row has a result. I will be nearby for the first few minutes to click Allow on app permission prompts, then away.
+
+PACKAGE FOLDER: <PASTE THE FULL PATH OF THE NEW, FRESHLY UNZIPPED cartogen_ai_computer_use FOLDER HERE>
+CHECK FIRST: open BUILD.txt in the package folder (File Explorer, Preview pane). It must read "{stamp}" (the commit and the build time). If it reads anything else, or the folder has no BUILD.txt, you are in an OLD folder: stop and tell me.
+MODEL IN THE PLUGIN: <NAME OF THE MODEL YOU CONNECTED> (the key is already entered and tested; you never need it).
+
+{prompt}
+FIRST ACTION: open File Explorer, go to the PACKAGE FOLDER above, double-click RUN_EVERYTHING.bat (if Windows shows an "Open File - Security Warning", click Run), and wait for the QGIS window with the "Smoke test" dock; if it has not appeared after 2 minutes, follow IF THE DOCK DOES NOT APPEAR. Then do the rows.
+Reply only when every row has a result (then give the REPORT.md summary), or when a STOP case applies.
 """
 
 README = """Cartogen AI {v} - computer-use smoke package ({n} rows)
@@ -84,7 +107,7 @@ BEFORE THE RUN (once, by you, because it needs secrets and choices an agent shou
 
 THE RUN
   1. RUN_HEADLESS.bat dry   (one row, under a minute)   then   RUN_HEADLESS.bat   (all {m} rows). Open results\\SUMMARY.md.
-  2. Open the Claude desktop app, choose Haiku, switch computer use on, and send HAIKU_PROMPT.md as the first message. Haiku opens RUN_EVERYTHING.bat itself (or you double-click it first).
+  2. Open the Claude desktop app, choose Haiku, switch computer use on, fill the two <...> lines of FIRST_MESSAGE.txt (the package folder and the model name) and send it as the first message (HAIKU_PROMPT.md is the same instructions without the opening lines). Haiku opens RUN_EVERYTHING.bat itself (or you double-click it first).
      RUN_EVERYTHING runs the program-checked rows, opens QGIS with the dock, and reopens QGIS after a crash. Rows are done in order; the dock saves the evidence for each click.
   3. Haiku runs ANALYZE.bat at the end. Open results\\REPORT.md. Send back the whole results folder.
   If a Haiku session ends early, start a new one with the same message: it carries on at the first row with no result.
@@ -206,7 +229,9 @@ def build(plugin_zip, out_dir):
             readme = README.format(v=v, n=len(cards), m=len(machine_rows), k=len(runnable), h=len(cards) - len(runnable))
             z.writestr(f"{top}/README.txt", readme.replace("\n", "\r\n"))
             z.writestr(f"{top}/HAIKU_PROMPT.md", PROMPT + "\n")
-            z.writestr(f"{top}/BUILD.txt", build_stamp() + "\n")
+            stamp = build_stamp()
+            z.writestr(f"{top}/BUILD.txt", stamp + "\n")
+            z.writestr(f"{top}/FIRST_MESSAGE.txt", FIRST_MESSAGE.format(stamp=stamp, prompt=PROMPT))
             z.writestr(f"{top}/cards.json", json.dumps(cards, indent=1, ensure_ascii=False))
             z.writestr(f"{top}/CARDS.md", "\n\n---\n\n".join(smoke_cards.card_text(c) for c in cards) + "\n")
             for name, text in (("START_QGIS.bat", START), ("RUN_HEADLESS.bat", HEADLESS), ("ANALYZE.bat", ANALYZE), ("PY.bat", PYBAT), ("RECORD.bat", RECORD), ("RUN_EVERYTHING.bat", EVERYTHING)):
