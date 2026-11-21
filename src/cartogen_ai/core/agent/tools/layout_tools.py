@@ -453,13 +453,14 @@ def _export_layout(layout, output_path, dpi):
 
 
 def _numeric_columns(max_features=50000):
-    """[[numbers]] - one list per numeric attribute field of every vector layer in the project (up to max_features features each)."""
+    """[[numbers]] - one list per numeric attribute field of every vector layer in the project (up to max_features features each), identifier fields left out."""
     from qgis.core import QgsProject, QgsVectorLayer
     columns = []
     for layer in QgsProject.instance().mapLayers().values():
         if not isinstance(layer, QgsVectorLayer):
             continue
-        names = [f.name() for f in layer.fields() if f.isNumeric()]
+        from .layout_style import is_identifier_field
+        names = [f.name() for f in layer.fields() if f.isNumeric() and not is_identifier_field(f.name())]      # an id column holds 1..N and would "ground" any small figure
         cols = {n: [] for n in names}
         for i, feature in enumerate(layer.getFeatures()):
             if i >= max_features:
@@ -532,6 +533,14 @@ def _prepare_template(template, body_text, zoom_to_layer, key_figures, sources):
             unverified = layout_style.unverified_figure_labels(key_figures, pool)
         except Exception as exc:   # checking is best-effort; a layout is still made, but the reply says the figures were not checked
             sitrep_warning = (sitrep_warning + " " if sitrep_warning else "") + f"The key figures could not be checked against the project data ({exc})."
+        if unverified and template == "epi_bulletin":
+            # A public-health bulletin must not carry a number that is not in the data, not even with a mark beside it (row C25, 2026-11-20: a
+            # top-3 of 20 and 18 cases against a maximum of 15). The figure is left out and the reply says so.
+            key_figures = layout_style.drop_figures(key_figures, unverified)
+            sitrep_warning = (sitrep_warning + " " if sitrep_warning else "") + (
+                f"These key figures were not found in the project data and were LEFT OUT of the bulletin: {', '.join(unverified)}. "
+                "Use key_figures_from (a layer, a label field and a value field) so the numbers come from the data, and never type a figure from memory.")
+            unverified = []
         if unverified:
             sitrep_warning = (sitrep_warning + " " if sitrep_warning else "") + (
                 f"These key figures were not found in any project layer and are marked {layout_style.UNVERIFIED_FIGURE_MARK} on the layout: "

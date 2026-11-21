@@ -191,7 +191,7 @@ Source: the results of the first long computer-use run (seven result parts, 2026
 |---|---|---|---|---|---|---|---|---|
 | LR-1 | E1 privacy check: reproduce the 'rename ran after a cloud-send gate' report in a SAVED project so the plugin's own record shows whether rename_layer ran without a confirm click; fix the gate if it did. | The only finding that touches the data-protection promise; the one recorded turn showed both renames waiting for confirmation, so it is neither confirmed nor cleared. | Both | - | S | P0 | Waiting on you | live run 2026-11-20 |
 | LR-2 | C17 STAC download: check at a normal chat-panel size that the preview card shows a Confirm control; if not, make the confirm control always visible (and make a typed 'confirm' work or say it does not). | The plugin returned a correct confirmation request, but the tester found no control and typing 'confirm' did nothing, so the download could not be finished by a user either. | Both | - | S | P1 | Waiting on you | live run 2026-11-20 |
-| LR-3 | Epidemic bulletin (C25, C26): the PDF is never written, the top-3 figures (20, 18) did not match the data (maximum 15), the layout carried a 'Surveillance District' name from the model's general knowledge, and the rates were not printed. Reproduce in a saved project, then make every figure and name in the bulletin come from the tool result. | A public-health bulletin with numbers that are not in the data is the worst failure this feature can have. | Claude | - | M | P1 | Not started | live run 2026-11-20 |
+| LR-3 | Epidemic bulletin (C25, C26): the PDF is never written, the top-3 figures (20, 18) did not match the data (maximum 15), the layout carried a 'Surveillance District' name from the model's general knowledge, and the rates were not printed. Reproduce in a saved project, then make every figure and name in the bulletin come from the tool result. | A public-health bulletin with numbers that are not in the data is the worst failure this feature can have. | Claude | - | M | P1 | In progress | live run 2026-11-20 |
 | LR-4 | Watershed (C19): the reply says delineate_watershed failed (window over 400,000 cells) while the layers were produced, and assess_watershed_hydrology_request rejects decimal degrees; make the reply and the layers agree, accept decimal degrees, and no evidence folder was written for C19 (find out why). | Reply and map contradicting each other is what the refusal backstop is meant to prevent. | Claude | - | M | P1 | Closed | live run 2026-11-20 |
 | LR-5 | Change and field report text (C20): HOW TO READ names orange, grey and purple that are not on the map, the change report has no NOTE section, the field report note lacks the yield wording, and ties in a top-3 (five districts at 15, three at 25) are not said to be ties. | The text must describe what is on the page. | Claude | - | S | P2 | Closed | live run 2026-11-20 |
 | LR-6 | Layout items (E3, C20): a new elevation profile lands at 10 mm, 10 mm on top of the map frame; edit_layout_item answers 'Nothing to change' when only an id is given; an unrequested picture inset appeared at the top left. Place new items clear of existing ones and say what to supply. | Hand-placed overlap makes the first layout a user sees look broken. | Claude | - | S | P2 | Closed | live run 2026-11-20 |
@@ -221,11 +221,11 @@ Source: the results of the first long computer-use run (seven result parts, 2026
 
 | Status | Rows |
 |---|---|
-| In progress | 56 |
+| In progress | 57 |
 | Closed | 41 |
 | Waiting on you | 17 |
 | Blocked | 14 |
-| Not started | 8 |
+| Not started | 7 |
 | Closed (record) | 1 |
 | Decision needed | 1 |
 | **Total** | **138** |
@@ -516,3 +516,4 @@ Newest last. One line per status change; written by `tools/master_list.py set`.
 - 2026-11-21: LR-11 In progress -> In progress. 2026-11-21: the second-buffer-not-renamed part was a real defect (output_name matched an existing layer and was skipped as an input echo); fixed, CI proves it. The 'trigger names stations not rows that pass' part is still open
 - 2026-11-21: LR-4 Not started -> Closed. 2026-11-21: decimal degrees with N/S/E/W now accepted by the hydrology assessment; the window refusal names the radius that fits; the C19 card now says to save the project and tick the evidence setting (that is why no evidence folder was written). The reply-versus-layers contradiction could not be reproduced without a plugin trace (the backstop note lists a real failed call), no code change
 - 2026-11-21: LR-7 Not started -> Closed. 2026-11-21: report algorithms' geometry-less tables are returned in the tool result and no longer added to the project unless the caller names the result (row C16: four such tables). C9 test_check was loaded by the model itself (the name is nowhere in the plugin source) and the C12 flood_prep.model3 copy is where the Graphical Modeler saves a model, so neither is a plugin write; unnamed spatial outputs were already added hidden
+- 2026-11-21: LR-3 Not started -> In progress. 2026-11-21: figure check no longer grounded by id columns; epi_bulletin leaves out ungrounded figures; rates result carries top areas and the suppression count; C25 and C26 cards now say to save the project first. Still open: the PDF never written (needs a saved-project trace, owner or agent re-run) and names in layout text

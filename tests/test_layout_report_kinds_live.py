@@ -56,6 +56,34 @@ class TestReportLayouts(unittest.TestCase):
         self.assertIn("Mean NDVI: 0.99 (memory) " + ls.UNVERIFIED_FIGURE_MARK, self._body(result))
         self.assertIn("Mean NDVI", result["sitrep_warning"])
 
+    def test_an_epi_bulletin_leaves_out_a_typed_figure_that_is_not_in_the_data(self):
+        """LR-3, row C25 of the 2026-11-20 live run: a top-3 of 20 and 18 cases was printed against a maximum of 15. A bulletin carries no unverified number."""
+        from cartogen_ai.core.agent.tools import layout_style as ls
+        from cartogen_ai.core.agent.tools.layout_tools import create_print_layout
+        result = create_print_layout("Epidemic bulletin", template="epi_bulletin", body_text="Cases reported to 2026-11-08",
+                                     key_figures=[{"label": "Worst district", "value": "99"}, {"label": "Lost area", "value": "30"}])
+        body = self._body(result)
+        self.assertNotIn("Worst district", body)
+        self.assertNotIn("99", body)
+        self.assertIn("Lost area: 30", body)               # 30 is the real largest value of lost_ha in the fixture layer
+        self.assertNotIn(ls.UNVERIFIED_FIGURE_MARK, body)
+        self.assertIn("LEFT OUT", result["sitrep_warning"])
+        self.assertIn("Worst district", result["sitrep_warning"])
+
+    def test_an_identifier_column_does_not_ground_a_typed_figure(self):
+        from cartogen_ai.core.agent.tools.layout_tools import create_print_layout
+        layer = QgsVectorLayer("Polygon?crs=EPSG:4326&field=fid:integer&field=cases:integer", "ids", "memory")
+        feats = []
+        for i in range(1, 51):
+            f = QgsFeature(layer.fields())
+            f.setGeometry(QgsGeometry.fromWkt(f"POLYGON(({i} 0, {i + 0.5} 0, {i + 0.5} 0.5, {i} 0.5, {i} 0))"))
+            f.setAttributes([i, i % 4])
+            feats.append(f)
+        layer.dataProvider().addFeatures(feats)
+        QgsProject.instance().addMapLayer(layer)
+        result = create_print_layout("Bulletin", template="epi_bulletin", body_text="x", key_figures=[{"label": "Impossible", "value": "47"}])
+        self.assertNotIn("Impossible", self._body(result))      # 47 is a fid but no field measures it
+
     def test_a_change_report_has_its_headings_and_the_screening_note(self):
         from cartogen_ai.core.agent.tools import layout_style as ls
         from cartogen_ai.core.agent.tools.layout_tools import create_print_layout

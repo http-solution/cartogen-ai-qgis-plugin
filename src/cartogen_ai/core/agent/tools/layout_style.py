@@ -154,6 +154,25 @@ def parse_figure_number(text):
     return value, (len(raw.split(".")[1]) if "." in raw else 0)
 
 
+_IDENTIFIER_FIELD = re.compile(r"^(?:fid|ogc_fid|gid|oid|objectid|id|cat|rowid|row_id|index|idx|src_id)$|(?:_id|_fid|_gid)$|^id_", re.IGNORECASE)
+
+
+def is_identifier_field(name):
+    """True for a field that numbers features rather than measuring anything (fid, id, gid, objectid, src_id, district_id ...). Pure.
+
+    Why: row C25 of the 2026-11-20 live run printed a top-3 of 20 and 18 cases when the data's maximum was 15. The figure check accepted any
+    value of any numeric column, and a layer of 100 districts has an id column holding every whole number from 1 to 100, so almost any small
+    typed figure was 'found in the project data'."""
+    return bool(_IDENTIFIER_FIELD.search(str(name or "").strip()))
+
+
+def drop_figures(key_figures, labels):
+    """`key_figures` without the entries whose label is in `labels` (the epidemic bulletin leaves out a figure it cannot find in the data instead
+    of printing it with a mark). Pure; keeps the order and any entry that is not a dict as it was."""
+    gone = {str(label) for label in labels}
+    return [item for item in (key_figures or []) if not (isinstance(item, dict) and str(item.get("label") or "").strip() in gone)]
+
+
 def build_number_pool(columns):
     """The numbers a figure may legitimately be copied from: every value of every numeric attribute column, plus each column's count, sum,
     minimum, maximum and mean (headline figures are usually totals). `columns` is an iterable of lists of numbers. Pure; capped at

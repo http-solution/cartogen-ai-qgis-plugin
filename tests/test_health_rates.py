@@ -175,3 +175,17 @@ class TestRefusals(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestTopAreas(unittest.TestCase):
+    """LR-3, row C26 request 4: the rates reply held no per-district number. top_areas gives it real ones, without the suppressed areas."""
+
+    def test_the_highest_shown_values_come_first_and_flagged_areas_are_left_out(self):
+        from cartogen_ai.core.agent.tools.health_rates_tool import top_areas
+        areas = [{"value": 400.0, "rate": 400.0, "rel_risk": 0.5, "flag": "cases below 5"},
+                 {"value": 1000.0, "rate": 1000.0, "rel_risk": 1.0, "flag": None},
+                 {"value": 1500.123, "rate": 1500.123, "rel_risk": 1.5, "flag": None},
+                 {"value": None, "rate": None, "rel_risk": None, "flag": None}]
+        rows = top_areas([0, 1, 2, 3], [4, 50, 60, 0], [1000, 5000, 6000, 0], areas, n=2)
+        self.assertEqual([r["src_id"] for r in rows], [2, 1])
+        self.assertEqual(rows[0], {"src_id": 2, "cases": 60, "population": 6000, "rate": 1500.12, "rel_risk": 1.5})
