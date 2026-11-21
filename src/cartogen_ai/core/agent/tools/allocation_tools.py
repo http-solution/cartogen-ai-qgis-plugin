@@ -36,6 +36,47 @@ _EPS = 1e-9
 
 # ---------------------------------------------------------------- pure --
 
+def _spread(weights, eligible, budget, floor, cap):
+    """The amount per area: every eligible area gets `floor`, the rest of the budget goes in proportion to weight, and an area that would pass `cap`
+    is held at it while the others share what is left. Pure; areas that are not eligible get 0."""
+    amounts = [0.0] * len(weights)
+    fixed = {}
+    active = list(eligible)
+    while active:
+        remaining = budget - sum(fixed.values()) - floor * len(active)
+        total_w = sum(weights[i] for i in active)
+        proposed = {i: floor + remaining * weights[i] / total_w for i in active}
+        over = [i for i in active if cap is not None and proposed[i] > cap + _EPS]
+        if not over:
+            for i in active:
+                amounts[i] = proposed[i]
+            break
+        for i in over:
+            fixed[i] = cap
+        active = [i for i in active if i not in over]
+    for i, value in fixed.items():
+        amounts[i] = value
+    return amounts
+
+
+def _round_to_unit(amounts, unit, cap):
+    """The amounts rounded down to multiples of `unit`, then the leftover whole units handed out largest remainder first (never past `cap`). Pure."""
+    total_target = sum(amounts)
+    floored = [int((a + _EPS) // unit) * unit for a in amounts]
+    pieces = round((total_target - sum(floored)) / unit)
+    order = sorted(range(len(amounts)), key=lambda i: (-(amounts[i] - floored[i]), i))
+    for i in order:
+        if pieces <= 0:
+            break
+        if amounts[i] <= 0:
+            continue
+        if cap is not None and floored[i] + unit > cap + _EPS:
+            continue
+        floored[i] += unit
+        pieces -= 1
+    return floored
+
+
 def allocate(weights, budget, max_share=None, min_amount=0.0, rounding=None):
     """Split `budget` over areas in proportion to `weights` (list of floats >= 0; zero means no allocation). Pure.
 
@@ -46,7 +87,6 @@ def allocate(weights, budget, max_share=None, min_amount=0.0, rounding=None):
         return {"error": "budget must be a number."}
     if not budget > 0:
         return {"error": "budget must be above zero."}
-    n = len(weights)
     eligible = [i for i, w in enumerate(weights) if w is not None and w > 0]
     if not eligible:
         return {"error": "No area has a positive weight, so there is nothing to allocate to."}
@@ -68,23 +108,7 @@ def allocate(weights, budget, max_share=None, min_amount=0.0, rounding=None):
         if cap + _EPS < floor:
             return {"error": f"The ceiling per area ({cap:g}) is below the floor ({floor:g})."}
 
-    amounts = [0.0] * n
-    fixed = {}
-    active = list(eligible)
-    while active:
-        remaining = budget - sum(fixed.values()) - floor * len(active)
-        total_w = sum(weights[i] for i in active)
-        proposed = {i: floor + remaining * weights[i] / total_w for i in active}
-        over = [i for i in active if cap is not None and proposed[i] > cap + _EPS]
-        if not over:
-            for i in active:
-                amounts[i] = proposed[i]
-            break
-        for i in over:
-            fixed[i] = cap
-        active = [i for i in active if i not in over]
-    for i, value in fixed.items():
-        amounts[i] = value
+    amounts = _spread(weights, eligible, budget, floor, cap)
     capped = [i for i in eligible if cap is not None and amounts[i] >= cap - 1e-9]
 
     notes = []
@@ -95,20 +119,7 @@ def allocate(weights, budget, max_share=None, min_amount=0.0, rounding=None):
             return {"error": "rounding must be a number."}
         if unit <= 0:
             return {"error": "rounding must be above zero."}
-        total_target = sum(amounts)
-        floored = [int((a + _EPS) // unit) * unit for a in amounts]
-        pieces = round((total_target - sum(floored)) / unit)
-        order = sorted(range(n), key=lambda i: (-(amounts[i] - floored[i]), i))
-        for i in order:
-            if pieces <= 0:
-                break
-            if amounts[i] <= 0:
-                continue
-            if cap is not None and floored[i] + unit > cap + _EPS:
-                continue
-            floored[i] += unit
-            pieces -= 1
-        amounts = floored
+        amounts = _round_to_unit(amounts, unit, cap)
         notes.append(f"Amounts are rounded down to multiples of {unit:g}; the leftover units go to the areas with the largest remainders.")
     unallocated = budget - sum(amounts)
     if abs(unallocated) < 1e-6:

@@ -940,6 +940,44 @@ def _absolute_change_raster(change_raster):
         return None
 
 
+def _damage_write_preview(admin_layer, unit_name_field, raster_before, raster_after, building_footprints_layer, hazard_intensity_raster,
+                          high_severity_classes, output_field):
+    """The confirmation card shown before calculate_damage_exposure_severity writes `output_field` onto the admin layer (QGIS-008, 2026-09-13
+    audit: see calculate_severity_index's identical gate for the rationale). The arguments are echoed back with confirmed=True. Pure."""
+    return {
+        "status": "PREVIEW_REQUIRED",
+        "requires_confirmation": True,
+        "is_destructive": True,
+        "tool_name": "calculate_damage_exposure_severity",
+        "arguments": {
+            "admin_layer": admin_layer, "unit_name_field": unit_name_field,
+            "raster_before": raster_before, "raster_after": raster_after,
+            "building_footprints_layer": building_footprints_layer,
+            "hazard_intensity_raster": hazard_intensity_raster,
+            "high_severity_classes": high_severity_classes, "output_field": output_field,
+            "confirmed": True,
+        },
+        "code_snippet": f"layer = '{admin_layer}'\nlayer.startEditing()\nlayer.changeAttributeValue(fid, field_index('{output_field}'), value)  # every feature: damage-exposure severity score; an existing field of that name is overwritten\nlayer.commitChanges()",
+        "rationale": f"Data Mutation Preview: Add/update field '{output_field}' on layer '{admin_layer}' with each unit's damage-exposure severity score.",
+        "message": f"Confirmation required before mutating attribute field '{output_field}' on '{admin_layer}'.",
+    }
+
+
+def _tally_buildings(severity_results, fid_by_unit, building_counts, high_classes):
+    """(unit_results, buildings per severity class 1-5, buildings in the high classes): each unit's severity next to the number of buildings whose
+    centroid fell in it. Pure."""
+    unit_results = []
+    class_buildings = dict.fromkeys(range(1, 6), 0)
+    in_high = 0
+    for r in severity_results:
+        count = building_counts.get(fid_by_unit.get(r["unit"]), 0)
+        class_buildings[r["severity_class"]] += count
+        if r["severity_class"] in high_classes:
+            in_high += count
+        unit_results.append({"unit": r["unit"], "severity_score": r["severity_score"], "severity_class": r["severity_class"], "building_count": count})
+    return unit_results, class_buildings, in_high
+
+
 @register_tool(
     "calculate_damage_exposure_severity",
     "Composite post-crisis damage-and-exposure assessment, in the same thin-composite pattern as "
@@ -1002,23 +1040,8 @@ def calculate_damage_exposure_severity(admin_layer, unit_name_field, raster_befo
     # QGIS-008, 2026-09-13 audit -- see calculate_severity_index's identical gate for the
     # full rationale. Gated on output_field specifically, not the whole function.
     if output_field and not confirmed:
-        return {
-            "status": "PREVIEW_REQUIRED",
-            "requires_confirmation": True,
-            "is_destructive": True,
-            "tool_name": "calculate_damage_exposure_severity",
-            "arguments": {
-                "admin_layer": admin_layer, "unit_name_field": unit_name_field,
-                "raster_before": raster_before, "raster_after": raster_after,
-                "building_footprints_layer": building_footprints_layer,
-                "hazard_intensity_raster": hazard_intensity_raster,
-                "high_severity_classes": high_severity_classes, "output_field": output_field,
-                "confirmed": True,
-            },
-            "code_snippet": f"layer = '{admin_layer}'\nlayer.startEditing()\nlayer.changeAttributeValue(fid, field_index('{output_field}'), value)  # every feature: damage-exposure severity score; an existing field of that name is overwritten\nlayer.commitChanges()",
-            "rationale": f"Data Mutation Preview: Add/update field '{output_field}' on layer '{admin_layer}' with each unit's damage-exposure severity score.",
-            "message": f"Confirmation required before mutating attribute field '{output_field}' on '{admin_layer}'.",
-        }
+        return _damage_write_preview(admin_layer, unit_name_field, raster_before, raster_after, building_footprints_layer, hazard_intensity_raster,
+                                     high_severity_classes, output_field)
 
     change = calculate_raster_change_detection(raster_before, raster_after)
     if "error" in change:
@@ -1083,21 +1106,7 @@ def calculate_damage_exposure_severity(admin_layer, unit_name_field, raster_befo
         return severity
 
     fid_by_unit = {r["unit"]: r["__fid__"] for r in rows if "__fid__" in r}
-    unit_results = []
-    class_buildings = dict.fromkeys(range(1, 6), 0)
-    buildings_in_high_severity = 0
-    for r in severity["results"]:
-        fid = fid_by_unit.get(r["unit"])
-        count = building_counts.get(fid, 0)
-        class_buildings[r["severity_class"]] += count
-        if r["severity_class"] in high_classes:
-            buildings_in_high_severity += count
-        unit_results.append({
-            "unit": r["unit"],
-            "severity_score": r["severity_score"],
-            "severity_class": r["severity_class"],
-            "building_count": count,
-        })
+    unit_results, class_buildings, buildings_in_high_severity = _tally_buildings(severity["results"], fid_by_unit, building_counts, high_classes)
 
     write_error = None
     if output_field:

@@ -74,3 +74,21 @@ class TestClasses(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestReadLimits(unittest.TestCase):
+    """LR-21: the numeric limits of analyze_critical_links, split out of the tool."""
+
+    def test_numbers_are_read_and_the_caps_applied(self):
+        from cartogen_ai.core.agent.tools import critical_link_tools as clt
+        limits, error = clt._read_limits("10", 9999, "500", "30")
+        self.assertIsNone(error)
+        self.assertEqual(limits, (10, clt._TOP_CAP, 500.0, 30.0))
+        limits, _ = clt._read_limits(clt.MAX_ORIGINS + 50, 3, 1, 1)
+        self.assertEqual(limits[0], clt.MAX_ORIGINS)
+
+    def test_a_word_or_a_zero_is_refused_with_a_sentence(self):
+        from cartogen_ai.core.agent.tools import critical_link_tools as clt
+        self.assertIn("must be numbers", clt._read_limits("many", 5, 1, 1)[1])
+        for bad in ((0, 5, 1, 1), (5, 5, 0, 1), (5, 5, 1, -2)):
+            self.assertIn("above zero", clt._read_limits(*bad)[1])

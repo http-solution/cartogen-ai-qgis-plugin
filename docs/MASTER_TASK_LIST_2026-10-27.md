@@ -209,7 +209,7 @@ Source: the results of the first long computer-use run (seven result parts, 2026
 | LR-18 | Correct the cards that misled the tester: C14 step 4 ('selected only' must be in the sentence to send), B5 (exactly 20 requests), V2 (300,000 points finish in 2.3 s, so Stop cannot come first: use a slower request). | Three FAIL rows were the card's fault, not the plugin's. | Claude | - | S | P2 | Closed | live run 2026-11-20 |
 | LR-19 | Run the seven rows the run did not reach (R1-H1, W1, W2, W3, W5, W12, D1) with the continuation prompt already sent, and the nine HT rows C21-C27 by hand. | Nine rows have no result; C23 and C27 are covered by program rows H7 and H4. | You | LR-13 | M | P1 | Waiting on you | live run 2026-11-20 |
 | LR-20 | Make the report refuse rows written by someone other than the dock: 50 result lines in RESULTS_GUI.csv were typed in afterwards; record who wrote each line and show it. | A verdict nobody can trace is the problem this package was built to remove. | Claude | LR-14 | S | P2 | Closed | live run 2026-11-20 |
-| LR-21 | Split the functions at the complexity limit (ruff C901 at 22): _run_impl 25, calculate_damage_exposure_severity 25, analyze_critical_links 25, add_point_layer 25, extract_features_from_imagery 25, allocate 24, style_result_field 24, three network_phase functions 24, apply_graduated_style 23, run_allowlisted_processing_algorithm 23. One helper per decision, no behaviour change. | edit_vertices was done as the model (25 to under 22); the others are one change away from breaking the CI limit. | Claude | - | L | P3 | Not started | live run 2026-11-20 |
+| LR-21 | Split the functions at the complexity limit (ruff C901 at 22): _run_impl 25, calculate_damage_exposure_severity 25, analyze_critical_links 25, add_point_layer 25, extract_features_from_imagery 25, allocate 24, style_result_field 24, three network_phase functions 24, apply_graduated_style 23, run_allowlisted_processing_algorithm 23. One helper per decision, no behaviour change. | edit_vertices was done as the model (25 to under 22); the others are one change away from breaking the CI limit. | Claude | - | L | P3 | In progress | live run 2026-11-20 |
 | LR-22 | Fix tools/local_ci.sh: the release-zip step still looks for cartogen-ai/metadata.txt, the zip folder is cartogen_ai_plugin/, so the offline script reports a false 'FAILED: zip'. | The pre-push script the working agreement asks for gives a wrong answer. | Claude | - | XS | P2 | Closed | live run 2026-11-20 |
 | LR-23 | Tool descriptions that invite side effects: search every registered description for wording like 'at the end of a task', 'to persist', 'checkpoint' (save_project said it; fixed) and for tools that write files without being asked. | One description caused an unrequested file write; the same pattern may be elsewhere. | Claude | - | S | P2 | Closed | live run 2026-11-20 |
 | LR-24 | Fewer, cheaper tool calls: measure tool calls and tokens per request on the 12 C26 routing requests and the C16 chart (22 calls), add shortcuts (scalar statistics instead of new layers, one call for a bar chart), and set a budget per request class in a test. | Long chains cost money and time (50-90 s replies in E5) and made the extra layers of LR-7. | Claude | LR-7 | M | P2 | Not started | live run 2026-11-20 |
@@ -221,11 +221,11 @@ Source: the results of the first long computer-use run (seven result parts, 2026
 
 | Status | Rows |
 |---|---|
-| In progress | 57 |
+| In progress | 58 |
 | Closed | 42 |
 | Waiting on you | 17 |
 | Blocked | 14 |
-| Not started | 6 |
+| Not started | 5 |
 | Closed (record) | 1 |
 | Decision needed | 1 |
 | **Total** | **138** |
@@ -519,3 +519,4 @@ Newest last. One line per status change; written by `tools/master_list.py set`.
 - 2026-11-21: LR-3 Not started -> In progress. 2026-11-21: figure check no longer grounded by id columns; epi_bulletin leaves out ungrounded figures; rates result carries top areas and the suppression count; C25 and C26 cards now say to save the project first. Still open: the PDF never written (needs a saved-project trace, owner or agent re-run) and names in layout text
 - 2026-11-21: LR-14 Not started -> In progress. 2026-11-21: prompt now works with or without the dock; FIRST_MESSAGE.txt ships in the package; package to be rebuilt from the merged main (stamp in BUILD.txt)
 - 2026-11-21: LR-14 In progress -> Closed. 2026-11-21: package rebuilt from main (stamp ebad8500 built 2026-11-21 12:47) with every fix of 2026-11-20; prompt works with or without the dock; FIRST_MESSAGE.txt ships in it; delivered to the owner. The dock itself is still unproven on the owner PC (LR-13)
+- 2026-11-21: LR-21 Not started -> In progress. 2026-11-21: 5 of the 13 split (run_allowlisted_processing_algorithm 25 to 20, apply_graduated_style 23 to 17, allocate 24 to 17, analyze_critical_links 25 to 18, calculate_damage_exposure_severity 25 to 23); still to do: _run_impl, style_result_field, three network_phase functions, add_point_layer, extract_features_from_imagery

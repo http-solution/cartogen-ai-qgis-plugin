@@ -586,6 +586,31 @@ def _mark_no_data(layer, renderer, field):
                          "instead of being left off the map.")}
 
 
+def _graduated_color_ramp(color_from, color_to, cluster, has_breaks, classification):
+    """(color_ramp, ramp_label, cluster_warning, error) for apply_graduated_style: an explicit ramp the user spelled out beats a cluster colour,
+    which beats the automatic choice. `error` is a sentence when color_from / color_to are not both colours, else None."""
+    cluster_color = _match_cluster_color(cluster) if cluster else None
+    cluster_warning = None
+    if color_from or color_to:
+        # rc22 smoke F2: an explicit "pale yellow to dark red" was ignored (the map came out Viridis) because the tool had no
+        # way to take colours. A ramp the user spelled out beats every automatic choice.
+        start, end = resolve_colour(color_from or "") or color_from, resolve_colour(color_to or "") or color_to
+        if not (start and end and QColor(start).isValid() and QColor(end).isValid()):
+            return None, None, None, "color_from and color_to must both be colours (a plain phrase such as 'pale yellow' / 'dark red' or a #rrggbb code)."
+        return QgsGradientColorRamp(QColor(start), QColor(end)), f"{color_from} to {color_to}", None, None
+    if cluster_color:
+        # Near-white to the cluster's color -- a sequential single-hue ramp, the correct ramp family for ordered/graduated data
+        # (matches this file's own qualitative-vs-diverging distinction in apply_categorized_style above, applied here for sequential).
+        return QgsGradientColorRamp(QColor("#f7f7f7"), QColor(cluster_color)), f"cluster:{cluster}", None, None
+    if cluster:
+        cluster_warning = f"'{cluster}' did not match a known humanitarian cluster name -- used the default ramp instead."
+    if has_breaks:
+        # No auto-selected ramp to name yet when breaks is given -- a plain sequential default, since 'optimal ramp for this
+        # distribution' isn't the question breaks is answering.
+        return (QgsStyle.defaultStyle().colorRamp("Viridis") if QgsStyle else None), "Viridis", cluster_warning, None
+    return (QgsStyle.defaultStyle().colorRamp(classification["ramp"]) if QgsStyle else None), classification["ramp"], cluster_warning, None
+
+
 @register_tool(
     "apply_graduated_style",
     "Apply smart graduated choropleth style analyzing field distribution for optimal breaks. Pass "
@@ -667,39 +692,9 @@ def apply_graduated_style(layer_name, field, mode="auto", opacity=None, cluster=
 
         sorted_breaks = None
 
-        cluster_color = _match_cluster_color(cluster) if cluster else None
-        cluster_warning = None
-        explicit_ramp = None
-        if color_from or color_to:
-            # rc22 smoke F2: an explicit "pale yellow to dark red" was ignored (the map came out Viridis) because the tool had no
-            # way to take colours. A ramp the user spelled out beats every automatic choice.
-            start, end = resolve_colour(color_from or "") or color_from, resolve_colour(color_to or "") or color_to
-            if not (start and end and QColor(start).isValid() and QColor(end).isValid()):
-                return {"error": "color_from and color_to must both be colours (a plain phrase such as 'pale yellow' / 'dark red' or a #rrggbb code)."}
-            explicit_ramp = QgsGradientColorRamp(QColor(start), QColor(end))
-        if explicit_ramp is not None:
-            color_ramp = explicit_ramp
-            ramp_label = f"{color_from} to {color_to}"
-        elif cluster_color:
-            # Near-white to the cluster's color -- a sequential single-hue
-            # ramp, the correct ramp family for ordered/graduated data
-            # (matches this file's own qualitative-vs-diverging distinction
-            # in apply_categorized_style above, applied here for sequential).
-            color_ramp = QgsGradientColorRamp(QColor("#f7f7f7"), QColor(cluster_color))
-            ramp_label = f"cluster:{cluster}"
-        elif breaks is not None:
-            # No auto-selected ramp to name yet when breaks is given --
-            # a plain sequential default, since 'optimal ramp for this
-            # distribution' isn't the question breaks is answering.
-            if cluster:
-                cluster_warning = f"'{cluster}' did not match a known humanitarian cluster name -- used the default ramp instead."
-            color_ramp = QgsStyle.defaultStyle().colorRamp("Viridis") if QgsStyle else None
-            ramp_label = "Viridis"
-        else:
-            if cluster:
-                cluster_warning = f"'{cluster}' did not match a known humanitarian cluster name -- used the default ramp instead."
-            color_ramp = QgsStyle.defaultStyle().colorRamp(classification["ramp"]) if QgsStyle else None
-            ramp_label = classification["ramp"]
+        color_ramp, ramp_label, cluster_warning, ramp_error = _graduated_color_ramp(color_from, color_to, cluster, breaks is not None, classification)
+        if ramp_error:
+            return {"error": ramp_error}
 
         if breaks is not None:
             # Manual/defined-breaks classification (point 13 of

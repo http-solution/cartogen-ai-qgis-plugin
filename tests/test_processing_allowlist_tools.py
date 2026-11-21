@@ -426,3 +426,24 @@ class TestReportTablesStayOutOfTheProject(unittest.TestCase):
         self.assertEqual(len(preview["rows"][0][1]), 123)
         self.assertIsNone(preview["rows"][0][2])
         self.assertFalse(table_preview(["a"], [[1]])["truncated"])
+
+
+class TestSplitOutPieces(unittest.TestCase):
+    """LR-21: pieces split out of run_allowlisted_processing_algorithm."""
+
+    def test_definition_keys_with_the_long_the_short_and_no_definition(self):
+        from cartogen_ai.core.agent.tools.processing_allowlist_tools import _definition_keys
+        self.assertEqual(_definition_keys(None), (None, None, None, None, None))
+        long_shape = ({"A"}, {"dest"}, {"rast"}, "x", {"lists"}, "kinds", {"files"}, {"folders"})
+        self.assertEqual(_definition_keys(long_shape), ({"dest"}, {"rast"}, {"lists"}, {"files"}, {"folders"}))
+        short_shape = ({"A"}, {"dest"}, {"rast"})
+        self.assertEqual(_definition_keys(short_shape), ({"dest"}, {"rast"}, None, None, None))
+
+    def test_a_changed_existing_layer_is_never_called_new(self):
+        from types import SimpleNamespace
+        from cartogen_ai.core.agent.tools.processing_allowlist_tools import _changed_existing_layer_result
+        target = SimpleNamespace(name=lambda: "districts", selectedFeatureCount=lambda: 3)
+        result = _changed_existing_layer_result("native:selectbylocation", target)
+        self.assertTrue(result["changed_existing_layer"])
+        self.assertEqual((result["layer_name"], result["selected_feature_count"]), ("districts", 3))
+        self.assertNotIn("layer_name", _changed_existing_layer_result("native:x", None))
