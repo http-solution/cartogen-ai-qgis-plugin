@@ -2490,6 +2490,59 @@ def _with_matrix_options(result, speed_field, closed_segments, direction_field):
     return result
 
 
+def _origin_by_origin_matrix(origins, origin_features, destinations, network, strategy, default_speed, extra_params):
+    """({origin id: {destination feature id: cost}}, destinations whose end-point text could not be matched back to a feature id). One
+    point-to-layer search per origin. Split out of travel_time_matrix (LR-21, no behaviour change)."""
+    strategy_val = 1 if strategy == "fastest" else 0
+    matrix = {}
+    origin_ids = unique_labels([feature_label(f) for f in origin_features], "origin")
+    destination_points = []
+    for dest in _ck.features(destinations, "Logistics: reading features"):
+        if dest.hasGeometry() and not dest.geometry().isEmpty():
+            xy = _point_xy_in_network_crs(dest.geometry().asPoint(), destinations.crs(), network)
+            destination_points.append((dest.id(), xy.x(), xy.y()))
+    # The end point is printed with limited precision: match to the nearest destination within a tiny distance.
+    key_tolerance = 1e-4 if network.crs().isGeographic() else 0.1
+    unmatched_keys = 0
+    for origin_feat, origin_id in zip(origin_features, origin_ids, strict=False):
+        point = origin_feat.geometry().asPoint()
+        params = {
+            "INPUT": network,
+            "STRATEGY": strategy_val,
+            "DEFAULT_SPEED": default_speed,
+            "TOLERANCE": 0,
+            "START_POINT": _point_for_network(point, origins.crs(), network),
+            "END_POINTS": destinations,
+            "OUTPUT": "memory:",
+        }
+        params.update(extra_params)
+        output = _run_network_algorithm("native:shortestpathpointtolayer", params, _network_context(), network,
+                                        "Travel time matrix")
+        result_layer = output.get("OUTPUT")
+        if result_layer is None:
+            continue
+
+        fields = [f.name() for f in result_layer.fields()]
+        cost_field = next((f for f in fields if "cost" in f.lower()), None)
+        dest_field = next((f for f in fields if "end" in f.lower() or "destination" in f.lower()), None)
+
+        distances = {}
+        for feat in _ck.features(result_layer, "Logistics: reading features"):
+            dest_key = feat.attribute(dest_field) if dest_field else feat.id()
+            cost = feat.attribute(cost_field) if cost_field else None
+            # Same keys as the single-tree path: the destination's feature id, found from the end point QGIS reports.
+            parsed = parse_xy(dest_key) if dest_field else None
+            matched = match_destination_key(parsed[0], parsed[1], destination_points, key_tolerance) if parsed else None
+            if matched is None:
+                unmatched_keys += 1
+                key = str(dest_key)
+            else:
+                key = str(matched)
+            distances[key] = cost
+        matrix[str(origin_id)] = distances
+    return matrix, unmatched_keys
+
+
 @register_tool(
     "travel_time_matrix",
     "Calculate road-network distance or travel time from each origin point to each destination "
@@ -2566,8 +2619,6 @@ def travel_time_matrix(origins_layer, destinations_layer, road_network_layer, st
         if not origin_features:
             return {"error": f"'{origins_layer}' has no usable point features."}
 
-        strategy_val = 1 if strategy == "fastest" else 0
-        matrix = {}
         if use_single_tree:
             fast = _single_tree_matrix(origins, origin_features, destinations, network, strategy, default_speed,
                                        speed_field, direction_field, value_forward, value_backward, value_both)
@@ -2584,51 +2635,7 @@ def travel_time_matrix(origins_layer, destinations_layer, road_network_layer, st
             }
             _with_access_legs(result, destinations, network)
             return _with_matrix_options(result, speed_field, closed_segments, direction_field)
-        origin_ids = unique_labels([feature_label(f) for f in origin_features], "origin")
-        destination_points = []
-        for dest in _ck.features(destinations, "Logistics: reading features"):
-            if dest.hasGeometry() and not dest.geometry().isEmpty():
-                xy = _point_xy_in_network_crs(dest.geometry().asPoint(), destinations.crs(), network)
-                destination_points.append((dest.id(), xy.x(), xy.y()))
-        # The end point is printed with limited precision: match to the nearest destination within a tiny distance.
-        key_tolerance = 1e-4 if network.crs().isGeographic() else 0.1
-        unmatched_keys = 0
-        for origin_feat, origin_id in zip(origin_features, origin_ids, strict=False):
-            point = origin_feat.geometry().asPoint()
-            params = {
-                "INPUT": network,
-                "STRATEGY": strategy_val,
-                "DEFAULT_SPEED": default_speed,
-                "TOLERANCE": 0,
-                "START_POINT": _point_for_network(point, origins.crs(), network),
-                "END_POINTS": destinations,
-                "OUTPUT": "memory:",
-            }
-            params.update(extra_params)
-            output = _run_network_algorithm("native:shortestpathpointtolayer", params, _network_context(), network,
-                                            "Travel time matrix")
-            result_layer = output.get("OUTPUT")
-            if result_layer is None:
-                continue
-
-            fields = [f.name() for f in result_layer.fields()]
-            cost_field = next((f for f in fields if "cost" in f.lower()), None)
-            dest_field = next((f for f in fields if "end" in f.lower() or "destination" in f.lower()), None)
-
-            distances = {}
-            for feat in _ck.features(result_layer, "Logistics: reading features"):
-                dest_key = feat.attribute(dest_field) if dest_field else feat.id()
-                cost = feat.attribute(cost_field) if cost_field else None
-                # Same keys as the single-tree path: the destination's feature id, found from the end point QGIS reports.
-                parsed = parse_xy(dest_key) if dest_field else None
-                matched = match_destination_key(parsed[0], parsed[1], destination_points, key_tolerance) if parsed else None
-                if matched is None:
-                    unmatched_keys += 1
-                    key = str(dest_key)
-                else:
-                    key = str(matched)
-                distances[key] = cost
-            matrix[str(origin_id)] = distances
+        matrix, unmatched_keys = _origin_by_origin_matrix(origins, origin_features, destinations, network, strategy, default_speed, extra_params)
 
         if not matrix:
             return {"error": "Could not compute any routes -- check the origin/destination points are near the road network."}
