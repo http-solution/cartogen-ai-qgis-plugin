@@ -118,11 +118,10 @@ def _folded_routing_phrases(name):
     """The routing phrases of a tool, already folded for matching. Cached on the exact inputs the phrases are built from (the alias tuple, the declared
     keywords and the language table entries), so a test that changes any of them gets fresh phrases, not a stale answer."""
     from_aliases = _TOOL_ALIASES.get(name, ())
-    try:
+    declared = ()       # the registry unavailable means no declared phrases, same as _declared_keywords
+    with contextlib.suppress(Exception):
         from ..agent.tools.registry import TOOL_KEYWORDS
         declared = tuple(TOOL_KEYWORDS.get(name, ()))
-    except Exception:       # the registry is unavailable: same as _declared_keywords, no declared phrases
-        declared = ()
     _language_phrases("")        # loads the language file once
     languages = tuple(tuple(table.get(name, ())) for table in _languages_cache.values())
     key = (name, tuple(from_aliases), declared, languages)
