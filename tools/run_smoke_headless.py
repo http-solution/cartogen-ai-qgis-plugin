@@ -59,6 +59,20 @@ def layer_values(name, field):
     return [f[field] for f in layers[0].getFeatures()]
 
 
+def validate_workflow_file(path):
+    """What the plugin's import dialog would say about one workflow file, from its own validator and without opening a dialog (row W10 moved here by LR-15,
+    because a click-only agent cannot type the terminal command the hand row needed). Needs the plugin on sys.path, not a QGIS project."""
+    import cartogen_ai.core.agent.agent_orchestrator  # noqa: F401  (registers every tool)
+    from cartogen_ai.core import tool_operations
+    from cartogen_ai.core.agent import workflow_file
+    from cartogen_ai.core.agent.tools.registry import TOOLS_SCHEMA
+    schemas = workflow_file.schemas_from(TOOLS_SCHEMA)
+    text = Path(path).read_text(encoding="utf-8", errors="replace")
+    document, problems, _warnings = workflow_file.validate(text, schemas, tool_operations.get_tool_operation_type)
+    return {"accepted": not problems, "problems": list(problems), "first_problem": problems[0] if problems else "",
+            "steps": [s.get("tool") for s in (document or {}).get("steps", [])]}
+
+
 def run_row(row, inputs_dir, registry, out_dir):
     from qgis.core import QgsProject, QgsVectorLayer
     QgsProject.instance().clear()
@@ -86,6 +100,8 @@ def run_row(row, inputs_dir, registry, out_dir):
                 layer = QgsProject.instance().mapLayersByName(step["layer"])[0]
                 sensitivity.set_layer_sensitivity(layer, step["level"], "agent-run smoke")
                 result = {"tagged": step["layer"], "level": step["level"]}
+            elif kind == "validate_workflow":
+                result = validate_workflow_file(Path(inputs_dir) / step["file"])
             elif kind == "tool":
                 func = registry.get(step["name"])
                 result = func(**step["args"]) if func else {"error": f"Unknown tool: {step['name']}"}

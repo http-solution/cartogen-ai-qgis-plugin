@@ -119,6 +119,8 @@ STATUS (said plainly)
   The headless rows ran on a real Windows QGIS 4.2.3 (all 15 PASS). The dock and the plugin auto-start ran in a first Haiku session on Windows 11: it worked for several rows, but QGIS crashed when
   a result button was pressed. This version records the result BEFORE taking evidence, takes the screenshot from outside QGIS (PowerShell) and no longer saves the canvas from inside QGIS;
   whether that removes the crash is NOT yet confirmed. Rows A1 and V1 are human rows. Try one row yourself with the Pass button before handing the set to Haiku.
+  Window pictures: the supervisor also saves the whole screen itself, one a minute and one at each new result line, into results\\screens\\timed (unverified until a Windows run: the
+  agent's own screenshot tool cannot save files, so these are the pictures a person can look at).
 """
 
 START = """@echo off

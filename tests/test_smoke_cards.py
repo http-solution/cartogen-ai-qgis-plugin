@@ -338,6 +338,18 @@ class TestTheBuiltPackage(unittest.TestCase):
         self.assertNotRegex(analyze, r"(?m)^python ")
         self.assertNotIn("smoke_start_work", self.zip.read(f"{self.top}/START_QGIS.bat").decode())
 
+    def test_the_supervisor_takes_its_own_timed_screenshots_without_ever_stopping_the_run(self):
+        # LR-16: the computer-use agent's screenshot tool cannot save files (25 pictures lost on 2026-11-20), so the
+        # supervisor saves one a minute and one at each new result line, from outside QGIS. Source-text guard only:
+        # PowerShell is not available in this sandbox, so the capture itself is unverified until a Windows run.
+        sup = self.zip.read(f"{self.top}/tools/supervisor.ps1").decode()
+        for need in ("screens\\timed", "CopyFromScreen", "row_change", "-ge 60", "timed screenshot failed", "WaitForExit(2000)"):
+            self.assertIn(need, sup)
+        self.assertEqual(sup.count("Capture \""), 2)              # the row-change and the timer call sites
+        capture = sup[sup.index("function Capture"):sup.index("function ResultLines")]
+        self.assertIn("try {", capture)                            # a failed picture is logged, never fatal
+        self.assertIn("catch", capture)
+
     def test_every_file_a_card_needs_is_shipped(self):
         names = {Path(n).name for n in self.names() if n.startswith("3_test_files/")}
         for c in json.loads(self.zip.read(f"{self.top}/cards.json")):
