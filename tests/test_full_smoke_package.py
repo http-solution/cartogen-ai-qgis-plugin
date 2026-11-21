@@ -304,6 +304,16 @@ class TestThePackage(unittest.TestCase):
             self.assertTrue(any("smoke_mesh.2dm" in p and "missing" in p for p in problems), problems)
             self.assertTrue(any("row D2-damage-and-risk needs smoke_prob.csv" in p for p in problems), problems)
 
+    def test_the_package_ships_no_evidence_folder_and_the_verifier_catches_one_left_by_a_row(self):
+        self.assertEqual([n for n in self.zip.namelist() if "cartogen_evidence" in n], [])
+        import verify_inputs
+        with tempfile.TemporaryDirectory() as d:
+            self.zip.extractall(d)
+            folder = Path(d) / self.top / "3_test_files"
+            (folder / "cartogen_evidence" / "20261120_100000").mkdir(parents=True)
+            _entries, problems = verify_inputs.check(folder)
+            self.assertTrue(any("cartogen_evidence" in p and "original folder" in p for p in problems), problems)
+
     def test_the_evidence_page_holds_the_lessons_of_the_first_run_that_rows_point_at(self):
         page = self.zip.read(f"{self.top}/EVIDENCE_HOWTO.txt").decode("utf-8")
         for needle in ("WHERE TO TYPE", "FRESH CHAT", "SAVE FIRST", "shot('D1-borders')", "not a failure"):

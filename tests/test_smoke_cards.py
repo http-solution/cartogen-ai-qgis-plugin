@@ -254,7 +254,15 @@ class TestAnalysis(unittest.TestCase):
             text, counts, mc = an.build_report(tmp, [_cardfor(id="X1"), _cardfor(id="X2"), _cardfor(id="X3")])
             self.assertEqual(counts, {"VERIFIED": 1, "UNSUPPORTED": 1, "NO RESULT": 1})
             self.assertEqual(mc, {"PASS": 1})
-            self.assertIn("| X2 | PASS | UNSUPPORTED |", text)
+            self.assertIn("| X2 | PASS | typed | UNSUPPORTED |", text)
+            self.assertIn("Result lines written by the dock: 0, typed in by the agent: 2", text)
+
+    def test_written_by_tells_the_docks_lines_from_typed_ones(self):
+        dock = {"row": "X1", "status": "PASS", "started": "2026-11-20T10:00:00", "finished": "2026-11-20T10:01:00", "seconds": "60"}
+        self.assertEqual(an.written_by(dock), "dock")
+        self.assertEqual(an.written_by({"row": "X1", "status": "PASS", "started": "", "finished": "", "seconds": ""}), "typed")
+        self.assertEqual(an.written_by({"row": "X1", "status": "PASS", "seconds": "5"}), "typed")      # a number alone is not the dock's signature
+        self.assertEqual(an.written_by(None), "")
 
 
 class TestTheBuiltPackage(unittest.TestCase):
