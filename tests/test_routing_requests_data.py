@@ -10,6 +10,7 @@ from cartogen_ai.core.services.tool_router import ToolRouter
 
 DATA = Path(__file__).resolve().parent / "fixtures" / "routing_requests.json"
 ROWS = json.loads(DATA.read_text(encoding="utf-8"))
+TOOL_CEILING = 30
 
 
 def missing_tools():
@@ -35,8 +36,16 @@ class TestRoutingRequestsData(unittest.TestCase):
                 for name in (need if isinstance(need, list) else [need]):
                     self.assertIn(name, registered, row["prompt"])
 
+    def test_no_request_is_offered_more_than_the_tool_ceiling(self):
+        # LR-24: every tool offered is a schema the model is billed for on every call of the request (the 2026-11-20 chart request made 22
+        # calls). Measured 2026-11-21 over these rows: 10 to 29 tools, 29 the router's cap. A change that lets the router offer more must say so here.
+        router = ToolRouter(TOOLS_SCHEMA)
+        for row in ROWS:
+            offered = len(router.filter_relevant_tools(row["prompt"]))
+            self.assertLessEqual(offered, TOOL_CEILING, f"{row['prompt']!r} is offered {offered} tools")
+
     def test_size_pin(self):
-        self.assertGreaterEqual(len(ROWS), 156)  # raise when you add rows; never lower it without a stated reason
+        self.assertGreaterEqual(len(ROWS), 168)  # raise when you add rows; never lower it without a stated reason
 
 
 if __name__ == "__main__":
