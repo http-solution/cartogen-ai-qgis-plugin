@@ -2357,6 +2357,51 @@ def _keep_or_say_temporary(layer, result):
         result["temporary_note"] = note
 
 
+def _reused_point_layer_result(point, source_crs, transform):
+    """The reply when a single requested point already has a point layer at that location (no duplicate layer is made), else None. The position is
+    resolved in code from the point's own CRS, never by the model."""
+    try:
+        lon, lat = _coords.resolve_lon_lat(point, source_crs, transform)
+    except ValueError:
+        return None
+    reused = _find_point_layer_at(lon, lat)
+    if reused is None:
+        return None
+    return {
+        "success": True, "layer_name": reused.name(), "added": 0, "requested": 1,
+        "reused_existing_layer": True,
+        "placed_wgs84": [{"name": str(point.get("name", "")), "lon": round(lon, 6), "lat": round(lat, 6)}],
+        "message": (f"A point layer already holds this location: '{reused.name()}'. No duplicate layer was created. "
+                    f"Use '{reused.name()}' as the origin layer in the next step and tell the user it was reused."),
+    }
+
+
+def _add_points(layer, field_names, points, source_crs, transform):
+    """(added, placed, errors, data_quality_warnings): adds each point to `layer` (inside the caller's edit session). A point whose position cannot be
+    resolved or that the layer refuses is reported in `errors` and the rest still go in. Both ACLED/IMSMA coding warnings and event_start/event_end
+    ordering warnings land in the one per-point warnings list, since both are advisory data-quality flags on the same point."""
+    added = 0
+    placed = []
+    errors = []
+    data_quality_warnings = []
+    for i, pt in enumerate(points):
+        try:
+            lon, lat = _coords.resolve_lon_lat(pt, source_crs, transform)
+        except ValueError as e:
+            errors.append(f"Point {i}: {e}")
+            continue
+
+        feat, point_warnings = _build_point_feature(layer, field_names, pt, lon, lat)
+        if point_warnings:
+            data_quality_warnings.append(f"Point {i}: " + "; ".join(point_warnings))
+        if layer.addFeature(feat):
+            added += 1
+            placed.append({"name": str(pt.get("name", "")), "lon": round(lon, 6), "lat": round(lat, 6)})
+        else:
+            errors.append(f"Point {i}: failed to add feature")
+    return added, placed, errors, data_quality_warnings
+
+
 @register_tool(
     "add_point_layer",
     "Create a new point layer (or append to an existing one with the same name) from a LIST of real, "
@@ -2429,51 +2474,6 @@ def _keep_or_say_temporary(layer, result):
         "load it as points", "as points on the map", "latitude and longitude columns", "csv with latitude", "csv of villages",
     ],
 )
-def _reused_point_layer_result(point, source_crs, transform):
-    """The reply when a single requested point already has a point layer at that location (no duplicate layer is made), else None. The position is
-    resolved in code from the point's own CRS, never by the model."""
-    try:
-        lon, lat = _coords.resolve_lon_lat(point, source_crs, transform)
-    except ValueError:
-        return None
-    reused = _find_point_layer_at(lon, lat)
-    if reused is None:
-        return None
-    return {
-        "success": True, "layer_name": reused.name(), "added": 0, "requested": 1,
-        "reused_existing_layer": True,
-        "placed_wgs84": [{"name": str(point.get("name", "")), "lon": round(lon, 6), "lat": round(lat, 6)}],
-        "message": (f"A point layer already holds this location: '{reused.name()}'. No duplicate layer was created. "
-                    f"Use '{reused.name()}' as the origin layer in the next step and tell the user it was reused."),
-    }
-
-
-def _add_points(layer, field_names, points, source_crs, transform):
-    """(added, placed, errors, data_quality_warnings): adds each point to `layer` (inside the caller's edit session). A point whose position cannot be
-    resolved or that the layer refuses is reported in `errors` and the rest still go in. Both ACLED/IMSMA coding warnings and event_start/event_end
-    ordering warnings land in the one per-point warnings list, since both are advisory data-quality flags on the same point."""
-    added = 0
-    placed = []
-    errors = []
-    data_quality_warnings = []
-    for i, pt in enumerate(points):
-        try:
-            lon, lat = _coords.resolve_lon_lat(pt, source_crs, transform)
-        except ValueError as e:
-            errors.append(f"Point {i}: {e}")
-            continue
-
-        feat, point_warnings = _build_point_feature(layer, field_names, pt, lon, lat)
-        if point_warnings:
-            data_quality_warnings.append(f"Point {i}: " + "; ".join(point_warnings))
-        if layer.addFeature(feat):
-            added += 1
-            placed.append({"name": str(pt.get("name", "")), "lon": round(lon, 6), "lat": round(lat, 6)})
-        else:
-            errors.append(f"Point {i}: failed to add feature")
-    return added, placed, errors, data_quality_warnings
-
-
 def add_point_layer(layer_name: str, points: list, crs: str | None = None, crs_stated_by_user: bool = False):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}

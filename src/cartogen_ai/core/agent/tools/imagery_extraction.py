@@ -250,34 +250,6 @@ def _finalize_extracted_geometry(qgs_geom, pixel_size, min_area_m2, area_m2=None
     return qgs_geom
 
 
-@register_tool(
-    "extract_features_from_imagery",
-    "Extract object boundary polygons from a loaded raster using a class-agnostic segmentation "
-    "model (FastSAM) -- for a specific image the user actually has (a fresh drone/satellite photo, "
-    "a scanned map), NOT for pre-vetted baseline data (use fetch_building_footprints for that "
-    "instead, which is faster and free but can lag real conditions by months). Runs entirely "
-    "locally/offline once the model is downloaded -- no cloud vision API call, matching this "
-    "plugin's offline-first posture. IMPORTANT: this tool is class-agnostic -- it finds object "
-    "BOUNDARIES, never object IDENTITIES. Never describe a result polygon as a specific class "
-    "('this is a building') unless the user's own request already established that framing for "
-    "the whole image; state plainly that these are detected boundaries with a confidence score, "
-    "not classified objects. Requires the raster's pixel dimensions to be at most "
-    "max_pixel_dimension -- clip to a smaller area of interest first for a large image rather than "
-    "expecting this tool to silently downsample it for you. Requires the optional `ultralytics` "
-    "package (installs a real ML runtime plus a ~150MB+ model checkpoint on first use) -- install "
-    "via qpip if prompted, or manually in the OSGeo4W Shell.",
-    {
-        "type": "object",
-        "properties": {
-            "raster_layer": {"type": "string", "description": "An already-loaded raster layer to extract features from."},
-            "output_layer_name": {"type": "string", "description": "Name for the resulting polygon layer. Defaults to '{raster_layer}_extracted_features'."},
-            "min_area_m2": {"type": "number", "description": "Optional: drop detected features smaller than this real-world area (square meters) -- SAM-family 'segment everything' mode reliably produces noise-scale false positives worth filtering out."},
-            "confidence_threshold": {"type": "number", "description": "Minimum model confidence (0-1) to keep a detected feature. Defaults to 0.4."},
-            "max_pixel_dimension": {"type": "integer", "description": "Hard cap on the raster's width/height in pixels. Defaults to 2048 -- larger rasters are rejected with an error asking you to clip first, rather than silently downsampled."},
-        },
-        "required": ["raster_layer"],
-    },
-)
 def _checked_raster(raster_layer, confidence_threshold, max_pixel_dimension):
     """(layer, error): the named raster layer, or a sentence when it is missing, not a raster, the confidence is outside 0-1, or the raster is
     larger than `max_pixel_dimension` on a side (clip to a smaller area first)."""
@@ -312,6 +284,34 @@ def _export_png(ds, png_path):
     return None
 
 
+@register_tool(
+    "extract_features_from_imagery",
+    "Extract object boundary polygons from a loaded raster using a class-agnostic segmentation "
+    "model (FastSAM) -- for a specific image the user actually has (a fresh drone/satellite photo, "
+    "a scanned map), NOT for pre-vetted baseline data (use fetch_building_footprints for that "
+    "instead, which is faster and free but can lag real conditions by months). Runs entirely "
+    "locally/offline once the model is downloaded -- no cloud vision API call, matching this "
+    "plugin's offline-first posture. IMPORTANT: this tool is class-agnostic -- it finds object "
+    "BOUNDARIES, never object IDENTITIES. Never describe a result polygon as a specific class "
+    "('this is a building') unless the user's own request already established that framing for "
+    "the whole image; state plainly that these are detected boundaries with a confidence score, "
+    "not classified objects. Requires the raster's pixel dimensions to be at most "
+    "max_pixel_dimension -- clip to a smaller area of interest first for a large image rather than "
+    "expecting this tool to silently downsample it for you. Requires the optional `ultralytics` "
+    "package (installs a real ML runtime plus a ~150MB+ model checkpoint on first use) -- install "
+    "via qpip if prompted, or manually in the OSGeo4W Shell.",
+    {
+        "type": "object",
+        "properties": {
+            "raster_layer": {"type": "string", "description": "An already-loaded raster layer to extract features from."},
+            "output_layer_name": {"type": "string", "description": "Name for the resulting polygon layer. Defaults to '{raster_layer}_extracted_features'."},
+            "min_area_m2": {"type": "number", "description": "Optional: drop detected features smaller than this real-world area (square meters) -- SAM-family 'segment everything' mode reliably produces noise-scale false positives worth filtering out."},
+            "confidence_threshold": {"type": "number", "description": "Minimum model confidence (0-1) to keep a detected feature. Defaults to 0.4."},
+            "max_pixel_dimension": {"type": "integer", "description": "Hard cap on the raster's width/height in pixels. Defaults to 2048 -- larger rasters are rejected with an error asking you to clip first, rather than silently downsampled."},
+        },
+        "required": ["raster_layer"],
+    },
+)
 def extract_features_from_imagery(raster_layer, output_layer_name=None, min_area_m2=None,
                                    confidence_threshold=0.4, max_pixel_dimension=_DEFAULT_MAX_PIXEL_DIMENSION,
                                    model_path=None):
