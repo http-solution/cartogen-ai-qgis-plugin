@@ -192,6 +192,19 @@ def get_layer_extent(layer_name):
               "note": "Use the bbox that matches the tool's order. Degrees; the box is the transformed rectangle, slightly larger than a rotated area needs."}
 
 
+def _entry_with_schema_withheld(entry):
+    """`entry` with its field names withheld and a note saying why: what the model sees when a layer's protection level cannot be read. Pure."""
+    if not isinstance(entry, dict):
+        return entry
+    masked = dict(entry)
+    if "fields" in masked:
+        masked["fields"] = []
+    masked["schema_hidden"] = True
+    masked["schema_note"] = ("Field names withheld: this layer's protection level could not be read, so it is treated as protected. "
+                             "Ask the user to check the layer's sensitivity before using its fields.")
+    return masked
+
+
 def _model_view_entry(entry, layer):
     """The layer entry as the model may see it: field names withheld for a protected layer when the cloud gate is
     enforcing (F21). See models/model_view.py."""
@@ -199,10 +212,10 @@ def _model_view_entry(entry, layer):
         from ...models import model_view, sensitivity
         return model_view.apply_to_layer_entry(entry, sensitivity.get_layer_sensitivity(layer).get("level"))
     except Exception as e:
-        # DEF-8 review: the entry comes back UNFILTERED, so if the sensitivity lookup fails the field names of a protected layer reach the
-        # model (F21 is the rule that withholds them). Fails open; logged here, whether it should fail closed is a decision for the owner.
+        # The entry used to come back UNFILTERED here, so a failed sensitivity lookup sent a protected layer's field names to the model (F21 is the
+        # rule that withholds them). The owner chose to fail closed (2026-11-22): the names are withheld whenever the level cannot be read.
         log_event("swallowed_exception", tag="Tools", tool="model_view_entry", error_class=type(e).__name__, error=True)
-        return entry
+        return _entry_with_schema_withheld(entry)
 
 
 @register_tool("get_attributes", "Get list of field/attribute names for a layer.", {"type": "object", "properties": {"layer_name": {"type": "string"}}, "required": ["layer_name"]},
