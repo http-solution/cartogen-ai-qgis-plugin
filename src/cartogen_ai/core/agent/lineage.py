@@ -16,6 +16,21 @@ from ...infrastructure.settings_keys import PROJECT_PROPERTY_LINEAGE
 from ..logger import log_event
 
 LINEAGE_PROPERTY_KEY = PROJECT_PROPERTY_LINEAGE
+LINEAGE_UNREADABLE_COPY_KEY = PROJECT_PROPERTY_LINEAGE + "_unreadable_copy"
+UNREADABLE_LINEAGE_TOOL = "lineage_unreadable"
+
+
+def unreadable_lineage_entry():
+    """The entry that stands in for a lineage history that cannot be read. Its `unreadable` flag is what the protection check looks for: a layer
+    whose ancestry is unknown is treated as protected (owner decision 2026-11-22), instead of its history being dropped and the layer looking
+    open. The entry names no sources; it only records that they are unknown. Pure apart from the clock."""
+    return {"tool": UNREADABLE_LINEAGE_TOOL, "params": {}, "sources": [], "source_ids": [], "unreadable": True,
+            "timestamp": time.strftime("%Y-%m-%d %H:%M:%S")}
+
+
+def lineage_is_unreadable(entries):
+    """True when any entry stands in for an unreadable history. Pure."""
+    return any(isinstance(e, dict) and e.get("unreadable") for e in entries or [])
 
 
 # --- which layers a call read, and which it made (GitHub #150, audit F14) ---------------------------------------------------------
@@ -83,8 +98,15 @@ def tag_layer_lineage(layer, tool_name: str, params: dict, source_layers: list |
         if isinstance(existing_raw, str) and existing_raw.strip():
             try:
                 history = json.loads(existing_raw)
-            except Exception:
-                history = []
+                if not isinstance(history, list):
+                    raise ValueError("the stored lineage is not a list")
+            except Exception as exc:
+                # A corrupt history used to be replaced by an empty one, which dropped the earlier sources that carry protection to a derived
+                # layer. Now the corrupt text is kept under a second property and the history restarts with an "unreadable" entry, so the layer
+                # stays protected until someone re-tags it (owner decision 2026-11-22: fail closed).
+                log_event("lineage_history_unreadable", tag="LineageEngine", error_class=type(exc).__name__)
+                layer.setCustomProperty(LINEAGE_UNREADABLE_COPY_KEY, existing_raw)
+                history = [unreadable_lineage_entry()]
 
         entry = {
             "tool": tool_name,
@@ -112,7 +134,11 @@ def get_layer_lineage(layer) -> list:
     try:
         raw = layer.customProperty(LINEAGE_PROPERTY_KEY, "[]")
         if isinstance(raw, str) and raw.strip():
-            return json.loads(raw)
+            history = json.loads(raw)
+            if not isinstance(history, list):
+                raise ValueError("the stored lineage is not a list")
+            return history
     except Exception as e:
         log_event("failed_to_read_layer_lineage", tag="LineageEngine", error_class=type(e).__name__, error=True)
+        return [unreadable_lineage_entry()]       # a history that is stored but unreadable is not "no history": see unreadable_lineage_entry
     return []

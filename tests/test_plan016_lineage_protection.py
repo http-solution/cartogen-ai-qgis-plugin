@@ -89,5 +89,44 @@ class TestWording(unittest.TestCase):
                          "Current: untagged, protected through lineage from 'smoke_points' (SENSITIVE)")
 
 
+class TestUnreadableProtectionFailsClosed(unittest.TestCase):
+    """Owner decision 2026-11-22 (DEF-8 review): a layer whose tag or lineage cannot be read is treated as protected, not as untagged, for every gate
+    that asks effective_sensitivity (geocoding, export, the model's view)."""
+
+    def test_a_lineage_that_cannot_be_read_makes_an_untagged_layer_sensitive_and_is_logged(self):
+        layer = FakeLayer("derived_copy")
+        with patch.object(protection.sensitivity, "get_layer_sensitivity", lambda lyr: {"level": None, "reason": None}), \
+                patch.object(protection, "get_layer_lineage", side_effect=RuntimeError("boom")), \
+                patch.object(protection, "log_event") as log:
+            record = protection.effective_sensitivity(layer, [layer])
+        self.assertEqual(record["level"], "SENSITIVE")
+        self.assertIn("could not be read", record["reason"])
+        self.assertEqual(log.call_args.args[0], "lineage_read_failed")
+        self.assertEqual(log.call_args.kwargs["error_class"], "RuntimeError")
+
+    def test_the_export_gate_therefore_asks_about_such_a_layer(self):
+        layer = FakeLayer("derived_copy")
+        with patch.object(protection.sensitivity, "get_layer_sensitivity", lambda lyr: {"level": None, "reason": None}), \
+                patch.object(protection, "get_layer_lineage", side_effect=RuntimeError("boom")), patch.object(protection, "log_event"):
+            found = protected_in([layer], [layer])
+        self.assertEqual([(f["layer"], f["level"]) for f in found], [("derived_copy", "SENSITIVE")])
+
+    def test_a_tag_read_that_raises_counts_as_sensitive_too(self):
+        layer = FakeLayer("a")
+        with patch.object(protection.sensitivity, "get_layer_sensitivity", side_effect=RuntimeError("boom")), patch.object(protection, "log_event") as log:
+            self.assertEqual(protection.effective_sensitivity(layer, [layer])["level"], "SENSITIVE")
+        self.assertEqual(log.call_args.args[0], "sensitivity_read_failed")
+
+    def test_a_plain_untagged_layer_with_no_lineage_is_still_untagged(self):
+        layer = FakeLayer("plain")
+        self.assertEqual(run([layer], layer), [])
+
+    def test_the_returned_default_cannot_be_changed_by_a_caller(self):
+        layer = FakeLayer("a")
+        with patch.object(protection.sensitivity, "get_layer_sensitivity", side_effect=RuntimeError("boom")), patch.object(protection, "log_event"):
+            protection.effective_sensitivity(layer, [layer])["level"] = "PUBLIC"
+            self.assertEqual(protection.effective_sensitivity(layer, [layer])["level"], "SENSITIVE")
+
+
 if __name__ == "__main__":
     unittest.main()
