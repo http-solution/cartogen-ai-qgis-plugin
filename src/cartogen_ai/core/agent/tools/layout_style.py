@@ -173,6 +173,47 @@ def drop_figures(key_figures, labels):
     return [item for item in (key_figures or []) if not (isinstance(item, dict) and str(item.get("label") or "").strip() in gone)]
 
 
+ADMIN_UNIT_WORDS = ("District", "Districts", "Subdistrict", "Sub-district", "Governorate", "Province", "Region", "County", "Zone", "Camp", "Municipality",
+                    "Neighbourhood", "Neighborhood", "Ward", "Division", "Prefecture", "Department", "Canton", "Commune", "Village", "Parish")
+# Words that can sit in front of an administrative-unit word without naming a place ("Each District", "The District", "Affected Districts").
+_NOT_PLACE_WORDS = frozenset({"the", "a", "an", "each", "every", "any", "all", "some", "this", "that", "these", "those", "other", "affected", "reported",
+                              "neighbouring", "neighboring", "same", "whole", "entire", "in", "of", "for", "from", "to", "across", "within", "per", "and",
+                              "or", "by", "at", "on", "with", "which", "high", "low", "highest", "lowest", "top", "new", "total"})
+_PLACE_PHRASE = re.compile(r"\b((?:[A-Z][\w'\u2019-]*\s+){1,3})(" + "|".join(re.escape(w) for w in ADMIN_UNIT_WORDS) + r")\b")
+
+
+def place_name_phrases(text):
+    """[(phrase as typed, the words that must come from the data)] for each 'Capitalised Words District/Governorate/Camp ...' in `text`. Leading
+    filler ('The', 'Each', 'Affected') is not part of the name; a phrase with nothing left names no place and is skipped. Pure."""
+    found = []
+    for match in _PLACE_PHRASE.finditer(str(text or "")):
+        words = [w for w in match.group(1).split() if w.lower() not in _NOT_PLACE_WORDS]
+        if words:
+            found.append((" ".join(words) + " " + match.group(2), words))
+    return found
+
+
+def ungrounded_place_names(texts, data_words):
+    """The place names typed in `texts` whose name words are not all among `data_words` (lower-case words from the project's text fields and layer
+    names). Each name once, in the order found. Pure.
+
+    Why: row C25 of the 2026-11-20 live run printed a 'Surveillance District' name the model supplied from general knowledge; no layer held it.
+    The epidemic bulletin refuses a place name the data does not hold, the same rule as for a figure (a public-health bulletin must not carry what is
+    not in the data)."""
+    known = {str(w).lower() for w in data_words}
+    bad = []
+    for text in texts:
+        for phrase, words in place_name_phrases(text):
+            if phrase not in bad and not all(re.sub(r"[^\w-]", "", w.lower()) in known for w in words):
+                bad.append(phrase)
+    return bad
+
+
+def words_of(text):
+    """The lower-case words of a text value (letters, digits, hyphen). Pure."""
+    return set(re.findall(r"[\w-]+", str(text or "").lower()))
+
+
 def build_number_pool(columns):
     """The numbers a figure may legitimately be copied from: every value of every numeric attribute column, plus each column's count, sum,
     minimum, maximum and mean (headline figures are usually totals). `columns` is an iterable of lists of numbers. Pure; capped at

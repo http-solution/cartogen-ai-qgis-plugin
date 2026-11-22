@@ -135,5 +135,30 @@ class TestSitrepLayoutMarksUnverifiedFigures(unittest.TestCase):
         self.assertIn("people_in_need", result["error"])
 
 
+class TestPlaceNamesTheDataDoesNotHold(unittest.TestCase):
+    """LR-3, row C25 of the 2026-11-20 live run: the bulletin carried a 'Surveillance District' the model supplied from general knowledge."""
+
+    POOL = frozenset({"aden", "south", "north", "fields", "cases", "kamaran"})
+
+    def test_a_name_no_layer_holds_is_found(self):
+        self.assertEqual(ls.ungrounded_place_names(["Epidemic bulletin for the Surveillance District"], self.POOL), ["Surveillance District"])
+
+    def test_a_name_the_data_holds_passes_in_any_case(self):
+        self.assertEqual(ls.ungrounded_place_names(["Cases in the Aden District rose", "KAMARAN Governorate"], self.POOL), [])
+
+    def test_every_word_of_the_name_must_come_from_the_data(self):
+        self.assertEqual(ls.ungrounded_place_names(["Kamaran Island Governorate"], self.POOL), ["Kamaran Island Governorate"])
+
+    def test_filler_before_the_unit_word_is_not_a_name(self):
+        for text in ("Each District reported cases", "Affected Districts are shaded", "The District", "All Regions"):
+            self.assertEqual(ls.ungrounded_place_names([text], self.POOL), [], text)
+
+    def test_lower_case_text_and_unit_words_alone_are_not_names(self):
+        self.assertEqual(ls.ungrounded_place_names(["the northern district was hit", "District"], self.POOL), [])
+
+    def test_each_bad_name_is_listed_once_in_the_order_found(self):
+        self.assertEqual(ls.ungrounded_place_names(["Narnia District then Oz Province", "Narnia District again"], self.POOL), ["Narnia District", "Oz Province"])
+
+
 if __name__ == "__main__":
     unittest.main()

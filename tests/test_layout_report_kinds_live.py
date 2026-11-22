@@ -122,6 +122,22 @@ class TestReportLayouts(unittest.TestCase):
         for absent in ("SITUATION", "HANDLING", ls.UNVERIFIED_FIGURE_MARK):
             self.assertNotIn(absent, body)
 
+    def test_an_epi_bulletin_refuses_a_place_name_no_layer_holds_and_builds_nothing(self):
+        # LR-3, row C25 of the 2026-11-20 live run: 'Surveillance District' came from the model, not from the data.
+        from qgis.core import QgsProject
+        from cartogen_ai.core.agent.tools.layout_tools import create_print_layout
+        before = len(QgsProject.instance().layoutManager().printLayouts())
+        result = create_print_layout("Bulletin for the Surveillance District", template="epi_bulletin", body_text="Cases reported to 2026-11-08",
+                                     key_figures_from={"layer_name": "fields", "label_field": "name", "value_field": "lost_ha", "top_n": 2})
+        self.assertIn("Surveillance District", result.get("error", ""))
+        self.assertEqual(len(QgsProject.instance().layoutManager().printLayouts()), before)
+
+    def test_an_epi_bulletin_accepts_a_place_name_the_layer_holds(self):
+        from cartogen_ai.core.agent.tools.layout_tools import create_print_layout
+        result = create_print_layout("Bulletin", template="epi_bulletin", body_text="Cases in the South District to 2026-11-08",
+                                     key_figures_from={"layer_name": "fields", "label_field": "name", "value_field": "lost_ha", "top_n": 2})
+        self.assertTrue(result.get("success"), result)
+
     def test_sitrep_is_unchanged_and_an_unknown_template_is_the_standard_layout(self):
         from cartogen_ai.core.agent.tools import layout_style as ls
         from cartogen_ai.core.agent.tools.layout_tools import create_print_layout

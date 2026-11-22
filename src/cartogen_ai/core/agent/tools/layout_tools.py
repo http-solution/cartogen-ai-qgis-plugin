@@ -473,6 +473,51 @@ def _numeric_columns(max_features=50000):
     return columns
 
 
+def _text_words(max_features=20000):
+    """The lower-case words of every text attribute value and every layer name in the project (up to max_features features per layer): what a place name in
+    a bulletin may legitimately be copied from."""
+    from qgis.core import QgsProject, QgsVectorLayer
+    from .layout_style import words_of
+    words = set()
+    for layer in QgsProject.instance().mapLayers().values():
+        words |= words_of(layer.name())
+        if not isinstance(layer, QgsVectorLayer):
+            continue
+        names = [f.name() for f in layer.fields() if not f.isNumeric()]       # text (and dates, harmlessly); no field-type constants, which differ between Qt 5 and 6
+        for i, feature in enumerate(layer.getFeatures()):
+            if i >= max_features:
+                break
+            for n in names:
+                words |= words_of(feature[n])
+    return words
+
+
+def _unfounded_names_problem(title, body_text):
+    """The refusal sentence when the bulletin's title or summary names a place that no project layer holds, else None. Best-effort: a check that
+    cannot run (no data to read) does not block the layout. LR-3, 2026-11-20 live run, row C25: a 'Surveillance District' the model supplied itself."""
+    from . import layout_style
+    names = []
+    with contextlib.suppress(Exception):         # a check that cannot read the data must not block the layout
+        names = layout_style.ungrounded_place_names([title, body_text], _text_words())
+    if not names:
+        return None
+    return (f"The bulletin names places that are not in the project data: {', '.join(names)}. Nothing was built. Use place names from the layer "
+            "(key_figures_from with a label_field) or leave the place name out; never name a place from memory.")
+
+
+def _report_inputs(template, title, body_text, key_figures, key_figures_from):
+    """(key_figures with the layer-derived ones first, None), or (None, the refusal): the key_figures_from problem, or for an epidemic bulletin a place
+    name the data does not hold. Split out of create_print_layout to keep it under the complexity limit."""
+    key_figures, problem = _merge_figures_from_layer(key_figures, key_figures_from)
+    if problem:
+        return None, problem
+    if template == "epi_bulletin":
+        problem = _unfounded_names_problem(title, body_text)
+        if problem:
+            return None, problem
+    return key_figures, None
+
+
 def _figures_from_layer(spec):
     """(key_figures, error) for key_figures_from = {layer_name, label_field, value_field, top_n?, order?}. The numbers come from the layer, so
     they cannot drift from it (1.18.4 smoke B8: a model typed 120,000 / 85,000 / 45,000 after reading only field names; the layer held
@@ -716,7 +761,7 @@ def create_print_layout(title: str, page_orientation: str | None = None, output_
     try:
         requested = str(template or "").lower()
         template = requested if requested in ("access_map", "sitrep", "field_report", "change_report", "epi_bulletin") else "standard"
-        key_figures, problem = _merge_figures_from_layer(key_figures, key_figures_from)
+        key_figures, problem = _report_inputs(template, title, body_text, key_figures, key_figures_from)
         if problem:
             return {"error": problem}
         template, body_text, zoom_to_layer, sitrep_args, sitrep_warning = _prepare_template(
