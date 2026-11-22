@@ -71,4 +71,6 @@ for ($i = 1; $i -le 8; $i++) {
 
 Log "writing the report"
 & (Join-Path $qgis "bin\python-qgis.bat") (Join-Path $Pkg "tools\analyze_smoke_run.py") $results (Join-Path $Pkg "cards.json") *> (Join-Path $results "analyze.log")
-Log "done: open results\REPORT.md"
+# LR-24: tool calls, first tool and tokens per request, read from the plugin's own evidence folders (they exist only for a SAVED project).
+& (Join-Path $qgis "bin\python-qgis.bat") (Join-Path $Pkg "tools\request_costs.py") $results --out (Join-Path $results "request_costs.md") *> (Join-Path $results "request_costs.log")
+Log "done: open results\REPORT.md (and results\request_costs.md for tool calls and tokens per request)"

@@ -284,7 +284,7 @@ class TestTheBuiltPackage(unittest.TestCase):
     def test_the_package_has_everything_it_promises(self):
         names = self.names()
         for need in ("README.txt", "HAIKU_PROMPT.md", "cards.json", "CARDS.md", "START_QGIS.bat", "RUN_HEADLESS.bat", "ANALYZE.bat", "docs/AGENT_RUN_ROWS.json", "3_test_files/SHA256SUMS.txt",
-                     "FIRST_MESSAGE.txt", "tools/smoke_dock.py", "tools/smoke_dock_start.py", "tools/smoke_cards.py", "tools/smoke_core.py", "tools/analyze_smoke_run.py", "tools/collect_evidence.py"):
+                     "FIRST_MESSAGE.txt", "tools/smoke_dock.py", "tools/smoke_dock_start.py", "tools/smoke_cards.py", "tools/smoke_core.py", "tools/analyze_smoke_run.py", "tools/request_costs.py", "tools/routing_requests.json", "tools/collect_evidence.py"):
             self.assertIn(need, names)
         self.assertTrue(any(n.startswith("1_plugin/") for n in names))
         self.assertTrue(any(n.startswith("plugin/cartogen_ai/core/") for n in names))
