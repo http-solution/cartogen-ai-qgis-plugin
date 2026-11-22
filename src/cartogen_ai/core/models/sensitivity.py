@@ -50,8 +50,10 @@ def get_layer_sensitivity(layer) -> dict:
         return _default_record()
     try:
         raw = layer.customProperty(SENSITIVITY_PROPERTY_KEY, "")
-    except Exception:
-        return _default_record()
+    except Exception as exc:
+        # QGIS refused to answer (a layer whose C++ object is gone, for one), so whether a tag exists is unknown, not "no tag" (DEF-8, owner
+        # decision 2026-11-22: protection that cannot be read counts as protected). Not seen on a real layer; offline test only.
+        return _unreadable_tag_record("read_failed_" + type(exc).__name__)
     if not isinstance(raw, str) or not raw.strip():
         return _default_record()
     try:
