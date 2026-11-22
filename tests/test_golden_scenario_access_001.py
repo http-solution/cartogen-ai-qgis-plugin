@@ -78,7 +78,7 @@ class TestGoldenScenarioAccess001(unittest.TestCase):
                 "OUTPUT": intersect_mock if alg == "native:intersection" else MagicMock()
             }
 
-            def pop_exposure_side_effect(raster, layer_name):
+            def pop_exposure_side_effect(raster, layer_name, raster_unit="people_per_cell"):
                 if layer_name == "district_boundary":
                     return {
                         "success": True,

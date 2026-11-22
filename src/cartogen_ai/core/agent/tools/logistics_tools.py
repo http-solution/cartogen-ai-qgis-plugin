@@ -2928,6 +2928,9 @@ def _with_access_legs(result, destinations, network, max_features=5000):
             "speed_field": {"type": "string", "description": "Optional per-segment speed field (km/h); ignored with a note if mostly empty."},
             "direction_field": {"type": "string", "description": "Optional one-way field on the road layer."},
             "snap_distance_m": {"type": "number", "description": "A facility counts as reached when it is within this many metres of a reached road. Defaults to 500."},
+            "value_forward": {"type": "string", "description": "direction_field value meaning forward-only travel. Defaults to 'yes' (OSM convention); same as in calculate_service_area."},
+            "value_backward": {"type": "string", "description": "direction_field value meaning backward-only travel. Defaults to '-1' (OSM convention); same as in calculate_service_area."},
+            "value_both": {"type": "string", "description": "direction_field value meaning both directions. Defaults to 'no' (OSM convention); same as in calculate_service_area."},
         },
         "required": ["origin_layer", "facility_layer", "road_network_layer", "travel_cost"],
     },
@@ -2955,7 +2958,8 @@ def _with_access_legs(result, destinations, network, max_features=5000):
 )
 def classify_facilities_by_access(origin_layer, facility_layer, road_network_layer, travel_cost,
                                   strategy="shortest", default_speed=50, speed_field=None,
-                                  direction_field=None, snap_distance_m=DEFAULT_SNAP_DISTANCE_M):
+                                  direction_field=None, snap_distance_m=DEFAULT_SNAP_DISTANCE_M,
+                                  value_forward="yes", value_backward="-1", value_both="no"):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
     facilities = _find_layer_by_name(facility_layer)
@@ -2972,7 +2976,8 @@ def classify_facilities_by_access(origin_layer, facility_layer, road_network_lay
 
     _t0 = time.monotonic()
     service = calculate_service_area(origin_layer, road_network_layer, travel_cost, strategy, default_speed,
-                                     speed_field=speed_field, direction_field=direction_field)
+                                     speed_field=speed_field, direction_field=direction_field,
+                                     value_forward=value_forward, value_backward=value_backward, value_both=value_both)
     _t_service = time.monotonic()
     if "error" in service:
         return service
@@ -3091,7 +3096,7 @@ def _build_reach_polygon(method, name, line_layers, hull_layers, reach_buffer_m)
 
 
 def _reach_figure(method, layer_name, *, base_name, reach_geometry, line_layers, hull_layers, reach_buffer_m, area, area_layer,
-                  facility_layer, population_raster_layer):
+                  facility_layer, population_raster_layer, raster_unit="people_per_cell"):
     """The population figure for one reach method, or {"available": False, "reason": ...} when it could not be computed."""
     from .raster_tools import estimate_population_exposure
     try:
@@ -3107,7 +3112,7 @@ def _reach_figure(method, layer_name, *, base_name, reach_geometry, line_layers,
         if within.featureCount() == 0:
             reachable_pop = 0.0
         else:
-            pop_result = estimate_population_exposure(population_raster_layer, within_name)
+            pop_result = estimate_population_exposure(population_raster_layer, within_name, raster_unit=raster_unit)
             if "error" in pop_result:
                 raise RuntimeError(pop_result["error"])
             reachable_pop = pop_result["total_population"]
@@ -3172,6 +3177,10 @@ def _style_reach_figures(figures, headline, facility_layer):
             "reach_buffer_m": {"type": "number", "description": "Buffer distance in metres around the reached roads for the road-buffer figure. Defaults to 500."},
             "speed_field": {"type": "string", "description": "Optional numeric field on road_network_layer giving per-segment speed in km/h, same meaning as in calculate_service_area. Pass it when the request names one (for example the speed_blocked field written by apply_network_barriers): without it, blocked or slowed roads are ignored and the people-beyond figure is wrong. Only affects routing when strategy='fastest'."},
             "direction_field": {"type": "string", "description": "Optional one-way field on road_network_layer, same meaning as in calculate_service_area."},
+            "value_forward": {"type": "string", "description": "direction_field value meaning forward-only travel. Defaults to 'yes' (OSM convention); same as in calculate_service_area."},
+            "value_backward": {"type": "string", "description": "direction_field value meaning backward-only travel. Defaults to '-1' (OSM convention); same as in calculate_service_area."},
+            "value_both": {"type": "string", "description": "direction_field value meaning both directions. Defaults to 'no' (OSM convention); same as in calculate_service_area."},
+            "raster_unit": {"type": "string", "description": "'people_per_cell' (default; counts per cell, e.g. WorldPop ppp) or 'people_per_km2' (a density raster: each cell is multiplied by its area before summing). Same meaning as in estimate_population_exposure; a raster whose name says density is refused under the default."},
         },
         "required": ["facility_layer", "road_network_layer", "population_raster_layer", "area_layer", "travel_cost"],
     },
@@ -3183,7 +3192,8 @@ def _style_reach_figures(figures, headline, facility_layer):
     ],
 )
 def population_access_gap(facility_layer, road_network_layer, population_raster_layer, area_layer, travel_cost, strategy="shortest", default_speed=50,
-                          reach_geometry="concave_hull", reach_buffer_m=DEFAULT_SNAP_DISTANCE_M, speed_field=None, direction_field=None):
+                          reach_geometry="concave_hull", reach_buffer_m=DEFAULT_SNAP_DISTANCE_M, speed_field=None, direction_field=None,
+                          value_forward="yes", value_backward="-1", value_both="no", raster_unit="people_per_cell"):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
     reach_geometry = (reach_geometry or DEFAULT_REACH_GEOMETRY).lower()
@@ -3207,7 +3217,8 @@ def population_access_gap(facility_layer, road_network_layer, population_raster_
     # speed_field and direction_field were not passed on until 1.18.6: a request "using speed_blocked" (1.18.4 smoke C5, A6) reached this tool with
     # no way to name the field, so the bridge that apply_network_barriers had closed stayed passable and the figure was for the wrong network.
     service_result = calculate_service_area(facility_layer, road_network_layer, travel_cost, strategy, default_speed,
-                                            speed_field=speed_field, direction_field=direction_field)
+                                            speed_field=speed_field, direction_field=direction_field,
+                                            value_forward=value_forward, value_backward=value_backward, value_both=value_both)
     if "error" in service_result:
         return service_result
 
@@ -3222,7 +3233,7 @@ def population_access_gap(facility_layer, road_network_layer, population_raster_
 
     from .raster_tools import estimate_population_exposure
 
-    total_pop_result = estimate_population_exposure(population_raster_layer, area_layer)
+    total_pop_result = estimate_population_exposure(population_raster_layer, area_layer, raster_unit=raster_unit)
     if "error" in total_pop_result:
         return total_pop_result
     total_population = total_pop_result["total_population"]
@@ -3234,7 +3245,8 @@ def population_access_gap(facility_layer, road_network_layer, population_raster_
         layer_name = base_name if method == reach_geometry else f"{base_name}_{method}"
         figures[method] = _reach_figure(method, layer_name, base_name=base_name, reach_geometry=reach_geometry, line_layers=line_layers,
                                         hull_layers=hull_layers, reach_buffer_m=reach_buffer_m, area=area, area_layer=area_layer,
-                                        facility_layer=facility_layer, population_raster_layer=population_raster_layer)
+                                        facility_layer=facility_layer, population_raster_layer=population_raster_layer,
+                                        raster_unit=raster_unit)
 
     headline = reach_geometry
     if "reachable_population" not in figures.get(headline, {}):

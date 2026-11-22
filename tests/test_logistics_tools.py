@@ -1330,7 +1330,10 @@ class TestPopulationAccessGapEstimateFields(unittest.TestCase):
                 mock_concave.return_value = MagicMock()
             mock_processing.run.side_effect = lambda alg, params: {"OUTPUT": intersect_mock if alg == "native:intersection" else MagicMock()}
 
-            def pop(raster, layer_name):
+            self.pop_units = []
+
+            def pop(raster, layer_name, raster_unit="people_per_cell"):
+                self.pop_units.append(raster_unit)
                 if layer_name == "districts":
                     return {"success": True, "total_population": 1000.0, "pop_source": "WorldPop", "pop_reference_year": "2020"}
                 for suffix, value in self.POP_BY_LAYER_SUFFIX.items():
@@ -1352,6 +1355,20 @@ class TestPopulationAccessGapEstimateFields(unittest.TestCase):
         kwargs = self.mock_calc.call_args.kwargs
         self.assertEqual(kwargs["speed_field"], "speed_blocked")
         self.assertEqual(kwargs["direction_field"], "oneway")
+
+    def test_raster_unit_and_direction_values_reach_every_call_that_needs_them(self):
+        """The eight gaps found on 2026-11-22 (PLAN-033 item 3): the unit and the one-way values were fixed at their defaults inside this tool."""
+        self._run(direction_field="oneway", value_forward="F", value_backward="T", value_both="B", raster_unit="people_per_km2")
+        kwargs = self.mock_calc.call_args.kwargs
+        self.assertEqual((kwargs["value_forward"], kwargs["value_backward"], kwargs["value_both"]), ("F", "T", "B"))
+        self.assertGreaterEqual(len(self.pop_units), 2)   # the headline total and at least one reach figure
+        self.assertEqual(set(self.pop_units), {"people_per_km2"})
+
+    def test_the_defaults_are_unchanged_for_a_request_that_names_none(self):
+        self._run()
+        kwargs = self.mock_calc.call_args.kwargs
+        self.assertEqual((kwargs["value_forward"], kwargs["value_backward"], kwargs["value_both"]), ("yes", "-1", "no"))
+        self.assertEqual(set(self.pop_units), {"people_per_cell"})
 
     def test_no_speed_field_still_means_none(self):
         self._run()

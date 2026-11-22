@@ -62,6 +62,7 @@ Combines calculate_severity_index's classification with population-per-pixel dat
 | `invert_indicators` | array[string] | no | Indicator fields where a HIGHER raw value means a BETTER situation. |
 | `high_severity_classes` | array[integer] | no | Severity classes (1-5) counted toward the population_in_need total. Defaults to [4, 5]. |
 | `output_field` | string | no | Optional: write each unit's population figure back to the layer under this field name. |
+| `raster_unit` | string | no | 'people_per_cell' (default; counts per cell, e.g. WorldPop ppp) or 'people_per_km2' (a density raster: each cell is multiplied by its area before summing). Same meaning as in estimate_population_exposure; a raster whose name says density is refused under the default. |
 
 ### `calculate_presence_gap`
 
@@ -399,6 +400,9 @@ Answer 'which facilities are within / beyond N hours (or N metres) of this origi
 | `speed_field` | string | no | Optional per-segment speed field (km/h); ignored with a note if mostly empty. |
 | `direction_field` | string | no | Optional one-way field on the road layer. |
 | `snap_distance_m` | number | no | A facility counts as reached when it is within this many metres of a reached road. Defaults to 500. |
+| `value_forward` | string | no | direction_field value meaning forward-only travel. Defaults to 'yes' (OSM convention); same as in calculate_service_area. |
+| `value_backward` | string | no | direction_field value meaning backward-only travel. Defaults to '-1' (OSM convention); same as in calculate_service_area. |
+| `value_both` | string | no | direction_field value meaning both directions. Defaults to 'no' (OSM convention); same as in calculate_service_area. |
 
 ### `estimate_road_speeds`
 
@@ -467,6 +471,10 @@ Compute how many people, and what percentage of a population base, are BEYOND a 
 | `reach_buffer_m` | number | no | Buffer distance in metres around the reached roads for the road-buffer figure. Defaults to 500. |
 | `speed_field` | string | no | Optional numeric field on road_network_layer giving per-segment speed in km/h, same meaning as in calculate_service_area. Pass it when the request names one (for example the speed_blocked field written by apply_network_barriers): without it, blocked or slowed roads are ignored and the people-beyond figure is wrong. Only affects routing when strategy='fastest'. |
 | `direction_field` | string | no | Optional one-way field on road_network_layer, same meaning as in calculate_service_area. |
+| `value_forward` | string | no | direction_field value meaning forward-only travel. Defaults to 'yes' (OSM convention); same as in calculate_service_area. |
+| `value_backward` | string | no | direction_field value meaning backward-only travel. Defaults to '-1' (OSM convention); same as in calculate_service_area. |
+| `value_both` | string | no | direction_field value meaning both directions. Defaults to 'no' (OSM convention); same as in calculate_service_area. |
+| `raster_unit` | string | no | 'people_per_cell' (default; counts per cell, e.g. WorldPop ppp) or 'people_per_km2' (a density raster: each cell is multiplied by its area before summing). Same meaning as in estimate_population_exposure; a raster whose name says density is refused under the default. |
 
 ### `score_route_incident_risk`
 

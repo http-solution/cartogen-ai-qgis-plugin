@@ -674,13 +674,14 @@ def _write_population_to_layer(layer, rows, unit_results, output_field):
             "invert_indicators": {"type": "array", "items": {"type": "string"}, "description": "Indicator fields where a HIGHER raw value means a BETTER situation."},
             "high_severity_classes": {"type": "array", "items": {"type": "integer"}, "description": "Severity classes (1-5) counted toward the population_in_need total. Defaults to [4, 5]."},
             "output_field": {"type": "string", "description": "Optional: write each unit's population figure back to the layer under this field name."},
+            "raster_unit": {"type": "string", "description": "'people_per_cell' (default; counts per cell, e.g. WorldPop ppp) or 'people_per_km2' (a density raster: each cell is multiplied by its area before summing). Same meaning as in estimate_population_exposure; a raster whose name says density is refused under the default."},
         },
         "required": ["layer_name", "indicator_fields", "unit_name_field", "population_raster_layer"],
     },
 )
 def calculate_population_in_need(layer_name, indicator_fields, unit_name_field, population_raster_layer,
                                   weights=None, invert_indicators=None, high_severity_classes=None, output_field=None,
-                                  confirmed: bool = False):
+                                  confirmed: bool = False, raster_unit="people_per_cell"):
     if not QGIS_AVAILABLE:
         return {"error": "QGIS not available"}
     layer = _find_layer_by_name(layer_name)
@@ -726,7 +727,7 @@ def calculate_population_in_need(layer_name, indicator_fields, unit_name_field, 
     # estimate_population_exposure no longer adds a "pop_sum" field to `layer` (audit F24, #160: it ran zonal statistics
     # on the caller's layer). Its per-zone list is keyed by feature id, which is how the populations are matched to
     # severity's units below -- its "totals" dict is keyed by display label and is not used here.
-    exposure = estimate_population_exposure(population_raster_layer, layer_name)
+    exposure = estimate_population_exposure(population_raster_layer, layer_name, raster_unit=raster_unit)
     if "error" in exposure:
         return exposure
 
