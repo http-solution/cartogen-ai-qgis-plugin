@@ -50,11 +50,14 @@ def egress_refusal(name, arguments):
 
 
 def _layer_ids():
+    """The ids of the layers open before a write call, or None when QGIS cannot list them. None is not "no layers": _tag_lineage then counts every layer as a
+    source, which can only add protection to a created layer, never drop it (DEF-8, fail closed). Offline test only."""
     try:
         from qgis.core import QgsProject
         return set(QgsProject.instance().mapLayers().keys())
-    except Exception:
-        return set()
+    except Exception as exc:
+        log_event("swallowed_exception", tag="MCP", tool="layer_ids", error_class=type(exc).__name__, error=True)
+        return None
 
 
 def _tag_lineage(name, args, result, ids_before):
@@ -65,7 +68,7 @@ def _tag_lineage(name, args, result, ids_before):
         from .lineage import created_layer_names, derive_sources, source_layer_ids, tag_layer_lineage
         project = QgsProject.instance()
         all_layers = list(project.mapLayers().values())
-        read_layers = [lyr for lyr in all_layers if lyr.id() in ids_before]
+        read_layers = [lyr for lyr in all_layers if ids_before is None or lyr.id() in ids_before]
         sources = derive_sources(name, args, [lyr.name() for lyr in read_layers])
         source_ids = source_layer_ids(sources, read_layers)
         for created in created_layer_names(result, sources, [lyr.name() for lyr in all_layers]):

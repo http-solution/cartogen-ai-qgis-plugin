@@ -2792,7 +2792,7 @@
     "src/cartogen_ai/core/ui/mcp_approval.py",
     "plugin_main.py"
    ],
-   "guards": [
+   "guards": ["tests/test_def8_trace_and_mcp_fail_closed.py::TestMcpLineageWhenTheLayerListCannotBeRead::test_when_the_list_could_not_be_read_every_layer_counts_as_read", 
     "tests/test_mcp_server.py::TestWriteList::test_every_write_tool_is_a_plain_create_or_modify_tool_with_no_own_confirmation_or_network",
     "tests/test_mcp_server.py::TestWriteList::test_dangerous_tools_are_not_on_the_write_list",
     "tests/test_mcp_server.py::TestApprovalPath::test_no_runs_nothing",

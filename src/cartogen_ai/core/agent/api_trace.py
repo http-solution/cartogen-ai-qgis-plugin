@@ -24,8 +24,10 @@ def _redact(text):
     try:
         from ..logger import _redact as redact
         return redact(text)
-    except Exception:
-        return text
+    except Exception as exc:
+        # The trace holds RAW prompts and tool results, so text that could not be run through the key redaction must not be written as it is (DEF-8,
+        # owner decision 2026-11-22: when protection cannot be applied, fail closed). The placeholder names only the error class. Offline test only.
+        return f"[text withheld: key redaction unavailable ({type(exc).__name__})]"
 
 
 def _clip(text, limit=MAX_MESSAGE_CHARS):
