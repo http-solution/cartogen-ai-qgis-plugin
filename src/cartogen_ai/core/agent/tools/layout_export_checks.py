@@ -98,22 +98,50 @@ def current_profile(layout):
     return merge_current_profile(stored, loaded), None
 
 
+class ProtectionCheckUnavailableError(Exception):
+    """The layers an export would draw cannot be listed at all, so the data-protection check cannot run."""
+
+
 def _project_layers():
-    """Every layer loaded in the project (what lineage names are resolved against); [] without QGIS. Never raises."""
+    """Every layer loaded in the project (what lineage names are resolved against); [] without QGIS. Raises when the project cannot be read:
+    protected_in then treats every layer as protected, instead of judging them without their lineage."""
+    return list(QgsProject.instance().mapLayers().values()) if QGIS_AVAILABLE else []
+
+
+def _every_loaded_layer():
+    """Every loaded layer, the superset used when the layers a layout draws cannot be worked out: all of them are judged, so any protected layer in
+    the project asks before the file is written. Raises ProtectionCheckUnavailableError when even that cannot be read."""
     try:
-        return list(QgsProject.instance().mapLayers().values()) if QGIS_AVAILABLE else []
+        return _project_layers()
     except Exception as exc:
-        log_event("project_layers_read_failed", error_class=type(exc).__name__)       # DEF-8 review: lineage names cannot be resolved without it
-        return []
+        log_event("project_layers_read_failed", error_class=type(exc).__name__)
+        raise ProtectionCheckUnavailableError("the project's layers could not be read") from exc
+
+
+def unavailable_reply():
+    """The refusal returned instead of an export when the data-protection check could not be completed (the egress gate's rule: block rather than
+    guess; owner decision 2026-11-22)."""
+    return {"error": "Nothing was exported: the data-protection check could not be completed (the layers this export draws could not be read), and "
+                     "exports block rather than guess. Tell the user; reopening the project and trying again may help."}
 
 
 def protected_in(layers, all_layers=None):
     """[{layer, level, reason, derived_from}] for the layers that are RESTRICTED or SENSITIVE, by their own tag or (PLAN-016 item 2) through
     lineage from a tagged layer, so a merged or renamed copy is judged like its source. An unreadable tag counts as no tag (advisory, never raises)."""
     from ..protection import effective_sensitivity
-    pool = _project_layers() if all_layers is None else list(all_layers)
+    try:
+        pool = _project_layers() if all_layers is None else list(all_layers)
+    except Exception as exc:
+        # Lineage cannot be resolved without the project's layers, so a derived copy of a protected layer could not be told from an open one.
+        # Fails closed (owner decision 2026-11-22): every layer judged here counts as protected.
+        log_event("project_layers_read_failed", error_class=type(exc).__name__)
+        pool = None
     out = []
     for layer in layers or []:
+        if pool is None:
+            out.append({"layer": layer.name(), "level": "SENSITIVE", "derived_from": None,
+                        "reason": "the project's layers could not be read, so its lineage could not be checked and it is treated as protected"})
+            continue
         try:
             record = effective_sensitivity(layer, pool)
         except Exception as exc:
@@ -236,7 +264,8 @@ def pcode_results(layers):
 
 
 def layers_drawn(layout):
-    """The layers the layout's map items draw: each map's own locked layer set, else its map theme, else the layers ticked in the project. Never raises."""
+    """The layers the layout's map items draw: each map's own locked layer set, else its map theme, else the layers ticked in the project. When that
+    cannot be worked out, every loaded layer. Raises ProtectionCheckUnavailableError only when the project's layers cannot be listed at all."""
     if not QGIS_AVAILABLE:
         return []
     project = QgsProject.instance()
@@ -262,9 +291,10 @@ def layers_drawn(layout):
             for layer in chosen:
                 add(layer)
     except Exception as exc:
-        # DEF-8 review: the layers found so far are returned, so the export gate may judge an incomplete list. Fails open.
+        # The layers found so far used to be returned, so the export gate judged an incomplete list (fails open). Now every loaded layer is judged
+        # instead (owner decision 2026-11-22): a protected layer anywhere in the project asks before the file is written.
         log_event("layers_drawn_incomplete", error_class=type(exc).__name__)
-        return out
+        return _every_loaded_layer()
     return out
 
 
@@ -278,7 +308,10 @@ def gate_export(layout, tool_name, arguments, purpose, override_reason, confirme
     if confirmed:
         return None
     ids = [i.id() for i in layout.items() if hasattr(i, "id") and i.id()]
-    protected = protected_in(layers_drawn(layout))
+    try:
+        protected = protected_in(layers_drawn(layout))
+    except ProtectionCheckUnavailableError:
+        return unavailable_reply()
     publishing = str(purpose or "").lower() == "publication"
     profile, _ = current_profile(layout)
     problems = (publication_problems(missing_elements(ids, profile.get("required_elements")), protected, sign_off_missing(profile))
@@ -300,18 +333,23 @@ def build_time_preview(tool_name, arguments, output_path):
     and a file is to be written; else None. The layout does not exist yet, so the layers ticked in the project stand in for its map."""
     if not output_path:
         return None
-    protected = protected_in(checked_project_layers())
+    try:
+        protected = protected_in(checked_project_layers())
+    except ProtectionCheckUnavailableError:
+        return unavailable_reply()
     return protected_preview(tool_name, arguments, protected) if protected else None
 
 
 def checked_project_layers():
-    """The layers ticked in the project: what a new standard layout's map will draw. Never raises."""
+    """The layers ticked in the project: what a new standard layout's map will draw. When they cannot be read, every loaded layer (they used to come back
+    as [], so no protected layer was found and no card was shown). Raises ProtectionCheckUnavailableError only when the project's layers cannot be listed."""
     if not QGIS_AVAILABLE:
         return []
     try:
         return list(QgsProject.instance().layerTreeRoot().checkedLayers())
-    except Exception:
-        return []
+    except Exception as exc:
+        log_event("checked_layers_read_failed", error_class=type(exc).__name__)
+        return _every_loaded_layer()
 
 
 def _with_extra(layers, extra):
@@ -343,5 +381,8 @@ def atlas_gate(layout, coverage_layer, arguments, confirmed):
     as drawn as well as the layers on the map (PLAN-011 phase D: export_layout_atlas was the one layout export without the phase B gate)."""
     if confirmed:
         return None
-    protected = protected_in(_with_extra(layers_drawn(layout), [coverage_layer]))
+    try:
+        protected = protected_in(_with_extra(layers_drawn(layout), [coverage_layer]))
+    except ProtectionCheckUnavailableError:
+        return unavailable_reply()
     return protected_preview("export_layout_atlas", arguments, protected) if protected else None
