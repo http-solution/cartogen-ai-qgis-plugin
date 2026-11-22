@@ -256,5 +256,118 @@ class TestProtectionControlsFailClosed(unittest.TestCase):
         self.assertNotIn("secret", repr(log.call_args))
 
 
+class FakeLayoutItemMap:
+    """Stands in for qgis.core.QgsLayoutItemMap in the offline tests of layers_drawn."""
+
+    def __init__(self, layers=None, fail=False):
+        self._layers, self._fail = layers or [], fail
+
+    def keepLayerSet(self):
+        if self._fail:
+            raise RuntimeError("boom")
+        return True
+
+    def layers(self):
+        return self._layers
+
+
+def _named(name):
+    layer = MagicMock()
+    layer.name.return_value = name
+    layer.id.return_value = "id_" + name
+    return layer
+
+
+def _project(layers, fail=False):
+    project = MagicMock()
+    if fail:
+        project.mapLayers.side_effect = RuntimeError("boom")
+    else:
+        project.mapLayers.return_value = {lyr.id(): lyr for lyr in layers}
+    return project
+
+
+def _qgis(project):
+    """Patches the module's QGIS names and flag, so layers_drawn and the project lookups run without QGIS."""
+    return (patch.object(checks, "QGIS_AVAILABLE", True), patch.object(checks, "QgsLayoutItemMap", FakeLayoutItemMap, create=True),
+            patch.object(checks, "QgsProject", MagicMock(instance=MagicMock(return_value=project)), create=True))
+
+
+class TestTheGateJudgesEverythingWhenItCannotTellWhatIsDrawn(unittest.TestCase):
+    """Owner decision 2026-11-22 (DEF-8): the export gate's two list handlers used to fail open: layers_drawn returned the layers found so far, the
+    project-layers read returned []. A failure to learn what an export draws now makes the gate judge every loaded layer, or refuse."""
+
+    def _drawn(self, layout, project):
+        patches = _qgis(project)
+        with patches[0], patches[1], patches[2], patch.object(checks, "log_event") as log:
+            return checks.layers_drawn(layout), log
+
+    def test_a_layout_whose_items_cannot_be_read_is_judged_by_every_loaded_layer(self):
+        a, b = _named("a"), _named("b")
+        layout = MagicMock()
+        layout.items.side_effect = RuntimeError("boom")
+        drawn, log = self._drawn(layout, _project([a, b]))
+        self.assertEqual([lyr.name() for lyr in drawn], ["a", "b"])
+        self.assertEqual(log.call_args.args[0], "layers_drawn_incomplete")
+
+    def test_a_map_that_fails_halfway_does_not_leave_a_partial_list(self):
+        a, b = _named("a"), _named("b")
+        layout = MagicMock()
+        layout.items.return_value = [FakeLayoutItemMap([a]), FakeLayoutItemMap(fail=True)]
+        drawn, _ = self._drawn(layout, _project([a, b]))
+        self.assertEqual([lyr.name() for lyr in drawn], ["a", "b"])           # b was never listed by the first map, but the failure widened the list
+
+    def test_a_layout_that_reads_fine_still_lists_only_what_its_maps_draw(self):
+        a, b = _named("a"), _named("b")
+        layout = MagicMock()
+        layout.items.return_value = [FakeLayoutItemMap([a])]
+        drawn, log = self._drawn(layout, _project([a, b]))
+        self.assertEqual([lyr.name() for lyr in drawn], ["a"])
+        log.assert_not_called()
+
+    def test_when_even_the_project_cannot_be_listed_the_check_is_unavailable(self):
+        layout = MagicMock()
+        layout.items.side_effect = RuntimeError("boom")
+        with self.assertRaises(checks.ProtectionCheckUnavailableError):
+            self._drawn(layout, _project([], fail=True))
+
+    def test_every_gate_then_refuses_with_a_plain_sentence_and_nothing_is_written(self):
+        layout = _layout(_ALL)
+        for call in (lambda: checks.gate_export(layout, "export_layout", dict(_ARGS), None, None, False, False),
+                     lambda: checks.atlas_gate(layout, _named("coverage"), dict(_ARGS), False),
+                     lambda: checks.build_time_preview("create_print_layout", dict(_ARGS), "o.pdf")):
+            with patch.object(checks, "layers_drawn", side_effect=checks.ProtectionCheckUnavailableError("x")), \
+                    patch.object(checks, "checked_project_layers", side_effect=checks.ProtectionCheckUnavailableError("x")):
+                refused = call()
+            self.assertIn("could not be completed", refused["error"])
+            self.assertIn("Nothing was exported", refused["error"])
+
+    def test_the_user_confirmed_export_is_not_asked_again(self):
+        with patch.object(checks, "layers_drawn", side_effect=checks.ProtectionCheckUnavailableError("x")):
+            self.assertIsNone(checks.gate_export(_layout(_ALL), "export_layout", dict(_ARGS), None, None, True, False))
+
+    def test_the_layers_ticked_for_a_new_layout_fall_back_to_every_loaded_layer_too(self):
+        a = _named("a")
+        project = _project([a])
+        project.layerTreeRoot.side_effect = RuntimeError("boom")
+        patches = _qgis(project)
+        with patches[0], patches[1], patches[2], patch.object(checks, "log_event") as log:
+            self.assertEqual([lyr.name() for lyr in checks.checked_project_layers()], ["a"])
+        self.assertEqual(log.call_args.args[0], "checked_layers_read_failed")
+
+    def test_an_unreadable_project_makes_every_layer_protected_not_open(self):
+        layer = _named("clinics")
+        with patch.object(checks, "_project_layers", side_effect=RuntimeError("boom")), patch.object(checks, "log_event") as log:
+            found = checks.protected_in([layer])
+        self.assertEqual([(f["layer"], f["level"]) for f in found], [("clinics", "SENSITIVE")])
+        self.assertIn("could not be read", found[0]["reason"])
+        self.assertEqual(log.call_args.args[0], "project_layers_read_failed")
+
+    def test_a_readable_project_still_judges_each_layer_by_its_own_record(self):
+        layer = _named("clinics")
+        with patch("cartogen_ai.core.agent.protection.effective_sensitivity", return_value={"level": "PUBLIC"}):
+            self.assertEqual(checks.protected_in([layer], all_layers=[layer]), [])
+
+
 if __name__ == "__main__":
     unittest.main()
