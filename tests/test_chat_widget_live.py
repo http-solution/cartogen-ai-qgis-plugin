@@ -668,6 +668,38 @@ class TestChatWidgetLive(unittest.TestCase):
         self.assertTrue(task.isCanceled(), "cancel_active_task() must reach the real QgsTask")
         _pump(until=lambda: ct._active_task is None)
 
+    def test_the_map_button_adds_one_look_request_to_the_next_message_only(self):
+        """RM-B / PLAN-032: the map button is a one-shot switch. Pressed, the next dispatched message carries the line that asks the model to look at the
+        map (and the chat shows it); the button is released; the message after that is untouched. Written without a live QGIS to run it on: first run is CI."""
+        from cartogen_ai.core.services import canvas_capture
+        agent = _FakeAgent(script=[
+            {"message": {"role": "assistant", "content": "first", "tool_calls": []}},
+            {"message": {"role": "assistant", "content": "second", "tool_calls": []}},
+        ])
+        dock = self._make_dock(agent)
+        ct = dock.chat_tab_widget
+        self.assertTrue(ct.map_btn.isCheckable())
+        self.assertFalse(ct.map_btn.isChecked())
+        ct.map_btn.setChecked(True)
+        ct._dispatch_message("is anything wrong with this map", None)
+        self.assertFalse(ct.map_btn.isChecked(), "the button is one message only")
+        self.assertEqual(self._chat_text(ct).count(canvas_capture.MAP_LOOK_LINE), 1)
+        _pump(until=lambda: ct._active_task is None)
+        ct._dispatch_message("and the legend?", None)
+        self.assertEqual(self._chat_text(ct).count(canvas_capture.MAP_LOOK_LINE), 1, "the second message must not carry the line")
+        _pump(until=lambda: ct._active_task is None)
+
+    def test_the_map_button_stays_pressed_for_a_message_that_was_already_shown(self):
+        from cartogen_ai.core.services import canvas_capture
+        dock = self._make_dock(_FakeAgent(script=[]))
+        ct = dock.chat_tab_widget
+        ct.map_btn.setChecked(True)
+        self.assertEqual(ct._with_map_request("same text", already_echoed=True), "same text")
+        self.assertTrue(ct.map_btn.isChecked())
+        self.assertEqual(ct._with_map_request("same text"), canvas_capture.with_map_request("same text"))
+        self.assertFalse(ct.map_btn.isChecked())
+        self.assertEqual(ct._with_map_request("plain"), "plain")     # not pressed: unchanged
+
     def test_cancel_active_task_is_a_safe_no_op_with_nothing_running(self):
         agent = _FakeAgent(script=[])
         dock = self._make_dock(agent)

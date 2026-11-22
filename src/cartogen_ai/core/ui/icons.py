@@ -26,6 +26,11 @@ _ICON_TEMPLATES = {
         '<path d="M15.5 6.5 L8 14a2.5 2.5 0 0 0 3.54 3.54L19 10a4.5 4.5 0 1 0-6.36-6.36L6 10.28" '
         'fill="none" stroke="{color}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>'
     ),
+    # A folded map -- three panels with the two fold lines, stroke-only like the paperclip: the "show the model the map" action.
+    "map": (
+        '<path d="M3.5 6.5 L9 4.5 L15 6.5 L20.5 4.5 V17.5 L15 19.5 L9 17.5 L3.5 19.5 Z M9 4.5 V17.5 M15 6.5 V19.5" '
+        'fill="none" stroke="{color}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>'
+    ),
     # A right-pointing arrow -- the send action.
     "send": (
         '<path d="M4 12h15M13 6l6 6-6 6" fill="none" stroke="{color}" stroke-width="2" '

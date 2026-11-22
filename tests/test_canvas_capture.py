@@ -23,6 +23,23 @@ def captured(**kw):
     return base
 
 
+class TestTheMapButtonRequest(unittest.TestCase):
+    """RM-B: the chat's map button adds one line to the next message that asks the model to call the existing map-picture tool."""
+
+    def test_the_line_names_the_tool_the_gate_already_covers(self):
+        self.assertIn("inspect_canvas_visually", cc.MAP_LOOK_LINE)
+        self.assertIn("inspect_canvas_visually", egress_gate.VISIBLE_LAYER_TOOLS)
+
+    def test_it_is_added_once_on_its_own_line(self):
+        out = cc.with_map_request("what is wrong with this map?")
+        self.assertEqual(out, "what is wrong with this map?\n\n" + cc.MAP_LOOK_LINE)
+        self.assertEqual(cc.with_map_request(out), out)
+
+    def test_an_empty_message_becomes_just_the_request(self):
+        self.assertEqual(cc.with_map_request(""), cc.MAP_LOOK_LINE)
+        self.assertEqual(cc.with_map_request(None), cc.MAP_LOOK_LINE)
+
+
 class TestPureHelpers(unittest.TestCase):
     def test_fit_size_scales_down_only(self):
         self.assertEqual(cc.fit_size(2560, 1280), (1280, 640))
