@@ -397,22 +397,33 @@ def check_failed_decision(tool_name):
     }
 
 
-def _read_setting(key, default, type_=None):
+def _read_setting(key, default, type_=None, on_unreadable=None):
+    """`default` when QGIS is not there or the setting is unset. When QGIS IS there but the read itself raises, the answer is unknown, not "unset": with
+    `on_unreadable` given it returns that (the protective value) and logs the error class (DEF-8, owner decision 2026-11-22: fail closed)."""
     try:
         from qgis.core import QgsSettings
+    except ImportError:
+        return default
+    try:
         s = QgsSettings()
         return s.value(key, default, type=type_) if type_ else s.value(key, default)
-    except Exception:
-        return default
+    except Exception as exc:
+        if on_unreadable is None:
+            return default
+        from ..logger import log_event
+        log_event("egress_setting_unreadable", setting=str(key).rsplit("/", 1)[-1], error_class=type(exc).__name__, error=True)
+        return on_unreadable
 
 
 def read_mode() -> str:
-    """The configured mode, defaulting to OFF if unset, unreadable or not a known value."""
+    """The configured mode: OFF if unset (a fresh install), ENFORCE if QGIS cannot read its settings (blocks rather than guesses), OFF for an unknown value
+    or when QGIS is not there. Not seen on a real QGIS failure; offline test only."""
     from ...infrastructure.settings_keys import SETTINGS_EGRESS_GATE_MODE
-    value = _read_setting(SETTINGS_EGRESS_GATE_MODE, MODE_OFF)
+    value = _read_setting(SETTINGS_EGRESS_GATE_MODE, MODE_OFF, on_unreadable=MODE_ENFORCE)
     return value if value in MODES else MODE_OFF
 
 
 def read_strict() -> bool:
+    """Strict mode as configured; ON when QGIS cannot read its settings, so an unreadable setting never loosens the gate."""
     from ...infrastructure.settings_keys import SETTINGS_EGRESS_GATE_STRICT
-    return bool(_read_setting(SETTINGS_EGRESS_GATE_STRICT, False, bool))
+    return bool(_read_setting(SETTINGS_EGRESS_GATE_STRICT, False, bool, on_unreadable=True))
