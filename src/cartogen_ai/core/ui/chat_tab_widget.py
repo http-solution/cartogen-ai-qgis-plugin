@@ -476,6 +476,17 @@ class ChatTabWidget(QWidget):
         self.attach_btn.setToolTip("Attach a file (PDF, Word, image, CSV, or Excel)")
         self.attach_btn.clicked.connect(self.attach_file)
 
+        # RM-B / PLAN-032: a one-shot switch. Pressed, the next message also asks the model to look at the current map (see _with_map_request).
+        self.map_btn = QPushButton()
+        self.map_btn.setIcon(themed_icon("map", _icon_fg))
+        self.map_btn.setIconSize(QSize(16, 16))
+        self.map_btn.setObjectName("iconButton")
+        self.map_btn.setFixedSize(30, 30)
+        self.map_btn.setCheckable(True)
+        self.map_btn.setToolTip(
+            "Show the model the map: your next message also asks it to look at the current map. "
+            "Protected layers that are visible are checked first, as for any picture of the map. Press again to cancel.")
+
         self.input_edit = ChatInputEdit()
         self.input_edit.setFixedHeight(55)
         # Saved so _ask_requirement_in_chat can swap in a reply-specific hint
@@ -504,6 +515,7 @@ class ChatTabWidget(QWidget):
         input_layout.addWidget(self.new_chat_btn)
         input_layout.addWidget(self.layer_context_btn)
         input_layout.addWidget(self.attach_btn)
+        input_layout.addWidget(self.map_btn)
         input_layout.addWidget(self.input_edit)
         input_layout.addWidget(self.send_btn)
         input_layout.addWidget(self.stop_btn)
@@ -1762,6 +1774,18 @@ class ChatTabWidget(QWidget):
             self.input_edit.setPlainText(refined_prompt)
             self.input_edit.setFocus()
 
+    def _with_map_request(self, text, already_echoed=False):
+        """`text` plus the line that asks the model to look at the map when the map button is pressed, and the button released (one message only).
+        Not applied when the text was already shown in the chat (the preview-confirm path): the bubble would then differ from what is sent, so the
+        button stays pressed for the next message instead. Offline logic is canvas_capture.with_map_request; the button itself is only exercised
+        in the QGIS live job."""
+        button = getattr(self, "map_btn", None)
+        if button is None or already_echoed or not button.isChecked():
+            return text
+        from ..services import canvas_capture
+        button.setChecked(False)
+        return canvas_capture.with_map_request(text)
+
     def _dispatch_message(self, text, analysis=None, already_echoed=False):
         """The actual send path -- unchanged from send_message()'s original
         body. Shared by the refinement skip-path (send_message() calls this
@@ -1781,6 +1805,7 @@ class ChatTabWidget(QWidget):
         # re-enables send_btn (it's also used for messages that aren't part of a
         # running task). So the "disable while a task is in flight" state has to
         # be set AFTER this emit, not before, or it gets immediately clobbered.
+        text = self._with_map_request(text, already_echoed)
         if text.startswith(reply_vocab.CONTINUATION_MARKER):
             self._continuation_count = getattr(self, "_continuation_count", 0) + 1
         else:

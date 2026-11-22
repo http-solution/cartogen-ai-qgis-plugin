@@ -1167,6 +1167,10 @@ QPushButton#iconButton {{
     border-radius: 15px;
     font-size: 14px;
 }}
+QPushButton#iconButton:checked {{
+    background-color: {alt_base};
+    border: 1px solid {highlight};
+}}
 QPushButton#providerPill {{
     background-color: transparent;
     color: {text};

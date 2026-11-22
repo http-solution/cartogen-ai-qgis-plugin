@@ -40,6 +40,20 @@ def provider_supports_vision(client_class_name, model=None):
     return False
 
 
+# The line the chat's "show the model the map" button adds to the next message (PLAN-032, master-list row RM-B). It asks the model to call the
+# existing map-picture tool rather than attaching a picture itself, so the data-protection check on visible protected layers (egress_gate,
+# VISIBLE_LAYER_TOOLS), the vision check and the text fallback for models that cannot see pictures all apply exactly as when the model asks on its own.
+MAP_LOOK_LINE = "Please look at the current map first (call inspect_canvas_visually) and use what you see."
+
+
+def with_map_request(text):
+    """`text` with MAP_LOOK_LINE added on its own line, once: text that already carries the line is returned unchanged. Pure."""
+    text = str(text or "")
+    if MAP_LOOK_LINE in text:
+        return text
+    return f"{text}\n\n{MAP_LOOK_LINE}" if text.strip() else MAP_LOOK_LINE
+
+
 def build_image_message(image_b64, legend_text, layers_text, mime="png"):
     """The user message that shows the model the map: the picture, then the legend text, then the visible-layers text (that order). Pure."""
     return {"role": "user", "content": [
