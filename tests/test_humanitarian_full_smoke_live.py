@@ -729,8 +729,18 @@ class TestHumanitarianFullSmokeLive(unittest.TestCase):
 
         # TOOL EXECUTION 3: fetch_gdacs_disaster_alerts
         gdacs_in = {"bbox": [40.0, 12.0, 50.0, 18.0], "min_alert_level": "Orange"}
-        gdacs_out = fetch_gdacs_disaster_alerts(**gdacs_in)
+        # A canned feed, like the FIRMS call above: this used to call the real www.gdacs.org, and on 2026-11-21 (PR 677) the whole live job went red
+        # on a JSONDecodeError from it (master list LR-28). The real feed is checked on its own in test_gdacs_real_feed_answers, which skips on an outage.
+        canned_feed = {"type": "FeatureCollection", "features": [
+            {"type": "Feature", "geometry": {"type": "Point", "coordinates": [45.0, 15.0]},
+             "properties": {"eventid": 1001, "eventtype": "FL", "eventname": "Smoke-test flood", "alertlevel": "Orange", "country": "Yemen"}},
+            {"type": "Feature", "geometry": {"type": "Point", "coordinates": [10.0, 50.0]},
+             "properties": {"eventid": 1002, "eventtype": "EQ", "eventname": "Outside the box", "alertlevel": "Red", "country": "Elsewhere"}},
+        ]}
+        with patch("cartogen_ai.core.agent.tools.hazard_monitoring_tools._gdacs_event_list", return_value=(canned_feed, None)):
+            gdacs_out = fetch_gdacs_disaster_alerts(**gdacs_in)
         self.assertTrue(gdacs_out.get("success"), gdacs_out)
+        self.assertEqual(gdacs_out.get("alert_count"), 1, gdacs_out)
 
         # Screenshot 5
         screenshot_path = os.path.join(RENDERS_DIR, "screenshot_05_hazard_buffer_envelope.png")
@@ -745,6 +755,16 @@ class TestHumanitarianFullSmokeLive(unittest.TestCase):
             "outputs": {"trigger": trig_out, "fire_antimeridian": fire_out, "gdacs": gdacs_out},
             "screenshot": "screenshot_05_hazard_buffer_envelope.png"
         })
+
+    def test_gdacs_real_feed_answers(self):
+        """The one check against the real www.gdacs.org (the scenario above uses a canned feed). An outage or a non-JSON body skips instead of
+        failing the whole live job: the service is outside this repo's control (LR-28). A feed that answers must still be read correctly."""
+        from cartogen_ai.core.agent.tools.hazard_monitoring_tools import fetch_gdacs_disaster_alerts_network_phase
+        out = fetch_gdacs_disaster_alerts_network_phase([-180.0, -90.0, 180.0, 90.0], "Green")
+        if "error" in out:
+            self.skipTest(f"www.gdacs.org did not answer with a readable feed: {out['error']}")
+        self.assertTrue(out.get("success"), out)
+        self.assertIsInstance(out.get("alerts"), list)
 
     # --- Scenario Family 6: Protection & "Do No Harm" Safeguards ---
     def test_scenario_06_protection_safeguards_and_geomasking(self):
