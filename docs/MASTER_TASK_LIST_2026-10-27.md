@@ -89,8 +89,8 @@ One list to follow up and plan from. It replaces the session task list (101 entr
 | DEF-2 | Change-layer legend (D6): confirm blue-to-red with a transparent no-change area; fix if the screenshot shows otherwise. | Open since the 1.18.3 run. | Claude | OWN-2 | S | P2 | Closed | 1.18.3 hand run D6 |
 | DEF-3 | Unrequested layers: an 'Incident' layer after GDACS (A7), a country layer after building footprints (A5). No tool in the code adds them; trace the plan that does. | Surprises the user; cause unknown. | Claude | OWN-3 | S | P2 | Closed | 1.18.2 and 1.18.3 hand runs |
 | DEF-4 | C5 labels reported inverted: find which layer and labels. | Reported without detail. | Claude | OWN-3 | S | P2 | Closed | 1.18.2 hand run |
-| DEF-5 | Zonal-statistics columns (chg_mean, chg2_mean...) stay on the admin layer after the damage tool runs; remove them or run on a copy. | Side effect on the user's layer; a file-based layer keeps them. | Claude | - | S | P2 | In progress | PLAN-026 class C |
-| DEF-6 | Nationwide 5 km task grid is refused above 5,000 cells: add a 'suggest a cell size' path. | Clear message today; a design choice. | Claude | OWN-6 | S | P3 | In progress | 1.18.2 hand run B1 |
+| DEF-5 | Zonal-statistics columns (chg_mean, chg2_mean...) stay on the admin layer after the damage tool runs; remove them or run on a copy. | Side effect on the user's layer; a file-based layer keeps them. | Claude | - | S | P2 | Closed | PLAN-026 class C |
+| DEF-6 | Nationwide 5 km task grid is refused above 5,000 cells: add a 'suggest a cell size' path. | Clear message today; a design choice. | Claude | OWN-6 | S | P3 | Closed | 1.18.2 hand run B1 |
 | DEF-7 | OSM Overpass road download answered HTTP 502 after 4 retries: consider a mirror fallback and a clearer message. | Server side; the fixtures covered it in the test. | Claude | - | S | P3 | In progress | 1.18.2 hand run C1 |
 | DEF-8 | Quiet-release clean-up: 24 unused noqa comments; the baseline of 504 broad-except handlers (none silent) recorded for review. | Lint hygiene. | Claude | - | S | P3 | Closed | PLAN-026 class G, H |
 | DEF-9 | Evidence collector captured no log text in QGIS 4.2.3: log_cartogenai.txt and log_all.txt were empty for every row, so the tools each row called are not in the CSV. Cause not found (the signal connects; nothing arrives). Try the explicit overload messageReceived[str, str, Qgis.MessageLevel], and read tool calls from the plugin's own evidence folders (steps.jsonl) instead. | Every row's 'tools called' column is blank without it. | Claude | HT-6 | S | P1 | In progress | 1.18.4 smoke run 2026-10-27/28 |
@@ -222,8 +222,8 @@ Source: the results of the first long computer-use run (seven result parts, 2026
 
 | Status | Rows |
 |---|---|
-| In progress | 57 |
-| Closed | 48 |
+| In progress | 55 |
+| Closed | 50 |
 | Waiting on you | 17 |
 | Blocked | 14 |
 | Closed (record) | 1 |
@@ -564,3 +564,5 @@ Newest last. One line per status change; written by `tools/master_list.py set`.
 - 2026-11-22: PR-R10 In progress -> In progress. R10-1..R10-5 merged; R10-6 merged (#608): 3D module present (probe), R12-5 create_3d_view planned; hand rows C7..C11 owed on real data
 - 2026-11-22: PR-R11 In progress -> In progress. R11-1..R11-6 all built (R11-6 call-arity check merged (#616)); hand rows C12..C16 and R11-H1..H3 owed on real data; importphotos tool carried as a candidate
 - 2026-11-22: HY-3 In progress -> Closed. Closed on the owner's say 2026-11-22. Done: the Windows test runner is pinned to windows-2025 with the check name kept (PR 696; its own Windows run passed), release.yml status_note input (2026-10-31). Closed WITHOUT: checking whether a newer upload-artifact major clears the Node-20 notice (could not be checked from the session), a generated README test count (only frozen history lines carry counts), and the CodeQL required-checks question (left as it is). Reopen if the Node notice becomes a failure.
+- 2026-11-22: DEF-5 In progress -> Closed. Closed on the owner's say 2026-11-22. Seen working live: round-3 row D2 step 2 (tester PASS, 2026-11-09), after the damage run the field list is fid, admin_name, population, need, severity_smoke, damage_sev with no leftover working columns.
+- 2026-11-22: DEF-6 In progress -> Closed. Closed on the owner's say 2026-11-22. Built (PLAN-054): a refused task grid names the cell size that would work (the limit is unchanged). Seen working in the 2026-11-04 live run, row D5: the 1 km refusal named 4 km and offered aoi_where; the 4 km grid held 3,080 tasks. That run was agent-observed, not a person's.
