@@ -5,6 +5,7 @@ export gate for print layouts read only a layer's own tag, so a map drawing such
 Sensitivity dialog said plain "untagged". Both now ask this module, which uses the egress gate's own chain walk (models/egress_gate.py
 protection_chain), so the two gates cannot drift apart. Non-strict: an untagged layer with no protected ancestor is not protected. An explicit
 PUBLIC or INTERNAL tag on the layer wins, as it does in the egress gate. Nothing here writes a tag; the inherited level is derived each time."""
+from ..logger import log_event
 from ..models import egress_gate, sensitivity
 from .lineage import effective_source_names, get_layer_lineage
 
@@ -33,14 +34,18 @@ def lookups(all_layers):
     return get_level, get_sources
 
 
+_UNREADABLE_RECORD = {"level": "SENSITIVE", "reason": "its protection or lineage could not be read, so it is treated as protected", "derived_from": None}
+
+
 def effective_sensitivity(layer, all_layers):
     """get_layer_sensitivity(layer) plus {'derived_from': name or None}. A layer with a tag of its own is returned as it is. An untagged layer
     whose lineage leads back to a RESTRICTED or SENSITIVE layer reports that level, 'derived from ...' as its reason and the tagged layer's
-    name. Never raises: an unreadable layer counts as untagged (advisory callers) and the egress gate has its own fail-closed handling."""
+    name. Never raises: a layer whose tag or lineage cannot be read counts as SENSITIVE (fail closed, owner decision 2026-11-22), and says so in its reason."""
     try:
         record = dict(sensitivity.get_layer_sensitivity(layer))
-    except Exception:
-        record = {"level": None, "reason": None}
+    except Exception as exc:
+        log_event("sensitivity_read_failed", error_class=type(exc).__name__)
+        return dict(_UNREADABLE_RECORD)
     record.setdefault("derived_from", None)
     if record.get("level") is not None:
         return record
@@ -56,8 +61,12 @@ def effective_sensitivity(layer, all_layers):
             if found and found[1] in PROTECTED:
                 path = [layer.name(), *found[0]]
                 return {"level": found[1], "reason": egress_gate.reason_from_chain(path, found[2]), "derived_from": found[0][-1]}
-    except Exception:
-        return record
+    except Exception as exc:
+        # The lineage lookup failed, so whether this untagged layer is derived from a protected one is unknown. It used to be returned as it was
+        # (untagged), which let a derived layer through every gate that calls this (geocoding, export, the model's view). The owner chose to fail
+        # closed (2026-11-22): it counts as SENSITIVE, with a reason that says the lineage could not be read.
+        log_event("lineage_read_failed", error_class=type(exc).__name__)
+        return dict(_UNREADABLE_RECORD)
     return record
 
 
