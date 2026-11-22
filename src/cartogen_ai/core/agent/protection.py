@@ -7,7 +7,7 @@ protection_chain), so the two gates cannot drift apart. Non-strict: an untagged 
 PUBLIC or INTERNAL tag on the layer wins, as it does in the egress gate. Nothing here writes a tag; the inherited level is derived each time."""
 from ..logger import log_event
 from ..models import egress_gate, sensitivity
-from .lineage import effective_source_names, get_layer_lineage
+from .lineage import effective_source_names, get_layer_lineage, lineage_is_unreadable
 
 PROTECTED = ("RESTRICTED", "SENSITIVE")
 
@@ -20,8 +20,14 @@ def lookups(all_layers):
     for layer in all_layers:
         by_name.setdefault(layer.name(), []).append(layer)
 
+    def layer_level(lyr):
+        level = sensitivity.get_layer_sensitivity(lyr).get("level")
+        if level is None and lineage_is_unreadable(get_layer_lineage(lyr)):
+            return "SENSITIVE"       # unknown ancestry counts as protected (owner decision 2026-11-22)
+        return level
+
     def get_level(name):
-        return egress_gate.most_protective_level(sensitivity.get_layer_sensitivity(lyr).get("level") for lyr in by_name.get(name, []))
+        return egress_gate.most_protective_level(layer_level(lyr) for lyr in by_name.get(name, []))
 
     def get_sources(name):
         out = []
@@ -52,7 +58,11 @@ def effective_sensitivity(layer, all_layers):
     try:
         get_level, get_sources = lookups(all_layers)
         own_sources = []
-        for entry in get_layer_lineage(layer):
+        entries = get_layer_lineage(layer)
+        if lineage_is_unreadable(entries):
+            log_event("lineage_read_failed", error_class="UnreadableLineage")
+            return dict(_UNREADABLE_RECORD)
+        for entry in entries:
             if isinstance(entry, dict):
                 own_sources.extend(n for n in effective_source_names(entry, list(all_layers or [])) if n not in own_sources)
         seen = {layer.name()}

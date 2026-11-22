@@ -32,6 +32,14 @@ def _default_record() -> dict:
     return {"level": None, "reason": None}
 
 
+def _unreadable_tag_record(why) -> dict:
+    """What a tag that IS stored but cannot be read counts as: SENSITIVE, with a reason that says so. It used to read as untagged, so a corrupted
+    SENSITIVE tag unprotected the layer (owner decision 2026-11-22: fail closed). Re-tagging the layer in the Sensitivity dialog replaces it."""
+    from ..logger import log_event
+    log_event("sensitivity_tag_unreadable", why=why)
+    return {"level": "SENSITIVE", "reason": "the stored protection tag could not be read, so the layer is treated as protected"}
+
+
 def get_layer_sensitivity(layer) -> dict:
     """Reads a layer's current sensitivity record: {"level": <one of
     SENSITIVITY_LEVELS, or None>, "reason": <str or None>}. A layer that
@@ -49,9 +57,9 @@ def get_layer_sensitivity(layer) -> dict:
     try:
         record = json.loads(raw)
     except Exception:
-        return _default_record()
+        return _unreadable_tag_record("invalid_json")
     if not isinstance(record, dict) or record.get("level") not in SENSITIVITY_LEVELS:
-        return _default_record()
+        return _unreadable_tag_record("not_a_record_or_unknown_level")
     record.setdefault("reason", None)
     return record
 
