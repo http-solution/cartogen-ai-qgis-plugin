@@ -92,7 +92,7 @@ One list to follow up and plan from. It replaces the session task list (101 entr
 | DEF-5 | Zonal-statistics columns (chg_mean, chg2_mean...) stay on the admin layer after the damage tool runs; remove them or run on a copy. | Side effect on the user's layer; a file-based layer keeps them. | Claude | - | S | P2 | In progress | PLAN-026 class C |
 | DEF-6 | Nationwide 5 km task grid is refused above 5,000 cells: add a 'suggest a cell size' path. | Clear message today; a design choice. | Claude | OWN-6 | S | P3 | In progress | 1.18.2 hand run B1 |
 | DEF-7 | OSM Overpass road download answered HTTP 502 after 4 retries: consider a mirror fallback and a clearer message. | Server side; the fixtures covered it in the test. | Claude | - | S | P3 | In progress | 1.18.2 hand run C1 |
-| DEF-8 | Quiet-release clean-up: 24 unused noqa comments; the baseline of 504 broad-except handlers (none silent) recorded for review. | Lint hygiene. | Claude | - | S | P3 | In progress | PLAN-026 class G, H |
+| DEF-8 | Quiet-release clean-up: 24 unused noqa comments; the baseline of 504 broad-except handlers (none silent) recorded for review. | Lint hygiene. | Claude | - | S | P3 | Closed | PLAN-026 class G, H |
 | DEF-9 | Evidence collector captured no log text in QGIS 4.2.3: log_cartogenai.txt and log_all.txt were empty for every row, so the tools each row called are not in the CSV. Cause not found (the signal connects; nothing arrives). Try the explicit overload messageReceived[str, str, Qgis.MessageLevel], and read tool calls from the plugin's own evidence folders (steps.jsonl) instead. | Every row's 'tools called' column is blank without it. | Claude | HT-6 | S | P1 | In progress | 1.18.4 smoke run 2026-10-27/28 |
 | DEF-10 | A13: Sentinel-2 STAC search not executed ('tool execution stopped', no scenes, no layer). Read evidence/A13 steps and the plugin_evidence folder to find the failing call; add a failing test. | 1.18.4 added the cloud filter; its first live run failed. | Claude | - | M | P1 | In progress | 1.18.4 smoke run 2026-10-27/28 |
 | DEF-11 | D6 (and S1): rasters not loaded and calculate_raster_change_detection 'could not find the layers' on both attempts, while .asc is on the loader's list. Find out whether the model never called add_layer_from_path or the tool rejected the file; read evidence/D6 and D6_retry. | Change-layer legend (DEF-2) cannot be judged until the rasters load. | Claude | - | M | P1 | In progress | 1.18.4 smoke run 2026-10-27/28 |
@@ -222,8 +222,8 @@ Source: the results of the first long computer-use run (seven result parts, 2026
 
 | Status | Rows |
 |---|---|
-| In progress | 60 |
-| Closed | 45 |
+| In progress | 59 |
+| Closed | 46 |
 | Waiting on you | 17 |
 | Blocked | 14 |
 | Closed (record) | 1 |
@@ -546,3 +546,4 @@ Newest last. One line per status change; written by `tools/master_list.py set`.
 - 2026-11-22: DEF-8 In progress -> In progress. Every protection handler found so far fails closed (PRs 683 to 687). Two review batches (agent loop, export, loader, undo, vector, chat) found no further protection decision: all advisory or already safe. Recommendation: close once you answer two questions: (a) when the selected-feature count cannot be read, should an export of 'selected only' refuse instead of writing all features? (b) when QGIS settings cannot be read, should the egress mode fail closed (blocks all cloud sends) instead of defaulting to OFF? Pin 202 stays as the ratchet.
 - 2026-11-22: DEF-8 In progress -> Closed. Owner decision 2026-11-22: all protection handlers fail closed (PRs 683 to 688), and the last two answered yes: an export refuses when the selection cannot be read (unless only_selected=false), and the egress gate enforces and goes strict when QGIS settings cannot be read. Pin 201 stays as the ratchet. Offline tests only; not seen on a real QGIS failure. The remaining swallow handlers were reviewed as advisory (PLAN-023 log).
 - 2026-11-22: DEF-8 Closed -> In progress. Owner decision 2026-11-22: all protection handlers fail closed (PRs 683 to 688) and the last two answered yes: an export refuses when the selection cannot be read (unless only_selected=false); the egress gate enforces and goes strict when QGIS settings cannot be read. Pin 201 stays as the ratchet. Offline tests only; not seen on a real QGIS failure. Code complete: ready to close on your say. The remaining swallow handlers were reviewed as advisory (PLAN-023 log).
+- 2026-11-22: DEF-8 In progress -> Closed. Closed on the owner's say 2026-11-22. All protection handlers fail closed (PRs 683 to 689); the owner's two last answers are built: an export refuses when the selection cannot be read (unless only_selected=false), and the egress gate enforces and goes strict when QGIS settings cannot be read. Offline tests only; not seen on a real QGIS failure. The swallow pin (201) stays as the ratchet; the rest were reviewed as advisory (PLAN-023 log).
