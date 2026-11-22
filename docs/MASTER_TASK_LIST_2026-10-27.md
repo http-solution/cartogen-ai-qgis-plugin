@@ -124,7 +124,7 @@ One list to follow up and plan from. It replaces the session task list (101 entr
 |---|---|---|---|---|---|---|---|---|
 | HY-1 | Set the 14 stale plan statuses from their own logs; fold PLAN-020 into PLAN-021; close PLAN-024 to PLAN-026 when their hand rows pass; mark PLAN-019 done. | Status words no longer match the logs. | Claude | - | S | P2 | In progress | PLAN-022 N1 |
 | HY-2 | Sweep IMPLEMENTATION_TRACKER.md (2,746 lines; duplicate sections 1.19 to 1.24; stale list at the top) and BUG_TRACKER.md. | The trackers are the planning source and are out of date. | Claude | - | M | P2 | In progress | PLAN-022 N3 |
-| HY-3 | CI and release hygiene: pin the Windows runner, check upload-artifact against the Node notice, add an optional status_note input to release.yml (releases cannot be edited from this session type), generate the README test count. | A release cannot say 'not hand-tested' without a manual edit. | Claude | - | S | P2 | In progress | PLAN-022 N4 |
+| HY-3 | CI and release hygiene: pin the Windows runner, check upload-artifact against the Node notice, add an optional status_note input to release.yml (releases cannot be edited from this session type), generate the README test count. | A release cannot say 'not hand-tested' without a manual edit. | Claude | - | S | P2 | Closed | PLAN-022 N4 |
 | HY-4 | Prune the 190-odd remote branches (merged and abandoned claude/* branches); keep the open ones. | 193 remote branches; it hides what is live. | Both | OWN-8 | S | P3 | Waiting on you | repository state |
 | HY-5 | Clean the session task list: drop the 84 completed entries, keep this list's open rows. | The list is a history, not a plan. | Claude | - | XS | P3 | Closed | this document |
 
@@ -222,8 +222,8 @@ Source: the results of the first long computer-use run (seven result parts, 2026
 
 | Status | Rows |
 |---|---|
-| In progress | 58 |
-| Closed | 47 |
+| In progress | 57 |
+| Closed | 48 |
 | Waiting on you | 17 |
 | Blocked | 14 |
 | Closed (record) | 1 |
@@ -563,3 +563,4 @@ Newest last. One line per status change; written by `tools/master_list.py set`.
 - 2026-11-22: PR-R9 In progress -> In progress. R9-1..R9-6 built (R9-6 merged (#602): coverage baseline raised, router rows added); R9-H1..H3 and hand rows C2..C6 owed on real data; 'tasks' wording of R9-6 undefined, asked the owner
 - 2026-11-22: PR-R10 In progress -> In progress. R10-1..R10-5 merged; R10-6 merged (#608): 3D module present (probe), R12-5 create_3d_view planned; hand rows C7..C11 owed on real data
 - 2026-11-22: PR-R11 In progress -> In progress. R11-1..R11-6 all built (R11-6 call-arity check merged (#616)); hand rows C12..C16 and R11-H1..H3 owed on real data; importphotos tool carried as a candidate
+- 2026-11-22: HY-3 In progress -> Closed. Closed on the owner's say 2026-11-22. Done: the Windows test runner is pinned to windows-2025 with the check name kept (PR 696; its own Windows run passed), release.yml status_note input (2026-10-31). Closed WITHOUT: checking whether a newer upload-artifact major clears the Node-20 notice (could not be checked from the session), a generated README test count (only frozen history lines carry counts), and the CodeQL required-checks question (left as it is). Reopen if the Node notice becomes a failure.
