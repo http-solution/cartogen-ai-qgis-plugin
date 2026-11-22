@@ -55,6 +55,17 @@ class TestACorruptSensitivityTagIsProtected(unittest.TestCase):
         self.assertEqual(sens.get_layer_sensitivity(FakeLayer("never_tagged")), {"level": None, "reason": None})
         self.assertEqual(sens.get_layer_sensitivity(None), {"level": None, "reason": None})
 
+    def test_a_layer_that_refuses_the_read_is_protected(self):
+        class Refusing(FakeLayer):
+            def customProperty(self, key, default=""):
+                raise RuntimeError("wrapped C/C++ object has been deleted")
+
+        with patch("cartogen_ai.core.logger.log_event") as log:
+            record = sens.get_layer_sensitivity(Refusing("gone"))
+        self.assertEqual(record["level"], "SENSITIVE")
+        self.assertEqual(log.call_args.args[0], "sensitivity_tag_unreadable")
+        self.assertNotIn("deleted", repr(log.call_args))
+
     def test_tagging_the_layer_again_clears_a_corrupt_tag(self):
         layer = tagged("{not json")
         self.assertTrue(sens.set_layer_sensitivity(layer, "PUBLIC", "checked by hand"))
