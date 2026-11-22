@@ -183,7 +183,9 @@ def _make_distance_area(layer):
         project_ellipsoid = QgsProject.instance().ellipsoid()
         da.setEllipsoid(project_ellipsoid if project_ellipsoid and project_ellipsoid != "NONE" else "WGS84")
         return da
-    except Exception:
+    except Exception as e:
+        # DEF-8 review: None here means every distance is measured flat, in degrees for a lat/lon layer, and nothing said so.
+        log_event("swallowed_exception", tag="Tools", tool="logistics_distance_area", error_class=type(e).__name__, error=True)
         return None
 
 
@@ -1533,7 +1535,10 @@ def _build_network_distance_matrix(network, geoms, extra_params=None, source_crs
             return float(cost) if cost is not None else float("inf")
         except _bg.AnalysisCancelledError:
             raise
-        except Exception:
+        except Exception as e:
+            # DEF-8 review: an algorithm that CRASHED is indistinguishable from "no road between these stops" (both cost infinity), so the
+            # route order silently treats the stop as unreachable. The reply is unchanged; the log now says which it was.
+            log_event("swallowed_exception", tag="Tools", tool="logistics_pair_cost", error_class=type(e).__name__, error=True)
             return float("inf")
 
     if single_tree_costs_available():
@@ -1627,7 +1632,8 @@ def _route_length_m(route_layer_name):
             if g is not None and not g.isEmpty():
                 total += area.measureLength(g) if area is not None else g.length()
         return total if total > 0 else None
-    except Exception:
+    except Exception as e:
+        log_event("swallowed_exception", tag="Tools", tool="logistics_route_length", error_class=type(e).__name__, error=True)     # DEF-8 review
         return None
 
 
@@ -1639,7 +1645,8 @@ def _route_cost_sum(route_layer_name):
             return None
         total = sum(float(f["cost"]) for f in _ck.features(layers[0], "Logistics: reading features") if f["cost"] is not None)
         return total if total > 0 else None
-    except Exception:
+    except Exception as e:
+        log_event("swallowed_exception", tag="Tools", tool="logistics_route_cost", error_class=type(e).__name__, error=True)     # DEF-8 review
         return None
 
 

@@ -179,5 +179,40 @@ class TestExportStatus(unittest.TestCase):
         self.assertEqual(export_status("C:/out/bulletin.pdf"), {"exported": True})
 
 
+class TestFailOpenHandlersLeaveATrace(unittest.TestCase):
+    """DEF-8 review (2026-11-22): handlers that return a permissive default when a protection lookup fails now say so in the log. The default itself is
+    unchanged (whether these should fail closed is the owner's decision); what was missing was any trace that the control had not run."""
+
+    def test_a_sensitivity_that_cannot_be_read_is_logged_and_still_counts_as_unprotected(self):
+        layer = _layer("clinics")
+        with patch("cartogen_ai.core.agent.protection.effective_sensitivity", side_effect=RuntimeError("boom")), \
+                patch.object(checks, "log_event") as log:
+            self.assertEqual(checks.protected_in([layer], all_layers=[]), [])
+        self.assertEqual(log.call_args.args[0], "sensitivity_read_failed")
+        self.assertEqual(log.call_args.kwargs["error_class"], "RuntimeError")
+
+    def test_a_profile_that_cannot_be_read_is_logged_and_still_means_no_profile(self):
+        layout = MagicMock()
+        layout.customProperty.side_effect = RuntimeError("boom")
+        with patch.object(checks, "log_event") as log:
+            self.assertEqual(checks.profile_of(layout), {})
+        self.assertEqual(log.call_args.args[0], "profile_read_failed")
+
+    def test_a_failed_model_view_lookup_is_logged_and_the_entry_still_comes_back_unfiltered(self):
+        from cartogen_ai.core.agent.tools import vector_tools
+        entry = {"name": "clinics", "fields": ["name", "patient_id"]}
+        with patch("cartogen_ai.core.models.model_view.apply_to_layer_entry", side_effect=RuntimeError("boom")), \
+                patch.object(vector_tools, "log_event") as log:
+            self.assertEqual(vector_tools._model_view_entry(entry, MagicMock()), entry)
+        self.assertEqual(log.call_args.kwargs["tool"], "model_view_entry")
+
+    def test_the_log_carries_the_error_class_only(self):
+        layout = MagicMock()
+        layout.customProperty.side_effect = RuntimeError("secret path C:/Users/x")
+        with patch.object(checks, "log_event") as log:
+            checks.profile_of(layout)
+        self.assertNotIn("secret", repr(log.call_args))
+
+
 if __name__ == "__main__":
     unittest.main()
