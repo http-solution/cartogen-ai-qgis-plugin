@@ -51,6 +51,7 @@ class TestExportReport(unittest.TestCase):
 
 def _layout(ids):
     layout = MagicMock()
+    layout.customProperty.return_value = ""         # what QGIS returns for a property the layout does not have (no profile stored)
     items = []
     for item_id in ids:
         item = MagicMock()
@@ -179,32 +180,73 @@ class TestExportStatus(unittest.TestCase):
         self.assertEqual(export_status("C:/out/bulletin.pdf"), {"exported": True})
 
 
-class TestFailOpenHandlersLeaveATrace(unittest.TestCase):
-    """DEF-8 review (2026-11-22): handlers that return a permissive default when a protection lookup fails now say so in the log. The default itself is
-    unchanged (whether these should fail closed is the owner's decision); what was missing was any trace that the control had not run."""
+class TestProtectionControlsFailClosed(unittest.TestCase):
+    """Owner decision 2026-11-22 (DEF-8 review): when a protection lookup FAILS, the control applies instead of silently not applying. Each failure
+    is also logged, with the error class only."""
 
-    def test_a_sensitivity_that_cannot_be_read_is_logged_and_still_counts_as_unprotected(self):
+    def test_a_sensitivity_that_cannot_be_read_counts_as_protected_and_is_logged(self):
         layer = _layer("clinics")
         with patch("cartogen_ai.core.agent.protection.effective_sensitivity", side_effect=RuntimeError("boom")), \
                 patch.object(checks, "log_event") as log:
-            self.assertEqual(checks.protected_in([layer], all_layers=[]), [])
+            found = checks.protected_in([layer], all_layers=[])
+        self.assertEqual([(f["layer"], f["level"]) for f in found], [("clinics", "SENSITIVE")])
+        self.assertIn("could not be read", found[0]["reason"])
         self.assertEqual(log.call_args.args[0], "sensitivity_read_failed")
         self.assertEqual(log.call_args.kwargs["error_class"], "RuntimeError")
 
-    def test_a_profile_that_cannot_be_read_is_logged_and_still_means_no_profile(self):
-        layout = MagicMock()
-        layout.customProperty.side_effect = RuntimeError("boom")
-        with patch.object(checks, "log_event") as log:
-            self.assertEqual(checks.profile_of(layout), {})
-        self.assertEqual(log.call_args.args[0], "profile_read_failed")
+    def test_a_layer_that_reads_fine_is_still_judged_by_its_own_tag(self):
+        layer = _layer("clinics")
+        with patch("cartogen_ai.core.agent.protection.effective_sensitivity", return_value={"level": "PUBLIC"}):
+            self.assertEqual(checks.protected_in([layer], all_layers=[]), [])
 
-    def test_a_failed_model_view_lookup_is_logged_and_the_entry_still_comes_back_unfiltered(self):
+    def test_a_stored_profile_that_cannot_be_read_is_marked_not_treated_as_no_profile(self):
+        broken = MagicMock()
+        broken.customProperty.side_effect = RuntimeError("boom")
+        notjson = MagicMock()
+        notjson.customProperty.return_value = "{not json"
+        notobject = MagicMock()
+        notobject.customProperty.return_value = "[1, 2]"
+        for layout in (broken, notjson, notobject):
+            with patch.object(checks, "log_event") as log:
+                self.assertEqual(checks.profile_of(layout), {checks.PROFILE_UNREADABLE: True})
+            self.assertEqual(log.call_args.args[0], "profile_read_failed")
+
+    def test_a_layout_with_no_profile_is_still_no_profile(self):
+        layout = MagicMock()
+        layout.customProperty.return_value = ""
+        self.assertEqual(checks.profile_of(layout), {})
+
+    def test_an_unreadable_profile_blocks_publication_until_the_user_gives_a_reason(self):
+        layout = _layout(_ALL)
+        layout.customProperty.return_value = "{not json"
+        with patch.object(checks, "protected_in", return_value=[]), patch.object(checks, "log_event"):
+            refused = checks.gate_export(layout, "export_layout", dict(_ARGS), "publication", None, False, False)
+            card = checks.gate_export(layout, "export_layout", dict(_ARGS), "publication", "the user said go", False, False)
+        self.assertIn("could not be read", refused["error"])
+        self.assertEqual(card["status"], "PREVIEW_REQUIRED")          # with a user-given reason it goes to the confirm card, like any other problem
+
+    def test_an_unreadable_profile_does_not_stop_an_ordinary_export(self):
+        layout = _layout(_ALL)
+        layout.customProperty.return_value = "{not json"
+        with patch.object(checks, "protected_in", return_value=[]), patch.object(checks, "log_event"):
+            self.assertIsNone(checks.gate_export(layout, "export_layout", dict(_ARGS), None, None, False, False))
+
+    def test_a_failed_model_view_lookup_withholds_the_field_names_and_is_logged(self):
         from cartogen_ai.core.agent.tools import vector_tools
-        entry = {"name": "clinics", "fields": ["name", "patient_id"]}
+        entry = {"name": "clinics", "fields": ["name", "patient_id"], "feature_count": 7}
         with patch("cartogen_ai.core.models.model_view.apply_to_layer_entry", side_effect=RuntimeError("boom")), \
                 patch.object(vector_tools, "log_event") as log:
-            self.assertEqual(vector_tools._model_view_entry(entry, MagicMock()), entry)
+            seen = vector_tools._model_view_entry(entry, MagicMock())
+        self.assertEqual(seen["fields"], [])
+        self.assertIs(seen["schema_hidden"], True)
+        self.assertIn("could not be read", seen["schema_note"])
+        self.assertEqual(seen["name"], "clinics")                    # only the schema is withheld
+        self.assertEqual(entry["fields"], ["name", "patient_id"])    # the caller's own entry is not modified
         self.assertEqual(log.call_args.kwargs["tool"], "model_view_entry")
+
+    def test_a_model_view_entry_that_is_not_a_dict_comes_back_as_it_was(self):
+        from cartogen_ai.core.agent.tools import vector_tools
+        self.assertEqual(vector_tools._entry_with_schema_withheld("text"), "text")
 
     def test_the_log_carries_the_error_class_only(self):
         layout = MagicMock()

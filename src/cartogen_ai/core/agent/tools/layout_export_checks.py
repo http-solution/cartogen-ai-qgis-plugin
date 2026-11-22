@@ -46,17 +46,27 @@ def missing_elements(ids_present, required=None):
     return [ELEMENT_LABELS.get(item_id, item_id) for item_id in wanted if item_id not in present]
 
 
+PROFILE_UNREADABLE = "_unreadable"
+
+
 def profile_of(layout):
-    """The profile stored on a layout by create_print_layout(profile=...), or {}. Never raises."""
+    """The profile stored on a layout by create_print_layout(profile=...), {} when it has none, or {PROFILE_UNREADABLE: True} when one is stored but
+    cannot be read. Never raises.
+
+    An unreadable profile used to come back as {} ("no profile"), so its required elements and sign-off silently stopped applying to the export. The
+    owner chose to fail closed (2026-11-22): the marker makes gate_export refuse a publication export, unless the user gives a reason."""
     try:
         import json
         raw = layout.customProperty(PROFILE_PROPERTY)
-        data = json.loads(raw) if raw else {}
-        return data if isinstance(data, dict) else {}
+        if not raw:
+            return {}
+        data = json.loads(raw)
+        if not isinstance(data, dict):
+            raise ValueError("the stored profile is not an object")
+        return data
     except Exception as exc:
-        # DEF-8 review: {} means "no profile", so the profile's required elements and sign-off are not applied to this export. Fails open.
         log_event("profile_read_failed", error_class=type(exc).__name__)
-        return {}
+        return {PROFILE_UNREADABLE: True}
 
 
 def merge_current_profile(stored, loaded):
@@ -107,9 +117,10 @@ def protected_in(layers, all_layers=None):
         try:
             record = effective_sensitivity(layer, pool)
         except Exception as exc:
-            # DEF-8 review: {} reads as "not protected", so a layer whose sensitivity could not be read passes the export gate unmarked. Fails open.
+            # An unreadable sensitivity used to read as "not protected" ({}), so such a layer passed the export gate unmarked. The owner chose to fail
+            # closed (2026-11-22): it is treated as SENSITIVE, which makes the gate ask before a file with it is written.
             log_event("sensitivity_read_failed", error_class=type(exc).__name__)
-            record = {}
+            record = {"level": "SENSITIVE", "reason": "its protection level could not be read, so it is treated as protected"}
         if record.get("level") in ("RESTRICTED", "SENSITIVE"):
             out.append({"layer": layer.name(), "level": record["level"], "reason": record.get("reason"), "derived_from": record.get("derived_from")})
     return out
@@ -272,6 +283,8 @@ def gate_export(layout, tool_name, arguments, purpose, override_reason, confirme
     profile, _ = current_profile(layout)
     problems = (publication_problems(missing_elements(ids, profile.get("required_elements")), protected, sign_off_missing(profile))
                 if publishing else [])
+    if publishing and profile.get(PROFILE_UNREADABLE):
+        problems.append("the profile stored on this layout could not be read, so its requirements cannot be checked")
     if problems and not (override_reason or "").strip():
         return {"error": "Not ready to publish: " + "; ".join(problems) + ". Fix these, or ask the user whether to export anyway and why, "
                          "then call again with their reason as override_reason. The file was not written.",
