@@ -42,12 +42,15 @@ jobs:
         # Ubuntu is pinned, not 'latest': GitHub announced ubuntu-latest moves to 26.04 (CI annotation, 2026-10-24), which would change the
         # system Python, GDAL and Qt under every job without a commit. 24.04 is what 'latest' was when the suite was last green; move it
         # deliberately, in its own pull request, after a run on the new image.
-        os: [ubuntu-24.04, windows-latest]
+        # Windows is pinned the same way (master-list row HY-3, owner decision 2026-11-22). The job name below keeps the check called
+        # "test (windows-latest, 3.11)" so a required-checks rule that names it still matches; rename both together, deliberately.
+        os: [ubuntu-24.04, windows-2025]
         python-version: ["3.11"]
         include:
           # The declared floor (Python 3.10, following QGIS; audit F32, #168) must be exercised, not just stated.
           - os: ubuntu-24.04
             python-version: "3.10"
+    name: test (${{ matrix.os == 'windows-2025' && 'windows-latest' || matrix.os }}, ${{ matrix.python-version }})
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v5
