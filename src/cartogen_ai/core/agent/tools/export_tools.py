@@ -151,13 +151,21 @@ def _write_vector(layer, output_path, driver_name, layer_options=None, only_sele
         if layer_options:
             options.layerOptions = layer_options
         has_selection = False
+        selection_unreadable = False
         if hasattr(layer, "selectedFeatureCount"):
             try:
                 cnt = layer.selectedFeatureCount()
                 if isinstance(cnt, (int, float)) and cnt > 0:
                     has_selection = True
             except Exception:
-                has_selection = False
+                selection_unreadable = True
+        # DEF-8 (owner decision 2026-11-22): a selection that cannot be read is not "no selection". Unless the caller said only_selected=False, the export
+        # could write the whole layer where a selection was meant, so it refuses instead. Offline test only.
+        if selection_unreadable and only_selected is not False:
+            return {
+                "error": "Nothing was exported: QGIS could not say whether features are selected on this layer. "
+                "Pass only_selected=false to export the full layer on purpose, or try again."
+            }
 
         # Real bug found in a code-review pass (2026-09-20): only_selected=True with
         # has_selection=False used to silently fall through to a full-layer export --
