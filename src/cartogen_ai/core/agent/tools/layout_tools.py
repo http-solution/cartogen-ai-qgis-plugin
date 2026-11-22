@@ -496,10 +496,9 @@ def _unfounded_names_problem(title, body_text):
     """The refusal sentence when the bulletin's title or summary names a place that no project layer holds, else None. Best-effort: a check that
     cannot run (no data to read) does not block the layout. LR-3, 2026-11-20 live run, row C25: a 'Surveillance District' the model supplied itself."""
     from . import layout_style
-    try:
+    names = []
+    with contextlib.suppress(Exception):         # a check that cannot read the data must not block the layout
         names = layout_style.ungrounded_place_names([title, body_text], _text_words())
-    except Exception:
-        return None
     if not names:
         return None
     return (f"The bulletin names places that are not in the project data: {', '.join(names)}. Nothing was built. Use place names from the layer "
