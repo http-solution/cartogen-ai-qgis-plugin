@@ -53,7 +53,9 @@ def profile_of(layout):
         raw = layout.customProperty(PROFILE_PROPERTY)
         data = json.loads(raw) if raw else {}
         return data if isinstance(data, dict) else {}
-    except Exception:
+    except Exception as exc:
+        # DEF-8 review: {} means "no profile", so the profile's required elements and sign-off are not applied to this export. Fails open.
+        log_event("profile_read_failed", error_class=type(exc).__name__)
         return {}
 
 
@@ -90,7 +92,8 @@ def _project_layers():
     """Every layer loaded in the project (what lineage names are resolved against); [] without QGIS. Never raises."""
     try:
         return list(QgsProject.instance().mapLayers().values()) if QGIS_AVAILABLE else []
-    except Exception:
+    except Exception as exc:
+        log_event("project_layers_read_failed", error_class=type(exc).__name__)       # DEF-8 review: lineage names cannot be resolved without it
         return []
 
 
@@ -103,7 +106,9 @@ def protected_in(layers, all_layers=None):
     for layer in layers or []:
         try:
             record = effective_sensitivity(layer, pool)
-        except Exception:
+        except Exception as exc:
+            # DEF-8 review: {} reads as "not protected", so a layer whose sensitivity could not be read passes the export gate unmarked. Fails open.
+            log_event("sensitivity_read_failed", error_class=type(exc).__name__)
             record = {}
         if record.get("level") in ("RESTRICTED", "SENSITIVE"):
             out.append({"layer": layer.name(), "level": record["level"], "reason": record.get("reason"), "derived_from": record.get("derived_from")})
@@ -245,7 +250,9 @@ def layers_drawn(layout):
                 chosen = project.layerTreeRoot().checkedLayers()
             for layer in chosen:
                 add(layer)
-    except Exception:
+    except Exception as exc:
+        # DEF-8 review: the layers found so far are returned, so the export gate may judge an incomplete list. Fails open.
+        log_event("layers_drawn_incomplete", error_class=type(exc).__name__)
         return out
     return out
 

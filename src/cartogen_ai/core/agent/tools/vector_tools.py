@@ -198,7 +198,10 @@ def _model_view_entry(entry, layer):
     try:
         from ...models import model_view, sensitivity
         return model_view.apply_to_layer_entry(entry, sensitivity.get_layer_sensitivity(layer).get("level"))
-    except Exception:
+    except Exception as e:
+        # DEF-8 review: the entry comes back UNFILTERED, so if the sensitivity lookup fails the field names of a protected layer reach the
+        # model (F21 is the rule that withholds them). Fails open; logged here, whether it should fail closed is a decision for the owner.
+        log_event("swallowed_exception", tag="Tools", tool="model_view_entry", error_class=type(e).__name__, error=True)
         return entry
 
 

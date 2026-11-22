@@ -10,8 +10,8 @@ sys.path.insert(0, str(ROOT / "tools"))
 
 import broad_except_review as ber  # noqa: E402
 
-# Counts on 2026-11-09 (551 broad handlers in src/). Lower these when handlers are fixed; never raise them.
-MAX_SWALLOW_AND_RETURN = 218
+# Counts on 2026-11-09 (551 broad handlers in src/); 218 on 2026-11-22 before the DEF-8 review logged nine of them, 209 after. Lower these when handlers are fixed; never raise them.
+MAX_SWALLOW_AND_RETURN = 209
 
 
 def _handler(code):
