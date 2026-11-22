@@ -3,8 +3,8 @@
 Why: three arguments were dropped in two days (GDACS `country`, `population_access_gap`'s speed field, `add_layer_from_path`'s `sublayer`). Item 2 covers the
 orchestrator's own branches; this covers tools that call other tools. It reads the source (no QGIS): for each direct call from one @register_tool function to
 another, it lists the called tool's parameters that the call neither passes nor leaves to `**kwargs`, and fails when one is not in INTENTIONALLY_FIXED (a cosmetic
-or default choice, with the reason) or KNOWN_GAPS (an argument that CHANGES THE ANSWER and is fixed by the composite, listed so it is a visible open item, not a
-silent one). It also fails when a composite offers an argument of its own that has the called tool's name but does not pass it on (the drop this plan is about),
+or default choice, with the reason) or KNOWN_GAPS (an argument that CHANGES THE ANSWER and is fixed by the composite, listed so it is a visible open defect, not a
+silent one; empty today). It also fails when a composite offers an argument of its own that has the called tool's name but does not pass it on (the drop this plan is about),
 and when an allow-list entry is stale. Limit: direct calls by name only; a call through a variable, a lambda or `getattr` is not seen."""
 import ast
 import unittest
@@ -36,20 +36,10 @@ INTENTIONALLY_FIXED = {
     ("score_route_incident_risk", "buffer_analysis", "only_selected"): "the whole incident layer is intended",
     ("score_route_incident_risk", "buffer_analysis", "output_name"): "the buffer is an intermediate layer",
 }
-# Arguments that CHANGE THE ANSWER and that the composite fixes without offering them. Found by this test on 2026-11-22; NOT fixed by it. Each is an open item.
-KNOWN_GAPS = {
-    ("calculate_population_in_need", "estimate_population_exposure", "raster_unit"):
-        "always 'people_per_cell': a density raster gives wrong totals (master-list row HU-4, blocked on RM-A)",
-    ("population_access_gap", "estimate_population_exposure", "raster_unit"):
-        "always 'people_per_cell': a density raster gives wrong totals (master-list row HU-4, blocked on RM-A)",
-    ("classify_facilities_by_access", "calculate_service_area", "value_forward"):
-        "direction_field can be offered but the values that mean one-way forward are fixed at 'yes'; a field using 'F' or 'T' is read wrongly",
-    ("classify_facilities_by_access", "calculate_service_area", "value_backward"): "as value_forward: fixed at '-1'",
-    ("classify_facilities_by_access", "calculate_service_area", "value_both"): "as value_forward: fixed at 'no'",
-    ("population_access_gap", "calculate_service_area", "value_forward"): "as classify_facilities_by_access: fixed at 'yes'",
-    ("population_access_gap", "calculate_service_area", "value_backward"): "as classify_facilities_by_access: fixed at '-1'",
-    ("population_access_gap", "calculate_service_area", "value_both"): "as classify_facilities_by_access: fixed at 'no'",
-}
+# Arguments that CHANGE THE ANSWER and that a composite fixes without offering them. Empty since 2026-11-22: the eight the first run found (raster_unit in
+# calculate_population_in_need and population_access_gap; value_forward, value_backward and value_both in classify_facilities_by_access and
+# population_access_gap) are now offered by those tools and passed on. A new entry here is an open defect, not a record.
+KNOWN_GAPS: dict = {}
 
 
 def _registered():
