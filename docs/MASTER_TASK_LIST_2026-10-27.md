@@ -216,6 +216,7 @@ Source: the results of the first long computer-use run (seven result parts, 2026
 | LR-25 | Speed up CI: the offline suite is 7,080 tests (4 to 6 minutes on Ubuntu, 8 on Windows) and the live QGIS job 7: split slow modules, run test groups in parallel, and skip the 51 tests that need the requests library when it is missing. | Every PR waits ten minutes; the sandbox shows 51 expected errors every run. | Claude | - | M | P3 | In progress | live run 2026-11-20 |
 | LR-26 | Generate and check TOOLS_REFERENCE.md in the pre-push script: a changed tool description failed CI three times in one PR because the reference was stale. | The failure was cheap to avoid. | Claude | LR-22 | XS | P2 | Closed | live run 2026-11-20 |
 | LR-27 | Retire the 1.20.0 decision: cut release 1.20.0 (version bump, Help, README, CHANGELOG, counts) with the fixes of 2026-11-20, or decide to hold. Not cut so far. | The fixes and the new tools of R2 are on main but unreleased. | You | LR-13 | XS | P1 | Decision needed | live run 2026-11-20 |
+| LR-28 | Stop the live job failing at random on www.gdacs.org: tests/test_humanitarian_full_smoke_live.py (line 732, fetch_gdacs_disaster_alerts for bbox 40,12,50,18) calls the real GDACS API, and on 2026-11-21 it failed with a JSONDecodeError on PR 677 (the job passed on one re-run; nothing in that PR touched GDACS). Make the test tolerate an outage (skip with the error text when the source answers with a non-JSON body) or serve it from a recorded response, and keep one check that the real call works. | One flaky external service turns the whole 'QGIS live tests' check red and costs a re-run; seen once, cause read from the job log, not reproduced. | Claude | - | S | P3 | Not started | live CI run 2026-11-21 (PR 677) |
 
 ## Counts by status
 
@@ -225,10 +226,10 @@ Source: the results of the first long computer-use run (seven result parts, 2026
 | Closed | 44 |
 | Waiting on you | 17 |
 | Blocked | 14 |
+| Not started | 2 |
 | Closed (record) | 1 |
 | Decision needed | 1 |
-| Not started | 1 |
-| **Total** | **138** |
+| **Total** | **139** |
 
 ## How to keep it current
 
@@ -531,3 +532,4 @@ Newest last. One line per status change; written by `tools/master_list.py set`.
 - 2026-11-21: LR-21 Closed -> Closed. Every function in the original list was split earlier; now the 13 others at 23 to 25 are split too, so nothing in the repo is above complexity 22 (ruff C901 at 22 reports none). No behaviour change; pure ones compared with the old code on random inputs, the rest covered by the existing and live tests.
 - 2026-11-21: LR-21 Closed -> Closed. 2026-11-21 follow-up (PR 676): generate_situation_dashboard made a two-phase tool (its 3 fetches were on the GUI thread); the audit's network check now follows helpers HELPER_DEPTH levels. Not verified in live QGIS
 - 2026-11-21: LR-21 Closed -> Closed. 2026-11-21 follow-up 2: the audit's network flag also follows helpers imported from other tools modules (search_web newly flagged, already routed); no unrouted network tool
+- 2026-11-22: LR-28 Not started -> Not started. 2026-11-22: added; the 'QGIS live tests' job failed once on PR 677 because www.gdacs.org returned a non-JSON body to tests/test_humanitarian_full_smoke_live.py; one re-run passed
