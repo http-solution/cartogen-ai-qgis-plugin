@@ -19,7 +19,7 @@ import build_full_smoke as full  # noqa: E402
 import smoke_cards  # noqa: E402
 
 SIX_TOOLS = ("mcp_probe.py", "check_workflow_file.py", "summarize_usage_log.py", "verify_inputs.py")         # the rows say `python 6_tools/...`; PY.bat runs them with QGIS's own Python
-TOOLS = ("record_result.py", "supervisor.ps1", "smoke_cards.py", "smoke_dock.py", "smoke_dock_start.py", "smoke_core.py", "run_smoke_headless.py", "analyze_smoke_run.py", "collect_evidence.py",
+TOOLS = ("record_result.py", "supervisor.ps1", "smoke_cards.py", "smoke_dock.py", "smoke_dock_start.py", "smoke_core.py", "run_smoke_headless.py", "analyze_smoke_run.py", "request_costs.py", "collect_evidence.py",
          "make_full_smoke_fixtures.py", "verify_inputs.py")
 
 PROMPT = r"""You are the tester. Your job is to finish the whole Cartogen AI smoke test on this Windows 11 PC, by yourself, from the screen, the mouse and the keyboard. You may open
@@ -240,6 +240,7 @@ def build(plugin_zip, out_dir):
                 z.writestr(f"{top}/{name}", text.replace("\n", "\r\n"))
             for t in TOOLS:
                 z.write(HERE / t, f"{top}/tools/{t}")
+            z.write(REPO / "tests" / "fixtures" / "routing_requests.json", f"{top}/tools/routing_requests.json")      # request_costs.py judges the first tool of each C26 request against it
             for t in SIX_TOOLS:
                 z.write(HERE / t, f"{top}/6_tools/{t}")
             z.write(HERE / "layout_check_script.py", f"{top}/2_layout_check/layout_check_script.py")
