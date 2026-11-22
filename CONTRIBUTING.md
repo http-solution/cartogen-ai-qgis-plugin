@@ -72,6 +72,10 @@ If you're not sure which category something falls into, treat it as the second o
   (`python -m unittest discover -s tests -t . -p "test_*.py"` — the `-t .` matters, see
   `CLAUDE.md`'s "Running things" section). New tool modules should follow the same pattern — see
   any file in `src/cartogen_ai/core/agent/tools/` for the shape.
+- A NEW tool can leave out the hand-written schema: `@register_tool("name", "description", arg_docs={"layer_name": "Layer to use.", ...})` builds it from the
+  function signature and type hints (`registry.schema_from_signature`), so an argument cannot exist in the function and not in the schema (PLAN-033 item 4). Every
+  offered argument needs a type hint (str, int, float, bool, dict, list[X], `X | None`, Literal) and a description, or registration raises; `confirmed` is never
+  advertised. Existing tools keep their hand-written schemas; do not convert them in passing.
 - Pure-Python logic (chat formatting, color derivation, tool routing) is deliberately kept free of
   Qt/QGIS imports specifically so it's directly unit-testable — see
   `src/cartogen_ai/core/ui/chat_formatting.py`'s own docstring for why it's structured that way
