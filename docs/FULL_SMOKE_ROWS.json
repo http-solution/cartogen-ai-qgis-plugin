@@ -1490,6 +1490,23 @@
    "files": [],
    "pass_if": "the log is empty apart from the welcome, the model has no memory of the first question, and the click during a running request is refused.",
    "cost": "one request"
+  },
+  {
+   "id": "C28-large-download-card",
+   "issue": "S",
+   "session": "C",
+   "title": "A large download waits for your Apply on a card",
+   "covers": [
+    "large-download-apply-card"
+   ],
+   "needs": "QGIS and the plugin with a working model key; internet (one boundary file download)",
+   "starts_from": "A new empty project; the plugin enabled; 'Save an evidence folder for each request' ticked. In Settings set 'Ask before downloads larger than' to 1 MB (the default is 50 MB), then OK.",
+   "do": "(1) send: Download the ADM2 administrative boundaries for Yemen from geoBoundaries  (2) read the card, then press Cancel  (3) send the same request again and press Apply  (4) set the size setting back to 50 MB.",
+   "expect": "(1) a confirmation card names the size in MB, the source (geoBoundaries) and its licence, and no layer has been added yet. (2) Cancel adds nothing and downloads nothing; the reply does not claim a download. (3) Apply downloads the file and adds the boundary layer. The model never asks you in chat to say 'yes' and never says the file was already downloaded before you pressed Apply.",
+   "evidence": "snap('C28'). Screenshot of the card -> results\\screens\\C28-card.png, and of the layer list after Apply -> C28-layers.png.",
+   "files": [],
+   "pass_if": "all as Expect, in particular: no download before Apply, and a card (not a chat question) on the first request.",
+   "cost": "two short requests"
   }
  ],
  "v2_overrides": {

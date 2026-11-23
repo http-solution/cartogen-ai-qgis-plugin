@@ -1257,7 +1257,9 @@ class CartogenAi:
         """The humanitarian boundary/footprint fetches: background download, main-thread layer
         creation, then the temp file is removed whether or not layer creation worked."""
         from .tools import humanitarian_tools as ht
-        large = bool(filtered_args.get("allow_large_download"))
+        # RM-C: always False here. A model call that meets a large file gets an Apply card back (humanitarian_tools.large_download_gate); only the
+        # person's Apply reaches the registered function with confirmed=True. The schema no longer offers the flag, so the model cannot send it.
+        large = False
         if name == "fetch_geoboundaries":
             fetch_result = ht.fetch_geoboundaries_network_phase(
                 filtered_args.get("iso3", ""), filtered_args.get("admin_level", "ADM1"), large)
@@ -1311,6 +1313,10 @@ class CartogenAi:
         if blocked is not None:
             return blocked
         result = self._run_two_phase_tool(name, arguments)
+        if isinstance(result, dict) and result.get("status") == "PREVIEW_REQUIRED":
+            # RM-C: a card a two-phase tool returns (large download, Sentinel scenes) was handed to the model but never registered as a pending
+            # confirmation, and the Apply button is built only from registered tasks, so it had no button. Register it the way _real_execute_tool does.
+            self._run_on_main_thread(lambda _a: self._register_preview_task(name, args, result), None)
         if egress is not None and egress["action"] == "warn" and isinstance(result, dict):
             result["egress_warning"] = egress["warning"]
         return result

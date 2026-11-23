@@ -32,6 +32,9 @@ def with_step(**changes):
     return doc
 
 
+SIZE_CARD_FETCH_TOOLS = frozenset({"fetch_geoboundaries", "fetch_hdx_admin_boundaries", "fetch_building_footprints"})
+
+
 class TestLists(unittest.TestCase):
     def test_every_listed_tool_exists_and_none_is_a_delete_or_has_its_own_confirmation(self):
         problems = []
@@ -42,7 +45,9 @@ class TestLists(unittest.TestCase):
                 continue
             if tool_operations.get_tool_operation_type(name) == "DELETE":
                 problems.append(f"{name}: DELETE")
-            if "confirmed" in inspect.signature(func).parameters:
+            # Three fetch tools declare `confirmed` only to approve a SIZE card (RM-C option B, 2026-11-23); it is never advertised and a file may not send it.
+            # In a workflow a step that meets a large file returns that card and the runner stops there, waiting for the person (step runner: NOT_RUN_STATUSES).
+            if "confirmed" in inspect.signature(func).parameters and name not in SIZE_CARD_FETCH_TOOLS:
                 problems.append(f"{name}: has its own confirmed step")
         self.assertEqual(problems, [])
 

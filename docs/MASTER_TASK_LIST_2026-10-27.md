@@ -112,7 +112,7 @@ One list to follow up and plan from. It replaces the session task list (101 entr
 |---|---|---|---|---|---|---|---|---|
 | RM-A | Verified result gate: after each analysis that writes a layer or field, run applicable checks (CRS, geometry, not-all-null or constant, value range and unit, no stale field) and add them to the result; the answer must quote a failed check. | Three result errors in three hand runs were silent; this is the defensible differentiator. | Claude | OWN-5 | L | P1 | In progress | ROADMAP_AUDIT step A, session task 97 |
 | RM-B | Attach the map canvas (or a region) plus legend text and layer list to the next message as an image part. | inspect_canvas_visually sends the map as base64 text in a tool result; the chat clients already accept image parts. | Claude | OWN-5 | M | P1 | In progress | ROADMAP_AUDIT step B, task 98 |
-| RM-C | Record source URL, licence, retrieval date and coverage on every fetch result, the provenance sidecar and the report. | Needed for donors and for the verified workflow report. | Claude | OWN-5 | M | P1 | Decision needed | ROADMAP_AUDIT step C, task 99 |
+| RM-C | Record source URL, licence, retrieval date and coverage on every fetch result, the provenance sidecar and the report. | Needed for donors and for the verified workflow report. | Claude | OWN-5 | M | P1 | In progress | ROADMAP_AUDIT step C, task 99 |
 | RM-D | Verified workflow report: sources, parameters, checks, assumptions and limitations, a rerun recipe, for one worked example (service coverage). | The lead feature; mostly assembly once A and C exist. | Claude | RM-A, RM-C | M | P1 | In progress | ROADMAP_AUDIT step D, task 100 |
 | RM-E | Data discovery ranking (licence, coverage, freshness); STAC scene load, change detection and a validation step; one-prompt report. | Builds on D. | Claude | RM-D | L | P2 | In progress | ROADMAP_AUDIT step E, task 101 |
 | RM-F | MCP transport over the tool registry with the existing write, egress and sensitivity gates intact. | Reach for little code, but only after A so exposed tools inherit the checks. | Claude | RM-A | M | P2 | In progress | ROADMAP_AUDIT step F, task 102 |
@@ -222,12 +222,11 @@ Source: the results of the first long computer-use run (seven result parts, 2026
 
 | Status | Rows |
 |---|---|
-| In progress | 56 |
+| In progress | 57 |
 | Closed | 50 |
 | Waiting on you | 17 |
 | Blocked | 14 |
 | Closed (record) | 1 |
-| Decision needed | 1 |
 | **Total** | **139** |
 
 ## How to keep it current
@@ -571,3 +570,4 @@ Newest last. One line per status change; written by `tools/master_list.py set`.
 - 2026-11-23: HT-3 Not started -> In progress. 2026-11-23: checked what is startable. D4 and S5 already have prompt-to-expected-tool rows in tests/test_runbook_rows_tool_offer.py (offered, not chosen); D3 (survey) has none because its exact 1.18.4 prompt is not in the repository (PLAN-025 only records that aggregate_survey_indicator was offered). Needs the D3 prompt or the 1.18.4 test package to add it; measuring tool choice needs live Claude-provider runs (OWN-15). Nothing else to build offline.
 - 2026-11-23: LR-27 In progress -> In progress. 1.20.0-rc1 built 2026-11-23: release run 43 succeeded; draft pre-release cartogen-ai-v1.20.0-rc1 holds cartogen_ai_v1.20.0-rc1.zip (SHA256 eeb64693743352b67b54fd559cd2c445248279e24966c5b2eb6f1bf5006eda6e), not yet published. Owner publishes the draft; promote to 1.20.0 only after issue 635 C21-C27, issue 380 B28/B32/B41 and issue 510 Connections pass by hand.
 - 2026-11-23: RM-C In progress -> Decision needed. 2026-11-23: decision aid written (docs/DECISION_ANALYSIS_2026-11-23_RM-C_download_preview.md). Finding: the size guard on geoBoundaries, HDX boundaries and building footprints is an honour system, because the model can send allow_large_download=true itself; the DEM and STAC tools already use an Apply card it cannot press. Recommendation: B, use the Apply card. Needs your choice A/B/C/D. Also open: hand test, licence table not checked against providers.
+- 2026-11-23: RM-C Decision needed -> In progress. 2026-11-23: owner chose B. Large geoBoundaries, HDX and footprint downloads now return an Apply card; the model can no longer send allow_large_download. Also fixed: a card from any two-phase tool (incl. load_stac_assets) had no Apply button because it was never registered. CI only, not seen in QGIS (hand row in ledger large-download-apply-card). Still open: hand test, licence table not checked against providers.

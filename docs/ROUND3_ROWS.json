@@ -67,6 +67,7 @@
   "C25-public-health-look": "1 feature never seen live (public-health-look): the rate map, cluster outline, hot-spot colours and the epidemic bulletin must be looked at on a real map and an exported page.",
   "C26-r2-routing": "1 feature never seen live (r2-persona-wiring): the twelve plain spatial-statistics requests must reach the right tool when a real model answers them as each persona.",
   "C27-geocode-protected": "1 feature never seen live (geocoding-protected-refusal): geocoding a protected layer must be refused and an open layer must go ahead.",
-  "F4-new-chat": "1 feature(s) never seen live (new-chat-button). Added 2026-11-20 with PR 656; QGIS CI only so far."
+  "F4-new-chat": "1 feature(s) never seen live (new-chat-button). Added 2026-11-20 with PR 656; QGIS CI only so far.",
+  "C28-large-download-card": "1 feature never seen live (large-download-apply-card). Added 2026-11-23 (RM-C option B); offline tests only so far: a large boundary or footprint download must wait for Apply on a card."
  }
 }

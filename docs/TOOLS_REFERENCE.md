@@ -287,7 +287,6 @@ Download building footprint polygons for an area of interest from Microsoft's Gl
 | `country_name` | string | yes | Country name, e.g. 'Yemen'. Matched against the dataset's own location names, not an ISO3 code. |
 | `bbox` | array[number] | yes | [south, west, north, east] in WGS84 degrees -- footprints are cropped to this area, not the whole country. |
 | `max_features` | integer | no | Safety cap on returned features. Defaults to 5000; if exceeded, results are truncated (not silently dropped) and truncated=true is reported. |
-| `allow_large_download` | boolean | no | Set true ONLY after the user agreed to a download above their size threshold. |
 
 ### `fetch_fts_funding_data` _(network-only)_
 
@@ -301,13 +300,12 @@ Fetch humanitarian funding data from OCHA's Financial Tracking Service (FTS) for
 
 ### `fetch_geoboundaries` _(two-phase)_
 
-Download administrative boundaries from geoBoundaries API. A file larger than the user's download-size setting is not fetched until the user agrees: then call again with allow_large_download=true.
+Download administrative boundaries from geoBoundaries API. A file larger than the user's download-size setting is not fetched until the user presses Apply on the confirmation card this returns: do not ask again in chat and do not retry the call.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
 | `iso3` | string | yes |  |
 | `admin_level` | string | yes |  |
-| `allow_large_download` | boolean | no | Set true ONLY after the user agreed to a download above their size threshold. |
 
 ### `fetch_hdx_admin_boundaries` _(two-phase)_
 
@@ -317,7 +315,6 @@ Download OCHA's Common Operational Dataset - Administrative Boundaries (COD-AB) 
 |---|---|---|---|
 | `iso3` | string | yes | 3-letter ISO country code, e.g. 'YEM'. |
 | `admin_level` | string | no | Admin level, e.g. 'ADM1', 'ADM2'. Defaults to 'ADM1'. |
-| `allow_large_download` | boolean | no | Set true ONLY after the user agreed to a download above their size threshold. |
 
 ### `fetch_osm_features` _(network-only)_
 
