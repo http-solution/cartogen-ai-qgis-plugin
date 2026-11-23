@@ -151,7 +151,7 @@ One list to follow up and plan from. It replaces the session task list (101 entr
 |---|---|---|---|---|---|---|---|---|
 | HU-1 | HX4 tools once keys exist: Kobo/ODK pull, ACLED, GloFAS/CHIRPS, Logistics Cluster, LandScan. | Blocked on OWN-10. | Claude | OWN-10 | L | P3 | Blocked | gap analysis H10 |
 | HU-2 | JIAF: re-check flag formulas and the Annex 4 reader when OWN-9 material arrives; closing the blockers stays your decision. | Two open validation blockers. | Claude | OWN-9 | M | P3 | Blocked | JIAF2 |
-| HU-3 | travel_time_matrix about 8 minutes on a whole country; optimize_delivery_route builds the graph per stop pair; assumed speeds by road class (only 0.9 percent of Jordan's roads carry a speed). | Performance and realism limits. | Claude | - | L | P3 | In progress | BUG-2026-09-25-3, W-39 |
+| HU-3 | travel_time_matrix about 8 minutes on a whole country; optimize_delivery_route builds the graph per stop pair; assumed speeds by road class (only 0.9 percent of Jordan's roads carry a speed). | Performance and realism limits. | Claude | - | L | P3 | Decision needed | BUG-2026-09-25-3, W-39 |
 | HU-4 | Raster-unit check (people per cell versus density) in population exposure; points into the admin CRS in damage counting; score-write labels. | Result-correctness items in the same class as RM-A. | Claude | RM-A | M | P2 | Blocked | W-40 |
 | HU-5 | Smaller carry-overs: task-runner callbacks at unload (#167 tail), find_region naming the wrong country, output layers piling up in long sessions. | Known, minor. | Claude | - | M | P3 | In progress | W-41 to W-43 |
 
@@ -222,11 +222,12 @@ Source: the results of the first long computer-use run (seven result parts, 2026
 
 | Status | Rows |
 |---|---|
-| In progress | 57 |
+| In progress | 56 |
 | Closed | 50 |
 | Waiting on you | 17 |
 | Blocked | 14 |
 | Closed (record) | 1 |
+| Decision needed | 1 |
 | **Total** | **139** |
 
 ## How to keep it current
@@ -573,3 +574,4 @@ Newest last. One line per status change; written by `tools/master_list.py set`.
 - 2026-11-23: RM-C Decision needed -> In progress. 2026-11-23: owner chose B. Large geoBoundaries, HDX and footprint downloads now return an Apply card; the model can no longer send allow_large_download. Also fixed: a card from any two-phase tool (incl. load_stac_assets) had no Apply button because it was never registered. CI only, not seen in QGIS (hand row in ledger large-download-apply-card). Still open: hand test, licence table not checked against providers.
 - 2026-11-23: LR-27 In progress -> In progress. 1.20.0-rc2 prepared 2026-11-23 on the owner's go (rc1 plus the RM-C Apply card, the Sentinel card fix and source records for DEM and Sentinel). Draft pre-release only; owner publishes by hand. Promote to 1.20.0 only after issue 635 C21-C27, issue 380 B28/B32/B41, issue 510 Connections and row C28 pass by hand. rc1 draft (SHA256 eeb64693...) is superseded.
 - 2026-11-23: LR-27 In progress -> In progress. 1.20.0-rc2 built 2026-11-23: release run 44 succeeded; draft pre-release cartogen-ai-v1.20.0-rc2 holds cartogen_ai_v1.20.0-rc2.zip (SHA256 711368b373b94c45bedc99364fcbbd92698d8654eaf0b980cacf5bdaed0ea21d), not yet published. Supersedes the unpublished rc1 draft. Owner publishes the draft; promote to 1.20.0 only after issue 635 C21-C27, issue 380 B28/B32/B41, issue 510 Connections and smoke row C28 pass by hand.
+- 2026-11-23: HU-3 In progress -> Decision needed. 2026-11-23: decision aid for part (b) written (docs/DECISION_ANALYSIS_2026-11-23_HU-3b_road_speeds.md). Findings: estimate_road_speeds already exists as an opt-in tool with 15 country scalings; the flat-50 default is disclosed in each result; a second, different class-speed table lives in build_composite_impedance_field (main classes 10 km/h lower). Recommendation: B (automatic in-memory fallback with the assumption stated) plus D (one table). Needs your letter A/B/C/D. Part (c) still needs a country-sized network.
