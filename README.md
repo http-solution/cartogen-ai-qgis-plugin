@@ -20,14 +20,14 @@
   <a href="https://cartogenai.com"><img src="https://img.shields.io/badge/website-cartogenai.com-0b6efd" alt="Website"></a>
 </p>
 
-**Community edition · Version 1.18.5 · GNU GPL v2 · QGIS 4.2–4.99 · [cartogenai.com](https://cartogenai.com)**
+**Community edition · Version 1.20.0-rc1 (pre-release) · GNU GPL v2 · QGIS 4.2–4.99 · [cartogenai.com](https://cartogenai.com)**
 
 Cartogen AI is built for GIS analysts, humanitarian teams, researchers, and anyone who
 needs to move from a question to a reproducible spatial result without leaving QGIS.
 The agent exposes its plan, tool calls, progress, and errors instead of returning a
 black-box answer.
 
-> **Project status (2026-10-26):** active Community edition, currently at **1.18.5**, a patch on 1.18.4, 1.18.3, 1.18.2, 1.18.1 and 1.18.0 (the sum of the 1.17.0 release candidates 42 to 52 since 1.16.3). Neither has passed a full hand test; see the hand-testing line below.
+> **Project status (2026-11-23):** active Community edition. The newest build is the pre-release **1.20.0-rc1**, not hand-tested; the latest stable is **1.18.5**, a patch on 1.18.4, 1.18.3, 1.18.2, 1.18.1 and 1.18.0 (the sum of the 1.17.0 release candidates 42 to 52 since 1.16.3). Neither has passed a full hand test; see the hand-testing line below.
 > - **Tests:** 5,062 automated tests run offline, 0 failures (767 skipped there: the live-QGIS tests and those needing optional libraries). The QGIS ones run in CI (the `qgis-live-tests` job, QGIS 4.2.2) together with ruff, mypy and a release-zip check.
 > - **Hand testing:** rc44 to rc46 were hand-tested in desktop QGIS 4.2.3 (tool sweep: 65 of 83 rows Pass, 1 Fail, the rest Partial or Skip; 21 of 21 priority algorithms Pass); the plain-language algorithm test (385 prompts) has **not** been run. rc48 was hand-tested on 2026-10-24 (52 of 87 rows Pass, 18 Partial, 16 Fail, 1 Skip; results in [docs/HAND_TEST_RESULTS_rc48_2026-10-24.md](docs/HAND_TEST_RESULTS_rc48_2026-10-24.md)); the changes from rc49 to 1.18.0 are CI-checked only (a partial rc50 run covered 20 of its 87 rows) until the v2 hand test (a layout check script that costs no API money, plus nine rows; [docs/LEAN_HAND_TEST_PROTOCOL.md](docs/LEAN_HAND_TEST_PROTOCOL.md)) is run.
 > - **Open issues (2):** #362 and #380. Their code is merged and green in CI; they stay open for hand rows that depend on what the model answers. Everything else from the audit and smoke-test lists is closed, each with its evidence in a comment (several on CI evidence only, which the comment says). Per-issue status: [docs/OPEN_ISSUES_STATUS_2026-10-25_v2.md](docs/OPEN_ISSUES_STATUS_2026-10-25_v2.md).
@@ -79,6 +79,21 @@ black-box answer.
   a restricted execution sandbox for model-generated PyQGIS scripts, fail-closed
   read-only SQL enforcement, an SSRF guard on fetched URLs, and a destructive-action
   confirmation gate the model cannot self-approve.
+
+## What's new in 1.20.0-rc1
+
+Built on 1.18.5. Offline tests and the QGIS 4.2.2 live checks in CI pass; **not hand-tested** in desktop QGIS unless an item says so. Full list: the `v1.20.0-rc1` block in [metadata.txt](metadata.txt) and [CHANGELOG.md](CHANGELOG.md).
+
+- Personas and persona tasks: Fifteen persona packs choose the offered tools, tasks and map styles for the kind of work you do, with a picker and a readiness panel. 52 persona tasks and colour-blind and red/green style rules are included.
+- Spatial statistics and health rates: Moran's I and Local Moran, Getis-Ord Gi* hot and cold spots with false-discovery correction, Kulldorff spatial scan, and health rates, relative risk, SMR and smoothing with a small-number flag.
+- Land cover, change and map looks: Spectral indices, raster time-series statistics, a from-to change matrix, management zones, official land-cover colours, change and hatch looks, and field, change and epidemic-bulletin layouts.
+- Geometry editing and attribute tools: Edit one vertex, add or delete a part or ring, reshape, reverse, trim or extend lines, offset curves, copy features between layers with a field mapping shown first, identify at a point, virtual fields, constraints, defaults, conditional formatting, map tips and layer actions.
+- Processing models and batches: run_processing_model, run_processing_batch and run_algorithm_in_place run only algorithms that were reviewed and approved; the in-place run is one undoable edit. Project datum transformations, custom CRS and canvas decorations are covered.
+- Routing fix: Requests that need a route or service area now reach the routing tools (the tool list offered for them went from 34 down to 7), behind a safety gate.
+- A map button in the chat: A one-shot map button asks the model to look at the current map before it answers.
+- Protection fails closed: A layer whose protection tag, lineage, selection count, egress setting, trace redaction or MCP layer list cannot be read now counts as protected, and an explicit tag wins. The export gate refuses instead of guessing.
+- Composite tools pass their arguments on: calculate_population_in_need and population_access_gap take raster_unit; classify_facilities_by_access and population_access_gap take the road-direction values and forward them. 42 new tools since 1.18.5.
+- Not hand-tested: Everything above is checked by the offline suite and, for the QGIS parts, by CI on QGIS 4.2.2; none of it has been hand-tested in desktop QGIS. Promotion to 1.20.0 waits on the named hand rows (issue 635 C21-C27, issue 380 B28/B32/B41, issue 510 Connections).
 
 ## What's new in 1.18.5
 

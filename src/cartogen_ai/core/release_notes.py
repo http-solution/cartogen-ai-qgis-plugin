@@ -8,18 +8,21 @@ metadata changelog, CHANGELOG.md, README and this module agree). Checklist: CONT
 releases listed in NEW_MARK_VERSIONS.
 """
 
-WHATS_NEW_VERSION = "1.18.5"
-NEW_MARK_VERSIONS = ("1.18.4", "1.18.5")
+WHATS_NEW_VERSION = "1.20.0-rc1"
+NEW_MARK_VERSIONS = ("1.18.5", "1.20.0-rc1")
 
 # Headline items of the current version (the full list is the metadata.txt changelog block and CHANGELOG.md).
 WHATS_NEW_ITEMS = [
-    ('GDACS alerts are limited to the country you name', "fetch_gdacs_disaster_alerts has filtered by country since September, but the agent's own call path never passed the country on, so a request for Yemen fetched 86 alerts from around the world (1.18.4 smoke N7c and A7). The country is now passed. A new test reads the agent code and fails if any two-phase fetch call leaves out an argument the tool declares."),
-    ('Windows paths with single backslashes work', 'A model that writes C:\\data\\fixtures\\before.asc with single backslashes lost the characters after \\f and \\b to JSON decoding, so the tool looked for a file that does not exist and the reply told the user to add the raster by hand (1.18.4 smoke D6). Control characters in a drive path are turned back into backslash and letter before any tool runs.'),
-    ('A geocoded place brings its bounding box', "geocode_and_enrich and geocode_batch now return the place's own extent in both coordinate orders. The model had a point for Aden but no area, then asked the user for a bounding box or searched for boundary layers instead of calling the satellite-scene and building tools (1.18.4 smoke A5, A6 and A13)."),
-    ('update_task without an id', 'update_task with a missing id updated nothing and printed "Task ID \'None\' not found" after a good fetch. It now updates the one open task, says plainly that there is no plan, or asks for the id when several are open.'),
-    ('Evidence collector for hand tests', "tools/collect_evidence.py is now in the repository: after each row it saves the log, screenshots, layer table and the plugin's own evidence folders and lists the tools called. In the first real run the log files were empty; that is not yet explained and the change that tries to fix it is not verified in QGIS."),
-    ('Known and open', 'The model typed key figures into a print layout that are not in the layer (B8); the elevation-profile print item sometimes renders empty in CI (#379); the cause of a script-worker crash (B7), a changed population figure between identical runs (C5) and an empty severity in the JIAF preliminary (E2) is not found because the matching evidence was missing.'),
-    ('Not hand-tested', 'Everything above is checked by the offline suite and, for the QGIS parts, by CI on QGIS 4.2.2; none of it has been hand-tested in desktop QGIS.'),
+    ('Personas and persona tasks', 'Fifteen persona packs choose the offered tools, tasks and map styles for the kind of work you do, with a picker and a readiness panel. 52 persona tasks and colour-blind and red/green style rules are included.'),
+    ('Spatial statistics and health rates', "Moran's I and Local Moran, Getis-Ord Gi* hot and cold spots with false-discovery correction, Kulldorff spatial scan, and health rates, relative risk, SMR and smoothing with a small-number flag."),
+    ('Land cover, change and map looks', 'Spectral indices, raster time-series statistics, a from-to change matrix, management zones, official land-cover colours, change and hatch looks, and field, change and epidemic-bulletin layouts.'),
+    ('Geometry editing and attribute tools', 'Edit one vertex, add or delete a part or ring, reshape, reverse, trim or extend lines, offset curves, copy features between layers with a field mapping shown first, identify at a point, virtual fields, constraints, defaults, conditional formatting, map tips and layer actions.'),
+    ('Processing models and batches', 'run_processing_model, run_processing_batch and run_algorithm_in_place run only algorithms that were reviewed and approved; the in-place run is one undoable edit. Project datum transformations, custom CRS and canvas decorations are covered.'),
+    ('Routing fix', 'Requests that need a route or service area now reach the routing tools (the tool list offered for them went from 34 down to 7), behind a safety gate.'),
+    ('A map button in the chat', 'A one-shot map button asks the model to look at the current map before it answers.'),
+    ('Protection fails closed', 'A layer whose protection tag, lineage, selection count, egress setting, trace redaction or MCP layer list cannot be read now counts as protected, and an explicit tag wins. The export gate refuses instead of guessing.'),
+    ('Composite tools pass their arguments on', 'calculate_population_in_need and population_access_gap take raster_unit; classify_facilities_by_access and population_access_gap take the road-direction values and forward them. 42 new tools since 1.18.5.'),
+    ('Not hand-tested', 'Everything above is checked by the offline suite and, for the QGIS parts, by CI on QGIS 4.2.2; none of it has been hand-tested in desktop QGIS. Promotion to 1.20.0 waits on the named hand rows (issue 635 C21-C27, issue 380 B28/B32/B41, issue 510 Connections).'),
 ]
 
 HUMANITARIAN_WORKFLOWS = [('1. Rapid crisis and base mapping',

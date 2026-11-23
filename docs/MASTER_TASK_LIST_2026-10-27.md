@@ -215,19 +215,18 @@ Source: the results of the first long computer-use run (seven result parts, 2026
 | LR-24 | Fewer, cheaper tool calls: measure tool calls and tokens per request on the 12 C26 routing requests and the C16 chart (22 calls), add shortcuts (scalar statistics instead of new layers, one call for a bar chart), and set a budget per request class in a test. | Long chains cost money and time (50-90 s replies in E5) and made the extra layers of LR-7. | Claude | LR-7 | M | P2 | In progress | live run 2026-11-20 |
 | LR-25 | Speed up CI: the offline suite is 7,080 tests (4 to 6 minutes on Ubuntu, 8 on Windows) and the live QGIS job 7: split slow modules, run test groups in parallel, and skip the 51 tests that need the requests library when it is missing. | Every PR waits ten minutes; the sandbox shows 51 expected errors every run. | Claude | - | M | P3 | In progress | live run 2026-11-20 |
 | LR-26 | Generate and check TOOLS_REFERENCE.md in the pre-push script: a changed tool description failed CI three times in one PR because the reference was stale. | The failure was cheap to avoid. | Claude | LR-22 | XS | P2 | Closed | live run 2026-11-20 |
-| LR-27 | Retire the 1.20.0 decision: cut release 1.20.0 (version bump, Help, README, CHANGELOG, counts) with the fixes of 2026-11-20, or decide to hold. Not cut so far. | The fixes and the new tools of R2 are on main but unreleased. | You | LR-13 | XS | P1 | Decision needed | live run 2026-11-20 |
+| LR-27 | Retire the 1.20.0 decision: cut release 1.20.0 (version bump, Help, README, CHANGELOG, counts) with the fixes of 2026-11-20, or decide to hold. Not cut so far. | The fixes and the new tools of R2 are on main but unreleased. | You | LR-13 | XS | P1 | In progress | live run 2026-11-20 |
 | LR-28 | Stop the live job failing at random on www.gdacs.org: tests/test_humanitarian_full_smoke_live.py (line 732, fetch_gdacs_disaster_alerts for bbox 40,12,50,18) calls the real GDACS API, and on 2026-11-21 it failed with a JSONDecodeError on PR 677 (the job passed on one re-run; nothing in that PR touched GDACS). Make the test tolerate an outage (skip with the error text when the source answers with a non-JSON body) or serve it from a recorded response, and keep one check that the real call works. | One flaky external service turns the whole 'QGIS live tests' check red and costs a re-run; seen once, cause read from the job log, not reproduced. | Claude | - | S | P3 | Closed | live CI run 2026-11-21 (PR 677) |
 
 ## Counts by status
 
 | Status | Rows |
 |---|---|
-| In progress | 55 |
+| In progress | 56 |
 | Closed | 50 |
 | Waiting on you | 17 |
 | Blocked | 14 |
 | Closed (record) | 1 |
-| Decision needed | 1 |
 | Not started | 1 |
 | **Total** | **139** |
 
@@ -567,3 +566,4 @@ Newest last. One line per status change; written by `tools/master_list.py set`.
 - 2026-11-22: DEF-5 In progress -> Closed. Closed on the owner's say 2026-11-22. Seen working live: round-3 row D2 step 2 (tester PASS, 2026-11-09), after the damage run the field list is fid, admin_name, population, need, severity_smoke, damage_sev with no leftover working columns.
 - 2026-11-22: DEF-6 In progress -> Closed. Closed on the owner's say 2026-11-22. Built (PLAN-054): a refused task grid names the cell size that would work (the limit is unchanged). Seen working in the 2026-11-04 live run, row D5: the 1 km refusal named 4 km and offered aoi_where; the 4 km grid held 3,080 tasks. That run was agent-observed, not a person's.
 - 2026-11-23: LR-27 Decision needed -> Decision needed. 2026-11-23: decision aid written (docs/DECISION_ANALYSIS_2026-11-23_LR-27.md): facts since 1.18.5 (766 commits, tools 294 to 336), what is not verified, three options (stable now, hold, pre-release first) and my recommendation (pre-release first, promoted when named hand rows pass). Waiting on your choice; no version bump.
+- 2026-11-23: LR-27 Decision needed -> In progress. 1.20.0-rc1 pre-release prepared 2026-11-23 on the owner's go for option c; promoted to stable only after the named hand rows pass (issue 635 C21-C27, issue 380 B28/B32/B41, issue 510 Connections).
