@@ -53,7 +53,7 @@ One list to follow up and plan from. It replaces the session task list (101 entr
 |---|---|---|---|---|---|---|---|---|
 | HT-1 | Triage the 1.18.4 results into defects, write a failing test per defect, fix, and cut 1.18.5. | The loop that has produced 1.18.2, 1.18.3 and 1.18.4. | Claude | OWN-1, OWN-3 | M | P0 | Closed | release process |
 | HT-2 | Ledger traceability: add a hand_row (a row id or 'none: reason') to every 'not verified' ledger entry (27 now, 12 at the time of PLAN-022) and make a test fail when a new entry has neither. | The ledger is the contract; 'not verified' must say which hand row would verify it. | Claude | - | M | P2 | Closed | PLAN-022 N2 |
-| HT-3 | Build eval rows for model tool choice (prompt, expected tool) and measure them: D3 (survey tool), D4 (presence-gap write), S5 (refuse a trigger with no threshold). Change prompts or descriptions only with a measured gain. | The router already offers the right tools; what the model picks has never been measured. | Claude | OWN-3 | M | P2 | Not started | 1.18.3 hand run, W-4 |
+| HT-3 | Build eval rows for model tool choice (prompt, expected tool) and measure them: D3 (survey tool), D4 (presence-gap write), S5 (refuse a trigger with no threshold). Change prompts or descriptions only with a measured gain. | The router already offers the right tools; what the model picks has never been measured. | Claude | OWN-3 | M | P2 | In progress | 1.18.3 hand run, W-4 |
 | HT-4 | Verification debt, CI only today: Windows and macOS QGIS; large, messy, non-English and database-backed user data; numerical correctness of Processing outputs; delineate_watershed on a real DEM versus the engineer's report; a real Geofabrik extract and prompt-cache check. | Built and passing in CI, never run by a person. | Both | OWN-11, OWN-14 | L | P3 | Blocked | W-5 to W-9 |
 | HT-5 | Re-check 'partly' ledger entries (5) and wave E1, DXF and Excel export and the 20 later routing additions by hand. | Only 21 algorithms were ever hand-tested. | Both | OWN-1 | M | P3 | Waiting on you | W-2, W-3 |
 | HT-6 | Prove tools/collect_evidence.py in a real QGIS 4.2 session (written without QGIS, never run) and fix what breaks; then add it to the repo with a live test. | The agent-edition smoke package depends on it for logs, screenshots and layer tables; until run, evidence may fall back to manual capture. | Claude | OWN-1 | S | P1 | In progress | smoke package 2026-10-27 |
@@ -222,12 +222,11 @@ Source: the results of the first long computer-use run (seven result parts, 2026
 
 | Status | Rows |
 |---|---|
-| In progress | 56 |
+| In progress | 57 |
 | Closed | 50 |
 | Waiting on you | 17 |
 | Blocked | 14 |
 | Closed (record) | 1 |
-| Not started | 1 |
 | **Total** | **139** |
 
 ## How to keep it current
@@ -568,3 +567,5 @@ Newest last. One line per status change; written by `tools/master_list.py set`.
 - 2026-11-23: LR-27 Decision needed -> Decision needed. 2026-11-23: decision aid written (docs/DECISION_ANALYSIS_2026-11-23_LR-27.md): facts since 1.18.5 (766 commits, tools 294 to 336), what is not verified, three options (stable now, hold, pre-release first) and my recommendation (pre-release first, promoted when named hand rows pass). Waiting on your choice; no version bump.
 - 2026-11-23: LR-27 Decision needed -> In progress. 1.20.0-rc1 pre-release prepared 2026-11-23 on the owner's go for option c; promoted to stable only after the named hand rows pass (issue 635 C21-C27, issue 380 B28/B32/B41, issue 510 Connections).
 - 2026-11-23: RM-C In progress -> In progress. 2026-11-23: fetch_dem and load_stac_assets now carry the source record too (fourteen tools); search tools stay out on purpose (no layer). Open: large-download preview (UI decision), hand test, licence table not checked against providers.
+- 2026-11-23: HT-3 Not started -> In progress. 2026-11-23: checked what is startable. D4 and S5 already have prompt-to-expected-tool rows in tests/test_runbook_rows_tool_offer.py (offered, not chosen); D3 (survey) has none because its exact 1.18.4 prompt is not in the repository (PLAN-025 only records that aggregate_survey_indicator was offered). Needs the D3 prompt or the 1.18.4 test package to add it; measuring tool choice needs live Claude-provider runs (OWN-15). Nothing else to build offline.
+- 2026-11-23: LR-27 In progress -> In progress. 1.20.0-rc1 built 2026-11-23: release run 43 succeeded; draft pre-release cartogen-ai-v1.20.0-rc1 holds cartogen_ai_v1.20.0-rc1.zip (SHA256 eeb64693743352b67b54fd559cd2c445248279e24966c5b2eb6f1bf5006eda6e), not yet published. Owner publishes the draft; promote to 1.20.0 only after issue 635 C21-C27, issue 380 B28/B32/B41 and issue 510 Connections pass by hand.
