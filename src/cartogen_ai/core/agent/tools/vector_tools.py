@@ -1184,6 +1184,9 @@ def _already_loaded_result(layer):
 
     keywords=[
         "survey results in", "load the csv", "import the csv", "the csv with the", "results in smoke", "spreadsheet of",
+        # HT-3 (2026-11-23): a request that names a table file (".../msna_fixture.csv") got the survey tool but no way to load the file, so the model could not
+        # aggregate what it could not open. A file extension in the request now offers this loader, whatever the verb.
+        ".csv", ".xlsx", ".xls",
     ],
 )
 def load_tabular_data_as_layer(file_path, layer_name=None, x_field=None, y_field=None, wkt_field=None, sheet_name=None, crs="EPSG:4326", delimiter=",",

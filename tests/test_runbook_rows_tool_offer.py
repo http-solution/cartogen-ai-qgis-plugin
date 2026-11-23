@@ -1,4 +1,4 @@
-"""DEF-17: for the nine runbook rows that failed with a weak model (A5, A6, C1, C3, C4, C6, D4, E2, S5), the tools each row needs must at least
+"""DEF-17: for the nine runbook rows that failed with a weak model (A5, A6, C1, C3, C4, C6, D4, E2, S5; plus a reconstructed D3, HT-3), the tools each row needs must at least
 be OFFERED to the model for the exact prompt. A tool the router leaves out cannot be chosen, and the model then asks the user for what the tool
 would have supplied (A5, A6 in the 1.18.4 run). Whether a model CHOOSES the right tool is a model question this table does not answer: it only
 removes the offering as a cause. Prompts are the runbook's, with <F> replaced."""
@@ -19,6 +19,12 @@ ROWS = {
             "should be hubs to serve demand_points_fixture, weighted by people"), ["add_layer_from_path"]),
     "D4": ((f"compare needs in admin_units_fixture (people_in_need, displaced, water_gap; unit field ADM2_PCODE) with {F}\\3w_fixture.csv "
             "(admin column admin_pcode, organization column organization), write the result to presence_gap"), ["calculate_presence_gap"]),
+    # D3 RECONSTRUCTED 2026-11-23 (HT-3): the runbook's original D3 wording lives in the live-test package, which is built outside the repo, so it is not
+    # stored here. This prompt is written from what the repo does hold: the survey fixture tools/make_test_fixtures.py writes (msna_fixture.csv: governorate,
+    # water_access, weight; Taiz has 7 respondents) and the aggregate_survey_indicator tool. It tests the same thing: that the survey tool, and a way to load
+    # the file for it, are offered. It is NOT the original wording, so a pass here says nothing about how the original prompt routed.
+    "D3": ((f"from the survey file {F}\\msna_fixture.csv, what share of households in each governorate has no water access? use the water_access answer "
+            "and the weight column, and leave out governorates with fewer than 10 respondents"), ["aggregate_survey_indicator", "load_tabular_data_as_layer"]),
     "E2": ("compute the preliminary PiN and severity from the JIAF file, join to admin_units_fixture by P-code", ["compute_jiaf_preliminary"]),
     "S5": ("set up a forecast trigger for flooding with no threshold", ["evaluate_forecast_trigger"]),
 }
