@@ -34,22 +34,11 @@ def _find_layer_by_name(name):
     return layers[0] if layers else None
 
 
-# OSM highway=* tag -> baseline speed (km/h), a starting default speed
-# table per docs/archive/ROUTE_OPTIMIZATION_STRATEGY.md section 1 item 1.
-# Not a claim these are locally accurate for any specific road network --
-# a starting point meant to be adjusted (or overridden entirely via
-# speed_field on the downstream tools) once real local knowledge or GPS
-# calibration data is available, same honesty as that strategy doc's own
-# framing of this recommendation.
-_HIGHWAY_BASE_SPEED_KMH = {
-    "motorway": 100, "motorway_link": 80,
-    "trunk": 80, "trunk_link": 60,
-    "primary": 60, "primary_link": 50,
-    "secondary": 50, "secondary_link": 40,
-    "tertiary": 40, "tertiary_link": 30,
-    "unclassified": 30, "residential": 30, "living_street": 15,
-    "service": 20, "track": 15, "path": 5, "footway": 5, "cycleway": 15,
-}
+# OSM highway=* tag -> baseline speed (km/h). D of the HU-3b decision (2026-11-23): this tool no longer carries its own table. It reads the one shared with
+# estimate_road_speeds (_road_speeds.py), so a road class gets the same assumed speed from either tool; before, primary/secondary/tertiary/residential here
+# were 60/50/40/30 and there 70/60/50/40. The surface, damage and slope penalties below still apply on top. The numbers are an assumption from public routing
+# profiles, not measured on any network and not checked against a known journey; override with speed_field on the downstream tools when real data exists.
+from ._road_speeds import ASSUMED_SPEED_BY_ROAD_CLASS_KMH as _HIGHWAY_BASE_SPEED_KMH  # noqa: E402
 _DEFAULT_BASE_SPEED_KMH = 30.0
 
 # OSM surface=* tag -> a multiplicative speed penalty. "the single most

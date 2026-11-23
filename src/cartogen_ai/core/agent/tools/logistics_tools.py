@@ -41,6 +41,10 @@ from ... import _background_processing as _bg
 from ... import _chunked as _ck
 from ... import cancel_signal
 from ._layer_checks import require_valid_layer
+from . import _road_speeds as _rs
+from ._road_speeds import (  # noqa: F401
+    ASSUMED_SPEED_BY_ROAD_CLASS_KMH, COUNTRY_SPEED_TIERS_KMH, _COUNTRY_LINK_FACTOR, _COUNTRY_TIER_ROAD_CLASSES,
+)
 
 try:
     from qgis.core import (
@@ -353,6 +357,82 @@ def _vet_speed_field(network, speed_field, default_speed):
         f"default_speed of {default_speed} km/h was used instead. Run estimate_road_speeds first "
         "for road-class based speeds."
     )
+
+
+ASSUMED_SPEED_FIELD = "assumed_speed_kmh"
+
+
+def _assumed_speed_note(class_field, known, unknown, default_speed, dropped_note=None, reused=False):
+    """The sentence every result carries when assumed road-class speeds were used. Pure. HU-3b option B (owner, 2026-11-23)."""
+    if reused:
+        body = (f"The roads carry no usable speed_field, so the '{ASSUMED_SPEED_FIELD}' field already on the layer (assumed speeds by road class, from "
+                "estimate_road_speeds) was used for this run.")
+    else:
+        body = ("No usable road speeds were given, so ASSUMED speeds by road class were used for this run instead of one flat "
+                f"{default_speed:g} km/h: {known:,} roads by their '{class_field}' class (for example motorway 100, primary 70, residential 40 km/h) and "
+                f"{unknown:,} roads of an unknown class at {default_speed:g} km/h. Your layer was not changed.")
+    return ((dropped_note + " " if dropped_note else "") + body +
+            " These speeds are an assumption from public routing profiles, not this network's measured or posted limits, and have not been "
+            "checked against a known journey: report every travel time as an estimate and say what it rests on. Run estimate_road_speeds "
+            "(country=...) to keep the speeds in a field and scale them to a country's legal limits.")
+
+
+def _network_with_class_speeds(network, class_field, default_speed):
+    """(copy of `network` with an ASSUMED_SPEED_FIELD of per-class speeds, known count, unknown count), or (None, 0, 0) when the copy cannot be made.
+    An in-memory copy: the user's layer is never written to. Needs QGIS."""
+    try:
+        copy = network.materialize(QgsFeatureRequest())
+        if copy is None or not copy.isValid():
+            return None, 0, 0
+        if copy.fields().indexOf(ASSUMED_SPEED_FIELD) < 0:
+            copy.dataProvider().addAttributes([QgsField(ASSUMED_SPEED_FIELD, QVariant.Double)])
+            copy.updateFields()
+        idx = copy.fields().indexOf(ASSUMED_SPEED_FIELD)
+        if idx < 0:
+            return None, 0, 0
+        table = _rs.ASSUMED_SPEED_BY_ROAD_CLASS_KMH
+        changes, known, unknown = {}, 0, 0
+        for feature in _ck.features(copy, "Logistics: assuming road speeds"):
+            speed, is_known = _rs.speed_for_class(feature.attribute(class_field), table, default_speed)
+            changes[feature.id()] = {idx: speed}
+            known, unknown = (known + 1, unknown) if is_known else (known, unknown + 1)
+        if not copy.dataProvider().changeAttributeValues(changes):
+            return None, 0, 0
+        return copy, known, unknown
+    except _bg.AnalysisCancelledError:
+        raise
+    except Exception as exc:
+        log_event("swallowed_exception", tag="Logistics", tool="assume_class_speeds", error_class=type(exc).__name__, error=True)
+        return None, 0, 0
+
+
+def _assume_class_speeds(network, speed_field, strategy, default_speed):
+    """(network, speed_field, note) for a 'fastest' run. HU-3b option B (owner, 2026-11-23): when no usable speed is given (no speed_field, or one that is
+    empty on most roads) and the roads have a class field (fclass or highway), the run uses assumed speeds by road class on an IN-MEMORY copy instead of one flat
+    default_speed, and `note` says so. A usable speed_field always wins; a usable 'assumed_speed_kmh' already on the layer is used as it is; no class field
+    leaves everything as before (flat default_speed, as the result already states). Never writes to the user's layer. Needs QGIS."""
+    if strategy != "fastest":
+        return network, speed_field, None
+    names = [f.name() for f in network.fields()]
+    dropped_note = None
+    if speed_field:
+        if speed_field not in names:
+            return network, speed_field, None                  # the existing field check reports it
+        _vetted, dropped_note = _vet_speed_field(network, speed_field, default_speed)
+        if dropped_note is None:
+            return network, speed_field, None                  # a usable speed field wins
+    if ASSUMED_SPEED_FIELD in names and speed_field != ASSUMED_SPEED_FIELD:
+        share, _usable, total = _usable_speed_share(_field_values(network, ASSUMED_SPEED_FIELD))
+        if total and share >= MIN_USABLE_SPEED_SHARE:
+            return network, ASSUMED_SPEED_FIELD, _assumed_speed_note(None, 0, 0, default_speed, None, reused=True)
+    class_field = _rs.road_class_field(names)
+    if class_field is None:
+        return network, speed_field, None
+    copy, known, unknown = _network_with_class_speeds(network, class_field, default_speed)
+    if copy is None:
+        return network, speed_field, None                      # could not copy: keep today's flat default rather than fail
+    note = _assumed_speed_note(class_field, known, unknown, default_speed, dropped_note.split(" Run estimate_road_speeds")[0] if dropped_note else None)
+    return copy, ASSUMED_SPEED_FIELD, note
 
 
 def _reachable_network_is_degenerate(lines_layer):
@@ -1239,25 +1319,29 @@ def _optimize_route(distance_matrix, start_index=0):
     return tour, _tour_length(tour, distance_matrix)
 
 
-def _prepare_route_network(road_network_layer, speed_field, direction_field, value_forward, value_backward, value_both):
-    """(network layer or None, closed-segment count, extra processing params, error dict or None) for optimize_delivery_route."""
+def _prepare_route_network(road_network_layer, speed_field, direction_field, value_forward, value_backward, value_both,
+                           strategy="shortest", default_speed=50):
+    """(network layer or None, closed-segment count, extra processing params, error dict or None, (speed field to report, assumed-speed note or None))
+    for optimize_delivery_route. For strategy 'fastest' with no usable speeds the network is an in-memory copy with assumed road-class speeds (HU-3b)."""
+    unchanged = (speed_field, None)
     if road_network_layer is None:
-        return None, 0, {}, None
+        return None, 0, {}, None, unchanged
     network = _find_layer_by_name(road_network_layer)
     if network is None:
-        return None, 0, {}, {"error": f"Layer '{road_network_layer}' not found"}
+        return None, 0, {}, {"error": f"Layer '{road_network_layer}' not found"}, unchanged
     geometry_error = _network_geometry_error(network, road_network_layer)
     if geometry_error:
-        return None, 0, {}, {"error": geometry_error}
+        return None, 0, {}, {"error": geometry_error}, unchanged
     network, closed_segments, closed_error = _open_network(network, speed_field, road_network_layer)
     if closed_error:
-        return None, 0, {}, {"error": closed_error}
+        return None, 0, {}, {"error": closed_error}, unchanged
+    network, speed_field, assumed_note = _assume_class_speeds(network, speed_field, strategy, default_speed)
     extra_params, field_error = _network_direction_speed_params(
         network, speed_field, direction_field, value_forward, value_backward, value_both
     )
     if field_error:
-        return None, 0, {}, {"error": field_error}
-    return network, closed_segments, extra_params, None
+        return None, 0, {}, {"error": field_error}, unchanged
+    return network, closed_segments, extra_params, None, (speed_field, assumed_note)
 
 
 def _straight_line_crs_note(stops_layer, layer, distance_area):
@@ -1335,7 +1419,8 @@ def _stop_distance_matrix(layer, geoms, network, two_stop_route, extra_params, f
     return [[_measure_distance(distance_area, geoms[i], geoms[j]) for j in range(n)] for i in range(n)], distance_area
 
 
-def _add_road_route(result, stops_layer, network, geoms, tour, source_crs, extra_params, fastest, default_speed, speed_field, total_distance):
+def _add_road_route(result, stops_layer, network, geoms, tour, source_crs, extra_params, fastest, default_speed, speed_field, total_distance,
+                    assumed_note=None):
     """Builds the road-snapped route layer and adds it (or the fallback warning) to `result`. Split out of optimize_delivery_route (LR-21, no
     behaviour change)."""
     route_layer_name = _build_road_snapped_route(stops_layer, network, geoms, tour, source_crs=source_crs,
@@ -1350,7 +1435,7 @@ def _add_road_route(result, stops_layer, network, geoms, tour, source_crs, extra
     result["route_layer"] = route_layer_name
     result["road_snapped"] = True
     routed = _route_cost_sum(route_layer_name)
-    result.update(route_strategy_summary(fastest, routed, default_speed, speed_field))
+    result.update(route_strategy_summary(fastest, routed, default_speed, speed_field, assumed_note))
     if not fastest and total_distance is None and routed is not None:
         result["total_distance"] = round(routed, 2)
     if fastest:   # the cost is hours, so give the length separately, from the geometry
@@ -1405,8 +1490,8 @@ def optimize_delivery_route(stops_layer, start_stop_name=None, road_network_laye
     if layer is None:
         return {"error": f"Layer '{stops_layer}' not found"}
 
-    network, closed_segments, extra_params, network_error = _prepare_route_network(
-        road_network_layer, speed_field, direction_field, value_forward, value_backward, value_both)
+    network, closed_segments, extra_params, network_error, (speed_field, assumed_note) = _prepare_route_network(
+        road_network_layer, speed_field, direction_field, value_forward, value_backward, value_both, strategy, default_speed)
     if network_error:
         return network_error
 
@@ -1463,7 +1548,7 @@ def optimize_delivery_route(stops_layer, start_stop_name=None, road_network_laye
             result["warning"] = warning
             return result
 
-        _add_road_route(result, stops_layer, network, geoms, tour, layer.crs(), extra_params, fastest, default_speed, speed_field, total_distance)
+        _add_road_route(result, stops_layer, network, geoms, tour, layer.crs(), extra_params, fastest, default_speed, speed_field, total_distance, assumed_note)
 
         return result
     except _bg.AnalysisCancelledError:
@@ -1596,7 +1681,7 @@ def _matrix_from_trees(n, undirected, tree_costs, pair_cost, is_cancelled):
     return matrix
 
 
-def route_strategy_summary(fastest, routed_cost, default_speed, speed_field):
+def route_strategy_summary(fastest, routed_cost, default_speed, speed_field, assumed_note=None):
     """The strategy fields of an optimize_delivery_route result. Pure.
 
     rc11 smoke test C1/#131: "fastest route" returned a shortest-distance route that the reply called fastest. Now the
@@ -1607,11 +1692,14 @@ def route_strategy_summary(fastest, routed_cost, default_speed, speed_field):
                 "route_note": ("This is the shortest-distance road route, not a fastest-time route. Report it as 'shortest "
                                "route' and do not call it 'fastest' or give a travel time. Call again with "
                                "strategy='fastest' for a travel-time route.")}
-    basis = (f"the '{speed_field}' field (km/h) where it has a value, otherwise {default_speed:g} km/h" if speed_field
+    basis = ("assumed speeds by road class (see speed_assumption)" if assumed_note else
+             f"the '{speed_field}' field (km/h) where it has a value, otherwise {default_speed:g} km/h" if speed_field
              else f"a flat {default_speed:g} km/h on every road")
     out = {"route_strategy": "fastest travel time (estimated)",
            "route_note": (f"Fastest route by estimated travel time, using {basis}. It is a model estimate, not measured "
                           "traffic: say 'about' and give the speed basis when reporting the time.")}
+    if assumed_note:
+        out["speed_assumption"] = assumed_note
     if routed_cost is not None:
         out["total_travel_time_hours"] = round(routed_cost, 3)
         out["total_travel_time_minutes"] = round(routed_cost * 60, 1)
@@ -1791,11 +1879,11 @@ def _degenerate_hull_fallback(lines_layer, travel_cost):
     "warehouse serve within 30km by road'. Produces, per facility, both the reachable road network "
     "and an approximate coverage polygon (convex hull around it). Requires a real line layer "
     "representing the road network -- for simple straight-line/as-the-crow-flies coverage, use "
-    "buffer_analysis instead. Without speed_field, every road segment is treated as one flat "
-    "default_speed regardless of surface or condition, which overstates reachability on unpaved/"
-    "damaged roads -- when the network layer has a per-segment speed or condition field (e.g. from "
-    "OSM highway/surface tags), pass it as speed_field with strategy='fastest' for a more realistic "
-    "area. direction_field makes one-way roads one-way instead of assuming every segment is "
+    "buffer_analysis instead. With strategy='fastest' and no usable speed_field, the roads' own class "
+    "('fclass' or 'highway' field) sets an ASSUMED speed per road on an in-memory copy -- your layer is not changed -- "
+    "and the result's notes say so; report such times as estimates. With no class field, every road segment is treated as one flat "
+    "default_speed. When the network layer has a per-segment speed or condition field, pass it as speed_field with "
+    "strategy='fastest': a usable speed_field always wins over the assumed class speeds. direction_field makes one-way roads one-way instead of assuming every segment is "
     "traversable both directions. Pass travel_cost as a LIST (e.g. [15, 30, 60]) instead of a "
     "single number for a real isochrone/access-band map: builds one combined polygon layer per "
     "facility with a travel_cost_band field, one ring per value, auto-styled with a graduated "
@@ -1852,6 +1940,7 @@ def calculate_service_area(facility_layer, road_network_layer, travel_cost, stra
     network, closed_segments, closed_error = _open_network(network, speed_field, road_network_layer)
     if closed_error:
         return {"error": closed_error}
+    network, speed_field, assumed_note = _assume_class_speeds(network, speed_field, strategy, default_speed)
 
     extra_params, field_error = _network_direction_speed_params(
         network, speed_field, direction_field, value_forward, value_backward, value_both
@@ -1859,7 +1948,7 @@ def calculate_service_area(facility_layer, road_network_layer, travel_cost, stra
     if field_error:
         return {"error": field_error}
 
-    notes = []
+    notes = [assumed_note] if assumed_note else []
     if speed_field:
         vetted, speed_note = _vet_speed_field(network, speed_field, default_speed)
         if speed_note:
@@ -2487,10 +2576,12 @@ def _large_matrix_error(destinations_layer, destinations, allow_large, use_singl
         "suggested_tool": "classify_facilities_by_access"}
 
 
-def _with_matrix_options(result, speed_field, closed_segments, direction_field):
+def _with_matrix_options(result, speed_field, closed_segments, direction_field, assumed_note=None):
     """Adds the routing options that shaped a travel-time matrix (speed field, closed-segment note, direction field) to `result`."""
     if speed_field:
         result["speed_field"] = speed_field
+    if assumed_note:
+        result["speed_assumption"] = assumed_note
     result.update(_closed_note(closed_segments))
     if direction_field:
         result["direction_field"] = direction_field
@@ -2556,10 +2647,11 @@ def _origin_by_origin_matrix(origins, origin_features, destinations, network, st
     "point -- e.g. delivery distance from each warehouse to each distribution site. Returns a "
     "matrix of costs (metres for strategy='shortest' -- real-world distance whatever the layers' CRS is -- or hours for strategy='fastest') "
     "keyed by origin then destination. Requires a line layer representing the road network, not "
-    "straight-line distance. Without speed_field, every segment is treated as one flat "
-    "default_speed regardless of surface or condition -- when the network layer has a per-segment "
-    "speed or condition field, pass it as speed_field with strategy='fastest' for a more realistic "
-    "matrix. direction_field makes one-way roads one-way instead of assuming every segment is "
+    "straight-line distance. With strategy='fastest' and no usable speed_field, the roads' own class "
+    "('fclass' or 'highway' field) sets an ASSUMED speed per road on an in-memory copy -- your layer is not changed -- "
+    "and the result carries speed_assumption; report such times as estimates. With no class field, every segment is treated as one flat "
+    "default_speed. When the network layer has a per-segment speed or condition field, pass it as speed_field with "
+    "strategy='fastest': a usable speed_field always wins. direction_field makes one-way roads one-way instead of assuming every segment is "
     "traversable both directions. The costs are along the road only: the result also gives access_leg_m (straight distance from each destination to its nearest road); ADD it when the question is total travel within a budget. SLOW for many destinations (every destination is tied into the road graph, which QGIS does by brute force; "
     "~44 minutes for 3,369): for 'which facilities are within/beyond N of this origin' use "
     "classify_facilities_by_access instead; destination layers over 200 features use a single shortest-path tree per origin (fast; each destination is charged the cost to its projected point on the nearest road segment) when the QGIS network classes are available.",
@@ -2614,6 +2706,7 @@ def travel_time_matrix(origins_layer, destinations_layer, road_network_layer, st
     network, closed_segments, closed_error = _open_network(network, speed_field, road_network_layer)
     if closed_error:
         return {"error": closed_error}
+    network, speed_field, assumed_note = _assume_class_speeds(network, speed_field, strategy, default_speed)
 
     extra_params, field_error = _network_direction_speed_params(
         network, speed_field, direction_field, value_forward, value_backward, value_both
@@ -2641,7 +2734,7 @@ def travel_time_matrix(origins_layer, destinations_layer, road_network_layer, st
                          "The short leg from the destination to the road is not added. Destination keys are feature ids."),
             }
             _with_access_legs(result, destinations, network)
-            return _with_matrix_options(result, speed_field, closed_segments, direction_field)
+            return _with_matrix_options(result, speed_field, closed_segments, direction_field, assumed_note)
         matrix, unmatched_keys = _origin_by_origin_matrix(origins, origin_features, destinations, network, strategy, default_speed, extra_params)
 
         if not matrix:
@@ -2659,7 +2752,7 @@ def travel_time_matrix(origins_layer, destinations_layer, road_network_layer, st
             result["destination_keys_note"] = (f"{unmatched_keys} destination(s) could not be matched back to a feature id and "
                                                "keep the end-point text QGIS reported as their key.")
         _with_access_legs(result, destinations, network)
-        return _with_matrix_options(result, speed_field, closed_segments, direction_field)
+        return _with_matrix_options(result, speed_field, closed_segments, direction_field, assumed_note)
     except _bg.AnalysisCancelledError:
         return _cancelled_result("travel-time matrix")
     except Exception as e:
@@ -3466,90 +3559,10 @@ def score_route_incident_risk(route_layer, incident_layer, buffer_distance, date
     return result
 
 
-# BUG-2026-09-25-3: measured on the real Jordan Geofabrik extract, maxspeed is set on only 0.9%
-# of roads (1,504 of 161,041) -- with strategy='fastest', every other road falls back to the flat
-# DEFAULT_SPEED parameter, so a road network with almost no real speed data still produces a
-# uniform-speed travel time, not a meaningfully differentiated one. The road CLASS is present far
-# more often (fclass on a Geofabrik extract; highway on an OSM/Overpass ingest -- same OSM
-# vocabulary, since Geofabrik's fclass mirrors the highway tag it was derived from). This table is
-# an assumption, not measured data -- common values from public routing profiles (OSRM/GraphHopper
-# car profiles), not this project's own measurement of Jordan or any other specific road network.
-# Per docs/BUG_TRACKER.md's own framing, this is a judgement call that changes results and ideally
-# wants checking against a known real journey -- so it ships as an explicit, separately-invoked
-# tool (never run automatically by calculate_service_area/travel_time_matrix/
-# optimize_delivery_route), not a silent default, and its own tool description says so.
-ASSUMED_SPEED_BY_ROAD_CLASS_KMH = {
-    "motorway": 100, "motorway_link": 80,
-    "trunk": 80, "trunk_link": 60,
-    "primary": 70, "primary_link": 50,
-    "secondary": 60, "secondary_link": 45,
-    "tertiary": 50, "tertiary_link": 40,
-    "unclassified": 30,
-    "residential": 40, "living_street": 20,
-    "service": 20, "track": 20,
-    "pedestrian": 5, "footway": 5, "path": 5, "cycleway": 15, "steps": 3,
-}
-_ROAD_CLASS_FIELD_CANDIDATES = ("fclass", "highway")
-
-# Optional per-country override, addressing this table's own standing limitation (a single
-# global set of numbers, not this network's real legal limits) without needing a live lookup.
-# Modeled on the same three-tier (urban/rural/motorway) legal-default-speed convention real
-# open-source routing infrastructure already uses for exactly this gap -- see
-# https://github.com/westnordost/osm-legal-default-speeds (BSD-3-Clause code, its underlying
-# data is CC BY-SA 2.0 from the OpenStreetMap wiki's "Default speed limits" page) and the
-# Valhalla-consumed https://github.com/OpenStreetMapSpeeds/schema dataset. Values below are a
-# curated subset (not a full port of either project's much larger tag-filter-matching data
-# model, which needs per-subdivision OSM tag evaluation this project has no use for at its
-# current scope) verified via live web search 2026-09-28 against public references (Wikipedia's
-# "Speed limits by country" and per-country articles, TyreMap, AARoads Wiki) -- national legal
-# defaults, honestly approximate: many countries' real limits vary by state/province/specific
-# road (the US and Australia especially), and this table cannot and does not capture that.
-# tags: (urban, rural, motorway) in km/h, applied only when the caller passes a matching
-# ISO 3166-1 alpha-2 `country` code -- omitting it keeps today's behavior exactly as before.
-COUNTRY_SPEED_TIERS_KMH = {
-    "JO": (40, 80, 110),   # Jordan
-    "SA": (50, 80, 120),   # Saudi Arabia
-    "AE": (60, 100, 120),  # United Arab Emirates
-    "EG": (60, 100, 100),  # Egypt
-    "DE": (50, 100, 130),  # Germany (130 is the advisory Autobahn limit, not a hard cap)
-    "AT": (50, 100, 130),  # Austria
-    "CZ": (50, 90, 130),   # Czechia
-    "HU": (50, 90, 130),   # Hungary
-    "FR": (50, 80, 130),   # France
-    "ES": (50, 90, 120),   # Spain
-    "GB": (48, 97, 113),   # United Kingdom (30/60/70 mph)
-    "CA": (50, 80, 110),   # Canada
-    "US": (40, 105, 113),  # United States (national default; varies heavily by state)
-    "AU": (60, 100, 110),  # Australia (national default; varies by state/territory)
-    "CN": (50, 80, 120),   # China
-}
-# Road-class tiers this table's three values map onto, and the fraction applied to a "_link"
-# variant of a tiered class -- same reduction shape (~75-80%) the existing global table above
-# already uses between e.g. motorway (100) and motorway_link (80).
-_COUNTRY_TIER_ROAD_CLASSES = {
-    "motorway": ("motorway", "trunk"),
-    "rural": ("primary", "secondary", "tertiary", "unclassified"),
-    "urban": ("residential", "living_street", "service", "track"),
-}
-_COUNTRY_LINK_FACTOR = 0.75
-
-
-def _country_speed_overrides(country):
-    """Expand COUNTRY_SPEED_TIERS_KMH's 3 tier values into the same per-road-class shape
-    ASSUMED_SPEED_BY_ROAD_CLASS_KMH uses, for one country code. Returns {} for an unknown/
-    omitted country -- callers then simply fall back to the existing global table untouched."""
-    tiers = COUNTRY_SPEED_TIERS_KMH.get((country or "").strip().upper())
-    if not tiers:
-        return {}
-    urban_kmh, rural_kmh, motorway_kmh = tiers
-    tier_value = {"motorway": motorway_kmh, "rural": rural_kmh, "urban": urban_kmh}
-    overrides = {}
-    for tier, classes in _COUNTRY_TIER_ROAD_CLASSES.items():
-        value = tier_value[tier]
-        for road_class in classes:
-            overrides[road_class] = value
-            overrides[f"{road_class}_link"] = round(value * _COUNTRY_LINK_FACTOR)
-    return overrides
+# D (HU-3b, 2026-11-23): the table, the country tiers and their helpers now live in _road_speeds.py, shared with build_composite_impedance_field; the old
+# names stay here so existing callers and tests keep working.
+_ROAD_CLASS_FIELD_CANDIDATES = _rs.ROAD_CLASS_FIELD_CANDIDATES
+_country_speed_overrides = _rs.country_speed_overrides
 
 
 @register_tool(
@@ -3564,8 +3577,9 @@ def _country_speed_overrides(country):
     "road. IMPORTANT: this is an ASSUMPTION, not measured data for this specific road network -- "
     "tell the user the travel times that follow from it are estimates based on typical road-class "
     "speeds, not this network's real posted limits, especially if they ask for a precise duration. "
-    "Never call this automatically as part of another tool's workflow; only when the user has "
-    "actual maxspeed data will speed_field give a materially better answer. Pass country (an "
+    "Do not call this just to get a travel time: the routing tools with strategy='fastest' already fall back to the same class table in memory when "
+    "no speed is given, and say so. Call it when the speeds should be kept in a field, scaled to a country (country=), or shared between runs; "
+    "only when the user has actual maxspeed data will speed_field give a materially better answer. Pass country (an "
     "ISO 3166-1 alpha-2 code, e.g. 'JO', 'DE', 'US') to scale the table to that country's real "
     "legal urban/rural/motorway speed limits (see COUNTRY_SPEED_TIERS_KMH) instead of the generic "
     "global defaults -- covers a curated set of countries; falls back to the generic table for any "

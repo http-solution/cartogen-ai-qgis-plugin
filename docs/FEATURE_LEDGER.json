@@ -3526,6 +3526,27 @@
     ],
     "hand_verified": "not verified: offline tests only. No person has seen the card in QGIS, pressed Apply and had the large file download; no real fetch above the threshold was made. The card carries the size the server reports in Content-Length; a server that reports none is not blocked.",
     "hand_row": "set 'Ask before downloads larger than' to 1 MB, ask for admin boundaries of a country at ADM2: a card shows the size, source and licence and nothing downloads; Cancel downloads nothing; Apply downloads and adds the layer; the model's own reply must not say it already downloaded it"
+  },
+  {
+    "id": "assumed-road-class-speeds",
+    "feature": "a 'fastest' calculate_service_area, travel_time_matrix or optimize_delivery_route run with no usable speed_field uses assumed speeds by road class (fclass or highway) on an IN-MEMORY copy instead of one flat default_speed; the result states the assumption (notes / speed_assumption), the user's layer is never written to, a usable speed_field always wins, and no class field leaves the flat default. One shared table (_road_speeds.py) now serves estimate_road_speeds and build_composite_impedance_field, which used different values. analyze_critical_links is not covered and keeps the flat default.",
+    "issues": [],
+    "since": "1.20.0-rc2+",
+    "sources": [
+      "src/cartogen_ai/core/agent/tools/_road_speeds.py",
+      "src/cartogen_ai/core/agent/tools/logistics_tools.py",
+      "src/cartogen_ai/core/agent/tools/impedance_tools.py"
+    ],
+    "guards": [
+      "tests/test_assumed_road_speeds.py::TestOneTable::test_the_two_tools_read_the_same_table_object",
+      "tests/test_assumed_road_speeds.py::TestTheDecision::test_no_speed_and_a_class_field_builds_the_in_memory_copy_and_says_so",
+      "tests/test_assumed_road_speeds.py::TestTheDecision::test_a_usable_speed_field_always_wins",
+      "tests/test_assumed_road_speeds.py::TestTheDecision::test_no_class_field_keeps_todays_flat_default",
+      "tests/test_assumed_road_speeds.py::TestTheNote::test_the_note_says_it_is_an_assumption_names_the_field_and_the_counts_and_that_the_layer_is_untouched",
+      "tests/test_assumed_road_speeds_live.py::TestAssumedRoadSpeeds::test_service_area_uses_class_speeds_says_so_and_leaves_the_layer_alone"
+    ],
+    "hand_verified": "not verified: offline tests and one QGIS CI test written without a QGIS install (its first execution is CI's). The class table is an assumption from public routing profiles and was never checked against a known journey, and nobody has compared a class-based answer with the old flat-50 answer on a real network, so how far results move is unknown.",
+    "hand_row": "C29-assumed-road-speeds"
   }
 ]
 }
