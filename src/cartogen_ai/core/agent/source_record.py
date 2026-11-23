@@ -42,7 +42,17 @@ SOURCES: dict[str, dict[str, str]] = {
                                "attribution": "U.S. Geological Survey"},
     "fetch_ucdp_conflict_events": {"name": "UCDP Candidate Events Dataset", "url": "https://ucdp.uu.se", "licence": "CC BY 4.0",
                                    "attribution": "Uppsala Conflict Data Program (UCDP)"},
+    # Added 2026-11-23 (RM-C): the two tools built after the table. The Copernicus DEM text is the notice dem_tools.py quotes from the licence it
+    # read in full on 2026-10-09; the Sentinel-2 text is the notice stac_ops.LICENCE_NOTICE already writes beside each file.
+    "fetch_dem": {"name": "Copernicus DEM GLO-30 (AWS Open Data)", "url": "https://registry.opendata.aws/copernicus-dem/",
+                  "licence": "Licence for the use of the Copernicus WorldDEM-30 (a modified copy must carry the 'produced using' notice)",
+                  "attribution": "produced using Copernicus WorldDEM-30 (c) DLR e.V. 2010-2014 and (c) Airbus Defence and Space GmbH 2014-2018 provided under COPERNICUS by the European Union and ESA"},
+    "load_stac_assets": {"name": "Sentinel-2 L2A, through Earth Search (Element 84)", "url": "https://earth-search.aws.element84.com/v1",
+                         "licence": "Copernicus Sentinel data terms (free, full and open)", "attribution": "Contains modified Copernicus Sentinel data"},
 }
+
+# Tools whose `layer_name` ARGUMENT names a layer that supplies the area (everywhere else `layer_name` is the output's name).
+_LAYER_NAME_IS_EXTENT = frozenset({"fetch_dem", "load_stac_assets"})
 
 
 def source_tools():
@@ -56,9 +66,11 @@ def _box(value):
     return None
 
 
-def coverage_for(arguments, result):
+def coverage_for(arguments, result, tool=None):
     """A short, honest description of the area/period the call asked for, else None. Pure."""
     arguments = arguments if isinstance(arguments, dict) else {}
+    if tool in _LAYER_NAME_IS_EXTENT and arguments.get("layer_name") and not arguments.get("extent_layer"):
+        arguments = {**arguments, "extent_layer": arguments["layer_name"]}
     result = result if isinstance(result, dict) else {}
     parts = []
     for key in ("iso3", "country", "country_name"):
@@ -72,7 +84,7 @@ def coverage_for(arguments, result):
     extent = arguments.get("extent_layer")
     if isinstance(extent, str) and extent.strip():
         parts.append(f"extent of layer '{extent.strip()}'")
-    box = _box(arguments.get("bbox")) or _box(result.get("bbox"))
+    box = _box(arguments.get("bbox")) or _box(result.get("bbox")) or _box(result.get("bbox_wgs84"))
     if box:
         parts.append(box)
     for key, label in (("days", "last {} days"), ("year", "year {}"), ("start_date", "from {}"), ("end_date", "to {}")):
@@ -87,7 +99,7 @@ def build(tool, arguments, result, now=None):
     spec = SOURCES.get(tool)
     if spec is None or not isinstance(result, dict) or "error" in result or result.get("success") is False:
         return None
-    return {"tool": tool, **spec, "retrieved_at": now or time.strftime("%Y-%m-%d", time.gmtime()), "coverage": coverage_for(arguments, result),
+    return {"tool": tool, **spec, "retrieved_at": now or time.strftime("%Y-%m-%d", time.gmtime()), "coverage": coverage_for(arguments, result, tool),
             "licence_checked": False}
 
 

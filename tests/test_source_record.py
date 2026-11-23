@@ -106,5 +106,50 @@ class TestReport(unittest.TestCase):
         self.assertEqual(entries[0]["data_sources"][0]["tool"], "fetch_usgs_earthquakes")
 
 
+class TestDemAndSentinel(unittest.TestCase):
+    """RM-C 2026-11-23: the two fetch tools built after the table (fetch_dem, load_stac_assets) carry a record too."""
+
+    def test_fetch_dem_gets_a_record_whose_coverage_is_the_box_it_returned(self):
+        record = source_record.build("fetch_dem", {"lat": 15.4, "lon": 44.2, "radius_km": 5}, {"success": True, "layer_name": "DEM", "bbox_wgs84": [44.1, 15.3, 44.3, 15.5]}, now="2026-11-23")
+        self.assertIn("Copernicus", record["name"])
+        self.assertEqual(record["coverage"], "box 44.1, 15.3, 44.3, 15.5")
+        self.assertIn("produced using", record["attribution"])
+
+    def test_the_layer_name_argument_is_the_area_for_these_two_tools_only(self):
+        self.assertEqual(source_record.coverage_for({"layer_name": "Districts"}, {}, "fetch_dem"), "extent of layer 'Districts'")
+        dates = {"layer_name": "Districts", "start_date": "2026-01-01", "end_date": "2026-02-01"}
+        self.assertEqual(source_record.coverage_for(dates, {}, "load_stac_assets"), "extent of layer 'Districts'; from 2026-01-01; to 2026-02-01")
+        self.assertIsNone(source_record.coverage_for({"layer_name": "Output"}, {}, "fetch_geoboundaries"))
+
+    def test_load_stac_assets_gets_a_record_and_a_preview_does_not(self):
+        args = {"bbox": [44.0, 15.0, 44.5, 15.5], "start_date": "2026-01-01", "end_date": "2026-02-01"}
+        record = source_record.build("load_stac_assets", args, {"success": True, "layers": [{"layer": "S2_red"}]}, now="2026-11-23")
+        self.assertIn("Sentinel", record["licence"])
+        self.assertFalse(record["licence_checked"])
+        self.assertIsNone(source_record.build("load_stac_assets", args, {"error": "needs confirmation"}))
+
+    def test_the_orchestrator_tags_every_band_layer_a_stac_result_lists(self):
+        from cartogen_ai.core.agent import agent_orchestrator as ao
+        tagged = []
+
+        class Project:
+            @staticmethod
+            def instance():
+                return Project
+
+            @staticmethod
+            def mapLayersByName(name):
+                return [name]
+
+        originals = (ao.result_gate.QgsProject if hasattr(ao.result_gate, "QgsProject") else None, ao.result_gate.QGIS_AVAILABLE, ao.source_record.tag_layer)
+        ao.result_gate.QgsProject, ao.result_gate.QGIS_AVAILABLE = Project, True
+        ao.source_record.tag_layer = lambda layer, record: tagged.append(layer)
+        try:
+            ao.CartogenAi._tag_fetched_layer_source({"data_source": {"tool": "load_stac_assets"}, "layers": [{"layer": "S2_red"}, {"layer": "S2_nir"}]})
+        finally:
+            ao.result_gate.QgsProject, ao.result_gate.QGIS_AVAILABLE, ao.source_record.tag_layer = originals[0], originals[1], originals[2]
+        self.assertEqual(tagged, ["S2_red", "S2_nir"])
+
+
 if __name__ == "__main__":
     unittest.main()

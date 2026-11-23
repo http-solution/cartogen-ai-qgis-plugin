@@ -52,7 +52,12 @@ class TestLists(unittest.TestCase):
         self.assertTrue(tool_lists.READ_TOOLS <= tool_lists.FILE_TOOLS and tool_lists.WRITE_TOOLS <= tool_lists.FILE_TOOLS)
 
     def test_fetch_tools_are_files_only_and_match_the_source_table(self):
-        self.assertEqual(tool_lists.FETCH_TOOLS, frozenset(source_record.SOURCES))
+        # Every source-record tool is a file step too, except these two, which carry a record (RM-C, 2026-11-23) but are deliberately NOT file steps:
+        # load_stac_assets stops at a confirmation card and both download data, and nobody has decided that a shared workflow file may run them.
+        # Allowing one is a decision for the owner: move it into tool_lists.FETCH_TOOLS and out of this set in the same change.
+        not_file_steps = frozenset({"fetch_dem", "load_stac_assets"})
+        self.assertEqual(tool_lists.FETCH_TOOLS, frozenset(source_record.SOURCES) - not_file_steps)
+        self.assertFalse(not_file_steps & tool_lists.FILE_TOOLS)
         self.assertFalse(tool_lists.FETCH_TOOLS & (mcp_policy.READ_TOOLS | mcp_policy.WRITE_TOOLS), "fetch tools are not offered over MCP")
 
     def test_dangerous_tools_are_not_on_the_file_list(self):
