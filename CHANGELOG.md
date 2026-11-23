@@ -7,6 +7,7 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 | Version | Date | Summary |
 |---|---|---|
+| [1.20.0-rc1](#v1-20-0-rc1) | 2026-11-23 | **Pre-release 1.20.0-rc1.** No breaking changes -- requires QGIS 4.2+. The sum of about 360 merged changes since 1.18.5: field personas, spatial statistics, map looks, geometry editing, Processing models, a routing fix and stricter protection of sensitive layers. A pre-release for hand testing: it is promoted to stable only after named hand rows pass. |
 | [1.18.5](#v1-18-5) | 2026-10-28 | **Patch release 1.18.5.** No breaking changes -- requires QGIS 4.2+. Fixes from the owner's live smoke run of 1.18.4, found by reading the plugin's own evidence folders: a GDACS request that names a country now returns only that country, Windows paths typed with single backslashes reach the tool intact, a geocoded place carries its bounding box, and update_task no longer answers 'Task ID None not found'. |
 | [1.18.4](#v1-18-4) | 2026-10-27 | **Patch release 1.18.4.** No breaking changes -- requires QGIS 4.2+. Fixes from the owner's hand run of 1.18.3 and a second self-audit: the damage score no longer ranks the most damaged district last, distances typed for a latitude/longitude layer are no longer read as degrees, a request that names a data source is no longer sent to a Map task, the IPC import names the area behind each problem, and a GDACS error is explained and retried. CI-checked, not hand-tested. |
 | [1.18.3](#v1-18-3) | 2026-10-26 | **Patch release 1.18.3.** No breaking changes -- requires QGIS 4.2+. Fixes from the owner's 2026-10-26 hand run of 1.18.2: a satellite search that can be limited by cloud cover, a route-risk buffer in real metres, a CSV with no coordinates that loads as a table, a task grid for one area without filtering the layer, clearer chat text, and a percent mode for forecast probabilities. The three 1.18.2 checks passed by hand; the fixes below are CI-checked, not hand-tested. |
@@ -101,6 +102,22 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 The detailed narrative entries below are unchanged -- this table is purely an additive index on
 top of them.
+
+<a id="v1-20-0-rc1"></a>
+## [1.20.0-rc1] — 2026-11-23 — Pre-release 1.20.0-rc1: No breaking changes -- requires QGIS 4.2+. The sum of about 360 merged changes since 1.18.5: field personas, spatial statistics, map looks, geometry editing, Processing models, a routing fix and stricter protection of sensitive layers. A pre-release for hand testing: it is promoted to stable only after named hand rows pass.
+
+No breaking changes; QGIS 4.2+. Everything since 1.18.5:
+
+- Personas and persona tasks: Fifteen persona packs choose the offered tools, tasks and map styles for the kind of work you do, with a picker and a readiness panel. 52 persona tasks and colour-blind and red/green style rules are included.
+- Spatial statistics and health rates: Moran's I and Local Moran, Getis-Ord Gi* hot and cold spots with false-discovery correction, Kulldorff spatial scan, and health rates, relative risk, SMR and smoothing with a small-number flag.
+- Land cover, change and map looks: Spectral indices, raster time-series statistics, a from-to change matrix, management zones, official land-cover colours, change and hatch looks, and field, change and epidemic-bulletin layouts.
+- Geometry editing and attribute tools: Edit one vertex, add or delete a part or ring, reshape, reverse, trim or extend lines, offset curves, copy features between layers with a field mapping shown first, identify at a point, virtual fields, constraints, defaults, conditional formatting, map tips and layer actions.
+- Processing models and batches: run_processing_model, run_processing_batch and run_algorithm_in_place run only algorithms that were reviewed and approved; the in-place run is one undoable edit. Project datum transformations, custom CRS and canvas decorations are covered.
+- Routing fix: Requests that need a route or service area now reach the routing tools (the tool list offered for them went from 34 down to 7), behind a safety gate.
+- A map button in the chat: A one-shot map button asks the model to look at the current map before it answers.
+- Protection fails closed: A layer whose protection tag, lineage, selection count, egress setting, trace redaction or MCP layer list cannot be read now counts as protected, and an explicit tag wins. The export gate refuses instead of guessing.
+- Composite tools pass their arguments on: calculate_population_in_need and population_access_gap take raster_unit; classify_facilities_by_access and population_access_gap take the road-direction values and forward them. 42 new tools since 1.18.5.
+- Not hand-tested: Everything above is checked by the offline suite and, for the QGIS parts, by CI on QGIS 4.2.2; none of it has been hand-tested in desktop QGIS. Promotion to 1.20.0 waits on the named hand rows (issue 635 C21-C27, issue 380 B28/B32/B41, issue 510 Connections).
 
 <a id="v1-18-5"></a>
 ## [1.18.5] — 2026-10-28 — Patch release 1.18.5: No breaking changes -- requires QGIS 4.2+. Fixes from the owner's live smoke run of 1.18.4, found by reading the plugin's own evidence folders: a GDACS request that names a country now returns only that country, Windows paths typed with single backslashes reach the tool intact, a geocoded place carries its bounding box, and update_task no longer answers 'Task ID None not found'.
