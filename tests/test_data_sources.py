@@ -52,12 +52,21 @@ class TestTheShippedCatalogue(unittest.TestCase):
         self.assertIn('get_credential("firms")', inspect.getsource(hazard_monitoring_tools))
 
     def test_the_size_guard_record_matches_the_code(self):
-        by_flag = {"allow_large_download": "content_length", "allow_whole_country": "whole_country_flag"}
+        by_flag = {"allow_whole_country": "whole_country_flag"}
         for item in TOOLS_SCHEMA:
             fn = item["function"]
             for flag, guard in by_flag.items():
                 if flag in fn["parameters"].get("properties", {}):
                     self.assertEqual(ds.for_tool(fn["name"])["size_guard"], guard, fn["name"])
+        # RM-C option B (2026-11-23): the content-length guard is no longer a schema flag the model sends; it is an Apply card, and the tools that carry it
+        # declare `confirmed` (which only the person's Apply sets). So the record is checked against the registered function instead.
+        import inspect
+
+        from cartogen_ai.core.agent.tools import humanitarian_tools
+        for tool in [n for s in ds.load() if s["size_guard"] == "content_length" for n in s["tools"] if n.startswith("fetch_")]:
+            self.assertIn("confirmed", inspect.signature(getattr(humanitarian_tools, tool)).parameters, tool)
+        self.assertEqual(sorted(n for s in ds.load() if s["size_guard"] == "content_length" for n in s["tools"] if n.startswith("fetch_")),
+                         ["fetch_building_footprints", "fetch_geoboundaries", "fetch_hdx_admin_boundaries"])
         for guard in ("content_length", "whole_country_flag"):
             self.assertTrue([s for s in ds.load() if s["size_guard"] == guard], guard)
         from cartogen_ai.core.agent import local_data_loader
