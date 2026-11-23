@@ -8,16 +8,15 @@ metadata changelog, CHANGELOG.md, README and this module agree). Checklist: CONT
 releases listed in NEW_MARK_VERSIONS.
 """
 
-WHATS_NEW_VERSION = "1.20.0-rc2"
-NEW_MARK_VERSIONS = ("1.20.0-rc1", "1.20.0-rc2")
+WHATS_NEW_VERSION = "1.20.0-rc3"
+NEW_MARK_VERSIONS = ("1.20.0-rc2", "1.20.0-rc3")
 
 # Headline items of the current version (the full list is the metadata.txt changelog block and CHANGELOG.md).
 WHATS_NEW_ITEMS = [
-    ('A large download waits for your Apply', 'Admin boundaries from geoBoundaries and HDX and building footprints above your size setting (50 MB by default) now stop at a card that shows the size, the source and its licence. Only your Apply downloads the file. Before, the model was asked to check with you and could approve the download itself; that option is gone from the tools the model sees.'),
-    ('The confirmation card for a download now has its Apply button', 'A card returned by a download tool, including the Sentinel-2 download from rc1, was passed to the model but never registered as a pending confirmation, and the Apply button is built only from pending confirmations. Found by reproducing it offline; fixed for every download tool.'),
-    ('Elevation and Sentinel layers record their source', "fetch_dem (Copernicus DEM) and load_stac_assets (Sentinel-2) now carry name, URL, licence, attribution, date and area on the result, the layer, the provenance sidecar and the report, like the other twelve fetch tools. The licence text is from the plugin's own table and is not checked against the provider."),
-    ('Workflow files', 'The three boundary and footprint tools stay allowed as workflow steps; a step that meets a large file stops at the card and waits for you. A file still cannot send an approval.'),
-    ('Not hand-tested', 'Everything above is checked by the offline suite and, for the QGIS parts, by CI on QGIS 4.2.2; none of it has been hand-tested in desktop QGIS. Nobody has seen the card or pressed Apply yet (smoke row C28). Everything listed under 1.20.0-rc1 still applies.'),
+    ('Travel times with no road speeds use stated class speeds', "A fastest-route reach, travel-time matrix or delivery route on roads that have no usable speed (only 0.9 percent of Jordan's roads have one) used one flat 50 km/h on every road. If the roads carry a class field (fclass or highway), the run now uses an assumed speed per class (motorway 100, primary 70, residential 40 km/h and so on) instead. The speeds are applied on an in-memory copy, so your layer is never changed. Every result says the speeds are assumed, names the class field and counts the roads, and calls the time an estimate. A speed field you supply always wins; with no class field the flat default stays."),
+    ('One table of assumed road speeds', 'estimate_road_speeds and build_composite_impedance_field used different numbers for the same road class (primary 70 against 60, residential 40 against 30). They now read one table; the composite tool keeps its surface and slope penalties on top.'),
+    ('Known limits', 'The class speeds are an assumption from public routing profiles. They have not been checked against a known journey, and nobody has compared them with the old flat answer on a real network, so how far results move is not known. The critical-links tool still uses the flat default speed. Country scaling stays in estimate_road_speeds (15 countries; Yemen is not one).'),
+    ('Not hand-tested', 'Everything above is checked by the offline suite and, for the QGIS parts, by CI on QGIS 4.2.2; none of it has been hand-tested in desktop QGIS (smoke row C29). Everything listed under 1.20.0-rc2 and 1.20.0-rc1 still applies, including the large-download Apply card (row C28).'),
 ]
 
 HUMANITARIAN_WORKFLOWS = [('1. Rapid crisis and base mapping',
