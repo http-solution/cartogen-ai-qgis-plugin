@@ -8,7 +8,7 @@ name=Cartogen AI
 qgisMinimumVersion=4.2
 qgisMaximumVersion=4.99
 description=AI assistant for QGIS: describe a task in plain language and it plans, runs and shows every step.
-version=1.20.0-rc1
+version=1.20.0-rc2
 author=Alaa Alshoubaki
 email=cartogenai@gmail.com
 
@@ -34,7 +34,14 @@ license=GNU GPL v2
 hasProcessingProvider=yes
 # Declares Qt 6 support for QGIS 4 plugin managers that read this key; managers that do not know it ignore it (added by the rc28 self-audit; confirm against the directory page after the next upload).
 supportsQt6=True
-changelog=v1.20.0-rc1 (2026-11-23):
+changelog=v1.20.0-rc2 (2026-11-23):
+    Pre-release 1.20.0-rc2. No breaking changes -- requires QGIS 4.2+. Built on 1.20.0-rc1: a large boundary or building download now waits for your Apply on a confirmation card, the Sentinel and elevation fetches record where their data came from, and a confirmation card from a download tool now gets its Apply button. A pre-release for hand testing; it is promoted to stable only after named hand rows pass.
+    - A large download waits for your Apply: Admin boundaries from geoBoundaries and HDX and building footprints above your size setting (50 MB by default) now stop at a card that shows the size, the source and its licence. Only your Apply downloads the file. Before, the model was asked to check with you and could approve the download itself; that option is gone from the tools the model sees.
+    - The confirmation card for a download now has its Apply button: A card returned by a download tool, including the Sentinel-2 download from rc1, was passed to the model but never registered as a pending confirmation, and the Apply button is built only from pending confirmations. Found by reproducing it offline; fixed for every download tool.
+    - Elevation and Sentinel layers record their source: fetch_dem (Copernicus DEM) and load_stac_assets (Sentinel-2) now carry name, URL, licence, attribution, date and area on the result, the layer, the provenance sidecar and the report, like the other twelve fetch tools. The licence text is from the plugin's own table and is not checked against the provider.
+    - Workflow files: The three boundary and footprint tools stay allowed as workflow steps; a step that meets a large file stops at the card and waits for you. A file still cannot send an approval.
+    - Not hand-tested: Everything above is checked by the offline suite and, for the QGIS parts, by CI on QGIS 4.2.2; none of it has been hand-tested in desktop QGIS. Nobody has seen the card or pressed Apply yet (smoke row C28). Everything listed under 1.20.0-rc1 still applies.
+v1.20.0-rc1 (2026-11-23):
     Pre-release 1.20.0-rc1. No breaking changes -- requires QGIS 4.2+. The sum of about 360 merged changes since 1.18.5: field personas, spatial statistics, map looks, geometry editing, Processing models, a routing fix and stricter protection of sensitive layers. A pre-release for hand testing: it is promoted to stable only after named hand rows pass.
     - Personas and persona tasks: Fifteen persona packs choose the offered tools, tasks and map styles for the kind of work you do, with a picker and a readiness panel. 52 persona tasks and colour-blind and red/green style rules are included.
     - Spatial statistics and health rates: Moran's I and Local Moran, Getis-Ord Gi* hot and cold spots with false-discovery correction, Kulldorff spatial scan, and health rates, relative risk, SMR and smoothing with a small-number flag.

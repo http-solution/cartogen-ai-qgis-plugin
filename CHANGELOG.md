@@ -7,6 +7,7 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 | Version | Date | Summary |
 |---|---|---|
+| [1.20.0-rc2](#v1-20-0-rc2) | 2026-11-23 | **Pre-release 1.20.0-rc2.** No breaking changes -- requires QGIS 4.2+. Built on 1.20.0-rc1: a large boundary or building download now waits for your Apply on a confirmation card, the Sentinel and elevation fetches record where their data came from, and a confirmation card from a download tool now gets its Apply button. A pre-release for hand testing; it is promoted to stable only after named hand rows pass. |
 | [1.20.0-rc1](#v1-20-0-rc1) | 2026-11-23 | **Pre-release 1.20.0-rc1.** No breaking changes -- requires QGIS 4.2+. The sum of about 360 merged changes since 1.18.5: field personas, spatial statistics, map looks, geometry editing, Processing models, a routing fix and stricter protection of sensitive layers. A pre-release for hand testing: it is promoted to stable only after named hand rows pass. |
 | [1.18.5](#v1-18-5) | 2026-10-28 | **Patch release 1.18.5.** No breaking changes -- requires QGIS 4.2+. Fixes from the owner's live smoke run of 1.18.4, found by reading the plugin's own evidence folders: a GDACS request that names a country now returns only that country, Windows paths typed with single backslashes reach the tool intact, a geocoded place carries its bounding box, and update_task no longer answers 'Task ID None not found'. |
 | [1.18.4](#v1-18-4) | 2026-10-27 | **Patch release 1.18.4.** No breaking changes -- requires QGIS 4.2+. Fixes from the owner's hand run of 1.18.3 and a second self-audit: the damage score no longer ranks the most damaged district last, distances typed for a latitude/longitude layer are no longer read as degrees, a request that names a data source is no longer sent to a Map task, the IPC import names the area behind each problem, and a GDACS error is explained and retried. CI-checked, not hand-tested. |
@@ -102,6 +103,17 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 The detailed narrative entries below are unchanged -- this table is purely an additive index on
 top of them.
+
+<a id="v1-20-0-rc2"></a>
+## [1.20.0-rc2] — 2026-11-23 — Pre-release 1.20.0-rc2: No breaking changes -- requires QGIS 4.2+. Built on 1.20.0-rc1: a large boundary or building download now waits for your Apply on a confirmation card, the Sentinel and elevation fetches record where their data came from, and a confirmation card from a download tool now gets its Apply button. A pre-release for hand testing; it is promoted to stable only after named hand rows pass.
+
+No breaking changes; QGIS 4.2+. Everything since 1.20.0-rc1:
+
+- A large download waits for your Apply: Admin boundaries from geoBoundaries and HDX and building footprints above your size setting (50 MB by default) now stop at a card that shows the size, the source and its licence. Only your Apply downloads the file. Before, the model was asked to check with you and could approve the download itself; that option is gone from the tools the model sees.
+- The confirmation card for a download now has its Apply button: A card returned by a download tool, including the Sentinel-2 download from rc1, was passed to the model but never registered as a pending confirmation, and the Apply button is built only from pending confirmations. Found by reproducing it offline; fixed for every download tool.
+- Elevation and Sentinel layers record their source: fetch_dem (Copernicus DEM) and load_stac_assets (Sentinel-2) now carry name, URL, licence, attribution, date and area on the result, the layer, the provenance sidecar and the report, like the other twelve fetch tools. The licence text is from the plugin's own table and is not checked against the provider.
+- Workflow files: The three boundary and footprint tools stay allowed as workflow steps; a step that meets a large file stops at the card and waits for you. A file still cannot send an approval.
+- Not hand-tested: Everything above is checked by the offline suite and, for the QGIS parts, by CI on QGIS 4.2.2; none of it has been hand-tested in desktop QGIS. Nobody has seen the card or pressed Apply yet (smoke row C28). Everything listed under 1.20.0-rc1 still applies.
 
 <a id="v1-20-0-rc1"></a>
 ## [1.20.0-rc1] — 2026-11-23 — Pre-release 1.20.0-rc1: No breaking changes -- requires QGIS 4.2+. The sum of about 360 merged changes since 1.18.5: field personas, spatial statistics, map looks, geometry editing, Processing models, a routing fix and stricter protection of sensitive layers. A pre-release for hand testing: it is promoted to stable only after named hand rows pass.

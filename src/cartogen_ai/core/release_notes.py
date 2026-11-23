@@ -8,21 +8,16 @@ metadata changelog, CHANGELOG.md, README and this module agree). Checklist: CONT
 releases listed in NEW_MARK_VERSIONS.
 """
 
-WHATS_NEW_VERSION = "1.20.0-rc1"
-NEW_MARK_VERSIONS = ("1.18.5", "1.20.0-rc1")
+WHATS_NEW_VERSION = "1.20.0-rc2"
+NEW_MARK_VERSIONS = ("1.20.0-rc1", "1.20.0-rc2")
 
 # Headline items of the current version (the full list is the metadata.txt changelog block and CHANGELOG.md).
 WHATS_NEW_ITEMS = [
-    ('Personas and persona tasks', 'Fifteen persona packs choose the offered tools, tasks and map styles for the kind of work you do, with a picker and a readiness panel. 52 persona tasks and colour-blind and red/green style rules are included.'),
-    ('Spatial statistics and health rates', "Moran's I and Local Moran, Getis-Ord Gi* hot and cold spots with false-discovery correction, Kulldorff spatial scan, and health rates, relative risk, SMR and smoothing with a small-number flag."),
-    ('Land cover, change and map looks', 'Spectral indices, raster time-series statistics, a from-to change matrix, management zones, official land-cover colours, change and hatch looks, and field, change and epidemic-bulletin layouts.'),
-    ('Geometry editing and attribute tools', 'Edit one vertex, add or delete a part or ring, reshape, reverse, trim or extend lines, offset curves, copy features between layers with a field mapping shown first, identify at a point, virtual fields, constraints, defaults, conditional formatting, map tips and layer actions.'),
-    ('Processing models and batches', 'run_processing_model, run_processing_batch and run_algorithm_in_place run only algorithms that were reviewed and approved; the in-place run is one undoable edit. Project datum transformations, custom CRS and canvas decorations are covered.'),
-    ('Routing fix', 'Requests that need a route or service area now reach the routing tools (the tool list offered for them went from 34 down to 7), behind a safety gate.'),
-    ('A map button in the chat', 'A one-shot map button asks the model to look at the current map before it answers.'),
-    ('Protection fails closed', 'A layer whose protection tag, lineage, selection count, egress setting, trace redaction or MCP layer list cannot be read now counts as protected, and an explicit tag wins. The export gate refuses instead of guessing.'),
-    ('Composite tools pass their arguments on', 'calculate_population_in_need and population_access_gap take raster_unit; classify_facilities_by_access and population_access_gap take the road-direction values and forward them. 42 new tools since 1.18.5.'),
-    ('Not hand-tested', 'Everything above is checked by the offline suite and, for the QGIS parts, by CI on QGIS 4.2.2; none of it has been hand-tested in desktop QGIS. Promotion to 1.20.0 waits on the named hand rows (issue 635 C21-C27, issue 380 B28/B32/B41, issue 510 Connections).'),
+    ('A large download waits for your Apply', 'Admin boundaries from geoBoundaries and HDX and building footprints above your size setting (50 MB by default) now stop at a card that shows the size, the source and its licence. Only your Apply downloads the file. Before, the model was asked to check with you and could approve the download itself; that option is gone from the tools the model sees.'),
+    ('The confirmation card for a download now has its Apply button', 'A card returned by a download tool, including the Sentinel-2 download from rc1, was passed to the model but never registered as a pending confirmation, and the Apply button is built only from pending confirmations. Found by reproducing it offline; fixed for every download tool.'),
+    ('Elevation and Sentinel layers record their source', "fetch_dem (Copernicus DEM) and load_stac_assets (Sentinel-2) now carry name, URL, licence, attribution, date and area on the result, the layer, the provenance sidecar and the report, like the other twelve fetch tools. The licence text is from the plugin's own table and is not checked against the provider."),
+    ('Workflow files', 'The three boundary and footprint tools stay allowed as workflow steps; a step that meets a large file stops at the card and waits for you. A file still cannot send an approval.'),
+    ('Not hand-tested', 'Everything above is checked by the offline suite and, for the QGIS parts, by CI on QGIS 4.2.2; none of it has been hand-tested in desktop QGIS. Nobody has seen the card or pressed Apply yet (smoke row C28). Everything listed under 1.20.0-rc1 still applies.'),
 ]
 
 HUMANITARIAN_WORKFLOWS = [('1. Rapid crisis and base mapping',
