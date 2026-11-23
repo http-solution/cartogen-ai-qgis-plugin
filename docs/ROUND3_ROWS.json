@@ -68,6 +68,7 @@
   "C26-r2-routing": "1 feature never seen live (r2-persona-wiring): the twelve plain spatial-statistics requests must reach the right tool when a real model answers them as each persona.",
   "C27-geocode-protected": "1 feature never seen live (geocoding-protected-refusal): geocoding a protected layer must be refused and an open layer must go ahead.",
   "F4-new-chat": "1 feature(s) never seen live (new-chat-button). Added 2026-11-20 with PR 656; QGIS CI only so far.",
-  "C28-large-download-card": "1 feature never seen live (large-download-apply-card). Added 2026-11-23 (RM-C option B); offline tests only so far: a large boundary or footprint download must wait for Apply on a card."
+  "C28-large-download-card": "1 feature never seen live (large-download-apply-card). Added 2026-11-23 (RM-C option B); offline tests only so far: a large boundary or footprint download must wait for Apply on a card.",
+  "C29-assumed-road-speeds": "1 feature never seen live (assumed-road-class-speeds). Added 2026-11-23 (HU-3b options B and D); offline tests and one QGIS CI test only: a fastest run with no road speeds must use stated class speeds and leave the layer alone."
  }
 }

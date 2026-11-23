@@ -1507,6 +1507,23 @@
    "files": [],
    "pass_if": "all as Expect, in particular: no download before Apply, and a card (not a chat question) on the first request.",
    "cost": "two short requests"
+  },
+  {
+   "id": "C29-assumed-road-speeds",
+   "issue": "S",
+   "session": "C",
+   "title": "A travel time with no road speeds uses stated class speeds",
+   "covers": [
+    "assumed-road-class-speeds"
+   ],
+   "needs": "QGIS and the plugin with a working model key; a road layer with an fclass or highway field and almost no speed values (a Geofabrik or OSM roads extract), and a facility or origin point layer",
+   "starts_from": "A new empty project; the plugin enabled; 'Save an evidence folder for each request' ticked; load a roads extract (fclass or highway field, no usable maxspeed) and one origin point.",
+   "do": "(1) send: How far can a vehicle get from the origin in 30 minutes by road?  (2) look at the reply and the result layer  (3) open the roads layer's attribute table  (4) send the same question again but say 'use a flat 50 km/h on every road'.",
+   "expect": "(1) the reply says the times rest on ASSUMED speeds by road class, names the class field, and calls the figure an estimate; the reach follows the roads' classes (further along a motorway than along a residential street). (3) the roads layer has no new assumed_speed_kmh field. (4) the model either explains that class speeds are used unless it is given a speed field, or the reach is clearly different from (1). The reply never states a travel time as exact.",
+   "evidence": "snap('C29'). Screenshot of the reply and the reach layer -> results\\screens\\C29-reach.png; of the roads attribute table -> C29-fields.png.",
+   "files": [],
+   "pass_if": "all as Expect, in particular: the assumption is stated in the reply, and the user's roads layer was not changed.",
+   "cost": "two short requests"
   }
  ],
  "v2_overrides": {
