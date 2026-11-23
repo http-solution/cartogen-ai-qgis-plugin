@@ -1154,11 +1154,16 @@ class CartogenAi:
     def _tag_fetched_layer_source(result):
         """PLAN-044: a fetch result that carries a source record stores it on the layer it created, so provenance and reports can read it. MAIN THREAD."""
         record = result.get("data_source") if isinstance(result, dict) else None
-        name = result_gate.output_layer_name(result)
-        if not record or not name or not result_gate.QGIS_AVAILABLE:
+        names = result_gate.output_layer_names(result)
+        # load_stac_assets lists its layers as dicts under "layers" (one per band), not as layer_name.
+        for entry in result.get("layers", []) if isinstance(result, dict) and isinstance(result.get("layers"), list) else []:
+            if isinstance(entry, dict) and isinstance(entry.get("layer"), str) and entry["layer"] not in names:
+                names.append(entry["layer"])
+        if not record or not names or not result_gate.QGIS_AVAILABLE:
             return
-        for layer in result_gate.QgsProject.instance().mapLayersByName(name):
-            source_record.tag_layer(layer, record)
+        for name in names:
+            for layer in result_gate.QgsProject.instance().mapLayersByName(name):
+                source_record.tag_layer(layer, record)
 
     def _guarded_dispatch(self, name, arguments):
         # Real live crash, 2026-09-13: a turn ended in a bare chat bubble reading

@@ -26,6 +26,7 @@ WRITE_TOOLS = frozenset({
 
 # Fixed-service fetch tools (each talks to one named provider, takes no URL). Allowed as steps in a shared workflow file (PLAN-048), NOT over MCP.
 # A test pins that this equals source_record.SOURCES, so a fetch tool that gets a source record is a deliberate decision about files too.
+# Exception, named in that test: fetch_dem and load_stac_assets have a source record but are not file steps (download plus a confirmation card; undecided).
 FETCH_TOOLS = frozenset({
     "fetch_geoboundaries", "fetch_hdx_admin_boundaries", "fetch_building_footprints", "fetch_worldpop_population", "ingest_osm_features",
     "fetch_osm_features", "fetch_fts_funding_data", "fetch_nasa_active_fires", "fetch_nasa_eonet_events", "fetch_gdacs_disaster_alerts",

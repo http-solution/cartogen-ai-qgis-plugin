@@ -7,7 +7,7 @@ A map made from fetched data can be cited and its licence honoured: each fetch r
 
 ## Scope
 In: `core/agent/source_record.py` (a table of ten fetch tools, the record, a layer custom property `cartogen/sources`, collection through lineage inputs, one report line); the orchestrator adds `data_source` to the result of a fetch tool on the network-only and two-phase paths and tags the output layer on the main thread; `build_provenance_record` gains `sources`; `generate_report` and `generate_spatial_report` print them.
-Out (later): showing a large data set to the user before loading it; reading the licence from the service on each call; fetch tools not in the table (`fetch_osm_features`, `fetch_fts_funding_data`, search tools).
+Out (later): showing a large data set to the user before loading it; reading the licence from the service on each call; search tools (they list data sets and create no layer).
 
 ## Honest limits
 The licence text is a hand-written table from each service's published terms. It is not read from the service, so every record says `licence_checked: false` and the report line says "not checked against the source". HDX has a licence per data set, so its record says so and does not name one. Coverage is what the call asked for, not what came back. NASA FIRMS, EONET and GDACS entries say "see the terms" because the plugin does not state a licence for them.
@@ -27,3 +27,4 @@ Remove the `source_record.attach` call in `agent_orchestrator._execute_tool`; no
 ## Status log
 - 2026-11-01: built. Offline tests pass; the live test has not run (CI first run). Not verified with a real fetch in QGIS: hand row added to the ledger.
 - 2026-11-02: `fetch_osm_features` and `fetch_fts_funding_data` added to the table (twelve tools). Still not done: showing a large data set to the user before loading it (needs a UI decision), and the search tools.
+- 2026-11-23: `fetch_dem` (Copernicus DEM GLO-30) and `load_stac_assets` (Sentinel-2 through Earth Search) added to the table (fourteen tools); both were built after it. The `layer_name` argument counts as the area for these two only, the DEM's returned `bbox_wgs84` is read for coverage, and the orchestrator now tags every band layer a STAC result lists. Offline tests pass; CI only, not run against a real fetch in QGIS. Still open: showing a large data set before loading it (UI decision) and the hand row.
