@@ -20,14 +20,14 @@
   <a href="https://cartogenai.com"><img src="https://img.shields.io/badge/website-cartogenai.com-0b6efd" alt="Website"></a>
 </p>
 
-**Community edition · Version 1.20.0-rc2 (pre-release) · GNU GPL v2 · QGIS 4.2–4.99 · [cartogenai.com](https://cartogenai.com)**
+**Community edition · Version 1.20.0-rc3 (pre-release) · GNU GPL v2 · QGIS 4.2–4.99 · [cartogenai.com](https://cartogenai.com)**
 
 Cartogen AI is built for GIS analysts, humanitarian teams, researchers, and anyone who
 needs to move from a question to a reproducible spatial result without leaving QGIS.
 The agent exposes its plan, tool calls, progress, and errors instead of returning a
 black-box answer.
 
-> **Project status (2026-11-23):** active Community edition. The newest build is the pre-release **1.20.0-rc2**, not hand-tested; the latest stable is **1.18.5**, a patch on 1.18.4, 1.18.3, 1.18.2, 1.18.1 and 1.18.0 (the sum of the 1.17.0 release candidates 42 to 52 since 1.16.3). Neither has passed a full hand test; see the hand-testing line below.
+> **Project status (2026-11-23):** active Community edition. The newest build is the pre-release **1.20.0-rc3**, not hand-tested; the latest stable is **1.18.5**, a patch on 1.18.4, 1.18.3, 1.18.2, 1.18.1 and 1.18.0 (the sum of the 1.17.0 release candidates 42 to 52 since 1.16.3). Neither has passed a full hand test; see the hand-testing line below.
 > - **Tests:** 5,062 automated tests run offline, 0 failures (767 skipped there: the live-QGIS tests and those needing optional libraries). The QGIS ones run in CI (the `qgis-live-tests` job, QGIS 4.2.2) together with ruff, mypy and a release-zip check.
 > - **Hand testing:** rc44 to rc46 were hand-tested in desktop QGIS 4.2.3 (tool sweep: 65 of 83 rows Pass, 1 Fail, the rest Partial or Skip; 21 of 21 priority algorithms Pass); the plain-language algorithm test (385 prompts) has **not** been run. rc48 was hand-tested on 2026-10-24 (52 of 87 rows Pass, 18 Partial, 16 Fail, 1 Skip; results in [docs/HAND_TEST_RESULTS_rc48_2026-10-24.md](docs/HAND_TEST_RESULTS_rc48_2026-10-24.md)); the changes from rc49 to 1.18.0 are CI-checked only (a partial rc50 run covered 20 of its 87 rows) until the v2 hand test (a layout check script that costs no API money, plus nine rows; [docs/LEAN_HAND_TEST_PROTOCOL.md](docs/LEAN_HAND_TEST_PROTOCOL.md)) is run.
 > - **Open issues (2):** #362 and #380. Their code is merged and green in CI; they stay open for hand rows that depend on what the model answers. Everything else from the audit and smoke-test lists is closed, each with its evidence in a comment (several on CI evidence only, which the comment says). Per-issue status: [docs/OPEN_ISSUES_STATUS_2026-10-25_v2.md](docs/OPEN_ISSUES_STATUS_2026-10-25_v2.md).
@@ -79,6 +79,15 @@ black-box answer.
   a restricted execution sandbox for model-generated PyQGIS scripts, fail-closed
   read-only SQL enforcement, an SSRF guard on fetched URLs, and a destructive-action
   confirmation gate the model cannot self-approve.
+
+## What's new in 1.20.0-rc3
+
+Built on 1.20.0-rc2. Offline tests and the QGIS 4.2.2 live checks in CI pass; **not hand-tested** in desktop QGIS unless an item says so. Full list: the `v1.20.0-rc3` block in [metadata.txt](metadata.txt) and [CHANGELOG.md](CHANGELOG.md).
+
+- Travel times with no road speeds use stated class speeds: A fastest-route reach, travel-time matrix or delivery route on roads that have no usable speed (only 0.9 percent of Jordan's roads have one) used one flat 50 km/h on every road. If the roads carry a class field (fclass or highway), the run now uses an assumed speed per class (motorway 100, primary 70, residential 40 km/h and so on) instead. The speeds are applied on an in-memory copy, so your layer is never changed. Every result says the speeds are assumed, names the class field and counts the roads, and calls the time an estimate. A speed field you supply always wins; with no class field the flat default stays.
+- One table of assumed road speeds: estimate_road_speeds and build_composite_impedance_field used different numbers for the same road class (primary 70 against 60, residential 40 against 30). They now read one table; the composite tool keeps its surface and slope penalties on top.
+- Known limits: The class speeds are an assumption from public routing profiles. They have not been checked against a known journey, and nobody has compared them with the old flat answer on a real network, so how far results move is not known. The critical-links tool still uses the flat default speed. Country scaling stays in estimate_road_speeds (15 countries; Yemen is not one).
+- Not hand-tested: Everything above is checked by the offline suite and, for the QGIS parts, by CI on QGIS 4.2.2; none of it has been hand-tested in desktop QGIS (smoke row C29). Everything listed under 1.20.0-rc2 and 1.20.0-rc1 still applies, including the large-download Apply card (row C28).
 
 ## What's new in 1.20.0-rc2
 

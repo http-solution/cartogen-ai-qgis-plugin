@@ -7,6 +7,7 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 | Version | Date | Summary |
 |---|---|---|
+| [1.20.0-rc3](#v1-20-0-rc3) | 2026-11-23 | **Pre-release 1.20.0-rc3.** No breaking changes -- requires QGIS 4.2+. Built on 1.20.0-rc2: a travel time or reach with no road speeds now uses stated, assumed speeds by road class instead of one flat 50 km/h, and the tools that assume road speeds share one table. A pre-release for hand testing; it is promoted to stable only after named hand rows pass. |
 | [1.20.0-rc2](#v1-20-0-rc2) | 2026-11-23 | **Pre-release 1.20.0-rc2.** No breaking changes -- requires QGIS 4.2+. Built on 1.20.0-rc1: a large boundary or building download now waits for your Apply on a confirmation card, the Sentinel and elevation fetches record where their data came from, and a confirmation card from a download tool now gets its Apply button. A pre-release for hand testing; it is promoted to stable only after named hand rows pass. |
 | [1.20.0-rc1](#v1-20-0-rc1) | 2026-11-23 | **Pre-release 1.20.0-rc1.** No breaking changes -- requires QGIS 4.2+. The sum of about 360 merged changes since 1.18.5: field personas, spatial statistics, map looks, geometry editing, Processing models, a routing fix and stricter protection of sensitive layers. A pre-release for hand testing: it is promoted to stable only after named hand rows pass. |
 | [1.18.5](#v1-18-5) | 2026-10-28 | **Patch release 1.18.5.** No breaking changes -- requires QGIS 4.2+. Fixes from the owner's live smoke run of 1.18.4, found by reading the plugin's own evidence folders: a GDACS request that names a country now returns only that country, Windows paths typed with single backslashes reach the tool intact, a geocoded place carries its bounding box, and update_task no longer answers 'Task ID None not found'. |
@@ -103,6 +104,16 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 The detailed narrative entries below are unchanged -- this table is purely an additive index on
 top of them.
+
+<a id="v1-20-0-rc3"></a>
+## [1.20.0-rc3] — 2026-11-23 — Pre-release 1.20.0-rc3: No breaking changes -- requires QGIS 4.2+. Built on 1.20.0-rc2: a travel time or reach with no road speeds now uses stated, assumed speeds by road class instead of one flat 50 km/h, and the tools that assume road speeds share one table. A pre-release for hand testing; it is promoted to stable only after named hand rows pass.
+
+No breaking changes; QGIS 4.2+. Everything since 1.20.0-rc2:
+
+- Travel times with no road speeds use stated class speeds: A fastest-route reach, travel-time matrix or delivery route on roads that have no usable speed (only 0.9 percent of Jordan's roads have one) used one flat 50 km/h on every road. If the roads carry a class field (fclass or highway), the run now uses an assumed speed per class (motorway 100, primary 70, residential 40 km/h and so on) instead. The speeds are applied on an in-memory copy, so your layer is never changed. Every result says the speeds are assumed, names the class field and counts the roads, and calls the time an estimate. A speed field you supply always wins; with no class field the flat default stays.
+- One table of assumed road speeds: estimate_road_speeds and build_composite_impedance_field used different numbers for the same road class (primary 70 against 60, residential 40 against 30). They now read one table; the composite tool keeps its surface and slope penalties on top.
+- Known limits: The class speeds are an assumption from public routing profiles. They have not been checked against a known journey, and nobody has compared them with the old flat answer on a real network, so how far results move is not known. The critical-links tool still uses the flat default speed. Country scaling stays in estimate_road_speeds (15 countries; Yemen is not one).
+- Not hand-tested: Everything above is checked by the offline suite and, for the QGIS parts, by CI on QGIS 4.2.2; none of it has been hand-tested in desktop QGIS (smoke row C29). Everything listed under 1.20.0-rc2 and 1.20.0-rc1 still applies, including the large-download Apply card (row C28).
 
 <a id="v1-20-0-rc2"></a>
 ## [1.20.0-rc2] — 2026-11-23 — Pre-release 1.20.0-rc2: No breaking changes -- requires QGIS 4.2+. Built on 1.20.0-rc1: a large boundary or building download now waits for your Apply on a confirmation card, the Sentinel and elevation fetches record where their data came from, and a confirmation card from a download tool now gets its Apply button. A pre-release for hand testing; it is promoted to stable only after named hand rows pass.
