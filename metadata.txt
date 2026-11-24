@@ -8,7 +8,7 @@ name=Cartogen AI
 qgisMinimumVersion=4.2
 qgisMaximumVersion=4.99
 description=AI assistant for QGIS: describe a task in plain language and it plans, runs and shows every step.
-version=1.20.0-rc4
+version=1.20.0-rc5
 author=Alaa Alshoubaki
 email=cartogenai@gmail.com
 
@@ -34,7 +34,12 @@ license=GNU GPL v2
 hasProcessingProvider=yes
 # Declares Qt 6 support for QGIS 4 plugin managers that read this key; managers that do not know it ignore it (added by the rc28 self-audit; confirm against the directory page after the next upload).
 supportsQt6=True
-changelog=v1.20.0-rc4 (2026-11-24):
+changelog=v1.20.0-rc5 (2026-11-24):
+    Pre-release 1.20.0-rc5. No breaking changes -- requires QGIS 4.2+. Built on 1.20.0-rc4: the detect line on each CLI page in the Connections window no longer stays on Looking... A pre-release for hand testing; it is promoted to stable only after named hand rows pass.
+    - The detect line no longer stays on Looking...: Going away from the Connections window and back used to blank every CLI page to Looking... and start a slow search of the computer again, so the line could read Looking... almost all the time. The automatic re-checks now keep the last answer on screen and reuse the earlier search; each program's answer appears as soon as it is known; a lookup still running after 60 seconds ends with a plain message and gives Detect again back; and one page failing to update no longer leaves the later pages on Looking...
+    - Known limit: The exact cause of the stuck line on the owner's Antigravity page was not reproduced (no real Antigravity program here), so this makes the window robust whatever the cause. If the line still reads Looking... in rc5, that is new information.
+    - Not hand-tested: Everything above is checked by the offline suite and, for the Connections window, by CI on QGIS 4.2.2; none of it has been seen in desktop QGIS, and nothing was run against a real Antigravity program. Everything listed under 1.20.0-rc4, rc3, rc2 and rc1 still applies (smoke rows C28 and C29, issue 510 Connections).
+v1.20.0-rc4 (2026-11-24):
     Pre-release 1.20.0-rc4. No breaking changes -- requires QGIS 4.2+. Built on 1.20.0-rc3: the Connections window now gives a checked Antigravity CLI its tick and shows the drop-down arrow on every model box, and a request that names a table file (CSV or Excel) now offers the loader tool. A pre-release for hand testing; it is promoted to stable only after named hand rows pass.
     - A checked Antigravity CLI gets its tick: The Connections list showed Antigravity as in use with no tick, because that program has no command that says whether you are signed in. A passed Check connection now earns the tick. A found program you have not checked still shows a filled dot, not a tick.
     - Model boxes show their drop-down arrow: The model box on every Connections page was drawn without its arrow, so it looked like a plain text field and only automatic seemed possible. The arrow is back: Claude Code and Codex list their built-in names, and Antigravity lists the models its program reports.

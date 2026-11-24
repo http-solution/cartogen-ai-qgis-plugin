@@ -7,6 +7,7 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 | Version | Date | Summary |
 |---|---|---|
+| [1.20.0-rc5](#v1-20-0-rc5) | 2026-11-24 | **Pre-release 1.20.0-rc5.** No breaking changes -- requires QGIS 4.2+. Built on 1.20.0-rc4: the detect line on each CLI page in the Connections window no longer stays on Looking... A pre-release for hand testing; it is promoted to stable only after named hand rows pass. |
 | [1.20.0-rc4](#v1-20-0-rc4) | 2026-11-24 | **Pre-release 1.20.0-rc4.** No breaking changes -- requires QGIS 4.2+. Built on 1.20.0-rc3: the Connections window now gives a checked Antigravity CLI its tick and shows the drop-down arrow on every model box, and a request that names a table file (CSV or Excel) now offers the loader tool. A pre-release for hand testing; it is promoted to stable only after named hand rows pass. |
 | [1.20.0-rc3](#v1-20-0-rc3) | 2026-11-23 | **Pre-release 1.20.0-rc3.** No breaking changes -- requires QGIS 4.2+. Built on 1.20.0-rc2: a travel time or reach with no road speeds now uses stated, assumed speeds by road class instead of one flat 50 km/h, and the tools that assume road speeds share one table. A pre-release for hand testing; it is promoted to stable only after named hand rows pass. |
 | [1.20.0-rc2](#v1-20-0-rc2) | 2026-11-23 | **Pre-release 1.20.0-rc2.** No breaking changes -- requires QGIS 4.2+. Built on 1.20.0-rc1: a large boundary or building download now waits for your Apply on a confirmation card, the Sentinel and elevation fetches record where their data came from, and a confirmation card from a download tool now gets its Apply button. A pre-release for hand testing; it is promoted to stable only after named hand rows pass. |
@@ -105,6 +106,15 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 The detailed narrative entries below are unchanged -- this table is purely an additive index on
 top of them.
+
+<a id="v1-20-0-rc5"></a>
+## [1.20.0-rc5] — 2026-11-24 — Pre-release 1.20.0-rc5: No breaking changes -- requires QGIS 4.2+. Built on 1.20.0-rc4: the detect line on each CLI page in the Connections window no longer stays on Looking... A pre-release for hand testing; it is promoted to stable only after named hand rows pass.
+
+No breaking changes; QGIS 4.2+. Everything since 1.20.0-rc4:
+
+- The detect line no longer stays on Looking...: Going away from the Connections window and back used to blank every CLI page to Looking... and start a slow search of the computer again, so the line could read Looking... almost all the time. The automatic re-checks now keep the last answer on screen and reuse the earlier search; each program's answer appears as soon as it is known; a lookup still running after 60 seconds ends with a plain message and gives Detect again back; and one page failing to update no longer leaves the later pages on Looking...
+- Known limit: The exact cause of the stuck line on the owner's Antigravity page was not reproduced (no real Antigravity program here), so this makes the window robust whatever the cause. If the line still reads Looking... in rc5, that is new information.
+- Not hand-tested: Everything above is checked by the offline suite and, for the Connections window, by CI on QGIS 4.2.2; none of it has been seen in desktop QGIS, and nothing was run against a real Antigravity program. Everything listed under 1.20.0-rc4, rc3, rc2 and rc1 still applies (smoke rows C28 and C29, issue 510 Connections).
 
 <a id="v1-20-0-rc4"></a>
 ## [1.20.0-rc4] — 2026-11-24 — Pre-release 1.20.0-rc4: No breaking changes -- requires QGIS 4.2+. Built on 1.20.0-rc3: the Connections window now gives a checked Antigravity CLI its tick and shows the drop-down arrow on every model box, and a request that names a table file (CSV or Excel) now offers the loader tool. A pre-release for hand testing; it is promoted to stable only after named hand rows pass.
