@@ -7,6 +7,7 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 | Version | Date | Summary |
 |---|---|---|
+| [1.20.0-rc4](#v1-20-0-rc4) | 2026-11-24 | **Pre-release 1.20.0-rc4.** No breaking changes -- requires QGIS 4.2+. Built on 1.20.0-rc3: the Connections window now gives a checked Antigravity CLI its tick and shows the drop-down arrow on every model box, and a request that names a table file (CSV or Excel) now offers the loader tool. A pre-release for hand testing; it is promoted to stable only after named hand rows pass. |
 | [1.20.0-rc3](#v1-20-0-rc3) | 2026-11-23 | **Pre-release 1.20.0-rc3.** No breaking changes -- requires QGIS 4.2+. Built on 1.20.0-rc2: a travel time or reach with no road speeds now uses stated, assumed speeds by road class instead of one flat 50 km/h, and the tools that assume road speeds share one table. A pre-release for hand testing; it is promoted to stable only after named hand rows pass. |
 | [1.20.0-rc2](#v1-20-0-rc2) | 2026-11-23 | **Pre-release 1.20.0-rc2.** No breaking changes -- requires QGIS 4.2+. Built on 1.20.0-rc1: a large boundary or building download now waits for your Apply on a confirmation card, the Sentinel and elevation fetches record where their data came from, and a confirmation card from a download tool now gets its Apply button. A pre-release for hand testing; it is promoted to stable only after named hand rows pass. |
 | [1.20.0-rc1](#v1-20-0-rc1) | 2026-11-23 | **Pre-release 1.20.0-rc1.** No breaking changes -- requires QGIS 4.2+. The sum of about 360 merged changes since 1.18.5: field personas, spatial statistics, map looks, geometry editing, Processing models, a routing fix and stricter protection of sensitive layers. A pre-release for hand testing: it is promoted to stable only after named hand rows pass. |
@@ -104,6 +105,17 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 The detailed narrative entries below are unchanged -- this table is purely an additive index on
 top of them.
+
+<a id="v1-20-0-rc4"></a>
+## [1.20.0-rc4] — 2026-11-24 — Pre-release 1.20.0-rc4: No breaking changes -- requires QGIS 4.2+. Built on 1.20.0-rc3: the Connections window now gives a checked Antigravity CLI its tick and shows the drop-down arrow on every model box, and a request that names a table file (CSV or Excel) now offers the loader tool. A pre-release for hand testing; it is promoted to stable only after named hand rows pass.
+
+No breaking changes; QGIS 4.2+. Everything since 1.20.0-rc3:
+
+- A checked Antigravity CLI gets its tick: The Connections list showed Antigravity as in use with no tick, because that program has no command that says whether you are signed in. A passed Check connection now earns the tick. A found program you have not checked still shows a filled dot, not a tick.
+- Model boxes show their drop-down arrow: The model box on every Connections page was drawn without its arrow, so it looked like a plain text field and only automatic seemed possible. The arrow is back: Claude Code and Codex list their built-in names, and Antigravity lists the models its program reports.
+- A table file in the request offers the loader: A request that names a CSV or Excel file now offers the tool that loads it, so the model no longer has to guess.
+- Known limit: The detect line on a CLI page can stay on Looking... when the program is slow to answer its version query. Not reproduced; not fixed.
+- Not hand-tested: Everything above is checked by the offline suite and, for the Connections window, by CI on QGIS 4.2.2; none of it has been seen in desktop QGIS. Nobody has run a real Antigravity program against it. Everything listed under 1.20.0-rc3, rc2 and rc1 still applies (smoke rows C28 and C29, issue 510 Connections).
 
 <a id="v1-20-0-rc3"></a>
 ## [1.20.0-rc3] — 2026-11-23 — Pre-release 1.20.0-rc3: No breaking changes -- requires QGIS 4.2+. Built on 1.20.0-rc2: a travel time or reach with no road speeds now uses stated, assumed speeds by road class instead of one flat 50 km/h, and the tools that assume road speeds share one table. A pre-release for hand testing; it is promoted to stable only after named hand rows pass.
