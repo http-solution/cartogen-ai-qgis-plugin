@@ -86,12 +86,56 @@ class TestWindowsPieces(unittest.TestCase):
 
     def test_human_rows_and_slow_rows(self):
         by_id = {c["id"]: c for c in _cards()}
-        for rid in ("V1-update", "F3-check-evidence", "A3-cli-bridge", "W6-mcp-probe", "W7-mcp-dialog", "W8-export", "W10-import-bad", "C18-persona-upgrade"):
+        for rid in ("V1-update", "F3-check-evidence", "A3-cli-bridge", "W6-mcp-probe", "W7-mcp-dialog", "W8-export", "W10-import-bad", "C18-persona-upgrade", "C12-run-processing-model", "W12-guide"):
             self.assertFalse(by_id[rid]["can_run"], rid)
         slow = [c["id"] for c in by_id.values() if c["slow"] and c["can_run"]]
         self.assertIn("B4-long-request", slow)
         self.assertIn("SLOW ROW", sc.card_text(by_id["B4-long-request"]))
         self.assertNotIn("SLOW ROW", sc.card_text(by_id["A2-settings-connections"]))
+
+
+class TestCardReview20261124(unittest.TestCase):
+    """The review of every card after the first rc4 agent run (2026-11-24), each test one defect found by reading the cards the agent actually got."""
+
+    def test_no_card_has_a_doubled_or_unfilled_package_path(self):
+        for c in _cards():
+            body = " ".join(str(c[k]) for k in ("starts_from", "do", "expect", "pass_if", "also_capture"))
+            self.assertNotIn("<PACKAGE>\\<PACKAGE>", body, c["id"])            # C20 to C27 pointed every console load at a folder that does not exist
+            self.assertNotIn("<bundle>", body, c["id"])
+            self.assertNotIn("\\\\3_test_files", body, c["id"])
+
+    def test_the_console_loads_of_the_environment_and_health_rows_name_the_real_folder(self):
+        by_id = {c["id"]: c for c in _cards()}
+        self.assertIn('r"<PACKAGE>\\3_test_files\\smoke_worldcover.asc"', by_id["C20-environment-looks"]["do"])
+        self.assertIn("CONSOLE:", sc.card_text(by_id["C20-environment-looks"]))
+
+    def test_no_card_tells_the_agent_to_fill_in_the_package_path_the_dock_already_fills(self):
+        for c in _cards():
+            self.assertNotIn("replace <PACKAGE>", c["do"], c["id"])
+            self.assertNotIn("replace <bundle>", c["do"], c["id"])
+
+    def test_a1_is_not_flagged_as_needing_a_model_a_key_or_a_network(self):
+        a1 = {c["id"]: c for c in _cards()}["A1-layout-script"]
+        self.assertFalse(a1["model_needed"])
+        self.assertFalse(a1["internet_needed"])
+
+    def test_the_fresh_chat_rule_matches_the_plugin_which_has_a_new_chat_button(self):
+        text = sc.card_text({c["id"]: c for c in _cards()}["B1-routing-plain"])
+        self.assertIn("New chat button", text)
+        self.assertNotIn("has no 'New chat' button", text)
+
+    def test_every_appended_sentence_belongs_to_a_real_row_and_reaches_its_card(self):
+        by_id = {c["id"]: c for c in _cards()}
+        for rid, parts in sc.APPEND.items():
+            self.assertIn(rid, by_id)
+            for key, sentence in parts.items():
+                self.assertIn(sc.fill_paths(sentence).strip(), by_id[rid][key], rid)
+        self.assertIn("drop-down arrow", by_id["A2-settings-connections"]["do"])         # the 1.20.0-rc4 Connections fixes are on a card
+        self.assertIn("bad-key", by_id["A2-settings-connections"]["do"])
+
+    def test_a1_promises_png_pages_only_because_the_script_writes_them(self):
+        script = (Path(__file__).resolve().parent.parent / "tools" / "layout_check_script.py").read_text(encoding="utf-8")
+        self.assertIn('output_format="png"', script)
 
 
 class TestHumanRows(unittest.TestCase):
@@ -295,7 +339,9 @@ class TestTheBuiltPackage(unittest.TestCase):
         self.assertEqual(len(cards), self.n)
         self.assertGreater(self.k, 50)
         prompt = self.zip.read(f"{self.top}/HAIKU_PROMPT.md").decode()
-        self.assertIn("exactly one thing: the single line on card A1", prompt)
+        self.assertIn("ONLY for lines that a card gives you word for word", prompt)           # 2026-11-24: about 12 cards need console lines, so "exactly one line" made the agent refuse them
+        self.assertNotIn("exactly one thing", prompt)
+        self.assertIn("Extra screenshot", prompt)
         self.assertIn("Never claim a result you did not see", prompt)
         for need in ("Windows 11", "RUN_EVERYTHING.bat", "up to 6 minutes", "qgiscrashhandler", "Task Manager", "PERMISSION PROMPTS", "first row with no result", "Never enter, read out",
                      "never need to type in Command Prompt", "Preview pane", "look-only"):
