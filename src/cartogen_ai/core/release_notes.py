@@ -8,16 +8,14 @@ metadata changelog, CHANGELOG.md, README and this module agree). Checklist: CONT
 releases listed in NEW_MARK_VERSIONS.
 """
 
-WHATS_NEW_VERSION = "1.20.0-rc4"
-NEW_MARK_VERSIONS = ("1.20.0-rc3", "1.20.0-rc4")
+WHATS_NEW_VERSION = "1.20.0-rc5"
+NEW_MARK_VERSIONS = ("1.20.0-rc4", "1.20.0-rc5")
 
 # Headline items of the current version (the full list is the metadata.txt changelog block and CHANGELOG.md).
 WHATS_NEW_ITEMS = [
-    ('A checked Antigravity CLI gets its tick', 'The Connections list showed Antigravity as in use with no tick, because that program has no command that says whether you are signed in. A passed Check connection now earns the tick. A found program you have not checked still shows a filled dot, not a tick.'),
-    ('Model boxes show their drop-down arrow', 'The model box on every Connections page was drawn without its arrow, so it looked like a plain text field and only automatic seemed possible. The arrow is back: Claude Code and Codex list their built-in names, and Antigravity lists the models its program reports.'),
-    ('A table file in the request offers the loader', 'A request that names a CSV or Excel file now offers the tool that loads it, so the model no longer has to guess.'),
-    ('Known limit', 'The detect line on a CLI page can stay on Looking... when the program is slow to answer its version query. Not reproduced; not fixed.'),
-    ('Not hand-tested', 'Everything above is checked by the offline suite and, for the Connections window, by CI on QGIS 4.2.2; none of it has been seen in desktop QGIS. Nobody has run a real Antigravity program against it. Everything listed under 1.20.0-rc3, rc2 and rc1 still applies (smoke rows C28 and C29, issue 510 Connections).'),
+    ('The detect line no longer stays on Looking...', "Going away from the Connections window and back used to blank every CLI page to Looking... and start a slow search of the computer again, so the line could read Looking... almost all the time. The automatic re-checks now keep the last answer on screen and reuse the earlier search; each program's answer appears as soon as it is known; a lookup still running after 60 seconds ends with a plain message and gives Detect again back; and one page failing to update no longer leaves the later pages on Looking..."),
+    ('Known limit', "The exact cause of the stuck line on the owner's Antigravity page was not reproduced (no real Antigravity program here), so this makes the window robust whatever the cause. If the line still reads Looking... in rc5, that is new information."),
+    ('Not hand-tested', 'Everything above is checked by the offline suite and, for the Connections window, by CI on QGIS 4.2.2; none of it has been seen in desktop QGIS, and nothing was run against a real Antigravity program. Everything listed under 1.20.0-rc4, rc3, rc2 and rc1 still applies (smoke rows C28 and C29, issue 510 Connections).'),
 ]
 
 HUMANITARIAN_WORKFLOWS = [('1. Rapid crisis and base mapping',
