@@ -105,6 +105,28 @@ class TestDetectAll(unittest.TestCase):
         self.assertIn(("codex_cli", ""), calls)
         self.assertFalse(result["claude_cli"]["found"])
 
+    def test_each_cli_is_reported_the_moment_it_is_known_and_a_bad_callback_stops_nothing(self):
+        """A window shows a fast answer without waiting for a slow program (the Antigravity page stayed on 'Looking...' behind the others)."""
+        seen = []
+
+        def progress(entry):
+            seen.append(entry["provider"])
+            raise RuntimeError("a broken callback must not stop the lookup")
+        with patch.object(st, "detect", return_value={"found": True, "path": "/bin/x", "version": "v", "problem": ""}), \
+             patch.object(st, "signin_status", return_value={"state": "unknown", "note": ""}):
+            result = st.detect_all({}, progress=progress)
+        self.assertEqual(seen, ["claude_cli", "codex_cli", "agy_cli"])
+        self.assertEqual([e["provider"] for e in result], seen)
+
+    def test_an_automatic_recheck_does_not_redo_the_slow_search_of_the_computer(self):
+        with patch.object(st, "detect", return_value={"found": False, "path": "", "version": "", "problem": "x"}), \
+             patch.object(st.cli_locator, "ensure") as ensure:
+            st.detect_all({}, refresh=False)
+            ensure.assert_called_once_with(refresh=False)
+            ensure.reset_mock()
+            st.detect_all({})
+            ensure.assert_called_once_with(refresh=True)
+
     def test_no_model_is_asked_anything_while_detecting(self):
         with patch.object(st, "detect", return_value={"found": True, "path": "/bin/x", "version": "v", "problem": ""}), \
              patch.object(st, "signin_status", return_value={"state": "unknown", "note": ""}), \

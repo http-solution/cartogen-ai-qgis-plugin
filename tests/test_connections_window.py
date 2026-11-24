@@ -61,17 +61,30 @@ class TestDetection(unittest.TestCase):
         self.assertIn("self._start_detect()", DIALOG[DIALOG.index("        self.init_ui()"):DIALOG.index("    # ----")])
         body = DIALOG[DIALOG.index("    def _start_detect"):DIALOG.index("    def _on_detected")]
         self.assertIn("threading.Thread(target=worker, daemon=True).start()", body)
-        self.assertIn("_cli_status.detect_all(configured)", body)
+        self.assertIn("_cli_status.detect_all(configured, progress=each, refresh=not keep)", body)
+
+    def test_a_stuck_lookup_is_given_up_on_and_the_automatic_rechecks_are_quiet(self):
+        """Owner 2026-11-24: the Antigravity page showed 'Looking...' with no end. The window now has a watchdog, answers one CLI at a time, and its
+        automatic re-checks (focus, sign-in poll) keep the last answer on screen instead of blanking every label again."""
+        self.assertIn("DETECT_TIMEOUT_SECONDS", DIALOG)
+        self.assertIn("def _on_detect_timeout", DIALOG)
+        self.assertIn("self._detect_watchdog.start()", DIALOG)
+        self.assertIn("self._detect_watchdog.stop()", DIALOG[DIALOG.index("    def _on_detected(self"):DIALOG.index("    def _apply_detection")])
+        for caller in ("    def _on_poll", "    def changeEvent"):
+            start = DIALOG.index(caller)
+            body = DIALOG[start:DIALOG.index("\n    def ", start + 10)]
+            self.assertIn("_start_detect_quietly()", body, caller)
+            self.assertNotIn("self._start_detect()", body, caller)
 
     def test_detection_never_switches_the_connection_by_itself(self):
-        for name in ("_start_detect", "_on_detected", "_apply_detection"):
+        for name in ("_start_detect", "_on_detected", "_on_detected_one", "_apply_detection", "_apply_one"):
             start = DIALOG.index(f"    def {name}")
             end = DIALOG.index("\n    def ", start + 10)
             self.assertNotIn("_use_provider(", DIALOG[start:end], name)
             self.assertNotIn("_active_provider =", DIALOG[start:end], name)
 
     def test_a_stale_saved_path_is_replaced_only_when_the_program_was_found(self):
-        start = DIALOG.index("    def _apply_detection")
+        start = DIALOG.index("    def _apply_one")                      # the per-CLI body of what _apply_detection loops over
         body = DIALOG[start:DIALOG.index("\n    def ", start + 10)]
         self.assertIn('if entry["found"]:', body)
         self.assertIn("edit.setText(entry[\"path\"])", body)

@@ -49,6 +49,7 @@ _LIST_GROUPS = (
 )
 _MARKS = {"verified": "\u2713", "set": "\u25cf", "unset": "\u25cb"}
 _POLL_SECONDS = 3         # how often the window looks again while the user is signing in in a terminal
+DETECT_TIMEOUT_SECONDS = 60      # a lookup still running after this long is given up on in the window (the owner's Antigravity page showed 'Looking...' with no end, 2026-11-24)
 _POLL_GIVE_UP = 300       # and for how long
 
 
@@ -60,6 +61,7 @@ class CartogenAiConnectionsDialog(QDialog):
     cli_check_signal = pyqtSignal(str, dict)  # the CLI connection check runs a subprocess and a model call
     api_check_signal = pyqtSignal(str, dict)  # the Test button of the key-based providers
     detect_signal = pyqtSignal(list)          # the result of looking for CLIs already installed and signed in on this computer
+    detect_one_signal = pyqtSignal(dict)      # one CLI's result, the moment it is known, so a slow program does not hold back the others' labels
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -95,6 +97,7 @@ class CartogenAiConnectionsDialog(QDialog):
         self._verified_providers = set()
         self._detected = {}           # provider -> the last detection result (cli_bridge_status.detect_all)
         self._detecting = False
+        self._detect_gen = 0           # bumped per detection: a late answer from an abandoned lookup is dropped instead of overwriting a newer one
         self._last_detect_started = 0.0
         self._detect_labels = {}
         self._detect_buttons = {}
@@ -103,6 +106,11 @@ class CartogenAiConnectionsDialog(QDialog):
         self.cli_check_signal.connect(self._on_cli_check)
         self.api_check_signal.connect(self._on_api_check)
         self.detect_signal.connect(self._on_detected)
+        self.detect_one_signal.connect(self._on_detected_one)
+        self._detect_watchdog = QTimer(self)
+        self._detect_watchdog.setSingleShot(True)
+        self._detect_watchdog.setInterval(DETECT_TIMEOUT_SECONDS * 1000)
+        self._detect_watchdog.timeout.connect(self._on_detect_timeout)
         self._poll_timer = QTimer(self)
         self._poll_timer.setInterval(_POLL_SECONDS * 1000)
         self._poll_timer.timeout.connect(self._on_poll)
@@ -567,31 +575,70 @@ QPushButton#settingsCancelButton {{
 
     # ------------------------------------------------------- finding installed CLIs
 
-    def _start_detect(self):
-        """Looks for installed, signed-in CLIs on a background thread (it starts programs, so never on the UI thread)."""
+    def _start_detect(self, _checked=False, quiet=False):
+        """Looks for installed, signed-in CLIs on a background thread (it starts programs, so never on the UI thread).
+
+        quiet=True is for the automatic re-checks (the window regaining focus, the sign-in poll): when there is already an answer on screen it stays
+        there and the buttons stay usable. Before 2026-11-24 every such re-check blanked every label back to 'Looking...' and each one began with the slow
+        look-up of the computer's search folders, so after a few clicks away and back the label read 'Looking...' nearly all the time."""
         if self._detecting:
             return
         self._detecting = True
+        self._detect_gen += 1
+        gen = self._detect_gen
         self._last_detect_started = time.monotonic()
-        for button in self._detect_buttons.values():
-            button.setEnabled(False)
-        for label in self._detect_labels.values():
-            label.setText("Looking...")
+        keep = quiet and bool(self._detected)
+        if not keep:
+            for button in self._detect_buttons.values():
+                button.setEnabled(False)
+            for label in self._detect_labels.values():
+                label.setText("Looking...")
+        self._detect_watchdog.start()
         configured = {p: self._key_edits[p].text().strip() for p in _cli_status.DEFAULT_PROGRAM if p in self._key_edits}
 
         def worker():
+            def each(entry):
+                if gen == self._detect_gen:
+                    with contextlib.suppress(RuntimeError):
+                        self.detect_one_signal.emit(entry)
             try:
-                result = _cli_status.detect_all(configured)
+                result = _cli_status.detect_all(configured, progress=each, refresh=not keep)
             except Exception as e:
                 result = [{"provider": p, "label": _cli_status.LABELS[p], "found": False, "path": "", "version": "",
                            "problem": f"Detection failed: {type(e).__name__}", "state": "unknown", "note": "", "tried": ""}
                           for p in _cli_status.DEFAULT_PROGRAM]
-            with contextlib.suppress(RuntimeError):
-                self.detect_signal.emit(result)
+            if gen == self._detect_gen:              # an answer for a lookup that was since replaced is dropped
+                with contextlib.suppress(RuntimeError):
+                    self.detect_signal.emit(result)
 
         threading.Thread(target=worker, daemon=True).start()
 
+    def _start_detect_quietly(self):
+        self._start_detect(quiet=True)
+
+    def _on_detect_timeout(self):
+        """The lookup has run too long: say so, hand the buttons back, and keep waiting in the background (a late answer is still used unless a
+        newer lookup replaced it). Without this a program that never answers left 'Looking...' on screen with Detect again greyed out for good."""
+        if not self._detecting:
+            return
+        self._detecting = False
+        for button in self._detect_buttons.values():
+            button.setEnabled(True)
+        for provider, label in self._detect_labels.items():
+            if provider not in self._detected:
+                label.setText(f"Still looking after {DETECT_TIMEOUT_SECONDS} seconds: the program is slow to answer, or the search of this computer is. "
+                              "Press Detect again, or pick the program with Browse...")
+        self._refresh_rows()
+
+    def _on_detected_one(self, entry):
+        """One CLI's answer, shown at once (found, version, signed in) while the others may still be running."""
+        if entry.get("provider") in self._detect_labels:
+            self._detected[entry["provider"]] = entry
+            self._apply_one(entry["provider"], entry)
+            self._refresh_rows()
+
     def _on_detected(self, results):
+        self._detect_watchdog.stop()
         self._detecting = False
         for button in self._detect_buttons.values():
             button.setEnabled(True)
@@ -599,13 +646,22 @@ QPushButton#settingsCancelButton {{
         self._apply_detection()
         self._after_poll_detection()
 
+        self._refresh_rows()
+
     def _apply_detection(self):
         """Writes each result on its CLI page and into the list marks. Nothing is switched automatically: a CLI sends the conversation to
         that vendor's service, so moving to one is the user's decision (and needs the acknowledgement box ticked)."""
-        for provider, label in self._detect_labels.items():
+        for provider in self._detect_labels:
             entry = self._detected.get(provider)
-            if entry is None:
-                continue
+            if entry is not None:
+                self._apply_one(provider, entry)
+        self._refresh_rows()
+
+    def _apply_one(self, provider, entry):
+        """One CLI's result onto its page. An error here is swallowed for this CLI only: before 2026-11-24 one provider's failure in the shared loop left
+        the later pages (Antigravity is last) on 'Looking...' for good."""
+        label = self._detect_labels[provider]
+        try:
             label.setText(_cli_status.describe(entry, short=True))
             folders = entry.get("searched") or []
             # Where the program was looked for, so "not found" can be checked against the folder it is really in.
@@ -619,7 +675,8 @@ QPushButton#settingsCancelButton {{
                 if provider not in self._cli_checking:
                     self._cli_status_labels[provider].setText(self._cli_quick_status(provider, edit.text()))
                 self._fetch_cli_models(provider, entry["path"])
-        self._refresh_rows()
+        except Exception as e:                     # a page that cannot be updated must not stop the others
+            label.setText(f"Could not show the result ({type(e).__name__}). Press Detect again.")
 
     def _fetch_cli_models(self, provider, path):
         """Fills a CLI page's model drop-down from the program's own list when it has one (Antigravity: `agy models`, no model call). Runs on a
@@ -732,7 +789,7 @@ QPushButton#settingsCancelButton {{
             self._cli_status_labels[provider].setText("Still not signed in after 5 minutes. Press Sign in... to try again.")
             return
         if not self._detecting:
-            self._start_detect()
+            self._start_detect_quietly()
 
     def _after_poll_detection(self):
         """Called after every detection: when the user the window is waiting for has signed in, test the connection and use it."""
@@ -864,7 +921,7 @@ QPushButton#settingsCancelButton {{
         if event.type() == QEvent.Type.ActivationChange and self.isActiveWindow() and self._detected:
             now = time.monotonic()
             if not self._detecting and now - self._last_detect_started > 5:
-                self._start_detect()
+                self._start_detect_quietly()
 
     def _open_account_dialog(self):
         from .account_dialog import CartogenAccountDialog
