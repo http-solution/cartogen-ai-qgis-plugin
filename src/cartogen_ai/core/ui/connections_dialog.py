@@ -534,7 +534,9 @@ QPushButton#settingsCancelButton {{
             if found is not None:
                 if not found["found"]:
                     return "unset"
-                return "verified" if found["state"] == "yes" else "set"
+                # Antigravity has no sign-in status command, so its state is always 'unknown'; before this a passed Check connection
+                # (a real answer to a test question) never earned the tick, and the row read "in use" without one (owner, 2026-11-24).
+                return "verified" if found["state"] == "yes" or provider_value in self._verified_cli else "set"
             return "set" if _cli_status.locate(provider_value, edit.text()) else "unset"
         return "verified" if provider_value in self._verified_providers else "set"
 

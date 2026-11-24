@@ -193,6 +193,19 @@ class TestConnectionsWindow(unittest.TestCase):
         dialog._on_detected([dict(r) for r in self.RESULTS])
         self.assertEqual(dialog._use_buttons["codex_cli"].text(), "Use this connection")
 
+    def test_antigravity_gets_its_tick_once_check_connection_passed_and_a_model_box_is_a_real_list(self):
+        """Owner 2026-11-24 (rc3 screenshot): Antigravity was 'in use' with no tick because it has no sign-in status command (state is
+        always 'unknown'), and the model boxes looked like plain text. Written without a QGIS install; CI's first run is its first execution."""
+        agy = {"provider": "agy_cli", "label": "Antigravity CLI", "found": True, "path": "/bin/agy", "version": "", "problem": "",
+               "state": "unknown", "note": "", "searched": ()}
+        dialog = self._guided([*self.RESULTS, agy])
+        dialog._on_detected([dict(r) for r in [*self.RESULTS, agy]])
+        self.assertEqual(dialog._row_mark("agy_cli"), "set")          # found, not yet proven: honest, no tick
+        dialog._verified_cli.add("agy_cli")
+        self.assertEqual(dialog._row_mark("agy_cli"), "verified")
+        for provider in ("claude_cli", "codex_cli", "agy_cli"):
+            self.assertGreater(dialog._model_combos[provider].count(), 1)   # auto plus at least one named model
+
     def test_the_install_step_copies_the_command_and_asks_nothing(self):
         from qgis.PyQt.QtWidgets import QApplication
         dialog = self._guided(self.RESULTS)
