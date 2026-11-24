@@ -32,6 +32,9 @@ class TestLayoutCheckScript(unittest.TestCase):
                 self.assertTrue(os.path.isfile(os.path.join(folder, name)), name)
             written = {f for f in os.listdir(folder) if f.endswith((".pdf", ".png"))}
             self.assertTrue({"footer_default.pdf", "big_map_A3.pdf", "profile_test.pdf", "disclaimer_test.pdf"} <= written, sorted(written))
+            # The computer-use card A1 tells the agent to look at the .png pages in File Explorer (it cannot open a PDF): there must be one beside each main PDF.
+            for pdf in ("footer_default", "big_map_A3", "profile_test", "disclaimer_test"):
+                self.assertIn(f"{pdf}.png", written, f"no PNG beside {pdf}.pdf: {sorted(written)}")
             with open(os.path.join(folder, "layout_check.json"), encoding="utf-8") as handle:
                 self.assertEqual(json.load(handle)["passed"], len(summary["checks"]))
 

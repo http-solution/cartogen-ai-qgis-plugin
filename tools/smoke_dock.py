@@ -12,12 +12,12 @@ import sys
 
 import smoke_cards as cards_mod
 from qgis.PyQt.QtCore import Qt
-from qgis.PyQt.QtWidgets import QComboBox, QDockWidget, QHBoxLayout, QLabel, QLineEdit, QPushButton, QTextBrowser, QVBoxLayout, QWidget
+from qgis.PyQt.QtWidgets import QComboBox, QDockWidget, QHBoxLayout, QLabel, QLineEdit, QPushButton, QScrollArea, QTextBrowser, QVBoxLayout, QWidget
 
 EXPECTED_QGIS = "4.2.3"
-RULES = ("One row at a time. Read the card. Do the steps in QGIS exactly as written. Do NOT type a console command, do NOT paste anything, do NOT write files. "
+RULES = ("One row at a time. Read the card. Do the steps in QGIS exactly as written. Type a console line ONLY when the card gives it to you word for word; do NOT paste anything. "
          "When done, write one line in the note box saying what you saw, then click Pass, Partial, Fail or Skip. If a step cannot be done, click Skip (or Fail) with the reason. "
-         "QGIS may look frozen for minutes while a tool runs: wait, do not click, do not restart it.")
+         "QGIS may look frozen for minutes while a tool runs: wait, do not click, do not restart it. Do not scroll the mouse wheel over the row list: it changes the row.")
 
 
 class SmokeDock(QDockWidget):
@@ -53,14 +53,23 @@ class SmokeDock(QDockWidget):
         self.shot_name = QLineEdit()
         self.shot_name.setPlaceholderText("extra screenshot name, e.g. B1-toolcount")
         self.shot_button = QPushButton("Extra screenshot")
-        for w in (self.version, self.rules, self.combo, self.view, self.start_button):
+        # Order matters: the controls the agent must always reach (row list, Start, note, the four result buttons, status line) come FIRST and the long card text is below
+        # them, so a short screen cuts the card (which scrolls) and never the buttons. In the first rc4 run (2026-11-24) the buttons sat under the card, off the bottom of
+        # the screen, and the agent had to float the dock and could not record A1. The whole dock is also inside a scroll area for very small screens.
+        for w in (self.version, self.combo, self.start_button):
             lay.addWidget(w)
         lay.addWidget(self.note)
         lay.addLayout(buttons)
+        lay.addWidget(self.status)
+        self.view.setMinimumHeight(180)
+        lay.addWidget(self.view, 1)
         lay.addWidget(self.shot_name)
         lay.addWidget(self.shot_button)
-        lay.addWidget(self.status)
-        self.setWidget(body)
+        lay.addWidget(self.rules)
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setWidget(body)
+        self.setWidget(scroll)
         self.combo.currentIndexChanged.connect(self._show_card)
         self.start_button.clicked.connect(self._start)
         self.shot_button.clicked.connect(self._extra)

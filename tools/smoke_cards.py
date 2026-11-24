@@ -12,6 +12,7 @@ import time
 
 STATUSES = ("PASS", "PARTIAL", "FAIL", "SKIP")
 CONSOLE = re.compile(r"snap\(|shot\(|begin\(|collect_evidence|Python console|exec\(open|EVIDENCE_HOWTO|\bsnap\b", re.I)
+_NO = re.compile(r"\bno (?:real )?(?:model|key|network|internet)\b|\bwithout (?:a )?(?:model|key|network|internet)\b", re.I)       # "QGIS only (no model, no key, no network)" is not a need for a model, a key or a network: A1 was flagged as needing all three
 HUMAN_ONLY = re.compile(r"fluent|GeoDa|MCP client|Antigravity|Claude Code, Codex|second tool", re.I)
 HUMAN_IDS = {
     "V1-update": "it needs an older plugin version to update from, which this package does not contain",
@@ -20,6 +21,8 @@ HUMAN_IDS = {
     "W6-mcp-probe": "it needs commands typed in a terminal, which the Claude app's computer use does not allow (click only)",
     "W7-mcp-dialog": "it needs commands typed in a terminal, which the Claude app's computer use does not allow (click only)",
     "W8-export": "it needs a command typed in a terminal, which the Claude app's computer use does not allow (click only)",
+    "C12-run-processing-model": "it asks you to BUILD two models in the Graphical Modeler (dragging steps and wiring them), which is not something a click-by-click agent can do reliably; a person builds them in about ten minutes",
+    "W12-guide": "it needs a second person who has not seen the guide, and a stopwatch: there is no such reader in an agent run",
     "W10-import-bad": "its terminal command is now run by the program as row H21 (the validator's six refusal sentences); only clicking each file in the Open workflow dialog is left to a person",
 }
 SLOW = re.compile(r"overpass|osm|download|geofabrik|worldpop|stac|sentinel|isochrone|service area|large|mirror", re.I)
@@ -28,16 +31,21 @@ RESULT_FIELDS = ["row", "status", "note", "started", "finished", "seconds", "evi
 
 _DOC_REF = re.compile(r"\s*\((?:see )?(?:EVIDENCE_HOWTO|3_SHEET|CHECKLIST)[^)]*\)", re.I)
 _EVIDENCE_SETTING = re.compile(r"'Save an evidence folder for each request' ticked( in Settings)?", re.I)
+_FILLED = re.compile(r"\(replace <(?:PACKAGE|bundle)> with the full path of the (?:unzipped )?(?:package|bundle) folder\)", re.I)       # the dock fills <PACKAGE> in itself; telling the agent to do it too made it hunt for a path
 _PY = re.compile(r"\bpython3? (?=(?:6_tools|2_layout_check|tools)[\\/])")
 
 
 def fill_paths(text):
     """The terminal commands in the rows say `python 6_tools/x.py`: in this package they run through PY.bat (QGIS's own Python, always present), and <bundle> is the package folder. Pure."""
     text = _DOC_REF.sub("", str(text or ""))
+    text = _FILLED.sub("(the package path is already filled in below)", text)
     text = _EVIDENCE_SETTING.sub("evidence saving already switched on for you", text)
+    # <bundle> first: the rows write r"<bundle>\\3_test_files\\x" and the next line prefixes every "3_test_files\\" with <PACKAGE>, so replacing <bundle> last (as before
+    # 2026-11-24) left "<PACKAGE>\\<PACKAGE>\\3_test_files" in the console lines of C20 to C27: every load in those rows pointed at a folder that does not exist.
+    text = text.replace("<bundle>", "<PACKAGE>").replace("\\\\", "\\")
     text = text.replace("results\\outputs\\", "<PACKAGE>\\results\\outputs\\").replace("3_test_files\\", "<PACKAGE>\\3_test_files\\")
-    text = text.replace("<PACKAGE>\\<PACKAGE>\\", "<PACKAGE>\\")
-    return _PY.sub("PY.bat ", text).replace("<bundle>", "<PACKAGE>")
+    text = text.replace("<PACKAGE>\\<PACKAGE>\\", "<PACKAGE>\\").replace("<PACKAGE>\\<PACKAGE>\\", "<PACKAGE>\\")
+    return _PY.sub("PY.bat ", text)
 
 
 def clean(text):
@@ -50,10 +58,36 @@ DO_OVERRIDES = {
     "A1-layout-script": ("In QGIS: Plugins > Python Console. Type this ONE line (it is the only console command you type in this whole test) and press Enter: "
                          "exec(open(r\"<PACKAGE>\\2_layout_check\\layout_check_script.py\", encoding=\"utf-8\").read())   "
                          "It runs by itself; wait for the table (if nothing prints after 2 minutes, type run() once and say so in the note). The pages are exported into the package folder, in "
-                         "<PACKAGE>\\results\\outputs\\A1-layout-script. Open that folder in File Explorer, press Alt+P to switch on the Preview pane, and click each .png in turn: its picture shows in the preview "
+                         "<PACKAGE>\\results\\outputs\\A1-layout-script. Open that folder in File Explorer, press Alt+P to switch on the Preview pane, and click each .png in turn (the script writes a .png beside every .pdf; there are about ten): its picture shows in the preview "
                          "pane, so no other program is needed. Do not open the .pdf files (they open in a browser, which you cannot use). Look at each page: footer complete and inside the page, "
-                         "legend entries not cut, logo left of the title, sign-off readable, disclaimer not overlapping. If a picture cannot be seen, say so and give Partial."),
+                         "legend entries not cut, logo left of the title, sign-off readable, disclaimer not overlapping. If the Preview pane stays empty or there is no .png at all, say so and give Partial."),
 }
+
+
+# Text added to a card for a step this agent cannot do as the hand sheet wrote it (2026-11-24 review of every card after the first rc4 run: the agent stopped on A1 because the
+# promised PNG pages did not exist, and the same kind of gap sat in other rows). key -> sentence. tests/test_smoke_cards.py proves every row id here exists.
+APPEND = {
+    "A2-settings-connections": {
+        "do": (" 6. (added for 1.20.0-rc4) On the Claude Code CLI, Codex CLI and Antigravity CLI pages look at the Model box: it must show a small drop-down arrow at its right end. Click the "
+               "arrow: a list opens with 'auto (recommended)' and at least one more name; pick one and the box shows it. 7. If Antigravity (or another CLI) is installed on this PC: press its "
+               "Check connection button; when the status line says it answered, its entry in the list on the left must show a tick, not a filled dot. If no CLI is installed, write 'no CLI installed' "
+               "for step 7. Typing the plain text bad-key in step 3 is allowed: it is not a key. Never type a real key."),
+        "pass_if": " Steps 6 and 7 count too: a model box with no arrow or an empty list is a Fail; step 7 without a CLI installed is not a Fail.",
+    },
+    "C1-load-and-scripts": {"do": " For step 6 you cannot use a browser or switch the internet off: confirm the dashboard HTML file exists (File Explorer) and write its name; then read the first lines of the file with your file tools and look for the sentence that says it needs an internet connection."},
+    "C16-charts-and-file-info": {"do": " You cannot open a browser: for (1) and (2) check that the reply gives the path of a .html file and that the file exists in File Explorer; the chart picture itself is not checked (Partial at best for that part)."},
+    "C8-table-and-map-display": {"do": " For (5) the browser opens by itself: you may only look at it. If it comes to the front, click the QGIS button on the taskbar. For (6) the plugin must refuse; you do not open Notepad."},
+    "W5-hdx-ranked": {"do": " You cannot use a browser: do not open the HDX page. Write the first result's title and its HDX link from the reply in the note."},
+    "W13-environment": {"do": " You cannot use a text editor: skip the paste. Instead press Copy in the Settings Diagnostics section and say in the note that the paste was not checked."},
+    "C23-cluster-scan": {"do": " Skip step 5 (SaTScan is another program): write 'SaTScan comparison not done' in the note; steps 1 to 4 decide the row."},
+    "C13-processing-batch": {"do": " For step (4) use the raster 3_test_files\\smoke_dem.tif."},
+    "C10-raster-inspection": {"do": " The DEM is 3_test_files\\smoke_dem.tif and the classified (land-cover) raster is 3_test_files\\smoke_worldcover.asc."},
+    "C15-points-to-path-and-relief": {"do": " The elevation GeoTIFF is 3_test_files\\smoke_dem.tif (name the layer dem)."},
+}
+
+
+def _apply_append(row_id, key, text):
+    return fill_paths(str(text or "") + APPEND.get(row_id, {}).get(key, "")).strip()
 
 
 def make_cards(rows, machine_rows=None):
@@ -65,11 +99,11 @@ def make_cards(rows, machine_rows=None):
         human = bool(HUMAN_ONLY.search(needs)) or row["id"] in HUMAN_IDS
         cards.append({
             "id": row["id"], "session": row.get("session", ""), "title": row.get("title", ""), "needs": needs,
-            "model_needed": bool(re.search(r"model|key", needs, re.I)), "internet_needed": bool(re.search(r"internet|network", needs, re.I)),
+            "model_needed": bool(re.search(r"model|key", _NO.sub("", needs), re.I)), "internet_needed": bool(re.search(r"internet|network", _NO.sub("", needs), re.I)),
             "can_run": not human, "why_not": HUMAN_IDS.get(row["id"], "needs a second program or a fluent reader a computer-use agent does not have") if human else "",
             "slow": bool(SLOW.search(" ".join([needs, str(row.get("do", ""))]))),
-            "starts_from": clean(row.get("starts_from", "")), "do": DO_OVERRIDES.get(row["id"]) or clean(row.get("do", "")), "expect": clean(row.get("expect", "")),
-            "pass_if": clean(row.get("pass_if", "")), "also_capture": clean(row.get("evidence", "")), "files": list(row.get("files", [])),
+            "starts_from": clean(row.get("starts_from", "")), "do": _apply_append(row["id"], "do", fill_paths(DO_OVERRIDES.get(row["id"]) or clean(row.get("do", "")))), "expect": clean(row.get("expect", "")),
+            "pass_if": _apply_append(row["id"], "pass_if", clean(row.get("pass_if", ""))), "also_capture": clean(row.get("evidence", "")), "files": list(row.get("files", [])),
             "machine_checked_by": machine_rows.get(row["id"], []),
         })
     return cards
@@ -86,8 +120,8 @@ def helps(card):
     body = " ".join(str(card.get(k, "")) for k in ("starts_from", "do", "expect", "pass_if"))
     out = []
     if re.search(r"fresh chat|new chat", body, re.I):
-        out.append("FRESH CHAT: this plugin version has no 'New chat' button. The chat follows the project: start the row from File > New (or open the row's project file) and the chat starts empty. "
-                   "If the old conversation is still on screen, say so in the note and carry on.")
+        out.append("FRESH CHAT: click the New chat button in the chat's message row (next to the layer-context button); it empties the conversation and the model's memory. "
+                   "Opening a different project (File > New or the row's project file) also starts a fresh chat. If the old conversation is still on screen after that, say so in the note and carry on.")
     if re.search(r"save the project", body, re.I):
         out.append(f"SAVE FIRST: File > Save As into <PACKAGE>\\results\\outputs\\{card['id']}\\ BEFORE the first request; the plugin writes its evidence next to a saved project (an unsaved project leaves none).")
     if re.search(r"a copy of", str(card.get("starts_from", "")), re.I):
@@ -96,6 +130,9 @@ def helps(card):
         out.append("WORK ON A COPY: this row's tools change the data file they load (a new field, a changed value). In File Explorer copy the whole 3_test_files folder to "
                    f"<PACKAGE>\\results\\work\\{card['id']}_copy (click the folder, Ctrl+C, Ctrl+V, rename the copy) and load every file from THAT copy, never from 3_test_files. "
                    "The 2026-11-20 run changed smoke_data.gpkg in 3_test_files during C7 and D2 and had to restore it.")
+    if re.search(r"iface\.add|\bfrom cartogen_ai\b|QgsSettings\(\)", body):
+        out.append("CONSOLE: this row gives you exact lines to type in Plugins > Python Console. Type ONLY those lines, character for character (the <PACKAGE> path is already filled in below the card as "
+                   "the package folder), press Enter once per line and read the output. Never type any other command there.")
     if _BROWSER.search(body):
         out.append("BROWSERS: the Claude app lets you only LOOK at a web browser, not click or type in it. Skip any step that needs one, say so in the note, and give the row Partial at best.")
     if re.search(r"\bNotepad\b|\bExcel\b|\bLibreOffice\b", body):

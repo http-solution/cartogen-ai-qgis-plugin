@@ -142,7 +142,14 @@ def run(output_dir=None, quiet=False):  # noqa: C901 -- one flat list of indepen
     def export(res, name, ext="pdf", **kw):
         from cartogen_ai.core.agent.tools.layout_item_tools import export_layout
         path = os.path.join(out, f"{name}.{ext}")
-        return export_layout(res["layout_name"], path, confirmed=True, **kw), path
+        result = export_layout(res["layout_name"], path, confirmed=True, **kw)
+        if ext == "pdf":
+            # A PNG beside every PDF, because a person or an agent who cannot open a PDF (it opens in a browser) can still look at a PNG in File Explorer's
+            # Preview pane. The 2026-11-24 rc4 run found only PDFs in the output folder although the card told the agent to click .png files. Best effort: a
+            # failed picture must never fail the check itself.
+            with contextlib.suppress(Exception):
+                export_layout(res["layout_name"], os.path.join(out, f"{name}.png"), confirmed=True, output_format="png", **kw)
+        return result, path
 
     def make(title, **kw):
         from cartogen_ai.core.agent.tools.layout_tools import create_print_layout

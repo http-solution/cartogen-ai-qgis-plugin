@@ -46,6 +46,8 @@ with your file tools), skipping rows whose card says it is a human row. For each
    double quotes). Never edit another line of that file.
 A PASS needs the card's pass condition seen with your own eyes. The report marks every line you typed yourself as "typed" and only believes it when the observations file and the plugin's own record agree.
 
+SCREENSHOTS: when a card's EXTRA EVIDENCE line asks for a named screenshot, type that name (for example A2-connections) in the dock's 'extra screenshot name' box and press 'Extra screenshot' while the thing is on the screen. The dock already saves one screenshot of the whole screen and the layers when you press a result button, so extra ones are optional: do them only when easy.
+
 THE LOOP (repeat until every row has a result)
 1. Click "Start this row". Do exactly the steps under DO, in QGIS. Chat prompts go in the Cartogen AI chat exactly as written, one at a time. Wait for each reply to finish before the next.
    If your own chat window covers the dock, move it away or minimise it first.
@@ -65,7 +67,7 @@ PERMISSION PROMPTS: the Claude app asks the owner to allow each app once per ses
 LIMITS (these are the only STOP cases)
 - Never enter, read out, search for or change an API key or password. If a card needs the model and it is not connected, Skip with the note "no key".
 - Only touch the package folder, QGIS and File Explorer (and Task Manager when the prompt says so). Look at images with File Explorer's Preview pane (Alt+P), not another program. Web browsers are look-only for you (the Claude app does not let you click or type in them): never rely on one, skip a step that needs one and say so. Do not install software, change Windows settings, delete files, or open websites.
-- The QGIS Python console is used for exactly one thing: the single line on card A1. Never type a command there that a card does not give you. Do not try to type in Command Prompt or PowerShell.
+- The QGIS Python console is used ONLY for lines that a card gives you word for word (card A1 and the rows that load a test file or call a plugin tool from the console). Type those exactly, nothing else. Do not try to type in Command Prompt or PowerShell.
 - Do not paste with Ctrl+V yourself (the clipboard may hold old text). Typing with your type tool is fine even if it uses the clipboard inside: just read the chat box before you press Enter and retype if the text is not what the card says.
 - Never claim a result you did not see. A wrong Pass is worse than a Skip.
 
