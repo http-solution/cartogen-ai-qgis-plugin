@@ -521,6 +521,11 @@ class TestRenderSafetyGateHtml(unittest.TestCase):
 
 
 class TestBuildDockStylesheet(unittest.TestCase):
+    def test_combo_boxes_keep_their_drop_down_arrow(self):
+        """A QComboBox::drop-down rule with no ::down-arrow image makes Qt stop drawing the arrow (owner, rc3 screenshot 2026-11-24:
+        the CLI model boxes looked like text fields and 'only automatic' could be chosen)."""
+        self.assertNotIn("QComboBox::drop-down {", build_dock_stylesheet(None))
+
     def test_falls_back_to_defaults_when_no_palette(self):
         qss = build_dock_stylesheet(None)
         self.assertIn("QPushButton", qss)

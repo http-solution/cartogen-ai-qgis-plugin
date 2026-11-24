@@ -1236,10 +1236,9 @@ QLineEdit, QTextEdit, QComboBox {{
 QLineEdit:focus, QTextEdit:focus, QComboBox:focus {{
     border: 1px solid {highlight};
 }}
-QComboBox::drop-down {{
-    border: none;
-    width: 20px;
-}}
+/* No QComboBox::drop-down rule on purpose: styling that sub-control without also giving ::down-arrow an image makes Qt stop drawing the
+   arrow, so the model boxes on the Connections pages looked like plain text fields and the owner could not tell they open a list
+   (reported 2026-11-24, screenshot of rc3). */
 QProgressBar {{
     border: 1px solid {border};
     border-radius: 6px;
