@@ -206,6 +206,37 @@ class TestConnectionsWindow(unittest.TestCase):
         for provider in ("claude_cli", "codex_cli", "agy_cli"):
             self.assertGreater(dialog._model_combos[provider].count(), 1)   # auto plus at least one named model
 
+    def test_a_lookup_that_never_answers_is_given_up_on_and_late_or_quiet_answers_behave(self):
+        """Owner 2026-11-24 (rc3 screenshot): 'Looking...' never cleared. Written without a QGIS install; CI's first run is its first execution."""
+        import threading
+        from unittest.mock import patch
+
+        from cartogen_ai.infrastructure.providers import cli_bridge_status
+        release = threading.Event()
+
+        def hang(configured=None, progress=None, refresh=True):
+            release.wait(10)
+            return [dict(r) for r in self.RESULTS]
+        with patch.object(cli_bridge_status, "detect_all", side_effect=hang):
+            dialog = self._dialog()
+            self.assertTrue(dialog._detecting)
+            self.assertEqual(dialog._detect_labels["codex_cli"].text(), "Looking...")
+            dialog._on_detect_timeout()                                   # what the 60-second watchdog calls
+            self.assertFalse(dialog._detecting)
+            self.assertIn("Still looking", dialog._detect_labels["codex_cli"].text())
+            self.assertTrue(dialog._detect_buttons["codex_cli"].isEnabled())      # Detect again is usable again
+            release.set()
+        dialog._on_detected([dict(r) for r in self.RESULTS])               # the late answer is still used
+        self.assertIn("Found codex-cli", dialog._detect_labels["codex_cli"].text())
+        # a quiet automatic re-check keeps the answer on screen and the button usable
+        with patch.object(cli_bridge_status, "detect_all", return_value=[dict(r) for r in self.RESULTS]):
+            dialog._start_detect_quietly()
+        self.assertIn("Found codex-cli", dialog._detect_labels["codex_cli"].text())
+        self.assertTrue(dialog._detect_buttons["codex_cli"].isEnabled())
+        # one CLI's answer is shown by itself, and a failure on one page does not blank the others
+        dialog._on_detected_one({**self.RESULTS[0], "found": True, "path": "/bin/claude", "version": "2.1", "state": "yes", "problem": ""})
+        self.assertIn("Found 2.1", dialog._detect_labels["claude_cli"].text())
+
     def test_the_install_step_copies_the_command_and_asks_nothing(self):
         from qgis.PyQt.QtWidgets import QApplication
         dialog = self._guided(self.RESULTS)

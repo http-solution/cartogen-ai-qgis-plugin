@@ -5,6 +5,7 @@ Status: UNVERIFIED against a real signed-in CLI, like cli_bridge.py. `--version`
 conventional; not read in their docs for each). The terminal launch is untested on every platform: it is attempted only when the program
 path is made of plain characters, and otherwise the caller shows the command for the user to run themselves."""
 import json
+import contextlib
 import os
 import re
 import shutil
@@ -149,12 +150,13 @@ def list_models(provider, path, timeout=30):
     return cb.parse_agy_models(out) if code == 0 else []
 
 
-def detect_all(configured=None):
+def detect_all(configured=None, progress=None, refresh=True):
     """Looks for every CLI provider on this computer: program found, version, and whether the user is signed in. `configured` maps a
     provider to the program text from the form (blank = the default name). Runs `--version` and a sign-in status command per CLI found;
-    no model call, nothing sent anywhere. Returns a list of dicts in a fixed order."""
+    no model call, nothing sent anywhere. Returns a list of dicts in a fixed order. `progress`, when given, is called with each CLI's dict the moment it is known
+    (a window uses it to show a fast answer without waiting for a slow program); an error inside it never stops the lookup."""
     configured = configured or {}
-    cli_locator.ensure(refresh=True)  # ask the OS what the user's own terminal would search (a shell / the registry / npm), once per detection
+    cli_locator.ensure(refresh=refresh)  # (refresh=False for the automatic re-checks: the slow look-up of the search folders is done once, not on every window focus) ask the OS what the user's own terminal would search (a shell / the registry / npm), once per detection
     searched = cb.search_folders()
     out = []
     for provider in _SPECS:
@@ -170,6 +172,9 @@ def detect_all(configured=None):
                     "version": info["version"], "problem": info["problem"], "state": sign["state"], "note": sign["note"],
                     "tried": tried, "searched": searched,
                     "diagnosis": [] if info["found"] else cb.diagnose_missing(DEFAULT_PROGRAM[provider])})
+        if progress is not None:
+            with contextlib.suppress(Exception):
+                progress(out[-1])
     return out
 
 
