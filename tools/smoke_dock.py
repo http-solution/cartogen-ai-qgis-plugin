@@ -6,12 +6,13 @@ Start it from QGIS with START_QGIS.bat (qgis --code tools\\smoke_dock_start.py),
 
 Status: the card/session logic is tested offline (tests/test_smoke_cards.py) and the widget is clicked through in the QGIS CI job (tests/test_smoke_dock_live.py). NOT yet run in a real
 desktop QGIS 4.2.3 session, and window screenshots through window.grab() were last seen working on 2026-10-28 (QGIS 4.2.3)."""
+import contextlib
 import json
 import os
 import sys
 
 import smoke_cards as cards_mod
-from qgis.PyQt.QtCore import Qt
+from qgis.PyQt.QtCore import Qt, QTimer
 from qgis.PyQt.QtWidgets import QComboBox, QDockWidget, QHBoxLayout, QLabel, QLineEdit, QPushButton, QScrollArea, QTextBrowser, QVBoxLayout, QWidget
 
 EXPECTED_QGIS = "4.2.3"
@@ -146,7 +147,7 @@ class SmokeDock(QDockWidget):
             return
         try:
             self.extra_shot(f"{self.session.current}-{name}")
-            self.status.setText(f"saved screenshot {self.session.current}-{name}")
+            self.status.setText(f"screenshot {self.session.current}-{name} requested: this line says in a few seconds whether the file exists")
         except Exception as e:
             self.status.setText(f"screenshot failed: {type(e).__name__}: {e}")
 
@@ -174,6 +175,41 @@ def _capture(path):
     return True
 
 
+def _grab_window(path):
+    """The picture taken from INSIDE QGIS (its main window), used only when the out-of-process capture left no file."""
+    from qgis.utils import iface
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    return bool(iface.mainWindow().grab().save(path))
+
+
+def capture_with_fallback(path, start=None, grab=None, schedule=None, delay_ms=6000, done=None):
+    """Starts the out-of-process screen capture and, `delay_ms` later, checks that a file really exists; when it does not, takes the picture from inside QGIS instead.
+    Why: `_capture` returns True as soon as PowerShell has been STARTED, so `_capture(...) or <in-QGIS grab>` never ran the grab, and when PowerShell was blocked (an
+    antivirus window was open on the owner's PC in the 2026-11-24 run) no PNG was ever written while the dock still said 'saved screenshot'. `done(ok, how)` is told the
+    truth. Never raises."""
+    start = start or _capture
+    grab = grab or _grab_window
+    schedule = schedule or QTimer.singleShot
+
+    def check():
+        try:
+            ok = os.path.isfile(path) and os.path.getsize(path) > 0
+            how = "screen capture"
+            if not ok:
+                how = "QGIS window picture (the screen capture left no file)"
+                ok = bool(grab(path)) and os.path.isfile(path)
+        except Exception as e:                     # a screenshot must never be able to take the run down
+            ok, how = False, f"failed: {type(e).__name__}"
+        if done is not None:
+            with contextlib.suppress(Exception):
+                done(ok, how)
+    started = False
+    with contextlib.suppress(Exception):
+        started = start(path)
+    schedule(delay_ms, check)
+    return started
+
+
 def show(package_dir):
     """Wires the real evidence collector and docks the card window into the running QGIS. Returns the dock."""
     from qgis.core import Qgis, QgsSettings
@@ -196,11 +232,11 @@ def show(package_dir):
     cards_mod.record_human_rows(results, cards)           # human rows need nothing from the agent: record them at once so the dock only ever shows work to do
 
     def snapshot(row, note):
-        _capture(os.path.join(results, "screens", f"{row}.png"))       # first and from outside QGIS: it is the picture of what the agent just saw
+        capture_with_fallback(os.path.join(results, "screens", f"{row}.png"))      # first and from outside QGIS: it is the picture of what the agent just saw; checked, with an in-QGIS picture as the fallback
         ce.snap(row, note, screenshots=False)                          # the rest reads only data (layers, properties, project, log, the plugin's own evidence)
 
     session = cards_mod.Session(results, cards, snapshot)
-    dock = SmokeDock(session, cards, extra_shot=lambda name: _capture(os.path.join(results, "screens", f"{name}.png")) or ce.shot(name), qgis_version=version, parent=iface.mainWindow(), package_dir=package_dir)
+    dock = SmokeDock(session, cards, extra_shot=lambda name: capture_with_fallback(os.path.join(results, "screens", f"{name}.png"), done=lambda ok, how: dock.status.setText(f"screenshot {name}: " + (f"saved ({how})" if ok else f"NOT saved ({how}); say so in the note"))), qgis_version=version, parent=iface.mainWindow(), package_dir=package_dir)
     if interrupted:
         dock.status.setText(f"Row {interrupted} was open when QGIS last closed; it was recorded as FAIL 'interrupted'. Carry on with the next row.")
     iface.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, dock)
