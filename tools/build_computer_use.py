@@ -19,18 +19,19 @@ import build_full_smoke as full  # noqa: E402
 import smoke_cards  # noqa: E402
 
 SIX_TOOLS = ("mcp_probe.py", "check_workflow_file.py", "summarize_usage_log.py", "verify_inputs.py")         # the rows say `python 6_tools/...`; PY.bat runs them with QGIS's own Python
-TOOLS = ("record_result.py", "supervisor.ps1", "smoke_cards.py", "smoke_watch.py", "smoke_watch_start.py", "smoke_core.py", "run_smoke_headless.py", "analyze_smoke_run.py", "request_costs.py", "collect_evidence.py",
+TOOLS = ("record_result.py", "supervisor.ps1", "smoke_cards.py", "smoke_watch.py", "smoke_watch_start.py", "prepare_run.py", "smoke_core.py", "run_smoke_headless.py", "analyze_smoke_run.py", "request_costs.py", "collect_evidence.py",
          "make_full_smoke_fixtures.py", "verify_inputs.py")
 
 PROMPT = r"""You are the tester. Your job is to finish the whole Cartogen AI smoke test on this Windows 11 PC, by yourself, from the screen, the mouse and the keyboard. You may open
 File Explorer, start and restart QGIS, change the Cartogen AI and QGIS settings that the cards ask for, and recover from failures. You never need to type in Command Prompt or PowerShell (the Claude app only lets you click there): everything is started by double-clicking the .bat files. Do not stop to ask unless the STOP list below applies. Work until every row has a result.
 
 HOW THIS WORKS (there is no panel to use)
-- You read the cards in CARDS_FILLED.md in the package folder (every path in it is already filled in; it is written when QGIS starts: open it with your file tools or File Explorer's Preview pane).
+- You read the cards in CARDS_FILLED.md in the package folder (every path in it is already filled in; RUN_EVERYTHING.bat writes it before QGIS opens: open it with your file tools or File Explorer's Preview pane). If that file is missing, double-click RUN_EVERYTHING.bat again; do not guess paths.
 - You do each card in QGIS, then write the result yourself into results\RESULTS_GUI.csv. That is the only report. A small program inside QGIS watches that file and, a few seconds after your line appears, saves the evidence by itself: a picture of the screen, the layer list, the project state, the log and the plugin's own record of the tools it called. You do not click anything for that and you cannot forget it.
 
 START
 1. Open File Explorer, go to the package folder and double-click RUN_EVERYTHING.bat. It runs the program-checked rows, opens QGIS and reopens it after a crash. Leave its black window open. (START_QGIS.bat alone opens just QGIS.)
+   If its black window says "QGIS is still open", close QGIS (File > Exit; a frozen one: Task Manager > End task) and double-click RUN_EVERYTHING.bat again: it installs the plugin of this package first, and cannot while QGIS holds the old files.
 2. Wait until QGIS has opened (up to 2 minutes). Open results\watcher.log: it should end with a line "watcher running". If it says START-UP FAILED, copy that line into results\evidence\START\observations.txt and carry on anyway.
 
 THE LOOP (repeat until every row has a result)
@@ -38,7 +39,7 @@ THE LOOP (repeat until every row has a result)
 2. Before the first request of the row: File > Save As the open project into results\outputs\<ROW>\ (<ROW> is the card's id). The plugin writes its own record of the tools it called next to a SAVED project, and the report can only believe a PASS that this record backs.
 3. If the card says WORK ON A COPY, copy the whole 3_test_files folder to results\work\<ROW>_copy and load from the copy. Never change a file inside 3_test_files.
 4. Do exactly the steps under DO. Chat prompts go in the Cartogen AI chat exactly as written, one at a time; wait for each reply to finish before the next. Plugin downloads (OSM, HDX, WorldPop, STAC) are the plugin working, not you opening a website.
-5. Write results\evidence\<ROW>\observations.txt (create the folder if it is missing): what you did and saw, one plain line each, and what you could not do. Then add ONE new line at the end of results\RESULTS_GUI.csv with the columns row,status,note,started,finished,seconds,evidence_error (leave the last four empty). status is exactly PASS, PARTIAL, FAIL or SKIP; the note is one line with no commas or is in double quotes. Never edit another line of that file.
+5. Write results\evidence\<ROW>\observations.txt (create the folder if it is missing): what you did and saw, one plain line each, and what you could not do. Then add ONE new line at the end of results\RESULTS_GUI.csv (it already exists with its header line; if it does not, create it with the header line first) with the columns row,status,note,started,finished,seconds,evidence_error (leave the last four empty). status is exactly PASS, PARTIAL, FAIL or SKIP; the note is one line with no commas or is in double quotes. Never edit another line of that file.
 6. Wait 10 seconds before you touch QGIS again: that is when the watcher takes the evidence. Then check results\watcher.log: its last line should say "evidence taken for <ROW>". If it does not, say so in the note of the next row and carry on.
 PASS only if every PASS ONLY IF condition is true on the screen. Not sure = PARTIAL. A step you could not do = FAIL, and say which step. The report marks every line as written by you and only believes it when the evidence from the watcher and the plugin's own record agree.
 
@@ -124,10 +125,14 @@ if not exist "%QGIS%\\bin\\qgis-bin.exe" for /d %%D in ("C:\\Program Files\\QGIS
 if not exist "%QGIS%\\bin\\qgis-bin.exe" (echo Cannot find qgis-bin.exe. Edit the QGIS line of this file. & exit /b 2)
 set CARTOGEN_SMOKE_DIR=%PKG%
 set PLUGINS=%APPDATA%\\QGIS\\QGIS4\\profiles\\default\\python\\plugins
-if not exist "%PLUGINS%\\cartogen_ai_plugin" (
-  mkdir "%PLUGINS%" 2>nul
-  powershell -NoProfile -Command "Expand-Archive -Force -Path (Get-ChildItem '%PKG%\\1_plugin\\cartogen_ai_v*.zip' | Select-Object -First 1).FullName -DestinationPath '%PLUGINS%'"
-)
+rem Always install the plugin that is IN THIS PACKAGE (an older copy left in the profile made earlier runs test the wrong version). QGIS must be closed, or the old files are locked.
+tasklist /fi "imagename eq qgis-bin.exe" 2>nul | find /i "qgis-bin.exe" >nul
+if not errorlevel 1 (echo QGIS is still open. Close it first, then run this file again, so the plugin of this package can be installed. & exit /b 3)
+if exist "%PLUGINS%\\cartogen_ai_plugin" rmdir /s /q "%PLUGINS%\\cartogen_ai_plugin"
+mkdir "%PLUGINS%" 2>nul
+powershell -NoProfile -Command "Expand-Archive -Force -Path (Get-ChildItem '%PKG%\\1_plugin\\cartogen_ai_v*.zip' | Select-Object -First 1).FullName -DestinationPath '%PLUGINS%'"
+rem Write CARDS_FILLED.md and the results file before anything else, with plain Python, so the agent has its cards even if QGIS fails to start.
+call "%PKG%\\PY.bat" "%PKG%\\tools\\prepare_run.py" "%PKG%"
 start "" /max "%QGIS%\\bin\\qgis-bin.exe" --code "%PKG%\\tools\\smoke_watch_start.py" "%PKG%\\3_test_files\\smoke_start.qgz"
 """
 
@@ -161,10 +166,14 @@ setlocal
 set PKG=%~dp0
 set PKG=%PKG:~0,-1%
 set PLUGINS=%APPDATA%\\QGIS\\QGIS4\\profiles\\default\\python\\plugins
-if not exist "%PLUGINS%\\cartogen_ai_plugin" (
-  mkdir "%PLUGINS%" 2>nul
-  powershell -NoProfile -Command "Expand-Archive -Force -Path (Get-ChildItem '%PKG%\\1_plugin\\cartogen_ai_v*.zip' | Select-Object -First 1).FullName -DestinationPath '%PLUGINS%'"
-)
+rem Always install the plugin that is IN THIS PACKAGE (an older copy left in the profile made earlier runs test the wrong version). QGIS must be closed, or the old files are locked.
+tasklist /fi "imagename eq qgis-bin.exe" 2>nul | find /i "qgis-bin.exe" >nul
+if not errorlevel 1 (echo QGIS is still open. Close it first, then run this file again, so the plugin of this package can be installed. & exit /b 3)
+if exist "%PLUGINS%\\cartogen_ai_plugin" rmdir /s /q "%PLUGINS%\\cartogen_ai_plugin"
+mkdir "%PLUGINS%" 2>nul
+powershell -NoProfile -Command "Expand-Archive -Force -Path (Get-ChildItem '%PKG%\\1_plugin\\cartogen_ai_v*.zip' | Select-Object -First 1).FullName -DestinationPath '%PLUGINS%'"
+rem Write CARDS_FILLED.md and the results file before anything else, with plain Python, so the agent has its cards even if QGIS fails to start.
+call "%PKG%\\PY.bat" "%PKG%\\tools\\prepare_run.py" "%PKG%"
 powershell -NoProfile -ExecutionPolicy Bypass -File "%PKG%\\tools\\supervisor.ps1" -Pkg "%PKG%"
 echo.
 echo Finished. Open results\\REPORT.md.
