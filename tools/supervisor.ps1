@@ -1,5 +1,5 @@
 # Runs the whole computer-use test and brings QGIS back after a crash. Started by RUN_EVERYTHING.bat; keep its window open.
-#   1. the program-checked rows (no agent), 2. QGIS with the card dock, restarted up to 8 times while rows are still unfinished, 3. the report.
+#   1. the program-checked rows (no agent), 2. QGIS with the evidence watcher, restarted up to 8 times while rows are still unfinished, 3. the report.
 param([Parameter(Mandatory = $true)][string]$Pkg)
 $ErrorActionPreference = "Continue"
 $results = Join-Path $Pkg "results"
@@ -48,17 +48,17 @@ for ($i = 1; $i -le 8; $i++) {
     $left = Unfinished
     if ($left.Count -eq 0) { Log "every runnable row has a result"; break }
     Log "starting QGIS, attempt $i, rows left: $($left.Count)"
-    $startLog = Join-Path $results "dock_start.log"
+    $startLog = Join-Path $results "watcher.log"
     $mark = 0
     if (Test-Path $startLog) { $mark = @(Get-Content $startLog).Count }
-    $p = Start-Process -FilePath (Join-Path $qgis "bin\qgis-bin.exe") -ArgumentList @("--code", "`"$Pkg\tools\smoke_dock_start.py`"", "`"$Pkg\3_test_files\smoke_start.qgz`"") -PassThru -WindowStyle Maximized
+    $p = Start-Process -FilePath (Join-Path $qgis "bin\qgis-bin.exe") -ArgumentList @("--code", "`"$Pkg\tools\smoke_watch_start.py`"", "`"$Pkg\3_test_files\smoke_start.qgz`"") -PassThru -WindowStyle Maximized
     $started = Get-Date; $checked = $false; $lastShot = Get-Date; $lines = ResultLines
     while (-not $p.WaitForExit(2000)) {
         $now = Get-Date
         if (-not $checked -and ($now - $started).TotalSeconds -ge 90) {
             $checked = $true
             $fresh = @(Get-Content $startLog -ErrorAction SilentlyContinue | Select-Object -Skip $mark)
-            if (@($fresh | Where-Object { $_ -like "*dock shown*" }).Count -eq 0) { Log "WARNING: QGIS has run 90 s but the card dock did not report that it was shown; read results\dock_start.log and results\dock_errors.txt" } else { Log "the card dock reported that it was shown" }
+            if (@($fresh | Where-Object { $_ -like "*watcher running*" }).Count -eq 0) { Log "WARNING: QGIS has run 90 s but the evidence watcher did not report that it was running; read results\watcher.log and results\dock_errors.txt" } else { Log "the card dock reported that it was shown" }
         }
         $now2 = ResultLines
         if ($now2 -ne $lines) { $lines = $now2; $lastShot = $now; Capture "row_change" }
