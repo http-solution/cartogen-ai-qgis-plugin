@@ -487,6 +487,7 @@ class TestTheBuiltPackage(unittest.TestCase):
             self.assertIn("prepare_run.py", text, bat)                    # the cards and the results file exist before QGIS opens
             self.assertIn("QGIS is still open", text, bat)                # the packaged plugin replaces an older copy only when its files are not locked
             self.assertIn("rmdir /s /q", text, bat)
+            self.assertLess(text.index("setlocal\r\ncall \"%PKG%\\PY.bat\""), text.index("\r\nendlocal"), bat)      # QGIS's python setup must not leak its settings into the QGIS that is started next
 
     def test_csv_of_results_header_is_stable(self):
         self.assertEqual(sc.RESULT_FIELDS[:3], ["row", "status", "note"])

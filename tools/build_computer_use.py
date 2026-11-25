@@ -132,7 +132,10 @@ if exist "%PLUGINS%\\cartogen_ai_plugin" rmdir /s /q "%PLUGINS%\\cartogen_ai_plu
 mkdir "%PLUGINS%" 2>nul
 powershell -NoProfile -Command "Expand-Archive -Force -Path (Get-ChildItem '%PKG%\\1_plugin\\cartogen_ai_v*.zip' | Select-Object -First 1).FullName -DestinationPath '%PLUGINS%'"
 rem Write CARDS_FILLED.md and the results file before anything else, with plain Python, so the agent has its cards even if QGIS fails to start.
+rem setlocal/endlocal: python-qgis.bat changes PATH, PYTHONPATH and other settings, and QGIS must NOT inherit those when it is started below.
+setlocal
 call "%PKG%\\PY.bat" "%PKG%\\tools\\prepare_run.py" "%PKG%"
+endlocal
 start "" /max "%QGIS%\\bin\\qgis-bin.exe" --code "%PKG%\\tools\\smoke_watch_start.py" "%PKG%\\3_test_files\\smoke_start.qgz"
 """
 
@@ -173,7 +176,10 @@ if exist "%PLUGINS%\\cartogen_ai_plugin" rmdir /s /q "%PLUGINS%\\cartogen_ai_plu
 mkdir "%PLUGINS%" 2>nul
 powershell -NoProfile -Command "Expand-Archive -Force -Path (Get-ChildItem '%PKG%\\1_plugin\\cartogen_ai_v*.zip' | Select-Object -First 1).FullName -DestinationPath '%PLUGINS%'"
 rem Write CARDS_FILLED.md and the results file before anything else, with plain Python, so the agent has its cards even if QGIS fails to start.
+rem setlocal/endlocal: python-qgis.bat changes PATH, PYTHONPATH and other settings, and QGIS must NOT inherit those when it is started below.
+setlocal
 call "%PKG%\\PY.bat" "%PKG%\\tools\\prepare_run.py" "%PKG%"
+endlocal
 powershell -NoProfile -ExecutionPolicy Bypass -File "%PKG%\\tools\\supervisor.ps1" -Pkg "%PKG%"
 echo.
 echo Finished. Open results\\REPORT.md.

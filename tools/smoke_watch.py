@@ -17,6 +17,7 @@ from qgis.PyQt.QtCore import QTimer
 
 EXPECTED_QGIS = "4.2.3"
 POLL_MS = 3000
+HEARTBEAT_POLLS = 20          # one log line a minute
 _KEEP = []          # the watcher and its timer must stay referenced, or Qt may collect them
 
 
@@ -75,10 +76,14 @@ class Watcher:
         self.results, self.snap, self.capture = results, snap, capture
         self.log = log or (lambda text: cards_mod.start_log(results, text))
         self.seen = set(cards_mod.load_results(results))        # rows that already have a line when we start are not re-snapped
+        self.polls = 0
 
     def poll(self):
         """One look at the file. Returns the row ids handled. Never raises (a Qt timer must not let anything escape)."""
         handled = []
+        self.polls += 1
+        if self.polls % HEARTBEAT_POLLS == 0:                    # proof in watcher.log that the timer is really running, whether or not anything was written
+            self.log(f"watcher alive: {len(self.seen)} rows have a result line")
         try:
             fresh = cards_mod.new_result_rows(self.results, self.seen)
         except Exception as e:
@@ -125,6 +130,9 @@ def start(package_dir):
     timer.timeout.connect(watcher.poll)
     timer.start()
     _KEEP.extend([watcher, timer])
+    with contextlib.suppress(Exception):                       # a visible sign that the watcher is on (a message bar, not a panel); its absence tells the owner it did not start
+        from qgis.utils import iface
+        iface.messageBar().pushMessage("Smoke test", "Evidence watcher running: it saves the evidence when a result line is added to results\\RESULTS_GUI.csv", level=Qgis.MessageLevel.Info, duration=0)
     warning = "" if str(version).startswith(EXPECTED_QGIS) else f" WARNING: this run expects QGIS {EXPECTED_QGIS}"
     cards_mod.start_log(results, f"watcher running (rows={len(cards)}, package={build or 'no BUILD.txt'}, qgis={version}, cards={filled}){warning}")
     return watcher
