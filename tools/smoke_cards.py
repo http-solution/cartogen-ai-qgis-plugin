@@ -74,6 +74,12 @@ APPEND = {
                "for step 7. Typing the plain text bad-key in step 3 is allowed: it is not a key. Never type a real key."),
         "pass_if": " Steps 6 and 7 count too: a model box with no arrow or an empty list is a Fail; step 7 without a CLI installed is not a Fail.",
     },
+    "R1-H1-persona-panel": {
+        "do": (" The Settings window has no control that resets the profile (only deleting files does), so skip step (6): write 'step 6 not done: no profile reset in the UI' in the note. "
+               "Scroll the mouse wheel only over empty space: over a number box it changes the number (a scroll changed Max tool-call rounds from 49 to 44 in the 2026-11-24 run). "
+               "At the end set Primary back to GIS Generalist and Secondary to None, then press OK."),
+        "pass_if": " Steps (1) to (5) decide the row: if they all behave as Expect, give Pass and say that step 6 was not done; a person checks step 6 once.",
+    },
     "C1-load-and-scripts": {"do": " For step 6 you cannot use a browser or switch the internet off: confirm the dashboard HTML file exists (File Explorer) and write its name; then read the first lines of the file with your file tools and look for the sentence that says it needs an internet connection."},
     "C16-charts-and-file-info": {"do": " You cannot open a browser: for (1) and (2) check that the reply gives the path of a .html file and that the file exists in File Explorer; the chart picture itself is not checked (Partial at best for that part)."},
     "C8-table-and-map-display": {"do": " For (5) the browser opens by itself: you may only look at it. If it comes to the front, click the QGIS button on the taskbar. For (6) the plugin must refuse; you do not open Notepad."},

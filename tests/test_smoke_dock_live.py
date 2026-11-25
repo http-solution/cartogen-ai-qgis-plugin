@@ -1,6 +1,7 @@
 """Live check of the smoke card dock (tools/smoke_dock.py) on real QGIS/Qt: the buttons drive the session, a result click takes the evidence through the snapshot callback and writes the line, a result
 before Start is refused, Skip works on a row never started, and a wrong QGIS version shows the warning. The real evidence collector (window.grab) needs a desktop and is not exercised here. Written without
 a QGIS install: CI's first run is its first execution."""
+import os
 import sys
 import tempfile
 import unittest
@@ -93,6 +94,35 @@ class TestSmokeDock(unittest.TestCase):
         self.dock.shot_name.setText("table")
         self.dock.shot_button.click()
         self.assertEqual(self.taken, [("shot", "X1-table")])
+
+
+    def test_a_screenshot_that_left_no_file_is_taken_from_inside_qgis_and_the_dock_is_told_the_truth(self):
+        """2026-11-24: the PowerShell capture started (so it counted as done) but wrote nothing, and the dock still said 'saved'. Written without a QGIS install; CI's first run is its first execution."""
+        smoke_dock = self.smoke_dock
+        told = []
+        path = os.path.join(self.tmp.name, "screens", "X1-shot.png")
+
+        def fake_grab(target):
+            os.makedirs(os.path.dirname(target), exist_ok=True)
+            with open(target, "wb") as fh:
+                fh.write(b"png")
+            return True
+        started = smoke_dock.capture_with_fallback(path, start=lambda _p: True, grab=fake_grab, schedule=lambda _ms, fn: fn(), done=lambda ok, how: told.append((ok, how)))
+        self.assertTrue(started)
+        self.assertTrue(os.path.isfile(path))
+        self.assertEqual(told[0][0], True)
+        self.assertIn("QGIS window picture", told[0][1])
+        # when the screen capture did write the file, no fallback runs
+        told.clear()
+        called = []
+        smoke_dock.capture_with_fallback(path, start=lambda _p: True, grab=lambda _p: called.append(1) or True, schedule=lambda _ms, fn: fn(), done=lambda ok, how: told.append((ok, how)))
+        self.assertEqual(called, [])
+        self.assertEqual(told[0], (True, "screen capture"))
+        # and a failure is reported, not raised
+        told.clear()
+        os.remove(path)
+        smoke_dock.capture_with_fallback(path, start=lambda _p: True, grab=lambda _p: (_ for _ in ()).throw(RuntimeError("x")), schedule=lambda _ms, fn: fn(), done=lambda ok, how: told.append((ok, how)))
+        self.assertFalse(told[0][0])
 
 
 if __name__ == "__main__":
