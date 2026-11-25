@@ -3,6 +3,7 @@ a result cannot be recorded without a started row, a result line is written only
 tells the agent to type a console command (the 2026-11-13/14 run failed on exactly that)."""
 import csv
 import json
+import os
 import sys
 import tempfile
 import unittest
@@ -158,6 +159,49 @@ class TestNewResultRows(unittest.TestCase):
         text = sc.card_text(card).replace("<PACKAGE>", r"C:\pkg")
         self.assertIn(r'r"C:\pkg\3_test_files\a.geojson"', text)
         self.assertNotIn("<PACKAGE>", text)
+
+
+class TestPrepareRun(unittest.TestCase):
+    """tools/prepare_run.py runs before QGIS opens (plain Python), so the agent has its cards and its results file even when QGIS or the watcher fails to start."""
+
+    CARDS: ClassVar[list] = [{"id": "A1", "title": "one", "can_run": True, "why_not": "", "do": r'open <PACKAGE>\3_test_files\a.gpkg', "starts_from": "", "expect": "", "pass_if": "", "also_capture": "", "slow": False,
+              "machine_checked_by": [], "model_needed": False, "internet_needed": False, "files": []},
+             {"id": "H1", "title": "human", "can_run": False, "why_not": "needs a person", "do": "", "starts_from": "", "expect": "", "pass_if": "", "also_capture": "", "slow": False,
+              "machine_checked_by": [], "model_needed": False, "internet_needed": False, "files": []}]
+
+    def _package(self, tmp):
+        (Path(tmp) / "cards.json").write_text(json.dumps(self.CARDS), encoding="utf-8")
+        import prepare_run
+        return prepare_run
+
+    def test_it_writes_the_filled_cards_and_a_results_file_with_header_and_the_human_rows(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            prepare_run = self._package(tmp)
+            filled, recorded = prepare_run.prepare(tmp)
+            text = Path(filled).read_text(encoding="utf-8")
+            self.assertIn(os.path.abspath(tmp), text)               # abspath, not resolve(): on Windows the temp folder has a short 8.3 name (RUNNER~1) that resolve() expands and the code rightly does not
+            self.assertNotIn("<PACKAGE>", text)
+            self.assertEqual(recorded, ["H1"])
+            lines = (Path(tmp) / "results" / "RESULTS_GUI.csv").read_text(encoding="utf-8").splitlines()
+            self.assertEqual(lines[0], ",".join(sc.RESULT_FIELDS))
+            self.assertTrue(lines[1].startswith("H1,SKIP,"))
+
+    def test_running_it_again_never_rewrites_or_duplicates_a_result_line(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            prepare_run = self._package(tmp)
+            prepare_run.prepare(tmp)
+            sc.append_result(str(Path(tmp) / "results"), {"row": "A1", "status": "PASS", "note": "done by the agent"})
+            before = (Path(tmp) / "results" / "RESULTS_GUI.csv").read_text(encoding="utf-8")
+            _filled, recorded = prepare_run.prepare(tmp)
+            self.assertEqual(recorded, [])
+            self.assertEqual((Path(tmp) / "results" / "RESULTS_GUI.csv").read_text(encoding="utf-8"), before)
+
+    def test_a_package_with_no_human_rows_still_gets_its_header(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            (Path(tmp) / "cards.json").write_text(json.dumps(self.CARDS[:1]), encoding="utf-8")
+            import prepare_run
+            prepare_run.prepare(tmp)
+            self.assertEqual((Path(tmp) / "results" / "RESULTS_GUI.csv").read_text(encoding="utf-8").splitlines(), [",".join(sc.RESULT_FIELDS)])
 
 
 class TestHumanRows(unittest.TestCase):
@@ -437,6 +481,12 @@ class TestTheBuiltPackage(unittest.TestCase):
             self.assertIn(need, start)
         self.assertIn("watcher running", self.zip.read(f"{self.top}/tools/smoke_watch.py").decode())
         self.assertNotIn("tools/smoke_dock.py", self.names())            # the panel is gone from the package
+        self.assertIn("tools/prepare_run.py", self.names())
+        for bat in ("START_QGIS.bat", "RUN_EVERYTHING.bat"):
+            text = self.zip.read(f"{self.top}/{bat}").decode()
+            self.assertIn("prepare_run.py", text, bat)                    # the cards and the results file exist before QGIS opens
+            self.assertIn("QGIS is still open", text, bat)                # the packaged plugin replaces an older copy only when its files are not locked
+            self.assertIn("rmdir /s /q", text, bat)
 
     def test_csv_of_results_header_is_stable(self):
         self.assertEqual(sc.RESULT_FIELDS[:3], ["row", "status", "note"])

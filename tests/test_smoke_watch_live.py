@@ -53,14 +53,6 @@ class TestSmokeWatch(unittest.TestCase):
         self.assertIn("taking the evidence for B1", (Path(self.tmp.name) / "watcher.log").read_text(encoding="utf-8"))
         self.assertIn("RuntimeError", (Path(self.tmp.name) / "watcher_errors.txt").read_text(encoding="utf-8"))
 
-    def test_the_filled_cards_carry_the_real_folder(self):
-        cards = [{"id": "X1", "title": "t", "can_run": True, "why_not": "", "do": r'open <PACKAGE>\3_test_files\a.gpkg', "starts_from": "", "expect": "", "pass_if": "", "also_capture": "",
-                  "slow": False, "machine_checked_by": [], "model_needed": False, "internet_needed": False, "files": []}]
-        path = self.watch.write_filled_cards(self.tmp.name, cards)
-        text = Path(path).read_text(encoding="utf-8")
-        self.assertIn(self.tmp.name, text)
-        self.assertNotIn("<PACKAGE>", text)
-
     def test_a_screenshot_that_left_no_file_is_taken_from_inside_qgis_and_the_watcher_is_told_the_truth(self):
         told = []
         path = os.path.join(self.tmp.name, "screens", "X1-shot.png")

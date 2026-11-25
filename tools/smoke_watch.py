@@ -2,8 +2,7 @@
 
 The agent writes its result as ONE line at the end of results/RESULTS_GUI.csv (and its notes into results/evidence/<row>/observations.txt). This module runs inside QGIS (started by
 tools/smoke_watch_start.py), looks at that file every few seconds and, for every row that is new, saves the evidence next to the notes: a picture of the screen (taken from outside QGIS,
-with a checked fallback to a picture of the QGIS window), the layer list, the project state, the log and the plugin's own tool-call record. It also writes CARDS_FILLED.md, the cards with
-the real package folder already in every path, which is what the agent reads.
+with a checked fallback to a picture of the QGIS window), the layer list, the project state, the log and the plugin's own tool-call record. The cards with the real package folder in every path (CARDS_FILLED.md) are written by tools/prepare_run.py, which the .bat files run before QGIS opens.
 
 Replaces the 'Smoke test' dock (tools/smoke_dock.py, removed 2026-11-25): the owner did not want a panel, the dock's buttons were blocked by the Claude app's own safety check, and its
 layout hid its buttons on a small screen. Status: the pure parts are tested offline (tests/test_smoke_cards.py); the QGIS half is exercised with fakes by tests/test_smoke_watch_live.py in the
@@ -98,15 +97,6 @@ class Watcher:
         return handled
 
 
-def write_filled_cards(package_dir, cards):
-    """CARDS_FILLED.md: every card with <PACKAGE> replaced by the real folder, in running order. This is what the agent reads (the old dock did the replacing when it showed a card)."""
-    text = "\n\n---\n\n".join(cards_mod.card_text(c) for c in cards) + "\n"
-    path = os.path.join(package_dir, "CARDS_FILLED.md")
-    with open(path, "w", encoding="utf-8") as fh:
-        fh.write(text.replace("<PACKAGE>", package_dir))
-    return path
-
-
 def start(package_dir):
     """Wires the evidence collector, writes the filled cards, records the human rows and starts the timer. Returns the watcher."""
     from qgis.core import Qgis, QgsSettings
@@ -127,8 +117,8 @@ def start(package_dir):
         build = fh.read().strip()
     with open(os.path.join(results, "ENVIRONMENT.json"), "w", encoding="utf-8") as fh:
         json.dump({"qgis": version, "expected": EXPECTED_QGIS, "plugin": ce._plugin_version(), "python": sys.version, "package": build or "no BUILD.txt"}, fh, indent=1, default=str)
-    cards_mod.record_human_rows(results, cards)           # rows that are not for the agent are written as SKIP at once, so the agent only meets real work
-    filled = write_filled_cards(package_dir, cards)
+    import prepare_run
+    filled, _recorded = prepare_run.prepare(package_dir)       # CARDS_FILLED.md and the SKIP lines for human rows (the .bat files already ran this; it is safe to repeat)
     watcher = Watcher(results, lambda row, note: ce.snap(row, note, screenshots=False))
     timer = QTimer()
     timer.setInterval(POLL_MS)
