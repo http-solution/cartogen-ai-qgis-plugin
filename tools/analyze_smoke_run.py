@@ -4,7 +4,7 @@
 
 Per row it reports: the agent's claim (RESULTS_GUI.csv), the program's own verdict (RESULTS.csv of the headless runner), which evidence files exist, the tools the plugin really called
 (plugin_evidence), the seconds spent, and a trust level:
-  SUPPORTED     (only when the dock never reported) claimed PASS with the agent's notes and, for a model row, tool calls the plugin itself recorded
+  SUPPORTED     (only when the evidence watcher never reported) claimed PASS with the agent's notes and, for a model row, tool calls the plugin itself recorded
   VERIFIED      claimed PASS and window.png + layers.json exist (and, for a row that needs a model, at least one plugin tool call was recorded)
   UNSUPPORTED   claimed PASS but that evidence is missing, or the evidence step reported an error: do not believe it
   CLAIMED       PARTIAL / FAIL / SKIP with a note (nothing to verify, but read the note)
@@ -43,7 +43,7 @@ def evidence_for(results, row_id):
                 found["plugin_evidence"] = True
             elif path.name == "tools_called.txt":
                 found["tools"] += [t.strip() for t in path.read_text(encoding="utf-8", errors="replace").splitlines() if t.strip()]
-    # Without the dock (the owner dropped it on 2026-11-20) the agent's notes sit in evidence/<row>/observations.txt or outputs/<row>/result.txt, and the PLUGIN's own record of the tools it called
+    # Without the watcher (or when it failed) the agent's notes sit in evidence/<row>/observations.txt or outputs/<row>/result.txt, and the PLUGIN's own record of the tools it called
     # (cartogen_evidence/<stamp>/steps.jsonl) sits next to the saved project, in outputs/<row>*/ or work/<row>*/. Both are read here; the tool names come from the program-written steps.jsonl.
     found["notes"] = False
     for sub in ("evidence", "outputs", "work"):
@@ -66,7 +66,7 @@ def evidence_for(results, row_id):
                             found["tools"].append(tool)
     shots = Path(results) / "screens"
     if shots.is_dir() and any(f.stat().st_size > 0 for f in shots.glob(f"{row_id}*.png")):
-        found["window"] = True                    # the dock's screen capture is made from outside QGIS and lands here
+        found["window"] = True                    # the watcher's screen capture is made from outside QGIS and lands here
     return found
 
 
@@ -80,13 +80,13 @@ def judge(card, claim, ev, dock_shown=True):
     if status != "PASS":
         return "CLAIMED", f"{status}: {claim.get('note', '')}"
     if not dock_shown:
-        # No dock: the agent's notes plus the plugin's own tool record are the support. A row that needs a model must show at least one tool call.
+        # No watcher: the agent's notes plus the plugin's own tool record are the support. A row that needs a model must show at least one tool call.
         missing = []
         if not ev.get("notes"):
             missing.append("no observations.txt / result.txt")
         if card["model_needed"] and not ev["plugin_evidence"]:
             missing.append("the row needs a model but the plugin recorded no tool call for it" + (" (the only steps.jsonl is in a work copy that also holds older rows, so it cannot be attributed)" if ev.get("unattributed") else " (no steps.jsonl beside a saved project)"))
-        return ("UNSUPPORTED", "; ".join(missing)) if missing else ("SUPPORTED", f"agent notes + {len(ev['tools'])} plugin tool call(s) recorded by the plugin, no window picture (dock not used)")
+        return ("UNSUPPORTED", "; ".join(missing)) if missing else ("SUPPORTED", f"agent notes + {len(ev['tools'])} plugin tool call(s) recorded by the plugin, no window picture (watcher did not report)")
     problems = []
     if claim.get("evidence_error"):
         problems.append(f"evidence step failed: {claim['evidence_error']}")
@@ -113,10 +113,10 @@ def written_by(claim):
 def build_report(results, cards, agent_rows=()):
     gui, machine = load_results_pair(results)
     lines = ["# Computer-use smoke run: report\n"]
-    start_log = Path(results) / "dock_start.log"
-    shown = start_log.is_file() and "dock shown" in start_log.read_text(encoding="utf-8", errors="replace")
-    lines += ["## Card dock start-up\n", ("The dock reported that it was shown (results/dock_start.log)." if shown else
-              "WARNING: the dock never reported that it was shown (no results/dock_start.log line 'dock shown'). Every result below was then written without it: read dock_start.log and dock_errors.txt first."), ""]
+    start_log = Path(results) / "watcher.log"
+    shown = start_log.is_file() and "watcher running" in start_log.read_text(encoding="utf-8", errors="replace")
+    lines += ["## Evidence watcher start-up\n", ("The evidence watcher reported that it was running (results/watcher.log)." if shown else
+              "WARNING: the evidence watcher never reported that it was running (no results/watcher.log line 'watcher running'). Every result below was then written without its evidence: read watcher.log and watcher_errors.txt first."), ""]
     table, counts, writers = [], {}, {}
     for card in cards:
         ev = evidence_for(results, card["id"])
@@ -131,7 +131,7 @@ def build_report(results, cards, agent_rows=()):
     for r in machine.values():
         mc[r["status"]] = mc.get(r["status"], 0) + 1
     lines += ["## Totals\n", "Computer-use rows: " + (", ".join(f"{k}: {v}" for k, v in sorted(counts.items())) or "none"),
-              "Result lines written by the dock: " + str(writers.get("dock", 0)) + ", typed in by the agent: " + str(writers.get("typed", 0)) + " (a typed line has no timings; trust it only as far as its evidence goes)",
+              "Result lines written by the agent: " + str(writers.get("typed", 0) + writers.get("dock", 0)) + " (each is only as trustworthy as the evidence the watcher and the plugin recorded for it: see the trust column)",
               "Program-checked rows: " + (", ".join(f"{k}: {v}" for k, v in sorted(mc.items())) or "none run"), "",
               "A claimed PASS counts only when its trust is VERIFIED. UNSUPPORTED means the agent said PASS but the program's own evidence is missing: treat as not run.\n",
               "## Computer-use rows\n", "| row | claim | written by | trust | seconds | tools called | reason |", "|---|---|---|---|---|---|---|", *table, "",

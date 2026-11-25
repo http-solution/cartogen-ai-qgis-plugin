@@ -109,7 +109,7 @@ class TestCardReview20261124(unittest.TestCase):
         self.assertIn('r"<PACKAGE>\\3_test_files\\smoke_worldcover.asc"', by_id["C20-environment-looks"]["do"])
         self.assertIn("CONSOLE:", sc.card_text(by_id["C20-environment-looks"]))
 
-    def test_no_card_tells_the_agent_to_fill_in_the_package_path_the_dock_already_fills(self):
+    def test_no_card_tells_the_agent_to_fill_in_the_package_path_the_watcher_already_fills(self):
         for c in _cards():
             self.assertNotIn("replace <PACKAGE>", c["do"], c["id"])
             self.assertNotIn("replace <bundle>", c["do"], c["id"])
@@ -136,6 +136,28 @@ class TestCardReview20261124(unittest.TestCase):
     def test_a1_promises_png_pages_only_because_the_script_writes_them(self):
         script = (Path(__file__).resolve().parent.parent / "tools" / "layout_check_script.py").read_text(encoding="utf-8")
         self.assertIn('output_format="png"', script)
+
+
+class TestNewResultRows(unittest.TestCase):
+    """The watcher in QGIS takes evidence for every row that gets a new line in RESULTS_GUI.csv; this is the pure part that finds them."""
+
+    def test_only_rows_not_yet_seen_are_new_and_a_corrected_line_is_not_new_again(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            self.assertEqual(sc.new_result_rows(tmp, set()), [])                      # no file yet is not an error
+            sc.append_result(tmp, {"row": "A1", "status": "PASS", "note": "ok"})
+            sc.append_result(tmp, {"row": "A2", "status": "FAIL", "note": "no"})
+            fresh = sc.new_result_rows(tmp, {"A1"})
+            self.assertEqual([r for r, _ in fresh], ["A2"])
+            self.assertEqual(fresh[0][1]["status"], "FAIL")
+            sc.append_result(tmp, {"row": "A2", "status": "PASS", "note": "corrected"})
+            self.assertEqual(sc.new_result_rows(tmp, {"A1", "A2"}), [])               # the same row again is not snapped twice
+
+    def test_the_filled_path_replaces_the_placeholder_in_card_text(self):
+        card = {"id": "X1", "title": "t", "can_run": True, "why_not": "", "do": r'iface.addVectorLayer(r"<PACKAGE>\3_test_files\a.geojson")', "starts_from": "", "expect": "", "pass_if": "",
+                "also_capture": "", "slow": False, "machine_checked_by": [], "model_needed": False, "internet_needed": False, "files": []}
+        text = sc.card_text(card).replace("<PACKAGE>", r"C:\pkg")
+        self.assertIn(r'r"C:\pkg\3_test_files\a.geojson"', text)
+        self.assertNotIn("<PACKAGE>", text)
 
 
 class TestHumanRows(unittest.TestCase):
@@ -291,7 +313,7 @@ class TestAnalysis(unittest.TestCase):
             folder.mkdir(parents=True)
             (folder / "window.png").write_bytes(b"png")
             (folder / "layers.json").write_text("[]")
-            sc.start_log(tmp, "dock shown (visible=True)")                  # a run in which the dock reported: the strict rules apply
+            sc.start_log(tmp, "watcher running (rows=3)")                  # a run in which the watcher reported: the strict rules apply
             sc.append_result(tmp, {"row": "X1", "status": "PASS", "note": "ok", "seconds": 5})
             sc.append_result(tmp, {"row": "X2", "status": "PASS", "note": "ok", "seconds": 9})        # no evidence for X2
             (Path(tmp) / "RESULTS.csv").write_text("row,covers_row,status,evidence_folder\nH1,C24,PASS,e\n")
@@ -299,7 +321,7 @@ class TestAnalysis(unittest.TestCase):
             self.assertEqual(counts, {"VERIFIED": 1, "UNSUPPORTED": 1, "NO RESULT": 1})
             self.assertEqual(mc, {"PASS": 1})
             self.assertIn("| X2 | PASS | typed | UNSUPPORTED |", text)
-            self.assertIn("Result lines written by the dock: 0, typed in by the agent: 2", text)
+            self.assertIn("Result lines written by the agent: 2", text)
 
     def test_written_by_tells_the_docks_lines_from_typed_ones(self):
         dock = {"row": "X1", "status": "PASS", "started": "2026-11-20T10:00:00", "finished": "2026-11-20T10:01:00", "seconds": "60"}
@@ -328,7 +350,7 @@ class TestTheBuiltPackage(unittest.TestCase):
     def test_the_package_has_everything_it_promises(self):
         names = self.names()
         for need in ("README.txt", "HAIKU_PROMPT.md", "cards.json", "CARDS.md", "START_QGIS.bat", "RUN_HEADLESS.bat", "ANALYZE.bat", "docs/AGENT_RUN_ROWS.json", "3_test_files/SHA256SUMS.txt",
-                     "FIRST_MESSAGE.txt", "tools/smoke_dock.py", "tools/smoke_dock_start.py", "tools/smoke_cards.py", "tools/smoke_core.py", "tools/analyze_smoke_run.py", "tools/request_costs.py", "tools/routing_requests.json", "tools/collect_evidence.py"):
+                     "FIRST_MESSAGE.txt", "tools/smoke_watch.py", "tools/smoke_watch_start.py", "tools/smoke_cards.py", "tools/smoke_core.py", "tools/analyze_smoke_run.py", "tools/request_costs.py", "tools/routing_requests.json", "tools/collect_evidence.py"):
             self.assertIn(need, names)
         self.assertTrue(any(n.startswith("1_plugin/") for n in names))
         self.assertTrue(any(n.startswith("plugin/cartogen_ai/core/") for n in names))
@@ -341,9 +363,8 @@ class TestTheBuiltPackage(unittest.TestCase):
         prompt = self.zip.read(f"{self.top}/HAIKU_PROMPT.md").decode()
         self.assertIn("ONLY for lines that a card gives you word for word", prompt)           # 2026-11-24: about 12 cards need console lines, so "exactly one line" made the agent refuse them
         self.assertNotIn("exactly one thing", prompt)
-        self.assertIn("Extra screenshot", prompt)
         self.assertIn("Never claim a result you did not see", prompt)
-        for need in ("Windows 11", "RUN_EVERYTHING.bat", "up to 6 minutes", "qgiscrashhandler", "Task Manager", "PERMISSION PROMPTS", "first row with no result", "Never enter, read out",
+        for need in ("Windows 11", "RUN_EVERYTHING.bat", "up to 6 minutes", "qgiscrashhandler", "Task Manager", "PERMISSION PROMPTS", "first row with no line", "Never enter, read out",
                      "never need to type in Command Prompt", "Preview pane", "look-only"):
             self.assertIn(need, prompt)
         self.assertNotIn("Do not paste anything", prompt)                                      # the type tool may use the clipboard inside; only Ctrl+V by hand is banned
@@ -352,19 +373,24 @@ class TestTheBuiltPackage(unittest.TestCase):
         self.assertNotIn("at most 6 rows", prompt)
         self.assertNotIn("Never restart QGIS yourself", prompt)
 
-    def test_one_prompt_works_with_or_without_the_dock(self):
-        """LR-14: in the 2026-11-20 run the dock recorded nothing and the agent had no instructions for that case, so 17 hours produced typed result lines only."""
+    def test_the_prompt_has_no_panel_and_the_agent_writes_the_csv_itself(self):
+        """2026-11-25: the owner asked for the panel to go and for the agent to report straight into the CSV. The dock's buttons were also blocked by the Claude app's own safety check."""
         prompt = self.zip.read(f"{self.top}/HAIKU_PROMPT.md").decode()
-        self.assertIn("IF THE DOCK DOES NOT APPEAR", prompt)
+        self.assertNotIn("dock", prompt.lower())
+        self.assertNotIn("Start this row", prompt)
+        self.assertIn("there is no panel to use", prompt)
+        self.assertIn("CARDS_FILLED.md", prompt)
+        self.assertIn("blocked by the Claude app", prompt)          # a refused action ends the row with a SKIP, it does not stall the run
+        self.assertIn("you MAY change Cartogen AI's settings", prompt)
         for need in ("results\\outputs\\<ROW>\\", "results\\RESULTS_GUI.csv", "observations.txt", "WORK ON A COPY", "row,status,note,started,finished,seconds,evidence_error",
-                     "never edit another line", "typed"):
+                     "never edit another line", "watcher.log"):
             self.assertIn(need.lower(), prompt.lower(), need)
         first = self.zip.read(f"{self.top}/FIRST_MESSAGE.txt").decode()
         stamp = self.zip.read(f"{self.top}/BUILD.txt").decode().strip()
         self.assertIn(stamp, first)                                                       # the message names the very build it ships in
         self.assertIn("I AM THE OWNER OF THIS PC", first)
         self.assertIn("PACKAGE FOLDER:", first)
-        self.assertIn("IF THE DOCK DOES NOT APPEAR", first)
+        self.assertIn("there is no panel", first)
         self.assertIn(prompt.strip().splitlines()[0], first)                              # the same instructions, not a second copy that can drift
         self.assertNotIn("{stamp}", first)
         self.assertNotIn("{prompt}", first)
@@ -402,14 +428,15 @@ class TestTheBuiltPackage(unittest.TestCase):
             for f in c["files"]:
                 self.assertIn(Path(f).name, names, c["id"])
 
-    def test_the_dock_start_is_logged_and_a_failure_is_never_silent(self):
+    def test_the_watcher_start_is_logged_and_a_failure_is_never_silent(self):
         sup = self.zip.read(f"{self.top}/tools/supervisor.ps1").decode()
-        for need in ("dock_start.log", "dock shown", "WARNING: QGIS has run 90 s"):
+        for need in ("watcher.log", "watcher running", "WARNING: QGIS has run 90 s", "smoke_watch_start.py"):
             self.assertIn(need, sup)
-        start = self.zip.read(f"{self.top}/tools/smoke_dock_start.py").decode()
-        for need in ("start_error(", "building the dock", "start_log("):
+        start = self.zip.read(f"{self.top}/tools/smoke_watch_start.py").decode()
+        for need in ("start_error(", "starting the watcher", "start_log("):
             self.assertIn(need, start)
-        self.assertIn("dock shown", self.zip.read(f"{self.top}/tools/smoke_dock.py").decode())
+        self.assertIn("watcher running", self.zip.read(f"{self.top}/tools/smoke_watch.py").decode())
+        self.assertNotIn("tools/smoke_dock.py", self.names())            # the panel is gone from the package
 
     def test_csv_of_results_header_is_stable(self):
         self.assertEqual(sc.RESULT_FIELDS[:3], ["row", "status", "note"])
@@ -429,32 +456,32 @@ class TestWorkOnACopy(unittest.TestCase):
         self.assertFalse(any("WORK ON A COPY" in h for h in sc.helps({"id": "A2-settings-connections", "starts_from": "", "do": "", "expect": "", "pass_if": ""})))
 
 
-class TestDockStartLog(unittest.TestCase):
-    """The 2026-11-20 run left no trace of whether the dock appeared; these pin the files that now say so."""
+class TestWatcherStartLog(unittest.TestCase):
+    """The 2026-11-20 run left no trace of whether the start-up program ran; these pin the files that now say so."""
 
     def test_log_lines_and_a_failure_with_its_traceback(self):
         with tempfile.TemporaryDirectory() as tmp:
-            sc.start_log(tmp, "dock shown (visible=True)")
+            sc.start_log(tmp, "watcher running (rows=2)")
             try:
                 raise TypeError("boom")
             except TypeError as e:
-                sc.start_error(tmp, "building the dock", e)
-            log = (Path(tmp) / "dock_start.log").read_text(encoding="utf-8")
-            self.assertIn("dock shown", log)
-            self.assertIn("START-UP FAILED in building the dock: TypeError: boom", log)
-            self.assertIn("Traceback", (Path(tmp) / "dock_errors.txt").read_text(encoding="utf-8"))
+                sc.start_error(tmp, "starting the watcher", e)
+            log = (Path(tmp) / "watcher.log").read_text(encoding="utf-8")
+            self.assertIn("watcher running", log)
+            self.assertIn("START-UP FAILED in starting the watcher: TypeError: boom", log)
+            self.assertIn("Traceback", (Path(tmp) / "watcher_errors.txt").read_text(encoding="utf-8"))
 
     def test_logging_never_raises_when_the_folder_cannot_be_written(self):
         with tempfile.NamedTemporaryFile() as f:
             sc.start_log(f.name, "x")                     # a file where a folder is expected
 
-    def test_the_report_warns_when_the_dock_never_reported_and_is_quiet_when_it_did(self):
+    def test_the_report_warns_when_the_watcher_never_reported_and_is_quiet_when_it_did(self):
         with tempfile.TemporaryDirectory() as tmp:
             text, _, _ = an.build_report(tmp, [])
-            self.assertIn("never reported that it was shown", text)
-            sc.start_log(tmp, "dock shown (visible=True)")
+            self.assertIn("never reported that it was running", text)
+            sc.start_log(tmp, "watcher running (rows=2)")
             text, _, _ = an.build_report(tmp, [])
-            self.assertIn("reported that it was shown", text)
+            self.assertIn("reported that it was running", text)
             self.assertNotIn("never reported", text)
 
 

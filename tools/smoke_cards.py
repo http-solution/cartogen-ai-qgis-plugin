@@ -1,7 +1,8 @@
 """Pure half of the computer-use smoke package (no QGIS, no Qt): turns smoke rows into one short card each, keeps the result log, and runs the one-row-at-a-time session the in-QGIS dock drives.
 
 Why: the 2026-11-13/14 run asked a small agent to follow a long hand sheet AND to remember the evidence (console commands, screenshots, file names). It forgot. Here the agent only
-does the steps on one card and presses a result button; pressing it takes the evidence (tools/smoke_dock.py calls snap), so a result without evidence cannot be recorded."""
+does the steps on one card and writes ONE line into results/RESULTS_GUI.csv; a background watcher inside QGIS (tools/smoke_watch.py, no window, nothing to click) sees the new line and
+takes the evidence by itself (window picture, layers, project state, the plugin's own tool record), so the agent has nothing to remember."""
 import contextlib
 import csv
 import json
@@ -31,14 +32,14 @@ RESULT_FIELDS = ["row", "status", "note", "started", "finished", "seconds", "evi
 
 _DOC_REF = re.compile(r"\s*\((?:see )?(?:EVIDENCE_HOWTO|3_SHEET|CHECKLIST)[^)]*\)", re.I)
 _EVIDENCE_SETTING = re.compile(r"'Save an evidence folder for each request' ticked( in Settings)?", re.I)
-_FILLED = re.compile(r"\(replace <(?:PACKAGE|bundle)> with the full path of the (?:unzipped )?(?:package|bundle) folder\)", re.I)       # the dock fills <PACKAGE> in itself; telling the agent to do it too made it hunt for a path
+_FILLED = re.compile(r"\(replace <(?:PACKAGE|bundle)> with the full path of the (?:unzipped )?(?:package|bundle) folder\)", re.I)       # the watcher writes CARDS_FILLED.md with <PACKAGE> already replaced; telling the agent to do it too made it hunt for a path
 _PY = re.compile(r"\bpython3? (?=(?:6_tools|2_layout_check|tools)[\\/])")
 
 
 def fill_paths(text):
     """The terminal commands in the rows say `python 6_tools/x.py`: in this package they run through PY.bat (QGIS's own Python, always present), and <bundle> is the package folder. Pure."""
     text = _DOC_REF.sub("", str(text or ""))
-    text = _FILLED.sub("(the package path is already filled in below)", text)
+    text = _FILLED.sub("(the package path is already filled in)", text)
     text = _EVIDENCE_SETTING.sub("evidence saving already switched on for you", text)
     # <bundle> first: the rows write r"<bundle>\\3_test_files\\x" and the next line prefixes every "3_test_files\\" with <PACKAGE>, so replacing <bundle> last (as before
     # 2026-11-24) left "<PACKAGE>\\<PACKAGE>\\3_test_files" in the console lines of C20 to C27: every load in those rows pointed at a folder that does not exist.
@@ -49,7 +50,7 @@ def fill_paths(text):
 
 
 def clean(text):
-    """Drops every sentence that tells the reader to type a console command or run snap(): the dock does that. Pure."""
+    """Drops every sentence that tells the reader to run snap() or collect evidence by hand: the watcher does that. Pure."""
     parts = re.split(r"(?<=[.;])\s+(?=[A-Z(0-9'\"])", _DOC_REF.sub("", str(text or "")))       # a pointer to a document that is not in this package is removed BEFORE sentences are judged, so the sentence it sat in survives
     return fill_paths(" ".join(p for p in parts if not CONSOLE.search(p)).strip())
 
@@ -75,10 +76,12 @@ APPEND = {
         "pass_if": " Steps 6 and 7 count too: a model box with no arrow or an empty list is a Fail; step 7 without a CLI installed is not a Fail.",
     },
     "R1-H1-persona-panel": {
-        "do": (" The Settings window has no control that resets the profile (only deleting files does), so skip step (6): write 'step 6 not done: no profile reset in the UI' in the note. "
-               "Scroll the mouse wheel only over empty space: over a number box it changes the number (a scroll changed Max tool-call rounds from 49 to 44 in the 2026-11-24 run). "
-               "At the end set Primary back to GIS Generalist and Secondary to None, then press OK."),
-        "pass_if": " Steps (1) to (5) decide the row: if they all behave as Expect, give Pass and say that step 6 was not done; a person checks step 6 once.",
+        "do": (" For step (6) 'reset the profile': in Plugins > Python Console type this line exactly and press Enter: "
+               "from qgis.core import QgsSettings; s = QgsSettings(); [s.remove(k) for k in ('cartogen_ai/onboarding_completed', 'cartogen_ai/user_profile', 'cartogen_ai/persona_primary', 'cartogen_ai/persona_secondary')]  "
+               "Then close and reopen Cartogen AI Settings and press Edit My Profile to start the onboarding. You may change these settings: that is the test. "
+               "Scroll the mouse wheel only over empty space (over a number box it changes the number: a scroll once changed Max tool-call rounds from 49 to 44). "
+               "At the end type the same console line once more so the persona is back to the default."),
+        "pass_if": " All six steps as Expect. Settings you changed during the row are put back at the end.",
     },
     "C1-load-and-scripts": {"do": " For step 6 you cannot use a browser or switch the internet off: confirm the dashboard HTML file exists (File Explorer) and write its name; then read the first lines of the file with your file tools and look for the sentence that says it needs an internet connection."},
     "C16-charts-and-file-info": {"do": " You cannot open a browser: for (1) and (2) check that the reply gives the path of a .html file and that the file exists in File Explorer; the chart picture itself is not checked (Partial at best for that part)."},
@@ -137,8 +140,7 @@ def helps(card):
                    f"<PACKAGE>\\results\\work\\{card['id']}_copy (click the folder, Ctrl+C, Ctrl+V, rename the copy) and load every file from THAT copy, never from 3_test_files. "
                    "The 2026-11-20 run changed smoke_data.gpkg in 3_test_files during C7 and D2 and had to restore it.")
     if re.search(r"iface\.add|\bfrom cartogen_ai\b|QgsSettings\(\)", body):
-        out.append("CONSOLE: this row gives you exact lines to type in Plugins > Python Console. Type ONLY those lines, character for character (the <PACKAGE> path is already filled in below the card as "
-                   "the package folder), press Enter once per line and read the output. Never type any other command there.")
+        out.append("CONSOLE: this row gives you exact lines to type in Plugins > Python Console. Type ONLY those lines, character for character (the package folder path is already filled in), press Enter once per line and read the output. Never type any other command there.")
     if _BROWSER.search(body):
         out.append("BROWSERS: the Claude app lets you only LOOK at a web browser, not click or type in it. Skip any step that needs one, say so in the note, and give the row Partial at best.")
     if re.search(r"\bNotepad\b|\bExcel\b|\bLibreOffice\b", body):
@@ -147,18 +149,18 @@ def helps(card):
 
 
 def card_text(card):
-    """The text the dock shows. Pure."""
+    """The text of one card (CARDS.md holds every card in this form). Pure."""
     lines = [f"ROW {card['id']}  -  {card['title']}", ""]
     if not card["can_run"]:
-        return "\n".join([*lines, f"NOT FOR THIS AGENT: {card['why_not']}. Click Skip and write 'human row' in the note."])
-    for label, key in (("START FROM", "starts_from"), ("DO", "do"), ("EXPECT", "expect"), ("PASS ONLY IF", "pass_if"), ("EXTRA EVIDENCE (the dock already saved the window and layers; do this only if easy)", "also_capture")):
+        return "\n".join([*lines, f"NOT FOR THIS AGENT: {card['why_not']}. Write SKIP with the note 'human row' (the program has already written that line)."])
+    for label, key in (("START FROM", "starts_from"), ("DO", "do"), ("EXPECT", "expect"), ("PASS ONLY IF", "pass_if"), ("EXTRA EVIDENCE (the program saves a window picture, the layer list and the plugin's tool record by itself when your result line appears; do this only if easy)", "also_capture")):
         if card.get(key):
             lines += [f"{label}: {card[key]}", ""]
     for line in helps(card):
         lines += [line, ""]
     if card.get("slow"):
         lines.append("SLOW ROW: a tool here can run for up to 6 minutes and QGIS then looks frozen ('Not Responding'). That is normal: wait, do NOT click, do NOT restart QGIS. "
-                     "If nothing has changed after 8 minutes, click Fail with the note 'no reply'.")
+                     "If nothing has changed after 8 minutes, write FAIL with the note 'no reply'.")
         lines.append("")
     if card["machine_checked_by"]:
         lines.append(f"(A program already checks the numbers of this row: {', '.join(card['machine_checked_by'])}. You judge what you can see.)")
@@ -258,8 +260,18 @@ def recover_interrupted(out_dir, clock=time.time):
     return row_id
 
 
+def new_result_rows(out_dir, seen):
+    """The result lines written since the last look: [(row_id, line_dict)] for every row in RESULTS_GUI.csv whose id is not in `seen` (a set the caller keeps). The watcher in QGIS calls
+    this every few seconds and takes the evidence for each new row. A row the agent corrects later is not re-snapped. Pure apart from reading the file."""
+    fresh = []
+    for row_id, line in load_results(out_dir).items():
+        if row_id not in seen:
+            fresh.append((row_id, line))
+    return fresh
+
+
 def record_human_rows(out_dir, cards, clock=time.time):
-    """Records every row that is not for the agent as SKIP (with the reason) unless it already has a result, so the dock only ever shows work to do. Returns the ids recorded. Pure apart from files."""
+    """Records every row that is not for the agent as SKIP (with the reason) unless it already has a result, so the agent only ever has real work left. Returns the ids recorded. Pure apart from files."""
     have = load_results(out_dir)
     now = round(clock(), 1)
     recorded = []
@@ -271,23 +283,23 @@ def record_human_rows(out_dir, cards, clock=time.time):
 
 
 def start_log(out_dir, text, clock=time.time):
-    """Appends one line to results/dock_start.log. The 2026-11-20 Haiku run (package 7cef7bc4, QGIS 4.2.3) left no trace of whether the dock ever appeared: an error while the start-up
+    """Appends one line to results/watcher.log. The 2026-11-20 Haiku run (package 7cef7bc4, QGIS 4.2.3) left no trace of whether the dock ever appeared: an error while the start-up
     timer built it went only to the QGIS Python console, which nobody could read, and no dock_errors.txt existed because the button handler never ran. Never raises. Pure apart from files."""
     try:
         os.makedirs(out_dir, exist_ok=True)
-        with open(os.path.join(out_dir, "dock_start.log"), "a", encoding="utf-8") as fh:
+        with open(os.path.join(out_dir, "watcher.log"), "a", encoding="utf-8") as fh:
             fh.write(f"{time.strftime('%Y-%m-%dT%H:%M:%S', time.localtime(clock()))} {text}\n")
     except OSError:
         pass
 
 
 def start_error(out_dir, where, exc, clock=time.time):
-    """Writes a start-up failure to dock_start.log AND dock_errors.txt with the full traceback, so the report can say the dock did not open and why. Never raises."""
+    """Writes a start-up failure to watcher.log AND watcher_errors.txt with the full traceback, so the report can say the watcher did not start and why. Never raises."""
     import traceback
     trace = "".join(traceback.format_exception(type(exc), exc, exc.__traceback__))
     start_log(out_dir, f"START-UP FAILED in {where}: {type(exc).__name__}: {exc}", clock)
     try:
-        with open(os.path.join(out_dir, "dock_errors.txt"), "a", encoding="utf-8") as fh:
+        with open(os.path.join(out_dir, "watcher_errors.txt"), "a", encoding="utf-8") as fh:
             fh.write(f"--- start-up failure in {where} ---\n{trace}\n")
     except OSError:
         pass
