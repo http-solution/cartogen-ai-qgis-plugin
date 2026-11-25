@@ -3,6 +3,7 @@ a result cannot be recorded without a started row, a result line is written only
 tells the agent to type a console command (the 2026-11-13/14 run failed on exactly that)."""
 import csv
 import json
+import os
 import sys
 import tempfile
 import unittest
@@ -178,7 +179,7 @@ class TestPrepareRun(unittest.TestCase):
             prepare_run = self._package(tmp)
             filled, recorded = prepare_run.prepare(tmp)
             text = Path(filled).read_text(encoding="utf-8")
-            self.assertIn(str(Path(tmp).resolve()), text)
+            self.assertIn(os.path.abspath(tmp), text)               # abspath, not resolve(): on Windows the temp folder has a short 8.3 name (RUNNER~1) that resolve() expands and the code rightly does not
             self.assertNotIn("<PACKAGE>", text)
             self.assertEqual(recorded, ["H1"])
             lines = (Path(tmp) / "results" / "RESULTS_GUI.csv").read_text(encoding="utf-8").splitlines()
