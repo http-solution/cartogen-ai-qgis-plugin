@@ -44,6 +44,12 @@ class TestSmokeWatch(unittest.TestCase):
         self.assertEqual(watcher.poll(), [])                                            # not again
         self.assertEqual(len(self.snapped), 1)
 
+    def test_the_watcher_writes_a_heartbeat_so_a_running_timer_is_visible_in_the_log(self):
+        watcher = self._watcher()
+        for _ in range(self.watch.HEARTBEAT_POLLS):
+            watcher.poll()
+        self.assertIn("watcher alive", (Path(self.tmp.name) / "watcher.log").read_text(encoding="utf-8"))
+
     def test_a_failing_snapshot_is_logged_and_never_escapes(self):
         def boom(row, note):
             raise RuntimeError("layer table failed")
