@@ -7,6 +7,7 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 | Version | Date | Summary |
 |---|---|---|
+| [1.20.0-rc7](#v1-20-0-rc7) | 2026-11-26 | **Pre-release 1.20.0-rc7.** No breaking changes -- requires QGIS 4.2+. Built on 1.20.0-rc6: a boundary download that arrives cut short, as a web page or as a Git LFS pointer is now caught before it is saved and the chat says which, a streamed download over 1 MB is now read to the end, and every Apply on a confirmation card now leaves a line in the plugin log. A pre-release for hand testing; it is promoted to stable only after named hand rows pass. |
 | [1.20.0-rc6](#v1-20-0-rc6) | 2026-11-26 | **Pre-release 1.20.0-rc6.** No breaking changes -- requires QGIS 4.2+. Built on 1.20.0-rc5: a boundary download that adds no layer now says so in chat, and a second download of the same boundary in one session downloads it again instead of reusing a file that was already deleted. A pre-release for hand testing; it is promoted to stable only after named hand rows pass. |
 | [1.20.0-rc5](#v1-20-0-rc5) | 2026-11-24 | **Pre-release 1.20.0-rc5.** No breaking changes -- requires QGIS 4.2+. Built on 1.20.0-rc4: the detect line on each CLI page in the Connections window no longer stays on Looking... A pre-release for hand testing; it is promoted to stable only after named hand rows pass. |
 | [1.20.0-rc4](#v1-20-0-rc4) | 2026-11-24 | **Pre-release 1.20.0-rc4.** No breaking changes -- requires QGIS 4.2+. Built on 1.20.0-rc3: the Connections window now gives a checked Antigravity CLI its tick and shows the drop-down arrow on every model box, and a request that names a table file (CSV or Excel) now offers the loader tool. A pre-release for hand testing; it is promoted to stable only after named hand rows pass. |
@@ -107,6 +108,17 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 The detailed narrative entries below are unchanged -- this table is purely an additive index on
 top of them.
+
+<a id="v1-20-0-rc7"></a>
+## [1.20.0-rc7] — 2026-11-26 — Pre-release 1.20.0-rc7. No breaking changes -- requires QGIS 4.2+. Built on 1.20.0-rc6: a boundary download that arrives cut short, as a web page or as a Git LFS pointer is now caught before it is saved and the chat says which, a streamed download over 1 MB is now read to the end, and every Apply on a confirmation card now leaves a line in the plugin log. A pre-release for hand testing; it is promoted to stable only after named hand rows pass.
+
+No breaking changes; QGIS 4.2+. Everything since 1.20.0-rc6:
+
+- A damaged boundary download is caught and named: A boundary file that arrived cut short, a web page (a proxy or sign-in page answering instead) or a Git LFS pointer used to be saved as a boundary file and then fail to open as a layer with no reason. The download is now checked before it is saved, and the chat says which of these it was (it names what was received, never its contents).
+- A big streamed download is read to the end: A direct (not redirected) streamed download over 1 MB could come back as only its first chunk and look complete. It is now read to the end. geoBoundaries normally redirects, which was read in full already, so this may not have been behind any boundary failure you saw.
+- An Apply leaves a line in the log: Pressing Apply on a confirmation card now writes one metadata-only line to the plugin log: the tool name, whether it succeeded or failed, how long it took and the error type. It never records the arguments or any content. Before this, an Apply left no trace at all.
+- Known limit: Smoke row C28 (the large-download confirmation card) is still unexplained: the earlier note that the Apply ran and added nothing is NOT supported by the plugin log, so it is not established that the Apply or Cancel clicks reached the plugin. The three boundary fixes in rc6 and rc7 were found by reading the code and are not shown to be its cause. If C28 still fails in rc7, the new Apply log line will show whether the Apply ran.
+- Not hand-tested: Everything above is checked by the offline suite and by CI on QGIS 4.2.2 (including a live test of the 3 MB streamed read); none of it has been seen in desktop QGIS. Everything listed under 1.20.0-rc6, rc5, rc4, rc3, rc2 and rc1 still applies (smoke rows C28 and C29, issue 510 Connections).
 
 <a id="v1-20-0-rc6"></a>
 ## [1.20.0-rc6] — 2026-11-26 — Pre-release 1.20.0-rc6. No breaking changes -- requires QGIS 4.2+. Built on 1.20.0-rc5: a boundary download that adds no layer now says so in chat, and a second download of the same boundary in one session downloads it again instead of reusing a file that was already deleted. A pre-release for hand testing; it is promoted to stable only after named hand rows pass.
