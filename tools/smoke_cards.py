@@ -68,6 +68,14 @@ DO_OVERRIDES = {
 # Text added to a card for a step this agent cannot do as the hand sheet wrote it (2026-11-24 review of every card after the first rc4 run: the agent stopped on A1 because the
 # promised PNG pages did not exist, and the same kind of gap sat in other rows). key -> sentence. tests/test_smoke_cards.py proves every row id here exists.
 APPEND = {
+    "C28-large-download-card": {
+        "do": (" EVIDENCE FOR BOTH CLICKS (added 2026-11-26): the 2026-11-25 run wrote that Cancel and Apply worked, but the plugin log has no line for either click, so that note could not be "
+               "trusted. After you press Cancel, and again after you press Apply, take a screenshot straight away and write in the observations what you SAW on screen (did the card disappear, "
+               "did a line starting with Cancelled or Confirmed appear in the chat). Then read the last lines of the plugin log (the card's evidence folder, log_cartogenai.txt): after an Apply "
+               "there must be a line with tool_call, via=apply, status=done or failed. Write that line, or 'no apply line in the log'. If a click is blocked or does nothing, write SKIP for the "
+               "row with the words 'click did not reach the plugin' and do not mark it Fail or Pass."),
+        "pass_if": " A Pass needs the screenshot after Apply and the via=apply log line; a row written without them is a Skip, not a Pass or a Fail.",
+    },
     "A2-settings-connections": {
         "do": (" 6. (added for 1.20.0-rc4) On the Claude Code CLI, Codex CLI and Antigravity CLI pages look at the Model box: it must show a small drop-down arrow at its right end. Click the "
                "arrow: a list opens with 'auto (recommended)' and at least one more name; pick one and the box shows it. 7. If Antigravity (or another CLI) is installed on this PC: press its "
