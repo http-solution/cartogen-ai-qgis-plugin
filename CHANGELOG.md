@@ -7,6 +7,7 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 | Version | Date | Summary |
 |---|---|---|
+| [1.20.0-rc6](#v1-20-0-rc6) | 2026-11-26 | **Pre-release 1.20.0-rc6.** No breaking changes -- requires QGIS 4.2+. Built on 1.20.0-rc5: a boundary download that adds no layer now says so in chat, and a second download of the same boundary in one session downloads it again instead of reusing a file that was already deleted. A pre-release for hand testing; it is promoted to stable only after named hand rows pass. |
 | [1.20.0-rc5](#v1-20-0-rc5) | 2026-11-24 | **Pre-release 1.20.0-rc5.** No breaking changes -- requires QGIS 4.2+. Built on 1.20.0-rc4: the detect line on each CLI page in the Connections window no longer stays on Looking... A pre-release for hand testing; it is promoted to stable only after named hand rows pass. |
 | [1.20.0-rc4](#v1-20-0-rc4) | 2026-11-24 | **Pre-release 1.20.0-rc4.** No breaking changes -- requires QGIS 4.2+. Built on 1.20.0-rc3: the Connections window now gives a checked Antigravity CLI its tick and shows the drop-down arrow on every model box, and a request that names a table file (CSV or Excel) now offers the loader tool. A pre-release for hand testing; it is promoted to stable only after named hand rows pass. |
 | [1.20.0-rc3](#v1-20-0-rc3) | 2026-11-23 | **Pre-release 1.20.0-rc3.** No breaking changes -- requires QGIS 4.2+. Built on 1.20.0-rc2: a travel time or reach with no road speeds now uses stated, assumed speeds by road class instead of one flat 50 km/h, and the tools that assume road speeds share one table. A pre-release for hand testing; it is promoted to stable only after named hand rows pass. |
@@ -106,6 +107,16 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 The detailed narrative entries below are unchanged -- this table is purely an additive index on
 top of them.
+
+<a id="v1-20-0-rc6"></a>
+## [1.20.0-rc6] — 2026-11-26 — Pre-release 1.20.0-rc6. No breaking changes -- requires QGIS 4.2+. Built on 1.20.0-rc5: a boundary download that adds no layer now says so in chat, and a second download of the same boundary in one session downloads it again instead of reusing a file that was already deleted. A pre-release for hand testing; it is promoted to stable only after named hand rows pass.
+
+No breaking changes; QGIS 4.2+. Everything since 1.20.0-rc5:
+
+- A boundary download that adds no layer now says so: fetch_geoboundaries and fetch_hdx_admin_boundaries used to answer success with nothing on the map in three cases: geoBoundaries gave no file link for that boundary, the downloaded file would not open as a layer, or the file path was missing. Each now returns a plain error that says no layer was added and why, and an empty answer is no longer remembered.
+- A second download of the same boundary works: After a boundary layer was added its temporary file was deleted, but the download step kept the file's path and reused it: the second request for the same country and level in a session then got a path to nothing and no layer. A remembered download is now reused only while its file still exists, otherwise it is downloaded again (geoBoundaries, HDX admin boundaries, WorldPop).
+- Known limit: The first real download in smoke row C28 (Apply pressed, no layer and no reply for 8 minutes) is not explained by either fix: its log has no line for the Apply step. If it still happens in rc6, that is new information.
+- Not hand-tested: Everything above is checked by the offline suite and by CI on QGIS 4.2.2; none of it has been seen in desktop QGIS. Everything listed under 1.20.0-rc5, rc4, rc3, rc2 and rc1 still applies (smoke rows C28 and C29, issue 510 Connections).
 
 <a id="v1-20-0-rc5"></a>
 ## [1.20.0-rc5] — 2026-11-24 — Pre-release 1.20.0-rc5: No breaking changes -- requires QGIS 4.2+. Built on 1.20.0-rc4: the detect line on each CLI page in the Connections window no longer stays on Looking... A pre-release for hand testing; it is promoted to stable only after named hand rows pass.
