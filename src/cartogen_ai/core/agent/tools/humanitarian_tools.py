@@ -908,9 +908,10 @@ def fetch_geoboundaries_network_phase(iso3: str, admin_level: str = "ADM1", allo
         boundary_name = data.get("boundaryName")
 
         if not geojson_url:
-            result = {"success": True, "boundary": boundary_name, "download_url": None, "iso3": iso3, "admin_level": admin_level}
-            _LOOKUP_CACHE.set(cache_key, result)
-            return result
+            # Before 2026-11-25 this returned success with download_url None (and cached it), so the chat showed the boundary's source, licence and date but NO layer
+            # and no hint why: hand rows W2, W3 and C28 of the owner's rc5 run. Not cached: a retry may find the file link.
+            return {"error": (f"geoBoundaries lists a {admin_level} boundary for {iso3} ({boundary_name or 'no name given'}) but gives no file to download for it, so no layer was added."
+                              " Try fetch_hdx_admin_boundaries for the same country, or another admin level.") + BOUNDARY_NO_SUBSTITUTE}
 
         # SEC-001: geojson_url is third-party content (geoBoundaries' own API response),
         # not a hardcoded endpoint -- validate before fetching it, same as any other
@@ -975,8 +976,10 @@ def add_geoboundaries_layer_main_thread_phase(fetch_result: dict) -> dict:
         return fetch_result
 
     local_path = fetch_result.get("local_path")
-    if not local_path or not QGIS_AVAILABLE:
+    if not QGIS_AVAILABLE:
         return {"success": True, "boundary": fetch_result.get("boundary"), "download_url": fetch_result.get("download_url")}
+    if not local_path:
+        return {"error": "The boundary file was not downloaded, so no layer was added." + BOUNDARY_NO_SUBSTITUTE}
 
     layer_name = f"{fetch_result['iso3']}_{fetch_result['admin_level']}_boundary"
     layer = QgsVectorLayer(local_path, layer_name, "ogr")
@@ -990,7 +993,9 @@ def add_geoboundaries_layer_main_thread_phase(fetch_result: dict) -> dict:
         _auto_label_admin(layer)
         return {"success": True, "layer_name": layer_name, "boundary": fetch_result.get("boundary"), "download_url": fetch_result.get("download_url")}
 
-    return {"success": True, "boundary": fetch_result.get("boundary"), "download_url": fetch_result.get("download_url")}
+    # A file that downloaded but QGIS cannot open used to come back as success with no layer (the owner's W2/W3/C28 rows saw source, licence and date and nothing on the map).
+    return {"error": (f"The {fetch_result.get('iso3')} {fetch_result.get('admin_level')} boundary file was downloaded but QGIS could not open it as a layer, so nothing was added to the project."
+                      " Try fetch_hdx_admin_boundaries for the same country.") + BOUNDARY_NO_SUBSTITUTE}
 
 
 def fetch_hdx_admin_boundaries_network_phase(iso3: str, admin_level: str = "ADM1", allow_large_download: bool = False) -> dict:
@@ -1133,8 +1138,10 @@ def add_hdx_admin_boundaries_layer_main_thread_phase(fetch_result: dict) -> dict
         return fetch_result
 
     local_path = fetch_result.get("local_path")
-    if not local_path or not QGIS_AVAILABLE:
+    if not QGIS_AVAILABLE:
         return {k: v for k, v in fetch_result.items() if k != "local_path"}
+    if not local_path:
+        return {"error": "The boundary file was not extracted, so no layer was added." + BOUNDARY_NO_SUBSTITUTE}
 
     layer_name = f"{fetch_result['iso3']}_{fetch_result['admin_level']}_boundary_hdx"
     layer = QgsVectorLayer(local_path, layer_name, "ogr")
@@ -1152,7 +1159,8 @@ def add_hdx_admin_boundaries_layer_main_thread_phase(fetch_result: dict) -> dict
             "pcode_field": fetch_result.get("pcode_field"),
         }
 
-    return {k: v for k, v in fetch_result.items() if k != "local_path"}
+    return {"error": (f"The {fetch_result.get('iso3')} {fetch_result.get('admin_level')} COD-AB boundary file was extracted but QGIS could not open it as a layer, so nothing was added to the project."
+                      ) + BOUNDARY_NO_SUBSTITUTE}
 
 
 @register_tool(

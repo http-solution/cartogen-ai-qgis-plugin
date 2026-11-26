@@ -50,6 +50,14 @@ class TestSmokeWatch(unittest.TestCase):
             watcher.poll()
         self.assertIn("watcher alive", (Path(self.tmp.name) / "watcher.log").read_text(encoding="utf-8"))
 
+    def test_a_line_written_under_a_short_id_gets_its_evidence_under_the_full_card_id(self):
+        watcher = self.watch.Watcher(self.tmp.name, lambda row, note: self.snapped.append((row, note)), capture=lambda path, done=None: self.pictures.append(path),
+                                     card_ids=["C6-identify-at-point", "C10-raster-inspection"])
+        self.sc.append_result(self.tmp.name, {"row": "C6", "status": "PASS", "note": "ok"})
+        self.assertEqual(watcher.poll(), ["C6-identify-at-point"])
+        self.assertEqual(self.snapped[0][0], "C6-identify-at-point")
+        self.assertTrue(self.pictures[0].endswith(os.path.join("screens", "C6-identify-at-point.png")))
+
     def test_a_failing_snapshot_is_logged_and_never_escapes(self):
         def boom(row, note):
             raise RuntimeError("layer table failed")

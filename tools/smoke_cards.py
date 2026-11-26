@@ -260,6 +260,17 @@ def recover_interrupted(out_dir, clock=time.time):
     return row_id
 
 
+def canonical_row_id(row_id, card_ids):
+    """The card id a result line means. An agent wrote 'C6', 'C7', 'C10' (the part before the first dash) in the owner's rc5 run, so the report showed those rows as 'no result'
+    and the evidence went into a folder the report did not look at. An exact id wins; a short one is accepted only when exactly one card starts with it. Pure."""
+    row_id = str(row_id or "").strip()
+    ids = list(card_ids)
+    if row_id in ids:
+        return row_id
+    matches = [c for c in ids if c.split("-", 1)[0] == row_id or c.startswith(row_id + "-")]
+    return matches[0] if len(matches) == 1 else row_id
+
+
 def new_result_rows(out_dir, seen):
     """The result lines written since the last look: [(row_id, line_dict)] for every row in RESULTS_GUI.csv whose id is not in `seen` (a set the caller keeps). The watcher in QGIS calls
     this every few seconds and takes the evidence for each new row. A row the agent corrects later is not re-snapped. Pure apart from reading the file."""
