@@ -36,6 +36,10 @@ class TestAgentRunSmoke(unittest.TestCase):
             self.assertEqual(len(record["results"]), 2)
             self.assertTrue(any(layer["name"] == "rates3_rates" for layer in record["layers"]))
 
+    def test_the_runner_registers_the_native_algorithms(self):
+        import run_smoke_headless as runner
+        self.assertTrue(runner.init_processing())
+
     def test_a_wrong_expectation_fails_the_row(self):
         import run_smoke_headless as runner
         wrong = json.loads(json.dumps(self.rows[0]))

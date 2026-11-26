@@ -9,6 +9,7 @@ checks.txt; verdict.json), OUT\\RESULTS.csv and OUT\\SUMMARY.md. Exit code 0 onl
 Status: tools/smoke_core.py is covered offline by tests/test_smoke_core.py; this QGIS half is exercised by tests/test_run_smoke_headless_live.py in the QGIS CI job. NOT yet run on a
 real Windows QGIS by hand: the first such run is the dry run in the package README."""
 import argparse
+import contextlib
 import json
 import os
 import sys
@@ -40,7 +41,20 @@ def boot_qgis():
     plugins = os.path.join(QgsApplication.pkgDataPath(), "python", "plugins")
     if os.path.isdir(plugins) and plugins not in sys.path:
         sys.path.insert(0, plugins)
+    init_processing()
     return app
+
+
+def init_processing():
+    """Registers QGIS's built-in algorithms. Without it every algorithm id is "not found": the owner's Windows run (QGIS 4.2.3, 2026-11-26) failed rows H17-batch-twice and
+    H18-points-to-path with "Algorithm native:buffer not found" and "native:pointstopath not found" because boot_qgis only started QgsApplication, and a bare
+    QgsApplication has no processing providers (the plugin's own Processing provider is added by the plugin, the native one is not). The CI live test booted through
+    tests/test_chat_widget_live.py, which does call Processing.initialize(), so CI could not see this. Returns True when the native provider is present afterwards."""
+    from qgis.core import QgsApplication
+    with contextlib.suppress(Exception):
+        from processing.core.Processing import Processing
+        Processing.initialize()
+    return QgsApplication.processingRegistry().algorithmById("native:buffer") is not None
 
 
 def layer_table():
@@ -159,6 +173,7 @@ def main(argv=None):
 
 def run_rows(rows, out):
     """Writes the fixtures, runs every row in an already-booted QGIS, writes RESULTS.csv/SUMMARY.md and returns ({row id: status}, evidence problems)."""
+    init_processing()
     inputs = Path(out) / "inputs"
     import make_full_smoke_fixtures as fx
     fx.write_all(inputs)
