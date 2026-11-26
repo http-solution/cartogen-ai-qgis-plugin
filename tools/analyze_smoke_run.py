@@ -16,6 +16,9 @@ import json
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from smoke_cards import canonical_row_id
+
 
 def load_cards(path):
     return json.loads(Path(path).read_text(encoding="utf-8"))
@@ -33,7 +36,11 @@ def evidence_for(results, row_id):
     """Which program-made files exist for a row, searching evidence/<row>/ at any depth. Pure apart from reads."""
     base = Path(results) / "evidence"
     found = {"window": False, "layers": False, "plugin_evidence": False, "tools": []}
-    for folder in (p for p in base.glob(f"{row_id}*") if p.is_dir()) if base.is_dir() else ():
+    short = row_id.split("-", 1)[0]
+    folders = [p for p in base.glob(f"{row_id}*") if p.is_dir()] if base.is_dir() else []
+    if short != row_id and (base / short).is_dir():             # evidence the watcher saved before it knew the full id (an older package)
+        folders.append(base / short)
+    for folder in folders:
         for path in folder.rglob("*"):
             if path.name == "window.png" and path.stat().st_size > 0:
                 found["window"] = True
@@ -112,6 +119,15 @@ def written_by(claim):
 
 def build_report(results, cards, agent_rows=()):
     gui, machine = load_results_pair(results)
+    ids = [c["id"] for c in cards]
+    renamed = {}
+    for written, claim in gui.items():
+        real = canonical_row_id(written, ids)
+        if real != written and real not in gui:
+            renamed[real] = {**claim, "note": f"(written as '{written}') " + str(claim.get("note", ""))}
+        else:
+            renamed[written] = claim
+    gui = renamed
     lines = ["# Computer-use smoke run: report\n"]
     start_log = Path(results) / "watcher.log"
     shown = start_log.is_file() and "watcher running" in start_log.read_text(encoding="utf-8", errors="replace")

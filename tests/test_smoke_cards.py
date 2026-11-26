@@ -204,6 +204,39 @@ class TestPrepareRun(unittest.TestCase):
             self.assertEqual((Path(tmp) / "results" / "RESULTS_GUI.csv").read_text(encoding="utf-8").splitlines(), [",".join(sc.RESULT_FIELDS)])
 
 
+class TestShortRowIds(unittest.TestCase):
+    """The owner's rc5 run: the agent wrote 'C6', 'C7', 'C10' instead of the full card ids, so the report called nine rows 'no result' and filed their evidence under names it did not read."""
+
+    IDS: ClassVar[list] = ["C1-load-and-scripts", "C10-raster-inspection", "C6-identify-at-point", "R1-H1-persona-panel", "A1-layout-script"]
+
+    def test_a_short_id_means_the_one_card_that_starts_with_it(self):
+        self.assertEqual(sc.canonical_row_id("C6", self.IDS), "C6-identify-at-point")
+        self.assertEqual(sc.canonical_row_id("C1", self.IDS), "C1-load-and-scripts")          # C1 is not C10
+        self.assertEqual(sc.canonical_row_id("C10", self.IDS), "C10-raster-inspection")
+        self.assertEqual(sc.canonical_row_id("R1-H1", self.IDS), "R1-H1-persona-panel")
+        self.assertEqual(sc.canonical_row_id("C6-identify-at-point", self.IDS), "C6-identify-at-point")
+        self.assertEqual(sc.canonical_row_id("C99", self.IDS), "C99")                         # unknown stays as written
+
+    def test_an_ambiguous_short_id_is_left_alone(self):
+        self.assertEqual(sc.canonical_row_id("C1", ["C1-a", "C1-b"]), "C1")
+
+    def test_the_report_counts_a_line_written_under_a_short_id_and_finds_its_evidence(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            sc.append_result(tmp, {"row": "C6", "status": "PASS", "note": "done"})
+            folder = Path(tmp) / "evidence" / "C6"
+            folder.mkdir(parents=True)
+            (folder / "window.png").write_bytes(b"png")
+            (folder / "layers.json").write_text("[]")
+            sc.start_log(tmp, "watcher running (rows=1)")
+            card = _cardfor(id="C6-identify-at-point")
+            text, counts, _mc = an.build_report(tmp, [card])
+            self.assertEqual(counts, {"VERIFIED": 1})
+            sc.append_result(tmp, {"row": "C7", "status": "FAIL", "note": "no layer"})
+            text, counts, _mc = an.build_report(tmp, [card, _cardfor(id="C7-field-rules")])
+            self.assertEqual(counts, {"VERIFIED": 1, "CLAIMED": 1})
+            self.assertIn("(written as 'C7') no layer", text)                 # the report says the line was written under a short name
+
+
 class TestHumanRows(unittest.TestCase):
     def test_human_rows_are_recorded_as_skip_once(self):
         with tempfile.TemporaryDirectory() as tmp:

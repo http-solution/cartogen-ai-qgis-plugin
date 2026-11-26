@@ -72,8 +72,9 @@ def capture_with_fallback(path, start=None, grab=None, schedule=None, delay_ms=6
 class Watcher:
     """Takes the evidence for every row that gets a new line in RESULTS_GUI.csv. `snap(row, note)` and `capture(path, done=...)` are injected so the logic runs without QGIS."""
 
-    def __init__(self, results, snap, capture=capture_with_fallback, log=None):
+    def __init__(self, results, snap, capture=capture_with_fallback, log=None, card_ids=()):
         self.results, self.snap, self.capture = results, snap, capture
+        self.card_ids = list(card_ids)
         self.log = log or (lambda text: cards_mod.start_log(results, text))
         self.seen = set(cards_mod.load_results(results))        # rows that already have a line when we start are not re-snapped
         self.polls = 0
@@ -89,10 +90,13 @@ class Watcher:
         except Exception as e:
             self.log(f"watcher: could not read RESULTS_GUI.csv ({type(e).__name__}: {e})")
             return handled
-        for row_id, line in fresh:
-            self.seen.add(row_id)
+        for written_id, line in fresh:
+            self.seen.add(written_id)
+            row_id = cards_mod.canonical_row_id(written_id, self.card_ids)        # the evidence goes under the card's real id even when the agent wrote a short one
             handled.append(row_id)
             try:
+                if row_id != written_id:
+                    self.log(f"watcher: the line for '{written_id}' is taken as row {row_id}")
                 self.capture(os.path.join(self.results, "screens", f"{row_id}.png"),
                              done=lambda ok, how, r=row_id: self.log(f"watcher: {r} screen picture {'saved' if ok else 'NOT saved'} ({how})"))
                 self.snap(row_id, str(line.get("note", "")))
@@ -124,7 +128,7 @@ def start(package_dir):
         json.dump({"qgis": version, "expected": EXPECTED_QGIS, "plugin": ce._plugin_version(), "python": sys.version, "package": build or "no BUILD.txt"}, fh, indent=1, default=str)
     import prepare_run
     filled, _recorded = prepare_run.prepare(package_dir)       # CARDS_FILLED.md and the SKIP lines for human rows (the .bat files already ran this; it is safe to repeat)
-    watcher = Watcher(results, lambda row, note: ce.snap(row, note, screenshots=False))
+    watcher = Watcher(results, lambda row, note: ce.snap(row, note, screenshots=False), card_ids=[c["id"] for c in cards])
     timer = QTimer()
     timer.setInterval(POLL_MS)
     timer.timeout.connect(watcher.poll)
