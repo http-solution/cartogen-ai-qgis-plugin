@@ -20,14 +20,14 @@
   <a href="https://cartogenai.com"><img src="https://img.shields.io/badge/website-cartogenai.com-0b6efd" alt="Website"></a>
 </p>
 
-**Community edition · Version 1.20.0-rc5 (pre-release) · GNU GPL v2 · QGIS 4.2–4.99 · [cartogenai.com](https://cartogenai.com)**
+**Community edition · Version 1.20.0-rc6 (pre-release) · GNU GPL v2 · QGIS 4.2–4.99 · [cartogenai.com](https://cartogenai.com)**
 
 Cartogen AI is built for GIS analysts, humanitarian teams, researchers, and anyone who
 needs to move from a question to a reproducible spatial result without leaving QGIS.
 The agent exposes its plan, tool calls, progress, and errors instead of returning a
 black-box answer.
 
-> **Project status (2026-11-24):** active Community edition. The newest build is the pre-release **1.20.0-rc5**, not hand-tested; the latest stable is **1.18.5**, a patch on 1.18.4, 1.18.3, 1.18.2, 1.18.1 and 1.18.0 (the sum of the 1.17.0 release candidates 42 to 52 since 1.16.3). Neither has passed a full hand test; see the hand-testing line below.
+> **Project status (2026-11-26):** active Community edition. The newest build is the pre-release **1.20.0-rc6**, not hand-tested; the latest stable is **1.18.5**, a patch on 1.18.4, 1.18.3, 1.18.2, 1.18.1 and 1.18.0 (the sum of the 1.17.0 release candidates 42 to 52 since 1.16.3). Neither has passed a full hand test; see the hand-testing line below.
 > - **Tests:** 5,062 automated tests run offline, 0 failures (767 skipped there: the live-QGIS tests and those needing optional libraries). The QGIS ones run in CI (the `qgis-live-tests` job, QGIS 4.2.2) together with ruff, mypy and a release-zip check.
 > - **Hand testing:** rc44 to rc46 were hand-tested in desktop QGIS 4.2.3 (tool sweep: 65 of 83 rows Pass, 1 Fail, the rest Partial or Skip; 21 of 21 priority algorithms Pass); the plain-language algorithm test (385 prompts) has **not** been run. rc48 was hand-tested on 2026-10-24 (52 of 87 rows Pass, 18 Partial, 16 Fail, 1 Skip; results in [docs/HAND_TEST_RESULTS_rc48_2026-10-24.md](docs/HAND_TEST_RESULTS_rc48_2026-10-24.md)); the changes from rc49 to 1.18.0 are CI-checked only (a partial rc50 run covered 20 of its 87 rows) until the v2 hand test (a layout check script that costs no API money, plus nine rows; [docs/LEAN_HAND_TEST_PROTOCOL.md](docs/LEAN_HAND_TEST_PROTOCOL.md)) is run.
 > - **Open issues (2):** #362 and #380. Their code is merged and green in CI; they stay open for hand rows that depend on what the model answers. Everything else from the audit and smoke-test lists is closed, each with its evidence in a comment (several on CI evidence only, which the comment says). Per-issue status: [docs/OPEN_ISSUES_STATUS_2026-10-25_v2.md](docs/OPEN_ISSUES_STATUS_2026-10-25_v2.md).
@@ -79,6 +79,15 @@ black-box answer.
   a restricted execution sandbox for model-generated PyQGIS scripts, fail-closed
   read-only SQL enforcement, an SSRF guard on fetched URLs, and a destructive-action
   confirmation gate the model cannot self-approve.
+
+## What's new in 1.20.0-rc6
+
+Built on 1.20.0-rc5. Offline tests and the QGIS 4.2.2 live checks in CI pass; **not hand-tested** in desktop QGIS unless an item says so. Full list: the `v1.20.0-rc6` block in [metadata.txt](metadata.txt) and [CHANGELOG.md](CHANGELOG.md).
+
+- A boundary download that adds no layer now says so: fetch_geoboundaries and fetch_hdx_admin_boundaries used to answer success with nothing on the map in three cases: geoBoundaries gave no file link for that boundary, the downloaded file would not open as a layer, or the file path was missing. Each now returns a plain error that says no layer was added and why, and an empty answer is no longer remembered.
+- A second download of the same boundary works: After a boundary layer was added its temporary file was deleted, but the download step kept the file's path and reused it: the second request for the same country and level in a session then got a path to nothing and no layer. A remembered download is now reused only while its file still exists, otherwise it is downloaded again (geoBoundaries, HDX admin boundaries, WorldPop).
+- Known limit: The first real download in smoke row C28 (Apply pressed, no layer and no reply for 8 minutes) is not explained by either fix: its log has no line for the Apply step. If it still happens in rc6, that is new information.
+- Not hand-tested: Everything above is checked by the offline suite and by CI on QGIS 4.2.2; none of it has been seen in desktop QGIS. Everything listed under 1.20.0-rc5, rc4, rc3, rc2 and rc1 still applies (smoke rows C28 and C29, issue 510 Connections).
 
 ## What's new in 1.20.0-rc5
 

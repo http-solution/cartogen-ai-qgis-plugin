@@ -8,14 +8,15 @@ metadata changelog, CHANGELOG.md, README and this module agree). Checklist: CONT
 releases listed in NEW_MARK_VERSIONS.
 """
 
-WHATS_NEW_VERSION = "1.20.0-rc5"
-NEW_MARK_VERSIONS = ("1.20.0-rc4", "1.20.0-rc5")
+WHATS_NEW_VERSION = "1.20.0-rc6"
+NEW_MARK_VERSIONS = ("1.20.0-rc5", "1.20.0-rc6")
 
 # Headline items of the current version (the full list is the metadata.txt changelog block and CHANGELOG.md).
 WHATS_NEW_ITEMS = [
-    ('The detect line no longer stays on Looking...', "Going away from the Connections window and back used to blank every CLI page to Looking... and start a slow search of the computer again, so the line could read Looking... almost all the time. The automatic re-checks now keep the last answer on screen and reuse the earlier search; each program's answer appears as soon as it is known; a lookup still running after 60 seconds ends with a plain message and gives Detect again back; and one page failing to update no longer leaves the later pages on Looking..."),
-    ('Known limit', "The exact cause of the stuck line on the owner's Antigravity page was not reproduced (no real Antigravity program here), so this makes the window robust whatever the cause. If the line still reads Looking... in rc5, that is new information."),
-    ('Not hand-tested', 'Everything above is checked by the offline suite and, for the Connections window, by CI on QGIS 4.2.2; none of it has been seen in desktop QGIS, and nothing was run against a real Antigravity program. Everything listed under 1.20.0-rc4, rc3, rc2 and rc1 still applies (smoke rows C28 and C29, issue 510 Connections).'),
+    ('A boundary download that adds no layer now says so', 'fetch_geoboundaries and fetch_hdx_admin_boundaries used to answer success with nothing on the map in three cases: geoBoundaries gave no file link for that boundary, the downloaded file would not open as a layer, or the file path was missing. Each now returns a plain error that says no layer was added and why, and an empty answer is no longer remembered.'),
+    ('A second download of the same boundary works', "After a boundary layer was added its temporary file was deleted, but the download step kept the file's path and reused it: the second request for the same country and level in a session then got a path to nothing and no layer. A remembered download is now reused only while its file still exists, otherwise it is downloaded again (geoBoundaries, HDX admin boundaries, WorldPop)."),
+    ('Known limit', 'The first real download in smoke row C28 (Apply pressed, no layer and no reply for 8 minutes) is not explained by either fix: its log has no line for the Apply step. If it still happens in rc6, that is new information.'),
+    ('Not hand-tested', 'Everything above is checked by the offline suite and by CI on QGIS 4.2.2; none of it has been seen in desktop QGIS. Everything listed under 1.20.0-rc5, rc4, rc3, rc2 and rc1 still applies (smoke rows C28 and C29, issue 510 Connections).'),
 ]
 
 HUMANITARIAN_WORKFLOWS = [('1. Rapid crisis and base mapping',
