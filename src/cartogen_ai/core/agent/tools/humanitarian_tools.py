@@ -4,6 +4,7 @@ Interacts with Humanitarian Data Exchange (HDX), OSM Overpass API, geoBoundaries
 and Microsoft's Global ML Building Footprints.
 """
 
+import os
 import re
 import json
 import math
@@ -871,6 +872,21 @@ def check_download_size(label, urls, allow_large_download=False, tool=None, argu
     return large_download_gate(label, total, _ask_threshold_bytes(), False, tool, arguments)
 
 
+def _cached_download(cached):
+    """The cached fetch result when the file it points at is still on disk, else None so the caller downloads again.
+
+    Why: the main-thread dispatch deletes a boundary's temp file as soon as the layer is added (agent_orchestrator, "keep_local_file" unset), but the network phase
+    cached the result WITH that path and reused it as "a real, never-deleted temp file". So the second fetch of the same country and level in a session handed out a
+    path that no longer existed, and (before 2026-11-26) answered success with no layer: a likely cause of the owner's W2/W3 rows (a repeat fetch, source and
+    licence shown, nothing on the map). Pure apart from one file check."""
+    if cached is None:
+        return None
+    path = cached.get("local_path")
+    if path and not os.path.exists(path):
+        return None
+    return cached
+
+
 def fetch_geoboundaries_network_phase(iso3: str, admin_level: str = "ADM1", allow_large_download: bool = False) -> dict:
     """Pure network phase: queries the geoBoundaries API and downloads the actual
     geojson boundary file to a local temp file. No qgis.core access -- safe to
@@ -881,7 +897,7 @@ def fetch_geoboundaries_network_phase(iso3: str, admin_level: str = "ADM1", allo
     admin_level = admin_level.upper().strip()
 
     cache_key = ("geoboundaries", iso3, admin_level)
-    cached = _LOOKUP_CACHE.get(cache_key)
+    cached = _cached_download(_LOOKUP_CACHE.get(cache_key))
     if cached is not None:
         # The cached local_path still points at a real, never-deleted temp
         # file from the first download (see the finally-less write below), so
@@ -1028,7 +1044,7 @@ def fetch_hdx_admin_boundaries_network_phase(iso3: str, admin_level: str = "ADM1
     level_num = level_match.group(1)
 
     cache_key = ("hdx_admin_boundaries", iso3, level_num)
-    cached = _LOOKUP_CACHE.get(cache_key)
+    cached = _cached_download(_LOOKUP_CACHE.get(cache_key))
     if cached is not None:
         # local_path still points at a real, never-deleted temp file from the
         # first download -- same reuse pattern as fetch_geoboundaries_network_phase.
@@ -1773,7 +1789,7 @@ def fetch_worldpop_population_network_phase(iso3: str, year: str | None = None, 
             "suggested_args": ["extent_layer", "bbox"]}
 
     cache_key = ("worldpop", iso3, year, window)
-    cached = _LOOKUP_CACHE.get(cache_key)
+    cached = _cached_download(_LOOKUP_CACHE.get(cache_key))
     if cached is not None:
         # local_path still points at a real, never-deleted temp file -- see
         # add_worldpop_population_layer_main_thread_phase for why this one
