@@ -245,6 +245,13 @@ class TestNetLive(unittest.TestCase):
         with self._stream("/big") as r:
             self.assertEqual(len(r.read()), 3 * 1024 * 1024)
 
+    def test_read_capped_returns_the_whole_of_a_streamed_body_over_one_megabyte(self):
+        """read_capped asks for limit + 1 bytes in one call; a streamed QGIS reply used to answer with its first 1 MB chunk only, so a 3 MB file looked 1 MB long."""
+        from cartogen_ai.core import net
+        with self._stream("/big") as r:
+            body = net.read_capped(r, net.MAX_DOWNLOAD_BYTES)
+        self.assertEqual(len(body), 3 * 1024 * 1024)
+
     def test_stream_404_is_an_httperror_with_a_body(self):
         with self.assertRaises(urllib.error.HTTPError) as cm:
             self._stream("/missing")

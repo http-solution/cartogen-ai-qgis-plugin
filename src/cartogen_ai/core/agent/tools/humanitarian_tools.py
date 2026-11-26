@@ -887,6 +887,33 @@ def _cached_download(cached):
     return cached
 
 
+_JSON_CHECK_MAX_BYTES = 64 * 1024 * 1024     # parsing holds a second copy in memory, so a larger file is checked by its last byte only
+
+
+def _geojson_problem(data):
+    """Why downloaded bytes are not a whole GeoJSON file, in plain words, or None. Pure.
+
+    Why: a boundary download that is cut short, or is a web page or a Git LFS pointer instead of the data, still saved as a .geojson file and then failed to open as a layer
+    with no hint why (the owner's C28 row: a 5 MB geoBoundaries download that added no layer). This names what was received instead. It says what the bytes are, never what they contain."""
+    head = bytes(data[:200]).lstrip()
+    if not data or not head:
+        return "the download was empty"
+    lowered = head[:60].lower()
+    if lowered.startswith((b"<!doctype", b"<html", b"<?xml")):
+        return "the download was a web page, not a boundary file (a proxy, firewall or sign-in page may have answered instead)"
+    if lowered.startswith(b"version https://git-lfs"):
+        return "the download was a Git LFS pointer, not the boundary file"
+    if not head.startswith(b"{"):
+        return "the download is not GeoJSON"
+    if len(data) > _JSON_CHECK_MAX_BYTES:
+        return None if bytes(data[-64:]).rstrip().endswith(b"}") else f"the download looks cut short ({len(data):,} bytes received)"
+    try:
+        json.loads(data)
+    except ValueError:
+        return f"the download looks cut short or damaged ({len(data):,} bytes received)"
+    return None
+
+
 def fetch_geoboundaries_network_phase(iso3: str, admin_level: str = "ADM1", allow_large_download: bool = False) -> dict:
     """Pure network phase: queries the geoBoundaries API and downloads the actual
     geojson boundary file to a local temp file. No qgis.core access -- safe to
@@ -943,6 +970,11 @@ def fetch_geoboundaries_network_phase(iso3: str, admin_level: str = "ADM1", allo
         req2 = _net_build_request(geojson_url, headers={'User-Agent': 'QGIS-AI-Assistant'})
         with _build_safe_opener().open(req2, timeout=60) as response2:
             geojson_bytes = _read_capped(response2, MAX_DOWNLOAD_BYTES)
+
+        problem = _geojson_problem(geojson_bytes)
+        if problem:
+            return {"error": f"The {iso3} {admin_level} boundary file did not download correctly: {problem}, so no layer was added. Try again, or use fetch_hdx_admin_boundaries for the same country."
+                             + BOUNDARY_NO_SUBSTITUTE}
 
         import os
         import tempfile

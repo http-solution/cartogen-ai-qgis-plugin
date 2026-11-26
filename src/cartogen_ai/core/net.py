@@ -448,6 +448,19 @@ class _StreamResponse:
                     self._raise_if_cut_short()
                     return b"".join(chunks)
                 chunks.append(data)
+        if amt > self.READ_BUFFER:
+            # A big request is read to the end or to `amt` bytes, like urllib's read(n): the single read below hands back at most what the 1 MB read buffer
+            # holds, and read_capped(response, limit) asks for limit + 1 bytes once, so a streamed file over 1 MB came back as its first chunk and looked complete
+            # (found by reading the code on 2026-11-26 while tracing the owner's C28 row, a 5 MB boundary download that added no layer; not shown to be that
+            # row's cause, but a real truncation for any direct download over 1 MB).
+            chunks, got = [], 0
+            while got < amt:
+                piece = self.read(min(self.READ_BUFFER, amt - got))
+                if not piece:
+                    break
+                chunks.append(piece)
+                got += len(piece)
+            return b"".join(chunks)
         want = min(amt, self.READ_BUFFER)
         self._wait(lambda: self._reply.bytesAvailable() >= want)
         data = bytes(self._reply.read(min(amt, self._reply.bytesAvailable())))

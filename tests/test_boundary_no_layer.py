@@ -98,3 +98,43 @@ class TestRepeatFetchAfterTheFileWasDeleted(unittest.TestCase):
             out = ht.fetch_geoboundaries_network_phase("ZZZ", "ADM1")
         asked.assert_called()
         self.assertIn("error", out)
+
+
+class TestDownloadIsCheckedBeforeItIsSaved(unittest.TestCase):
+    """A boundary download that is cut short, a web page, or a Git LFS pointer used to be saved as .geojson and fail to open as a layer with no hint why."""
+
+    def test_good_and_bad_bytes(self):
+        good = b'{"type": "FeatureCollection", "features": []}'
+        self.assertIsNone(ht._geojson_problem(good))
+        self.assertIn("cut short", ht._geojson_problem(good[:30]))
+        self.assertIn("web page", ht._geojson_problem(b"<!DOCTYPE html><html>sign in</html>"))
+        self.assertIn("Git LFS", ht._geojson_problem(b"version https://git-lfs.github.com/spec/v1\noid sha256:abc\nsize 5119846\n"))
+        self.assertIn("not GeoJSON", ht._geojson_problem(b"hello"))
+        self.assertIn("empty", ht._geojson_problem(b""))
+
+    def test_a_cut_short_file_is_an_error_not_a_saved_file(self):
+        api = b'{"boundaryName": "x", "gjDownloadURL": "https://example.org/f.geojson"}'
+        cut = b'{"type": "FeatureCollection", "features": [{"type": "Feat'
+        ht._LOOKUP_CACHE.clear() if hasattr(ht._LOOKUP_CACHE, "clear") else None
+        opener = types.SimpleNamespace(open=lambda *a, **k: _Resp(cut))
+        with patch.object(ht.urllib.request, "urlopen", return_value=_Resp(api)), \
+                patch.object(ht, "_build_safe_opener", return_value=opener), \
+                patch.object(ht, "_is_safe_url", return_value=None), \
+                patch.object(ht, "check_download_size", return_value=None):
+            out = ht.fetch_geoboundaries_network_phase("QQR", "ADM2")
+        self.assertIn("error", out)
+        self.assertIn("did not download correctly", out["error"])
+        self.assertNotIn("local_path", out)
+
+
+class TestStreamedReadOfABigBody(unittest.TestCase):
+    """_StreamResponse.read(n) for n above its 1 MB buffer must read to the end (source-text guard: the class needs QGIS's network classes to be driven for real; its
+    live behaviour is covered only by CI's net live test, which this change does not extend)."""
+
+    def test_the_big_read_loops_instead_of_returning_the_first_chunk(self):
+        import inspect
+
+        from cartogen_ai.core import net
+        src = inspect.getsource(net._StreamResponse.read)
+        self.assertIn("amt > self.READ_BUFFER", src)
+        self.assertIn("while got < amt", src)
