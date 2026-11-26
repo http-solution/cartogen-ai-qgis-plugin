@@ -70,3 +70,31 @@ class TestAddPhasesSayWhenNoLayerWasAdded(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestRepeatFetchAfterTheFileWasDeleted(unittest.TestCase):
+    """The layer-adding step deletes a boundary's temp file, yet the network phase cached the path and reused it: a second fetch of the same country in one
+    session got a path to nothing (a likely cause of the owner's W2/W3 rows). A cached result is reused only while its file exists."""
+
+    def test_cache_is_used_while_the_file_exists_and_dropped_when_it_is_gone(self):
+        import os
+        import tempfile
+        fd, path = tempfile.mkstemp()
+        os.close(fd)
+        entry = {"success": True, "local_path": path}
+        try:
+            self.assertIs(ht._cached_download(entry), entry)
+        finally:
+            os.remove(path)
+        self.assertIsNone(ht._cached_download(entry))
+        self.assertIsNone(ht._cached_download(None))
+        no_file = {"success": True}
+        self.assertIs(ht._cached_download(no_file), no_file)
+
+    def test_a_cached_boundary_whose_file_was_deleted_is_downloaded_again(self):
+        ht._LOOKUP_CACHE.set(("geoboundaries", "ZZZ", "ADM1"), {"success": True, "local_path": "/nonexistent/gone.geojson", "iso3": "ZZZ", "admin_level": "ADM1"})
+        api = b'{"boundaryName": "x"}'                      # no file link, so a fresh download attempt is visible as an error
+        with patch.object(ht.urllib.request, "urlopen", return_value=_Resp(api)) as asked:
+            out = ht.fetch_geoboundaries_network_phase("ZZZ", "ADM1")
+        asked.assert_called()
+        self.assertIn("error", out)
