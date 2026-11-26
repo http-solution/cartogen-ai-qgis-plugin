@@ -104,6 +104,18 @@ class TestConfirmedCallsGoThroughTheSameWrapper(unittest.TestCase):
         attach.assert_called_once()
         self.assertEqual(result["data_source"]["name"], "geoBoundaries")
 
+    def test_an_apply_leaves_a_metadata_only_log_line(self):
+        """The owner's C28 row left no log line for the Apply step, so 'ran and added nothing' could not be told from 'never ran'."""
+        self.agent._real_execute_tool.return_value = {"error": "x", "error_class": "OSError"}
+        with patch.object(agent_mod, "log_event") as log, patch.object(result_gate, "attach_checks", side_effect=lambda n, r, o: r):
+            self.agent.execute_confirmed("fetch_geoboundaries", {"iso3": "YEM"})
+        calls = [c for c in log.call_args_list if c.args and c.args[0] == "tool_call"]
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(calls[0].kwargs["tool"], "fetch_geoboundaries")
+        self.assertEqual(calls[0].kwargs["status"], "failed")
+        self.assertEqual(calls[0].kwargs["via"], "apply")
+        self.assertNotIn("YEM", str(calls[0]))                 # arguments are never logged
+
     def test_the_apply_button_calls_the_wrapper_not_the_bare_tool(self):
         text = (ROOT / "src" / "cartogen_ai" / "core" / "ui" / "chat_tab_widget.py").read_text(encoding="utf-8")
         self.assertIn("agent.execute_confirmed(pending_tool, pending_args)", text)

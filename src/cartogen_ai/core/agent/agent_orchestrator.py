@@ -1029,7 +1029,15 @@ class CartogenAi:
             parsed = {}
         operation_type = tool_operations.get_tool_operation_type(name)
         ids_before, snapshot = self._capture_before(name, parsed)
+        started = time.monotonic()
         result = self._real_execute_tool(name, arguments, user_confirmed=True)
+        # Metadata only, like the loop's own tool_call line. Before 2026-11-26 an Apply left NO line in the log, so the owner's C28 row (Apply on a 5 MB boundary download, 'completed' and
+        # no layer) could not be told apart from "never ran": the only trace was the chat message, which is not saved with the project.
+        with contextlib.suppress(Exception):
+            failed = tool_results.is_error(result)
+            log_event("tool_call", tag="Agent", tool=name, status="failed" if failed else "done", via="apply",
+                      duration_ms=int((time.monotonic() - started) * 1000),
+                      **({"error_class": tool_results.error_class_of(result), "error": True} if failed else {}))
         try:
             if name in NETWORK_ONLY_TOOLS or name in TWO_PHASE_TOOLS:
                 result = source_record.attach(name, parsed, result)
