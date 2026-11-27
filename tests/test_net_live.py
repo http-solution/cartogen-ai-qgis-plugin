@@ -62,6 +62,10 @@ class _Handler(BaseHTTPRequestHandler):
             self._send(200, b"late")
         elif self.path == "/big":
             self._send(200, bytes(range(256)) * 12288)                      # 3 MiB with a known pattern
+        elif self.path == "/cacheable":
+            # A body QGIS's own network cache will keep (found 2026-11-26 in real QGIS 4.2.2: the SECOND request for the same file is served from that cache, its reply is
+            # already finished with the data queued, and the idle-timeout check took the wake-up for a stall).
+            self._send(200, bytes(range(256)) * 12288, {"Cache-Control": "max-age=3600", "ETag": '"cacheable-1"', "Content-Type": "application/octet-stream"})
         elif self.path == "/stall":
             self.send_response(200)
             self.send_header("Content-Length", "10")
@@ -251,6 +255,16 @@ class TestNetLive(unittest.TestCase):
         with self._stream("/big") as r:
             body = net.read_capped(r, net.MAX_DOWNLOAD_BYTES)
         self.assertEqual(len(body), 3 * 1024 * 1024)
+
+    def test_the_same_file_can_be_downloaded_twice_when_the_second_comes_from_the_cache(self):
+        """The owner's repeat-download rows (W2, W3): a second download of the same boundary failed with 'timed out' while the first worked. Reproduced in real QGIS 4.2.2: the
+        second reply came from QGIS's network cache."""
+        from cartogen_ai.core import net
+        sizes = []
+        for _ in range(3):
+            with net.stream_following(urllib.request.Request(self.base + "/cacheable"), timeout=10) as r:
+                sizes.append(len(net.read_capped(r, net.MAX_DOWNLOAD_BYTES)))
+        self.assertEqual(sizes, [3 * 1024 * 1024] * 3)
 
     def test_stream_404_is_an_httperror_with_a_body(self):
         with self.assertRaises(urllib.error.HTTPError) as cm:

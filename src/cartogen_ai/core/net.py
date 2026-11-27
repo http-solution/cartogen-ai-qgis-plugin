@@ -519,6 +519,12 @@ def _qgis_stream_open(req, timeout, follow=True):
     qreq = QNetworkRequest(QUrl(url))
     for key, value in req.header_items():
         qreq.setRawHeader(QByteArray(str(key).encode("utf-8")), QByteArray(str(value).encode("utf-8")))
+    # Never from QGIS's network cache. Found 2026-11-26 in real QGIS 4.2.2: the SECOND download of the same file in a session (the owner's repeat-download rows W2 and
+    # W3) is answered from that cache, and a cache-served reply never delivered its body to the chunked reader below, so it ended as "timed out waiting for data" while
+    # the first download had worked. A large file gains nothing from the cache (it is saved to disk by the caller), so the stream always asks the network.
+    with contextlib.suppress(Exception):
+        qreq.setAttribute(_enum(QNetworkRequest, "Attribute", "CacheLoadControlAttribute"),
+                          _enum(QNetworkRequest, "CacheLoadControl", "AlwaysNetwork"))
     reply = QgsNetworkAccessManager.instance().get(qreq)
     resp = _StreamResponse(reply, timeout, url)
     try:
