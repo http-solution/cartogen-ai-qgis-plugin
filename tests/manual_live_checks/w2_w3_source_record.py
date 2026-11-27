@@ -7,6 +7,7 @@ cartogen/sources record (licence_checked false) and cartogen/checks, the provena
 import json
 import os
 import sys
+from urllib.parse import urlparse
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, os.path.join(ROOT, "src"))
@@ -40,7 +41,9 @@ if lyr:
     print("== W3: provenance record of that layer")
     p = agent._execute_tool("get_provenance_record", json.dumps({"layer_name": lyr.name()}))
     txt = json.dumps(p, default=str)
-    print("  record mentions geoBoundaries:", "geoBoundaries" in txt, "| url:", "geoboundaries.org" in txt, "| licence:", "CC BY" in txt, "| says not checked:", ("not checked" in txt.lower()) or ('"licence_checked": false' in txt))
+    urls = [e.get("url", "") for e in (p.get("sources") or p.get("data_sources") or []) if isinstance(e, dict)] if isinstance(p, dict) else []
+    hosts = [urlparse(u).hostname for u in urls]          # compared as a host name, never as a substring of the whole record
+    print("  record mentions geoBoundaries:", "geoBoundaries" in txt, "| source hosts:", hosts, "| licence:", "CC BY" in txt, "| says not checked:", ("not checked" in txt.lower()) or ('"licence_checked": false' in txt))
     print("  record (start):", txt[:420])
     print("== W3: spatial report titled Source check")
     rep = agent._execute_tool("generate_spatial_report", json.dumps({"title": "Source check", "insights": "The Yemen boundaries come from geoBoundaries.", "source_layers": [lyr.name()]}))
