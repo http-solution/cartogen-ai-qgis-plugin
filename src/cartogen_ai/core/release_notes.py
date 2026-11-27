@@ -8,16 +8,15 @@ metadata changelog, CHANGELOG.md, README and this module agree). Checklist: CONT
 releases listed in NEW_MARK_VERSIONS.
 """
 
-WHATS_NEW_VERSION = "1.20.0-rc7"
-NEW_MARK_VERSIONS = ("1.20.0-rc6", "1.20.0-rc7")
+WHATS_NEW_VERSION = "1.20.0-rc8"
+NEW_MARK_VERSIONS = ("1.20.0-rc7", "1.20.0-rc8")
 
 # Headline items of the current version (the full list is the metadata.txt changelog block and CHANGELOG.md).
 WHATS_NEW_ITEMS = [
-    ('A damaged boundary download is caught and named', 'A boundary file that arrived cut short, a web page (a proxy or sign-in page answering instead) or a Git LFS pointer used to be saved as a boundary file and then fail to open as a layer with no reason. The download is now checked before it is saved, and the chat says which of these it was (it names what was received, never its contents).'),
-    ('A big streamed download is read to the end', 'A direct (not redirected) streamed download over 1 MB could come back as only its first chunk and look complete. It is now read to the end. geoBoundaries normally redirects, which was read in full already, so this may not have been behind any boundary failure you saw.'),
-    ('An Apply leaves a line in the log', 'Pressing Apply on a confirmation card now writes one metadata-only line to the plugin log: the tool name, whether it succeeded or failed, how long it took and the error type. It never records the arguments or any content. Before this, an Apply left no trace at all.'),
-    ('Known limit', 'Smoke row C28 (the large-download confirmation card) is still unexplained: the earlier note that the Apply ran and added nothing is NOT supported by the plugin log, so it is not established that the Apply or Cancel clicks reached the plugin. The three boundary fixes in rc6 and rc7 were found by reading the code and are not shown to be its cause. If C28 still fails in rc7, the new Apply log line will show whether the Apply ran.'),
-    ('Not hand-tested', 'Everything above is checked by the offline suite and by CI on QGIS 4.2.2 (including a live test of the 3 MB streamed read); none of it has been seen in desktop QGIS. Everything listed under 1.20.0-rc6, rc5, rc4, rc3, rc2 and rc1 still applies (smoke rows C28 and C29, issue 510 Connections).'),
+    ('A second download of the same file works', "The second download of the same file in a session (for example the same country's boundary again) used to be answered from QGIS's own network cache, and that answer never delivered its data, so it ended as 'timed out' within a fraction of a second while the first download had worked. Downloads that stream a large file now always ask the network, never the cache."),
+    ('The empty boundary download of smoke row C28 is explained', "The 5 MB geoBoundaries download on the large-download card added no layer because the file came through QGIS's streamed reply, which handed back only its first 1 MB, and the truncated file would not open as a layer. That was fixed in rc7 (streamed reads over 1 MB are read to the end). It was reproduced in a real QGIS 4.2.2 (Linux, no screen) with the rc5 code (the Apply answered success and added no layer) and shown fixed with the rc7 code (the layer is added, 335 features)."),
+    ('Known limit', "This was reproduced and fixed in QGIS 4.2.2 on Linux, not on Windows 4.2.3, where your hand rows ran. It is also not known whether the testing agent's Cancel and Apply clicks reached the plugin in the 2026-11-25 run: the log has no line for them. Smoke row C28 and the repeat-download rows W2 and W3 need a hand re-run."),
+    ('Not hand-tested', 'Everything above is checked by the offline suite and by CI on QGIS 4.2.2 (including live tests of the 3 MB streamed read and of a cached file downloaded three times); none of it has been seen in desktop QGIS. Everything listed under 1.20.0-rc7, rc6, rc5, rc4, rc3, rc2 and rc1 still applies (smoke rows C28 and C29, issue 510 Connections).'),
 ]
 
 HUMANITARIAN_WORKFLOWS = [('1. Rapid crisis and base mapping',

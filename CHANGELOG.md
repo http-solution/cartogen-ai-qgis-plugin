@@ -7,6 +7,7 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 | Version | Date | Summary |
 |---|---|---|
+| [1.20.0-rc8](#v1-20-0-rc8) | 2026-11-27 | **Pre-release 1.20.0-rc8.** No breaking changes -- requires QGIS 4.2+. Built on 1.20.0-rc7: a second download of the same file in one session no longer fails with 'timed out' (the second request was answered from QGIS's own cache and never delivered its data), and the cause of the large-download card's empty boundary download (smoke row C28) is now found and fixed. A pre-release for hand testing; it is promoted to stable only after named hand rows pass. |
 | [1.20.0-rc7](#v1-20-0-rc7) | 2026-11-26 | **Pre-release 1.20.0-rc7.** No breaking changes -- requires QGIS 4.2+. Built on 1.20.0-rc6: a boundary download that arrives cut short, as a web page or as a Git LFS pointer is now caught before it is saved and the chat says which, a streamed download over 1 MB is now read to the end, and every Apply on a confirmation card now leaves a line in the plugin log. A pre-release for hand testing; it is promoted to stable only after named hand rows pass. |
 | [1.20.0-rc6](#v1-20-0-rc6) | 2026-11-26 | **Pre-release 1.20.0-rc6.** No breaking changes -- requires QGIS 4.2+. Built on 1.20.0-rc5: a boundary download that adds no layer now says so in chat, and a second download of the same boundary in one session downloads it again instead of reusing a file that was already deleted. A pre-release for hand testing; it is promoted to stable only after named hand rows pass. |
 | [1.20.0-rc5](#v1-20-0-rc5) | 2026-11-24 | **Pre-release 1.20.0-rc5.** No breaking changes -- requires QGIS 4.2+. Built on 1.20.0-rc4: the detect line on each CLI page in the Connections window no longer stays on Looking... A pre-release for hand testing; it is promoted to stable only after named hand rows pass. |
@@ -108,6 +109,16 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 The detailed narrative entries below are unchanged -- this table is purely an additive index on
 top of them.
+
+<a id="v1-20-0-rc8"></a>
+## [1.20.0-rc8] — 2026-11-27 — Pre-release 1.20.0-rc8. No breaking changes -- requires QGIS 4.2+. Built on 1.20.0-rc7: a second download of the same file in one session no longer fails with 'timed out' (the second request was answered from QGIS's own cache and never delivered its data), and the cause of the large-download card's empty boundary download (smoke row C28) is now found and fixed. A pre-release for hand testing; it is promoted to stable only after named hand rows pass.
+
+No breaking changes; QGIS 4.2+. Everything since 1.20.0-rc7:
+
+- A second download of the same file works: The second download of the same file in a session (for example the same country's boundary again) used to be answered from QGIS's own network cache, and that answer never delivered its data, so it ended as 'timed out' within a fraction of a second while the first download had worked. Downloads that stream a large file now always ask the network, never the cache.
+- The empty boundary download of smoke row C28 is explained: The 5 MB geoBoundaries download on the large-download card added no layer because the file came through QGIS's streamed reply, which handed back only its first 1 MB, and the truncated file would not open as a layer. That was fixed in rc7 (streamed reads over 1 MB are read to the end). It was reproduced in a real QGIS 4.2.2 (Linux, no screen) with the rc5 code (the Apply answered success and added no layer) and shown fixed with the rc7 code (the layer is added, 335 features).
+- Known limit: This was reproduced and fixed in QGIS 4.2.2 on Linux, not on Windows 4.2.3, where your hand rows ran. It is also not known whether the testing agent's Cancel and Apply clicks reached the plugin in the 2026-11-25 run: the log has no line for them. Smoke row C28 and the repeat-download rows W2 and W3 need a hand re-run.
+- Not hand-tested: Everything above is checked by the offline suite and by CI on QGIS 4.2.2 (including live tests of the 3 MB streamed read and of a cached file downloaded three times); none of it has been seen in desktop QGIS. Everything listed under 1.20.0-rc7, rc6, rc5, rc4, rc3, rc2 and rc1 still applies (smoke rows C28 and C29, issue 510 Connections).
 
 <a id="v1-20-0-rc7"></a>
 ## [1.20.0-rc7] — 2026-11-26 — Pre-release 1.20.0-rc7. No breaking changes -- requires QGIS 4.2+. Built on 1.20.0-rc6: a boundary download that arrives cut short, as a web page or as a Git LFS pointer is now caught before it is saved and the chat says which, a streamed download over 1 MB is now read to the end, and every Apply on a confirmation card now leaves a line in the plugin log. A pre-release for hand testing; it is promoted to stable only after named hand rows pass.
