@@ -138,3 +138,16 @@ class TestStreamedReadOfABigBody(unittest.TestCase):
         src = inspect.getsource(net._StreamResponse.read)
         self.assertIn("amt > self.READ_BUFFER", src)
         self.assertIn("while got < amt", src)
+
+
+class TestStreamedDownloadBypassesTheQgisCache(unittest.TestCase):
+    """Source-text guard (the behaviour itself runs only in real QGIS, in tests/test_net_live.py): a streamed download must ask the network, never QGIS's cache."""
+
+    def test_the_stream_request_sets_always_network(self):
+        import inspect
+
+        from cartogen_ai.core import net
+        src = inspect.getsource(net._qgis_stream_open)
+        self.assertIn("CacheLoadControlAttribute", src)
+        self.assertIn("AlwaysNetwork", src)
+
