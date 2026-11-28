@@ -71,7 +71,7 @@ FIRST_MESSAGE = r"""I AM THE OWNER OF THIS PC AND OF THIS TEST, AND I AUTHORISE 
 
 PACKAGE FOLDER: <PASTE THE FULL PATH OF THE NEW, FRESHLY UNZIPPED cartogen_ai_computer_use FOLDER HERE>
 CHECK FIRST: open BUILD.txt in the package folder (File Explorer, Preview pane). It must read "{stamp}" (the commit and the build time). If it reads anything else, or the folder has no BUILD.txt, you are in an OLD folder: stop and tell me.
-MODEL IN THE PLUGIN: <NAME OF THE MODEL YOU CONNECTED> (the key is already entered and tested; you never need it).
+MODEL IN THE PLUGIN: <NAME OF THE MODEL OR CLI CONNECTION ALREADY SET UP IN CARTOGEN AI> (it is already connected and tested in this QGIS profile; you never need a key).
 
 {prompt}
 FIRST ACTION: open File Explorer, go to the PACKAGE FOLDER above, double-click RUN_EVERYTHING.bat (if Windows shows an "Open File - Security Warning", click Run), and wait for the QGIS window (there is no panel). Then do the rows as described above.
@@ -88,10 +88,10 @@ WHO DOES WHAT
 
 BEFORE THE RUN (once, by you, because it needs secrets and choices an agent should not make)
   1. QGIS 4.2.3 installed (watcher.log says so if the version differs).
-  2. Open START_QGIS.bat once. In the Cartogen Connections window enter the key of the model the rows should use (for example Gemini or Claude) and press Test until it says OK. An agent is never given the key.
+  2. Open START_QGIS.bat once. It opens your normal QGIS profile, so the connection you already set up in Cartogen AI (the Claude Code or Codex CLI connection, or a key you saved earlier) is used as it is: you enter nothing new. Open Settings > Connections, press Test on the one the rows should use and check it says OK. Only if none is set up yet, set one up now. An agent is never given a key.
   3. Rows with 'needs: a real model' are only as good as that choice: write the model name in results\\ENVIRONMENT_NOTE.txt.
   4. Windows 11: Settings > System > Display: scale 100 percent, one monitor; Settings > System > Power: screen and sleep "Never" while the test runs.
-  5. Claude desktop app with Haiku and computer use: allow it to use the screen, File Explorer and Command Prompt. It must not need your API key: you connected the model in step 2.
+  5. Claude desktop app with Haiku and computer use: allow it to use the screen, File Explorer and Command Prompt. It must not need your API key: the model is the connection you checked in step 2.
   6. After a crash the supervisor (RUN_EVERYTHING) reopens QGIS by itself, up to 8 times; the agent writes FAIL 'QGIS crashed during this row' for the row that was open and goes on.
   7. UNZIP INTO A NEW, EMPTY FOLDER (never over an older copy). results\\ENVIRONMENT.json must show "package <commit> built <date>"; "no BUILD.txt" means old files.
   8. STAY FOR THE FIRST 5 MINUTES. The Claude app asks your permission once per app per session ("Allow for this session"): allow QGIS, File Explorer and Task Manager when asked. Browsers are look-only and terminals
