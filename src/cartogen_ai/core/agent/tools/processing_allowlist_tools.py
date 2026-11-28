@@ -307,10 +307,45 @@ def heatmap_violation(alg_id, resolved_params):
     return None
 
 
+_CELL_SIZE_RASTERIZERS = {"native:meshrasterize": "PIXEL_SIZE"}      # algorithms that turn a layer into a raster at a cell size the caller gives
+
+
+def cell_size_violation(alg_id, resolved_params):
+    """A message when the cell size asked for is larger than the whole input layer, else None. Pure given the layer and numbers.
+
+    Round-3 live smoke (row B6, DEF-30): native:meshrasterize with PIXEL_SIZE 5 on a mesh 0.01 degrees wide. Older builds answered 'ran successfully with no new layer'; QGIS 4.2.2 answers
+    'Could not write raster block: writeBlock() called on read-only provider' (re-run 2026-11-28), which says nothing about the cell size. One cell larger than the data cannot make a raster, so say so
+    before running. Judged only when the cell size is in the layer's own units (no output CRS given, the same one, or a layer with no CRS), so a metres cell size on a degrees layer is never refused by mistake."""
+    key = _CELL_SIZE_RASTERIZERS.get(alg_id)
+    layer = resolved_params.get("INPUT")
+    if not key or key not in resolved_params or not hasattr(layer, "extent"):
+        return None
+    try:
+        cell = float(resolved_params[key])
+        extent = layer.extent()
+        width, height = float(extent.width()), float(extent.height())
+        crs = layer.crs()
+        layer_crs_known = bool(crs.isValid())
+        authid = crs.authid() if layer_crs_known else ""
+    except (TypeError, ValueError, AttributeError):
+        return None
+    output_crs = resolved_params.get("CRS_OUTPUT")
+    output_text = output_crs if isinstance(output_crs, str) else getattr(output_crs, "authid", lambda: "")()
+    if layer_crs_known and output_text and output_text != authid:
+        return None                                  # different units possible: not this guard's to judge
+    size = max(width, height)
+    if cell <= 0 or size <= 0 or cell <= size:
+        return None
+    name = layer.name() if hasattr(layer, "name") else "the layer"
+    return (f"The cell size {cell:g} is larger than the whole of '{name}', which spans only {width:g} x {height:g} in its own units, so the raster would have no cells. "
+            f"Use a smaller cell size, for example {size / 100:g}. Nothing was run.")
+
+
 def _check_raster_lists(alg_id, resolved_params, layer_list_keys, kinds=None):
     """Raises ValueError (reported as "'<alg>' failed: ...") when a layer list or a single layer is of the wrong kind; the algorithm is not run."""
     problem = (_raster_list_violation(alg_id, resolved_params, layer_list_keys) or layer_kind_violation(alg_id, resolved_params, kinds)
-               or geometry_violation(alg_id, resolved_params, _geometry_limits(alg_id)) or heatmap_violation(alg_id, resolved_params))
+               or geometry_violation(alg_id, resolved_params, _geometry_limits(alg_id)) or heatmap_violation(alg_id, resolved_params)
+               or cell_size_violation(alg_id, resolved_params))
     if problem:
         raise ValueError(problem)
 
