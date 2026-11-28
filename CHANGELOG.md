@@ -7,6 +7,7 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 | Version | Date | Summary |
 |---|---|---|
+| [1.20.0-rc9](#v1-20-0-rc9) | 2026-11-28 | **Pre-release 1.20.0-rc9.** No breaking changes -- requires QGIS 4.2+. Built on 1.20.0-rc8: a raster cell size larger than the whole input layer (the mesh-to-raster tool) is now refused before it runs, with a plain message and a suggested size, instead of failing with an unreadable error. A pre-release for hand testing; it is promoted to stable only after named hand rows pass. |
 | [1.20.0-rc8](#v1-20-0-rc8) | 2026-11-27 | **Pre-release 1.20.0-rc8.** No breaking changes -- requires QGIS 4.2+. Built on 1.20.0-rc7: a second download of the same file in one session no longer fails with 'timed out' (the second request was answered from QGIS's own cache and never delivered its data), and the cause of the large-download card's empty boundary download (smoke row C28) is now found and fixed. A pre-release for hand testing; it is promoted to stable only after named hand rows pass. |
 | [1.20.0-rc7](#v1-20-0-rc7) | 2026-11-26 | **Pre-release 1.20.0-rc7.** No breaking changes -- requires QGIS 4.2+. Built on 1.20.0-rc6: a boundary download that arrives cut short, as a web page or as a Git LFS pointer is now caught before it is saved and the chat says which, a streamed download over 1 MB is now read to the end, and every Apply on a confirmation card now leaves a line in the plugin log. A pre-release for hand testing; it is promoted to stable only after named hand rows pass. |
 | [1.20.0-rc6](#v1-20-0-rc6) | 2026-11-26 | **Pre-release 1.20.0-rc6.** No breaking changes -- requires QGIS 4.2+. Built on 1.20.0-rc5: a boundary download that adds no layer now says so in chat, and a second download of the same boundary in one session downloads it again instead of reusing a file that was already deleted. A pre-release for hand testing; it is promoted to stable only after named hand rows pass. |
@@ -109,6 +110,15 @@ see the `[1.4.0]` entry below and `CONTRIBUTING.md`). Entries were relocated ver
 
 The detailed narrative entries below are unchanged -- this table is purely an additive index on
 top of them.
+
+<a id="v1-20-0-rc9"></a>
+## [1.20.0-rc9] — 2026-11-28 — Pre-release 1.20.0-rc9. No breaking changes -- requires QGIS 4.2+. Built on 1.20.0-rc8: a raster cell size larger than the whole input layer (the mesh-to-raster tool) is now refused before it runs, with a plain message and a suggested size, instead of failing with an unreadable error. A pre-release for hand testing; it is promoted to stable only after named hand rows pass.
+
+No breaking changes; QGIS 4.2+. Everything since 1.20.0-rc8:
+
+- A cell size larger than the data is refused up front: Turning a mesh into a raster with a cell size far larger than the mesh (for example 5 on a mesh 0.01 degrees wide) failed in QGIS 4.2.2 with 'Could not write raster block: writeBlock() called on read-only provider', which never mentions the cell size. The request is now refused before anything runs, with a plain message that names the cell size and suggests a smaller one. A cell size given in other units than the layer's (metres on a degrees layer) is never refused by mistake, and a sensible size still builds the raster.
+- Known limit: Smoke row C28 and the repeat-download rows W2 and W3 were reproduced and fixed in a real QGIS 4.2.2 on Linux (rc7 and rc8), not on Windows 4.2.3, and it is not known whether the testing agent's Cancel and Apply clicks reached the plugin in the 2026-11-25 run. Those rows still need the testing agent's re-run on your machine.
+- Not hand-tested: Everything above is checked by the offline suite and by CI on QGIS 4.2.2, and the cell-size case was run in a real QGIS 4.2.2 (Linux, no screen); none of it has been seen in desktop QGIS. Everything listed under 1.20.0-rc8, rc7, rc6, rc5, rc4, rc3, rc2 and rc1 still applies (smoke rows C28 and C29, issue 510 Connections).
 
 <a id="v1-20-0-rc8"></a>
 ## [1.20.0-rc8] — 2026-11-27 — Pre-release 1.20.0-rc8. No breaking changes -- requires QGIS 4.2+. Built on 1.20.0-rc7: a second download of the same file in one session no longer fails with 'timed out' (the second request was answered from QGIS's own cache and never delivered its data), and the cause of the large-download card's empty boundary download (smoke row C28) is now found and fixed. A pre-release for hand testing; it is promoted to stable only after named hand rows pass.

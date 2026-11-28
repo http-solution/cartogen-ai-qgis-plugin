@@ -8,15 +8,14 @@ metadata changelog, CHANGELOG.md, README and this module agree). Checklist: CONT
 releases listed in NEW_MARK_VERSIONS.
 """
 
-WHATS_NEW_VERSION = "1.20.0-rc8"
-NEW_MARK_VERSIONS = ("1.20.0-rc7", "1.20.0-rc8")
+WHATS_NEW_VERSION = "1.20.0-rc9"
+NEW_MARK_VERSIONS = ("1.20.0-rc8", "1.20.0-rc9")
 
 # Headline items of the current version (the full list is the metadata.txt changelog block and CHANGELOG.md).
 WHATS_NEW_ITEMS = [
-    ('A second download of the same file works', "The second download of the same file in a session (for example the same country's boundary again) used to be answered from QGIS's own network cache, and that answer never delivered its data, so it ended as 'timed out' within a fraction of a second while the first download had worked. Downloads that stream a large file now always ask the network, never the cache."),
-    ('The empty boundary download of smoke row C28 is explained', "The 5 MB geoBoundaries download on the large-download card added no layer because the file came through QGIS's streamed reply, which handed back only its first 1 MB, and the truncated file would not open as a layer. That was fixed in rc7 (streamed reads over 1 MB are read to the end). It was reproduced in a real QGIS 4.2.2 (Linux, no screen) with the rc5 code (the Apply answered success and added no layer) and shown fixed with the rc7 code (the layer is added, 335 features)."),
-    ('Known limit', "This was reproduced and fixed in QGIS 4.2.2 on Linux, not on Windows 4.2.3, where your hand rows ran. It is also not known whether the testing agent's Cancel and Apply clicks reached the plugin in the 2026-11-25 run: the log has no line for them. Smoke row C28 and the repeat-download rows W2 and W3 need a hand re-run."),
-    ('Not hand-tested', 'Everything above is checked by the offline suite and by CI on QGIS 4.2.2 (including live tests of the 3 MB streamed read and of a cached file downloaded three times); none of it has been seen in desktop QGIS. Everything listed under 1.20.0-rc7, rc6, rc5, rc4, rc3, rc2 and rc1 still applies (smoke rows C28 and C29, issue 510 Connections).'),
+    ('A cell size larger than the data is refused up front', "Turning a mesh into a raster with a cell size far larger than the mesh (for example 5 on a mesh 0.01 degrees wide) failed in QGIS 4.2.2 with 'Could not write raster block: writeBlock() called on read-only provider', which never mentions the cell size. The request is now refused before anything runs, with a plain message that names the cell size and suggests a smaller one. A cell size given in other units than the layer's (metres on a degrees layer) is never refused by mistake, and a sensible size still builds the raster."),
+    ('Known limit', "Smoke row C28 and the repeat-download rows W2 and W3 were reproduced and fixed in a real QGIS 4.2.2 on Linux (rc7 and rc8), not on Windows 4.2.3, and it is not known whether the testing agent's Cancel and Apply clicks reached the plugin in the 2026-11-25 run. Those rows still need the testing agent's re-run on your machine."),
+    ('Not hand-tested', 'Everything above is checked by the offline suite and by CI on QGIS 4.2.2, and the cell-size case was run in a real QGIS 4.2.2 (Linux, no screen); none of it has been seen in desktop QGIS. Everything listed under 1.20.0-rc8, rc7, rc6, rc5, rc4, rc3, rc2 and rc1 still applies (smoke rows C28 and C29, issue 510 Connections).'),
 ]
 
 HUMANITARIAN_WORKFLOWS = [('1. Rapid crisis and base mapping',
